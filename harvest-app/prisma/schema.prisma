@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  REP
+  UPLINE
+  ADMIN
+  DUAL
+  RVP
+  EXTERNAL
+}
+
+enum OrgType {
+  PRIMERICA
+  EXTERNAL
+}
+
+enum AccessTier {
+  FREE
+  ESSENTIAL
+  PRO
+  ELITE
+}
+
+enum OnboardingStep {
+  REGISTER
+  ACCOUNT_TYPE
+  SEVEN_WHYS
+  GOAL_CARD
+  INTENSITY
+  COMPLETE
+}
+
+enum CFEOutcome {
+  PASS
+  FLAG
+  BLOCK
+}
+
+model AuditEntry {
+  id              String     @id @default(uuid())
+  user_id         String
+  content_text    String     // Added
+  content_hash    String
+  risk_score      Int
+  outcome         CFEOutcome
+  classifier_data Json
+  rule_version    String     // Added
+  regulation      String     // Added
+  reviewer_id     String?    // Added
+  reviewer_action String?    // Added
+  role            Role       @default(REP)
+  created_at      DateTime   @default(now())
+
+  @@index([created_at])
+  @@index([user_id, created_at])
+}
+
+model ComplianceConsent {
+  id              String   @id @default(uuid())
+  user_id         String
+  consent_type    String
+  given           Boolean
+  timestamp       DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([user_id, timestamp])
+}
+
+model ComplianceRule {
+  id              String   @id @default(uuid())
+  name            String
+  regulation      String
+  version         String
+  parameters      Json
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+}
+
+model ComplianceReviewQueue {
+  id              String   @id @default(uuid())
+  audit_entry_id  String   @unique
+  status          String   // PENDING, APPROVED, REJECTED, MODIFIED
+  upline_id       String
+  created_at      DateTime @default(now())
+}
+
+model ComplianceUplineReview {
+  id              String   @id @default(uuid())
+  audit_entry_id  String
+  reviewer_id     String
+  action          String
+  feedback        String?
+  timestamp       DateTime @default(now())
+}
+
+model ComplianceException {
+  id              String   @id @default(uuid())
+  audit_entry_id  String
+  reason          String
+  created_at      DateTime @default(now())
+}
+
+model UserDataExport {
+  id              String   @id @default(uuid())
+  user_id         String
+  status          String   // PENDING, COMPLETED, FAILED
+  expires_at      DateTime
+  created_at      DateTime @default(now())
+}
+
+model UserDataDeletion {
+  id              String   @id @default(uuid())
+  user_id         String
+  status          String   // PENDING, COMPLETED, FAILED
+  anonymized_fields String[]
+  requested_at    DateTime @default(now())
+  completed_at    DateTime?
+}
+
+model Organization {
+  id         String   @id @default(uuid())
+  name       String
+  type       OrgType
+  created_at DateTime @default(now())
+  users      User[]
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password_hash   String
+  name            String
+  phone           String?
+  role            Role      @default(REP)
+  org_type        OrgType   @default(EXTERNAL)
+  solution_number String?
+  upline_id       String?
+  upline          User?     @relation("UserUpline", fields: [upline_id], references: [id])
+  downlines       User[]    @relation("UserUpline")
+  access_tier     AccessTier @default(FREE)
+  commitment_score Int      @default(0)
+  organization_id String?
+  organization    Organization? @relation(fields: [organization_id], references: [id])
+  onboarding_sessions OnboardingSession[]
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+}
+
+model OnboardingSession {
+  id            String   @id @default(uuid())
+  user_id       String
+  user          User     @relation(fields: [user_id], references: [id])
+  current_step  OnboardingStep @default(REGISTER)
+  seven_whys    Json?
+  goal_card     Json?
+  intensity_data Json?
+  completed     Boolean  @default(false)
+  created_at    DateTime @default(now())
+}
