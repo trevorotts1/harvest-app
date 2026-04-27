@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OnboardingStep, STEP_ORDER, MIN_COMMITMENT_SCORE } from '../../../types/onboarding';
-import { onboardingService } from '../../../services/onboarding/service';
+import { OnboardingStep, STEP_ORDER, MIN_COMMITMENT_SCORE } from '@/types/onboarding';
+import { onboardingService } from '@/services/onboarding/service';
 
 // In-memory store for tests
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       solutionNumber: data.solutionNumber as string | undefined,
       sevenWhys: data.sevenWhys as string[] | undefined,
       goalCard: data.goalCard as { primaryGoal: string; targetDate: string; commitmentLevel: number; motivationStatement: string } | undefined,
-      intensityData: data.intensityData as { commitmentScore: number; weeklyHours: number; riskTolerance: string; supportNeeds: string[] } | undefined,
+      intensityData: data.intensityData as { commitmentScore: number; weeklyHours: number; riskTolerance: 'LOW' | 'MEDIUM' | 'HIGH'; supportNeeds: string[] } | undefined,
     });
 
     if (!validation.valid) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OnboardingStep } from '../../../types/onboarding';
-import { onboardingService } from '../../../services/onboarding/service';
+import { OnboardingStep } from '@/types/onboarding';
+import { onboardingService } from '@/services/onboarding/service';
 
 // In-memory store for tests (swap with Prisma in production)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

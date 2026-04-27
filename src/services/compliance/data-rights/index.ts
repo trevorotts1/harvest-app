@@ -1,0 +1,2 @@
+export { DataRightsService } from './data-rights';
+export type { ExportRequest, ExportResult, DeletionRequest, DeletionResult, DeletionStep, RectificationRequest, RectificationResult } from './data-rights';

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OnboardingStep } from '../../../types/onboarding';
+import { OnboardingStep } from '@/types/onboarding';
 
 // In-memory store for tests
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

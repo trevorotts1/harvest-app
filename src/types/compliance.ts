@@ -73,6 +73,8 @@ export interface CFEResult {
   classifier_results: ClassifierResult[];
   safe_harbor_injected: boolean;
   safe_harbor_disclaimers: string[];
+  safe_harbor_applied: boolean;     // Whether any safe-harbor rule was triggered
+  safe_harbor_text: string;        // Concatenated safe-harbor text for injection
   audit_payload: AuditPayload;
   blocked: boolean;
   http_status: number;
@@ -152,6 +154,33 @@ export const SAFE_HARBOR_DISCLAIMERS = {
   insurance: 'Insurance recommendations are general in nature and do not constitute personalized financial advice. Consult a licensed professional for guidance specific to your situation.',
   referral: 'Referrals are voluntary and should not be incentivized beyond what is permitted by applicable regulations.',
 } as const;
+
+// CFE Configuration — parameterized rules, updatable without code changes
+export interface CFEConfig {
+  classifier_weights: Record<Classifier, number>;
+  regulation_multipliers: Record<Regulation, number>;
+  risk_thresholds: {
+    auto_deploy_max: number;
+    flag_min: number;
+    block_min: number;
+  };
+  timeout_ms: number;
+  rule_version: string;
+  fail_closed: boolean; // If true, unavailable CFE blocks all content
+}
+
+export const DEFAULT_CFE_CONFIG: CFEConfig = {
+  classifier_weights: { ...CLASSIFIER_WEIGHTS },
+  regulation_multipliers: { ...REGULATION_MULTIPLIERS },
+  risk_thresholds: {
+    auto_deploy_max: RISK_THRESHOLDS.AUTO_DEPLOY.max,
+    flag_min: RISK_THRESHOLDS.FLAG.min,
+    block_min: RISK_THRESHOLDS.BLOCK.min,
+  },
+  timeout_ms: CFE_TIMEOUT_MS,
+  rule_version: CFE_RULE_VERSION,
+  fail_closed: true,
+};
 
 // Pre-generation compliance constraints for agent prompt templates
 export const PRE_GENERATION_CONSTRAINTS = {
