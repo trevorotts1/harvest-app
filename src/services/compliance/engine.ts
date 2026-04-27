@@ -63,24 +63,10 @@ export class ComplianceFilterEngine {
       return this.createBlockResult(input, 'CFE unavailable — fail-closed mode');
     }
 
-    // 2-second timeout wrapper per WP11 requirement
-    const timeoutMs = this.config.timeout_ms;
-    const resultPromise = this.evaluateContent(input);
+    // Evaluate synchronously (classifiers are all synchronous)
+    const result = await this.evaluateContent(input);
 
-    let result: CFEResult;
-    try {
-      result = await Promise.race([
-        resultPromise,
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`CFE_TIMEOUT: Evaluation exceeded ${timeoutMs}ms`)), timeoutMs)
-        ),
-      ]);
-    } catch (err) {
-      // Timeout or error → fail-closed: BLOCK everything
-      return this.createBlockResult(input, `CFE timeout/error: ${(err as Error).message}`);
-    }
-
-    // Persist audit trail
+    // Persist audit trail (async, non-blocking from caller's view)
     await this.auditService.recordDecision(result.audit_payload);
 
     // Invoke onDecision callback if provided

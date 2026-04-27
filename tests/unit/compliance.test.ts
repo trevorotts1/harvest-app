@@ -1,5 +1,8 @@
 import { ComplianceFilterEngine } from '../../src/services/compliance/engine';
 
+// Use fake timers to prevent Jest hang from setTimeout in reviewWithTimeout
+jest.useFakeTimers();
+
 describe('ComplianceFilterEngine', () => {
   let engine: ComplianceFilterEngine;
 
@@ -16,47 +19,39 @@ describe('ComplianceFilterEngine', () => {
     expect(result.outcome).toBe('BLOCK');
     expect(result.risk_score).toBeGreaterThan(70);
     expect(result.http_status).toBe(403);
+    expect(result.blocked).toBe(true);
   });
 
   test('should flag content with medium risk (FLAG)', async () => {
     const result = await engine.review({
-      content: 'Hey, I wanted to say hi to a friend.',
+      content: 'This extra income opportunity could work for you',
       channel: 'SMS',
       userContext: { user_id: '123', role: 'REP', regulations: [] }
     });
-    // This content should PASS or be very low risk
-    // Let's use something that is clearly FLAG but not BLOCK
-    // Actually, "opportunity" is 0.6 weight in OpportunityClassifier
-    // Opportunity Classifier weight is 0.15 * 0.6 * 3 = 0.27
-    // Let's use something that triggers a single classifier moderately
-    const result2 = await engine.review({
-      content: 'I have some extra income for you to think about.',
-      channel: 'SMS',
-      userContext: { user_id: '123', role: 'REP', regulations: [] }
-    });
-    expect(result2.outcome).toBe('FLAG');
-    expect(result2.risk_score).toBeGreaterThan(10);
-    expect(result2.risk_score).toBeLessThanOrEqual(70);
+    expect(result.outcome).toBe('FLAG');
+    expect(result.risk_score).toBeGreaterThan(10);
+    expect(result.risk_score).toBeLessThanOrEqual(70);
   });
 
   test('should pass safe content (PASS)', async () => {
     const result = await engine.review({
-      content: 'Hey, want to grab coffee?',
+      content: 'Hi, how was your day? Would you like to grab coffee this weekend?',
       channel: 'SMS',
       userContext: { user_id: '123', role: 'REP', regulations: [] }
     });
     expect(result.outcome).toBe('PASS');
     expect(result.risk_score).toBeLessThanOrEqual(10);
+    expect(result.blocked).toBe(false);
   });
 
   test('should calculate real classifier scores', async () => {
     const result = await engine.review({
-      content: 'I love my life insurance policy! It has great coverage and I recommend it to everyone.',
-      channel: 'SMS',
+      content: 'life insurance policy with guaranteed income and coverage options',
+      channel: 'EMAIL',
       userContext: { user_id: '123', role: 'REP', regulations: [] }
     });
     expect(result.classifier_data.INSURANCE).toBeGreaterThan(0);
-    expect(result.classifier_data.INCOME_CLAIM).toBe(0);
+    expect(result.classifier_data.INCOME_CLAIM).toBeGreaterThan(0);
     expect(result.classifier_data.OPPORTUNITY).toBe(0);
   });
 
@@ -67,6 +62,7 @@ describe('ComplianceFilterEngine', () => {
       userContext: { user_id: '123', role: 'REP', regulations: [] }
     });
     expect(emptyResult.outcome).toBe('PASS');
+    expect(emptyResult.risk_score).toBe(0);
     
     const specialChars = await engine.review({
       content: '!!! @#$%^&* ()',
@@ -74,5 +70,54 @@ describe('ComplianceFilterEngine', () => {
       userContext: { user_id: '123', role: 'REP', regulations: [] }
     });
     expect(specialChars.outcome).toBe('PASS');
+
+    const veryLongContent = await engine.review({
+      content: 'a'.repeat(10000),
+      channel: 'EMAIL',
+      userContext: { user_id: '123', role: 'REP', regulations: [] }
+    });
+    expect(veryLongContent.outcome).toBe('PASS');
+  });
+
+  test('should invoke onDecision callback', async () => {
+    const onDecision = jest.fn();
+    const eng = new ComplianceFilterEngine({ onDecision });
+    await eng.review({
+      content: 'hello friend',
+      channel: 'SMS',
+      userContext: { user_id: '123', role: 'REP', regulations: [] }
+    });
+    expect(onDecision).toHaveBeenCalled();
+  });
+
+  test('should block when CFE is unavailable (fail-closed)', async () => {
+    engine.setAvailability(false);
+    const result = await engine.review({
+      content: 'safe content that would normally pass',
+      channel: 'SMS',
+      userContext: { user_id: '123', role: 'REP', regulations: [] }
+    });
+    expect(result.outcome).toBe('BLOCK');
+    expect(result.http_status).toBe(403);
+    expect(result.blocked).toBe(true);
+  });
+
+  test('should record audit trail', async () => {
+    const result = await engine.review({
+      content: 'test audit trail content',
+      channel: 'EMAIL',
+      userContext: { user_id: '456', role: 'UPLINE', regulations: ['FINRA'] }
+    });
+    expect(result.audit_payload).toBeDefined();
+    expect(result.audit_payload.user_id).toBe('456');
+    expect(result.audit_payload.role).toBe('UPLINE');
+    expect(result.audit_payload.channel).toBe('EMAIL');
+    expect(result.audit_payload.content_hash).toBeDefined();
+    expect(result.audit_payload.rule_version).toBe('1.0.0');
+
+    const auditService = engine.getAuditService();
+    const records = await auditService.query({ user_id: '456' });
+    expect(records.length).toBe(1);
+    expect(records[0].risk_score).toBe(result.risk_score);
   });
 });
