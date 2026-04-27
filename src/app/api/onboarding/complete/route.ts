@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Finalize: determine access tier
-    const accessTier = onboardingService.determineAccessTier(commitmentScore);
+    const accessTier = onboardingService.determineAccessTier(commitmentScore, session.org_type);
 
     // Mark session completed
     session.completed = true;

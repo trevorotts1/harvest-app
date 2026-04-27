@@ -52,13 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Business rule validation
-    const validation = onboardingService.canProgressTo(session.current_step, {
-      orgType: data.orgType as string | undefined,
-      solutionNumber: data.solutionNumber as string | undefined,
-      sevenWhys: data.sevenWhys as string[] | undefined,
-      goalCard: data.goalCard as { primaryGoal: string; targetDate: string; commitmentLevel: number; motivationStatement: string } | undefined,
-      intensityData: data.intensityData as { commitmentScore: number; weeklyHours: number; riskTolerance: 'LOW' | 'MEDIUM' | 'HIGH'; supportNeeds: string[] } | undefined,
-    });
+    const validation = onboardingService.validateStep(session as OnboardingSession, step, data as any);
 
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
