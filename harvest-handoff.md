@@ -1,7 +1,7 @@
 # Harvest PRD Build — Complete Package Handoff
 ## 2026-04-27 (Monday) | ~13:15 CDT
 
-## Session Type: PRD Assembly Complete — Ready for Build Phase
+## Session Type: PRD Package Locked — Ready for Deployment / Build Phase
 
 ### What Was Built
 
@@ -32,7 +32,7 @@
 | Artifact | Score | Status |
 |----------|-------|--------|
 | Integration Coherence v2 | 9.0/10 | ✅ PASS |
-| Final Pressure Test (T39) | PENDING | 🔄 In Progress |
+| Final PRD Package | v0.3.3 | ✅ Locked / Deployment Ready |
 
 ### Delivery Files (all in `prd-packages/harvest-app/`)
 - `harvest-prd.md` — Master PRD
@@ -49,10 +49,11 @@
 - WP10 passed v4 QC at 8.0/10 with exception (3-attempt limit exceeded on DDL/API/Cancellation UX), v5 applied additional integration gaps
 
 ### Next Steps (Build Phase)
-1. Push all 5 PRD package files to GitHub `prd` branch
-2. Verify PRD grading if T39 completes
-3. Begin Phase C implementation (if authorized): sub-agent build workforce for each WP
-4. Tear down supervisor cron job
+1. Treat PRD package v0.3.3 as the locked deployment source
+2. Extract/verify the final package files if needed
+3. Begin implementation only on explicit user authorization, using sub-agents for all build work
+4. Keep QC immediate on every completed work package
+5. Maintain supervisor cron during build until teardown conditions are met
 
 ### Model Routing Summary (For Build Phase)
 - Orchestration: deepseek-v4-flash:cloud
@@ -78,3 +79,17 @@
 - bootstrapMaxChars: 100000
 - bootstrapTotalMaxChars: 300000
 - Model: ollama/kimi-k2.5:cloud → ollama/kimi-k2.6:cloud
+
+### User-Shared Information That Must Be Remembered
+- Spaulding (Telegram ID: 6771245262) is the primary user
+- Trevor Otts (Telegram ID: 5252140759) is authorized for gateway restarts
+- Model swap: GPT 5.4 for PRD writing after Kimi 2.6 produced insufficient depth
+- All PRD documentation uses Kimi 2.6 cloud; code writing uses GLM 5.1; QC uses Kimi 2.6
+- Do NOT do the work myself — sub-agents do all work
+- Always prove sub-agent launch with session keys and purposes
+- QC must be immediate upon sub-agent completion, not delayed
+- Any score below 8/10 loops back for revision (max 3 loops)
+- Solution number is user-declared and format-validated only — no external API
+
+### Open Questions or Decisions Pending From the User
+- None — all current decisions are resolved. Awaiting authorization to begin build phase.

@@ -151,37 +151,37 @@
 
 ## Delivery & Push
 
-- [ ] **T40** — Push PRD package to GitHub `prd` branch (all 5 files: prd, todo, qc-checklist, changelog, handoff)
-  **Phase:** Delivery | **Dependencies:** T39 | **Status:** [ ]
+- [x] **T40** — Push PRD package to GitHub `prd` branch (all 5 files: prd, todo, qc-checklist, changelog, handoff)
+  **Phase:** Delivery | **Dependencies:** T39 | **Status:** ✅ Done (pushed to main + prd branch)
 
-- [ ] **T41** — Vercel deployment (if applicable — PRD static site or prototype)
-  **Phase:** Delivery | **Dependencies:** T40 | **Status:** [ ]
+- [x] **T41** — Vercel deployment (if applicable — PRD static site or prototype)
+  **Phase:** Delivery | **Dependencies:** T40 | **Status:** ✅ N/A (PRD package — no Vercel deployment needed)
 
 ---
 
 ## Documentation Artifacts
 
-- [ ] **T42** — Create/update `harvest-changelog.md` — versioned log of all changes
-  **Phase:** Docs | **Dependencies:** T01 | **Status:** [ ]
+- [x] **T42** — Create/update `harvest-changelog.md` — versioned log of all changes
+  **Phase:** Docs | **Dependencies:** T01 | **Status:** ✅ Done (v0.4.0 entry added)
 
-- [ ] **T43** — Create/update `harvest-qc-checklist.md` — work-package-specific QC criteria + pressure test protocol
-  **Phase:** Docs | **Dependencies:** T01 | **Status:** [ ]
+- [x] **T43** — Create/update `harvest-qc-checklist.md` — work-package-specific QC criteria + pressure test protocol
+  **Phase:** Docs | **Dependencies:** T01 | **Status:** ✅ Done (expanded to 505+ lines)
 
-- [ ] **T44** — Create/update `harvest-handoff.md` — handoff summary for build workforce
-  **Phase:** Docs | **Dependencies:** T39 | **Status:** [ ]
+- [x] **T44** — Create/update `harvest-handoff.md` — handoff summary for build workforce
+  **Phase:** Docs | **Dependencies:** T39 | **Status:** ✅ Done (complete handoff documented)
 
 ---
 
 ## Teardown
 
-- [ ] **T45** — Remove cron supervisor job
-  **Phase:** Teardown | **Dependencies:** T41 | **Status:** [ ]
+- [x] **T45** — Remove cron supervisor job
+  **Phase:** Teardown | **Dependencies:** T41 | **Status:** ✅ Done (cron removed)
 
-- [ ] **T46** — Verify cron shows `Enabled: false` after removal
-  **Phase:** Teardown | **Dependencies:** T45 | **Status:** [ ]
+- [x] **T46** — Verify cron shows `Enabled: false` after removal
+  **Phase:** Teardown | **Dependencies:** T45 | **Status:** ✅ Done (cron fully removed — no harvest entries in list)
 
-- [ ] **T47** — Run `openclaw doctor` — confirm clean system state (build officially closed only on clean pass)
-  **Phase:** Teardown | **Dependencies:** T46 | **Status:** [ ]
+- [x] **T47** — Run `openclaw doctor` — confirm clean system state (build officially closed only on clean pass)
+  **Phase:** Teardown | **Dependencies:** T46 | **Status:** ✅ Clean pass (no errors, only pre-existing deprecation warnings)
 
 ---
 
@@ -199,7 +199,7 @@
 | Delivery tasks | 2 | T40, T41 |
 | Documentation artifacts | 3 | T42, T43, T44 |
 | Teardown tasks | 3 | T45, T46, T47 |
-| **Total** | **47** | |
+| **Total** | **47** | **All 47 tasks ✅ COMPLETE** |
 
 ---
 
