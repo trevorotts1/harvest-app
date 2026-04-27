@@ -50,25 +50,28 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-Structured relationship data must be present for all ingested contacts, ensuring a high-fidelity representation of the user's network. Native mobile/desktop ingestion, CSV import functionalities, and robust deduplication and normalization algorithms must pass exhaustive testing with dirty data sets. The Hidden Earnings Estimate must be calculated correctly based on relationship strength and industry benchmarks, providing the user with actionable insights while simultaneously maintaining the absolute confidentiality of the contact data. This entire pipeline must be engineered from the ground up to be privacy-compliant, with encryption enforced at rest. The system needs to support staged pipeline visualization for all segments, allowing users to see exactly where contacts are in the journey from initial ingestion through the 'Warm Market' qualification process. Ensuring data integrity despite varied source formats is crucial, as this data fuels the entire subsequent agent layer, making any ingestion or deduplication failure a systemic issue.
+The Warm Market & Contact Engine (Universal) must deliver a seamless ingestion framework that handles native mobile synchronization for both iOS and Android, robust desktop and CSV import capabilities complete with field-level mapping, and a streamlined manual contact entry pipeline. Central to this deliverable is a high-fidelity contact database built on relationship-first segmentation taxonomy rather than superficial lead-list categorization. The system must perform exhaustive deduplication and normalization on all ingested data, populate high-confidence contact scoring signals, and implement memory jogger structures that remain contextually accessible to the user. A critical deliverable is the Hidden Earnings Estimate, calculated using relationship strength and industry benchmarks, strictly wrapped in safe-harbor framing to avoid prohibited income guarantees. All data must be encrypted both at rest and in transit, with full privacy compliance achieved via consent-gated processing and documented data export/deletion paths, ensuring full alignment with the security protocols defined in WP11 Data Classification.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Native/mobile and desktop ingestion ritual successful.
-- [ ] CSV deduplication and normalization verified.
-- [ ] Hidden Earnings Estimate logic calibrated and accurate.
-- [ ] Contact data encrypted and privacy-compliant per WP11.
-- [ ] Universal contact-to-prospect pipeline stages operational for all segments.
-- [ ] Duplicate management system operational.
-- [ ] Contact field mapping matches standardized schema.
-- [ ] Contact ingestion speed within performance thresholds.
-- [ ] Edge case: Extremely large CSV files handled.
-- [ ] Edge case: Contacts with incomplete or non-standard formatting processed.
-- [ ] Privacy controls applied on a per-contact basis.
-- [ ] Data sanitization prevents injection attacks.
+- [ ] Native mobile contact ingestion (iOS/Android address book sync) functional
+- [ ] Desktop and CSV import flows functional with field mapping
+- [ ] Manual contact entry flow functional
+- [ ] Deduplication and normalization logic verified — no duplicate contacts after import
+- [ ] Contact scoring signals defined and producing meaningful differentiation
+- [ ] Hidden Earnings Estimate computed correctly based on relationship strength and industry benchmarks
+- [ ] All contact data encrypted at rest and in transit per WP11 requirements
+- [ ] Privacy-aware handling enforced: consent-gated processing, rights export/delete paths defined
+- [ ] Contact-to-prospect pipeline stages operational for all segments
+- [ ] Relationship-first segmentation taxonomy implemented — contacts are categorized by trust and relationship strength, not lead-list scoring
+- [ ] Memory jogger structures defined and accessible within contact context to help user recall relationship details
+- [ ] Hidden Earnings Estimate always displays with safe-harbor framing — never presented as guarantee or projected certainty
+- [ ] No forbidden sales terms (prospect, lead, pitch, sales call, guaranteed income) appear in user-facing contact management interfaces
+- [ ] Integration contracts for WP04 (agent feeds) explicitly defined with field names and formats
+- [ ] Integration contracts for WP05 (message personalization) explicitly defined with field names and formats
+- [ ] Contact data classified according to WP11 data classification rules — sensitivity levels assigned per field
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -88,25 +91,24 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-Proprietary methodology (Blank Canvas, Qualities Flip, Background Matching) must be fully implemented and hard-gated specifically to Primerica organizations only. The system must ingest universal contact data and feed only authorized Primerica users into agent/messaging queues with the context provided by these methods. This layer must transform neutral contact lists into prioritized, context-aware action queues that honor the relationship-first focus of the methodology. It is imperative that this entire functional block be completely invisible to users of non-Primerica organizations, ensuring the proprietary nature of this specific technique. Furthermore, the methodology implementations need to be calibrated to produce outputs that genuinely reflect the 'Blank Canvas' philosophy, ensuring that conversational starters or action items derived are not generic but specific to the contact context. Any leak of these specific features to non-Primerica users constitutes a major security failure; additionally, any failure in the translation from method output to actionable queue items undermines the entire purpose of the Harvest system.
+The Harvest Warm Market Method (Primerica-Specific) is a proprietarily-engineered engine, requiring a hard security gate that renders all functionality absolute-zero invisible for users outside of a Primerica organization. The deliverables include fully functional, state-persistent exercises (Blank Canvas, Qualities Flip, Background Matching) that utilize complex scoring and ranking logic to transform universal contact data from WP02 into high-priority action queues. The core deliverable is the automated, intervention-free feeding of these queues into WP04 (agents) and WP05 (messaging), ensuring that all outreach framing is relationship-first and service-first—strictly avoiding cold-sell or pressure-based tactics. It must strictly adhere to compliance constraints defined in WP11 for all method-generated content and provide clean, consumable data contracts to WP08 (taprooting/timeline). The integrity of this method relies on total Primerica-only visibility, with any leakage into the non-Primerica experience constituting a critical failure.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Primerica-branch hard-gating verified; completely hidden for non-Primerica.
-- [ ] Three-layer methodology (Blank Canvas, Qualities Flip, Background Matching) complete.
-- [ ] Prioritized action queue generation based on method outputs functional.
-- [ ] Outputs feed agent and messaging queues without manual intervention.
-- [ ] Method output fidelity to brand doctrine verified.
-- [ ] Edge case: Contact data mapping fails in method layer.
-- [ ] Edge case: Primerica-Specific features trigger on non-Primerica users.
-- [ ] Logic for 'Background Matching' handles sparse contact info.
-- [ ] Performance of action queue generation from large contact lists.
-- [ ] Persistence of methodology state across user sessions.
-- [ ] Compliance filter integration for method-generated output.
-- [ ] User feedback loop integration operational.
+- [ ] Hard gate verified: all WP03 functionality completely hidden when org_type != Primerica
+- [ ] Blank Canvas exercise fully implemented with state persistence
+- [ ] Qualities Flip exercise fully implemented with state persistence
+- [ ] Background Matching exercise fully implemented with scoring/ranking logic
+- [ ] Method progression state machine defined with clear stage transitions
+- [ ] Prioritized action queue generated from method outputs — ranked by relationship strength and match quality
+- [ ] Action queue feeds agent (WP04) and messaging (WP05) queues without manual intervention
+- [ ] Universal contact data from WP02 is correctly ingested and transformed by method logic
+- [ ] No method content or Primerica-specific UI elements leak into universal (non-Primerica) experience
+- [ ] Method-generated outreach framing is relationship-first and service-first — not cold-sell or pressure-based
+- [ ] Compliance constraints from WP11 applied to all method-generated scripts and content
+- [ ] Outputs produce clean data contracts consumable by WP08 (taprooting/timeline)
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -126,25 +128,27 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-The autonomous agent execution system must be fully operational, with specialized agents—Prospecting, Nurture, Appointment, etc.—executing their respective tasks with reliability and context awareness. Mission Control must provide a precise, high-fidelity view for both the Representative and the Upline, ensuring that data is surfaced correctly without unauthorized cross-role leakage. The Three Laws monitoring system must actively trigger corrective nudges when neglect is detected, ensuring agents remain on track even when the user is inactive. Appointment-setting logic must be thoroughly integrated with all calendar systems, allowing for seamless handoffs. Agents must be able to gracefully handle errors, retries, and context switching, demonstrating true autonomous behavior within the defined mission parameters. The system's ability to maintain role-based visibility while simultaneously allowing for upline oversight is technically complex and requires careful RBAC implementation. Any failure here directly affects the user experience, as the Mission Control dashboard is the central hub for the entire Harvest operational experience.
+The AI Agent Layer & Mission Control acts as the system's operational command, producing a fully deployed inventory of specialized autonomous agents (Prospecting, Nurture, Appointment, Re-engagement) each restricted by defined role-specific responsibilities. Mission Control must output two distinct, high-fidelity views: the Rep view, delivering a contextually grounded daily briefing integrated with real-time pipeline data, and the Upline view, offering performance metrics, pace indicators, and coaching surfaces. The deliverables include the active command layer logic that manages agent task execution without passive CRM characteristics, inactivity detection systems triggering Three Laws corrective nudges, and appointment-setting agents that robustly verify handoffs with dual-calendar availability. All agent-generated content must pass through, and be produced within, the CFE compliance interception path, and all agent event pipelines must integrate with contact signals from WP02 and provide valid integration payloads for WP05, WP07, and WP09. The system must operate within the strict cognitive load limits defined by the 2 Hour CEO construct.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Agent inventory fully deployed (Prospecting, Nurture, Appointment, etc.).
-- [ ] Daily Mission Control briefing operational (Rep+Upline view).
-- [ ] Three Laws monitoring triggers corrective nudges on neglect.
-- [ ] Appointment-setting agent handoff logic verified.
-- [ ] Role visibility surfaces maintain data integrity (no cross-role leakage).
-- [ ] Agent-to-Agent communication flows correctly.
-- [ ] Monitoring system handles high agent concurrency.
-- [ ] Edge case: Agent fails to perform action due to API error.
-- [ ] Edge case: User interaction conflicts with agent action.
-- [ ] Mission Control reporting frequency matches requirements.
-- [ ] Agent state recovery after system restart.
-- [ ] Three-way appointment handoff tested end-to-end.
+- [ ] Full agent inventory deployed: Prospecting Agent, Nurture Agent, Appointment Agent, Re-engagement Agent
+- [ ] Each agent has defined role-specific responsibilities and action boundaries
+- [ ] Mission Control provides Rep view with daily briefing, action queue, and momentum indicators
+- [ ] Mission Control provides Upline view with team oversight, pace indicators, and coaching surfaces
+- [ ] Mission Control behaves as active command layer — not passive CRM reporting
+- [ ] Daily briefing generation operational and contextually grounded in real contact/pipeline data
+- [ ] Inactivity detection triggers re-engagement logic per Three Laws monitoring rules
+- [ ] Three Laws corrective nudges fire on neglect — verified with test scenarios
+- [ ] Appointment-setting agent handoff logic verified with dual-calendar availability checks
+- [ ] Appointment scheduling contracts are compatible with WP09 calendar architecture
+- [ ] Role visibility surfaces maintain strict data integrity — no cross-role data leakage
+- [ ] All agent-generated content passes through CFE compliance interception path before delivery
+- [ ] Event pipelines correctly consume contact and warm-market signals from WP02
+- [ ] Integration contracts for WP05, WP07, and WP09 are explicitly defined and consumable
+- [ ] No manual-heavy workflows that violate 2 Hour CEO bounded cognitive load constraints
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -152,7 +156,6 @@ Agents fail to execute autonomously; Mission Control shows incorrect or missing 
 
 ### Critical Failure Conditions — Loop Immediately Regardless of Score
 - [ ] Agent data leakage across roles.
-- [ ] Failure of compliance interception for any agent-generated content.
 
 ### Scoring
 Score: ___ / 10
@@ -164,25 +167,30 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-Compliance-safe communication is the bedrock of this outreach system, and it must be operational without exception. Every single outbound message must pass through the CFE (Compliance Filter Engine) *before* being queued for transport, ensuring no non-compliant language, prohibited income claims, or unsafe interaction patterns ever reach a contact. The messaging engine itself must be multi-channel, robustly handling SMS, email, and in-app channels with consistent, doctrine-enforced vocabulary and a service-first tone that treats the recipient as an individual rather than a lead. This system requires sophisticated queue management to ensure that handoffs between the Representative, Upline, and Three-Way interaction stages appear natural and fluid to the end user. Messaging logic must strictly enforce cadence rules at all times to prevent spam-like behavior, and the CFE must be updated to detect even subtle deviations from the brand doctrine, particularly regarding income language constraints, making this a high-stakes, critical component of the overall architectural framework.
+The Messaging Engine & Outreach System must deliver the absolute security of a synchronous CFE interception gate, which physically prevents *any* outbound message (SMS, email, or in-app) from being sent without passing compliance review. Deliverables include a robust messaging transport engine with verifiable delivery confirmations, intelligent channel routing logic that dynamically selects the channel based on contact preferences and availability, and content generation logic that rigorously avoids brand-doctrine forbidden terms while actively substituting prohibited language with service-first, doctrine-approved alternatives. The system must produce automated cadence rules maintaining pacing guidelines, integrated Upline-to-Rep-to-Three-Way communication flows with state-tracked interaction, and comprehensive response-state handling that autonomously updates agent behavior based on recipient replies. It must demonstrate full TCPA/CAN-SPAM/GDPR/CCPA compliance including capture and opt-out workflows, consistently apply Hidden Earnings safe-harbor framing, and supply valid telemetry data for reporting outcomes.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] CFE interception gate functional for ALL outbound content.
-- [ ] Messaging engine handles SMS, email, in-app reliably.
-- [ ] Script generation respects brand doctrine (income language constraints).
-- [ ] Rep → Upline → Three-Way handoff flows work seamlessly.
-- [ ] Cadence rules enforce pacing guidelines.
-- [ ] Fallback mechanism for channel failures implemented.
-- [ ] Dynamic variable injection (contact names, context) verified.
-- [ ] Edge case: Message queue overflow scenario handled.
-- [ ] Edge case: Invalid recipient contact info processed.
-- [ ] Message threading integrity across channels.
-- [ ] Compliance logs accurately map to original trigger events.
-- [ ] Ability to pause outbound outreach via system controls.
+- [ ] CFE synchronous interception gate functional on ALL outbound content — no message can be sent without passing through CFE
+- [ ] Messaging engine handles SMS channel reliably with delivery confirmation
+- [ ] Messaging engine handles email channel reliably with delivery confirmation
+- [ ] Messaging engine handles in-app channel reliably
+- [ ] Channel routing logic correctly selects channel based on contact preferences and availability
+- [ ] Script generation respects brand doctrine vocabulary: no forbidden terms
+- [ ] Service-first language transformation applied to all generated scripts
+- [ ] Cadence rules enforce pacing guidelines — no over-messaging or spam-like behavior
+- [ ] Rep to Upline to Three-Way handoff flows work seamlessly with state tracking
+- [ ] Performance telemetry hooks capture outreach outcomes for reporting
+- [ ] Forbidden-term replacement logic actively substitutes prohibited language (prospect, lead, pitch, sales call, guaranteed income) with doctrine-approved alternatives in all generated scripts
+- [ ] Upline review path for flagged content (CFE risk score 11–70) is functional — flagged messages route to upline for manual review before send
+- [ ] 48-hour escalation rule implemented: flagged content unreviewed after 48 hours escalates to compliance officer
+- [ ] TCPA/CAN-SPAM consent and opt-out flow behavior implemented for SMS and email channels
+- [ ] GDPR/CCPA data rights reflected in messaging opt-out and data deletion flows
+- [ ] Hidden Earnings language in any outreach message always carries safe-harbor framing — never presented as guarantee
+- [ ] Response-state handling tracks contact replies and adjusts agent cadence behavior accordingly
+- [ ] Integration contracts from WP04 (agent intent/action payloads) correctly consumed — field names and formats match WP04 output spec
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -202,25 +210,23 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-Social content and launch assets generated within compliance boundaries must feel authentic to the Representative's identity. The system needs to ensure that generated assets are branded according to the brand doctrine and that platforms are treated as community-building environments rather than merely platforms for spamming growth-oriented tactics. The compliance interception layer must be active for all social publishing flows, blocking any content that drifts toward 'hustle culture' or prohibited follower-chasing behavior. All generated content should be reviewed against compliance constraints to ensure the Representative's voice remains the dominant force. The system must track interaction metrics through Mission Control to report on social activity effectiveness without violating the privacy of contacts or the Representatives. This WP acts as an external face of the Harvest system, and therefore, it is susceptible to regulatory scrutiny, requiring strict adherence to the defined compliance gates, language constraints, and community engagement protocols outlined during the earlier phases.
+The Social, Content & Launch Kit generation system must produce fully compliance-safe, branded launch content that operates within strict CFE gates before any social publication. Deliverables include highly personalized rep-identity assets that leverage individual, not generic, templates; dynamically generated, platform-adapted post/caption scaffolds across all supported social networks; and sharing mechanics that prioritize community-building movement-led tone over follower-chasing growth-hacking behavior. The system must actively block any content displaying anti-hustle behavior or spam-style patterns, maintain Mission Control reporting hooks for both publishing activity and engagement metrics, and enforce strict timezone-aware content scheduling that respects user-set consent and boundary conditions. All generated content must automatically embed mandatory disclosures per WP11 requirements, and ensure no forbidden sales terminology exists in any published asset.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Launch content generation respects brand doctrine.
-- [ ] Rep-identity assets correctly generated and branded.
-- [ ] Compliance interception layer active for social publishing.
-- [ ] Mission Control reporting hooks for social activity functional.
-- [ ] Anti-hustle/follower-chasing behavior detected and blocked.
-- [ ] Asset management system (storage/retrieval) operational.
-- [ ] Multi-platform asset formatting verified.
-- [ ] Edge case: Content draft fails compliance review intermittently.
-- [ ] Edge case: User manually attempts to override CFE.
-- [ ] Brand doctrine keywords dynamically updated.
-- [ ] Social content posting scheduled correctly.
-- [ ] Link integrity verification for all outbound social links.
+- [ ] Launch content generation operates within compliance boundaries — all content passes through CFE before publication
+- [ ] Rep-identity content personalization active — assets reflect individual rep identity, not generic templates
+- [ ] Channel-adapted post/caption scaffolds generated for each target platform
+- [ ] Sharing mechanics functional across supported platforms
+- [ ] Movement-led tone enforced: community-building framing, not follower-chasing or growth-hacking behavior
+- [ ] Anti-hustle/spam behavior detection active — blocks content that drifts toward prohibited patterns
+- [ ] Mission Control reporting hooks for social activity and engagement functional
+- [ ] Launch-kit packaging rules defined and asset-state tracking operational
+- [ ] Mandatory disclosures from WP11 embedded in all publishable social content
+- [ ] No forbidden sales terms in any generated social content
+- [ ] Content scheduling logic respects timezone and consent constraints
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -240,25 +246,26 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-Motivation systems must reinforce belief and active engagement, not superficial dopamine traps. They need to actively track momentum and reinforce belief throughout the user journey. The celebration engine must trigger appropriately on genuine milestones, providing meaningful reinforcement that aligns with the doctrine. Nudges based on actual agent activity data must be timely and intervention-focused—specifically targeting cases where detected low belief requires restoration. The system should incorporate metrics that actively discourage 'hoarder/extract' behavior in favor of fairness, effectively building a culture of positive reinforcement around actual activity and relationship-based success. The system needs to be sophisticated enough to distinguish between genuine effort and mere system interaction, basing its gamification not on gaming the metrics, but on accelerating the actual outcomes of the Warm Market method. This requires high-fidelity data feeds from previous WPs, making it highly dependent on the accuracy of the agent layer and messaging engine data signals.
+The Accountability, Gamification & Motivation system must deliver a belief-first intervention architecture that actively monitors and reports progress against the Three Laws composite model from WP04. Deliverables consist of a functional 48-hour momentum countdown, a celebration engine that triggers exclusively on verifiable, honest milestones rather than inflated events, and a belief-restoration system that proactively detects low-belief states to intervene *before* attempting work-related nudges. To reinforce team health, the system must deploy anti-hoarder and wealth distribution fairness metrics, and ensure all motivational notifications are compliant with WP11's privacy/consent and timezone logic. This engine must prohibit manipulative earnings-phrased motivation without complete safe-harbor language injection, strictly forbid exploitative or shame-based gamification, and produce high-fidelity event/milestone outputs consumable by the taprooting/timeline system defined in WP08.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] 48-hour momentum countdown and tracking functional.
-- [ ] Momentum score calculation matches Three Laws composite model.
-- [ ] Celebration engine triggers on actual milestones.
-- [ ] Belief-first intervention (detect low belief → restore) functional.
-- [ ] Anti-hoarder/wealth distribution fairness metrics enabled.
-- [ ] Motivation nudges personalized to user progress.
-- [ ] Data linkage from preceding agent activity verified.
-- [ ] Edge case: User achieves multiple milestones simultaneously.
-- [ ] Edge case: Motivation system triggers during user inactivity.
-- [ ] Tracking of long-term belief consistency over time.
-- [ ] Integration with Mission Control dashboard reporting.
-- [ ] Gamification elements do not violate integrity constraints.
+- [ ] 48-hour momentum countdown tracking functional and visible to rep
+- [ ] Momentum score calculation matches Three Laws composite model from WP04
+- [ ] Celebration engine triggers on actual milestones — not hollow or inflated events
+- [ ] Belief-first intervention active: detects low belief state and triggers restoration before pushing work actions
+- [ ] Anchor/goal reinforcement explicitly tied to Seven Whys outputs from WP01
+- [ ] Collective uplift framing enforced: team-level wins prioritized over individual hustle metrics
+- [ ] Anti-hoarder/wealth distribution fairness metrics enabled where applicable
+- [ ] Motivational notifications respect privacy, consent, and timezone logic per WP11
+- [ ] No earnings-phrased motivation without safe-harbor framing
+- [ ] No exploitative or shame-based gamification patterns implemented
+- [ ] Role-based leaderboard visibility respects authorized boundaries — no cross-team leakage
+- [ ] Activity data consumed from WP04 agent events and WP05 messaging boundaries
+- [ ] Nudges based on actual agent activity data — not arbitrary timers
+- [ ] Outputs produce milestone/event data consumable by WP08 (taprooting/timeline)
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -278,25 +285,26 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-The Primerica-only organizational visualization and activity-based unlocking systems must be fully operational and tightly integrated with the core Harvest platform. The 'Taprooting' logic, which renders organizational trees and developmental milestones, must be scientifically accurate based on the hierarchical structure of Primerica, ensuring both Representatives and Uplines can visualize the growth correctly. It is essential that this functional block remains completely gated, ensuring no organizational features are ever exposed to anyone outside of a Primerica organization. The milestone timeline must unlock features strictly based on verifiable activity metrics rather than time alone, reinforcing that activity is the prerequisite for growth within the methodology. The system requires complex data visualization, which must maintain high performance even when rendering large organizational trees, and robust objection-handling structures designed specifically for Primerica contexts need to be embedded throughout the user interactions within this WP. Any leak of these specific features to non-Primerica users constitutes a major security failure.
+The Taprooting, Timeline & Primerica-Specific Features engine must guarantee absolute hard-visibility gating, rendering all organizational features completely hidden for non-Primerica users. The deliverable is a high-performance taprooting visualization system that dynamically maps the Primerica organizational hierarchy based on real-time activity and growth metrics, coupled with a 30-day phased timeline engine that unlocks developmental milestones exclusively through verifiable activity outcomes instead of arbitrary chronological time. The system must embed robust, context-sensitive objection-handling structures specifically tailored for Primerica conversational contexts, consume and integrate both warm-market outputs (from WP03) and motivation/event signals (from WP07), and provide seamless data integration for the upline/team schedule (from WP09). The entire package must maintain full compliance with regulatory content constraints per WP11 and guarantee zero reliance on external Primerica API dependencies to ensure system sovereignty.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Org = Primerica hard gate verified for all features.
-- [ ] Taprooting visualization renders organizational tree correctly.
-- [ ] Milestone timeline logic unlocks based on activity metrics.
-- [ ] Objection-handling structures functional.
-- [ ] Integration with daily briefing functional.
-- [ ] Performance of large org tree rendering.
-- [ ] Edge case: User moves between orgs/branches.
-- [ ] Edge case: Rapid milestone progression triggering in batches.
-- [ ] Data consistency between org visualization and taprooting.
-- [ ] User-level permission constraints on org-tree visibility.
-- [ ] Real-time updates of taprooting progress.
-- [ ] Compliance verification of org-linked content.
+- [ ] Absolute hard gate verified: no WP08 functionality visible unless org_type = Primerica
+- [ ] Taprooting visualization correctly renders organizational hierarchy tree
+- [ ] Visualization updates dynamically based on team activity and growth
+- [ ] 30-day phased timeline mechanics implemented with correct stage sequencing
+- [ ] Milestone unlock logic based on actual activity metrics — not time-based auto-unlocks
+- [ ] Objection-handling integration points functional and contextually appropriate
+- [ ] Primerica-specific progression logic correctly consumes WP03 warm-market outputs
+- [ ] Primerica-specific progression logic correctly consumes WP07 motivation/milestone events
+- [ ] Team calendar/upline context from WP09 integrated where timeline logic needs schedule data
+- [ ] Integration with daily briefing (WP04) functional — timeline status appears in Mission Control
+- [ ] Role-tailored visibility enforced: upline sees team tree, rep sees own progression
+- [ ] No guaranteed timeline or earnings claims in milestone language
+- [ ] Compliance constraints from WP11 applied to all Primerica-specific language and content
+- [ ] No dependency on any external Primerica API for identity or verification data
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -316,25 +324,25 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-The Upline and Team visibility must be fully synchronized, providing a reliable, dual-directional view for all parties. The appointment-setting agent is the critical hinge, ensuring it absolutely forbids scheduling if either party has a conflict, necessitating robust real-time API integrations with all supported calendar systems. Oversight dashboards must be operational, privacy-compliant, and strictly follow the RBAC settings defined in WP11, ensuring Upline access is restricted appropriately as per the hierarchical design. The system should provide visibility into attendance and pace indicators, helping the Upline identify where the Representatives need support without drifting into micromanaging. The complexity lies in managing the synchronization between different calendar environments and ensuring that the appointment-booking agent does not introduce double-bookings or ignore scheduling constraints, making this WP a focal point for API-driven integration testing and robust privacy-enforcement logic.
+The Team Calendar & Upline Dashboard system must deliver a verified, robust hierarchical calendar rendering that correctly reflects the upline/team relationship structure. The central deliverable is an appointment-setting logic engine that strictly forbids double-booking via real-time identification of shared availability windows and robust conflict detection between appointment requests and existing calendar state. The dashboard must offer privacy-compliant, role-specific visibility (based on WP11 RBAC), providing RVP/Upline oversight without enabling the privacy-violating exposure of private rep schedule details. The deliverable includes attendance and pace indicators reflective of actual team activity, real-time schedule-state integration with the agent mission-control (WP04) event pipeline, and schedule-based timeline status integration (WP08). The architecture must strictly uphold privacy boundaries and demonstrate low-friction interaction design compliant with the 2 Hour CEO constraint.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Upline/team calendar hierarchy and dual-overlap detection functional.
-- [ ] Appointment booking forbids scheduling if either party is busy.
-- [ ] Attendance visibility and pace indicators operational.
-- [ ] Privacy rules respect RBAC settings from WP11.
-- [ ] Upline Mission Control surfaces accurate.
-- [ ] Real-time synchronization of calendar metadata.
-- [ ] Integration with third-party calendar APIs verified.
-- [ ] Edge case: Overlapping appointment requests handled cleanly.
-- [ ] Edge case: API downtime during synchronization.
-- [ ] RBAC enforcement on team dashboard views.
-- [ ] Notification integrity for appointment updates.
-- [ ] Audit trail for all appointment booking/modification events.
+- [ ] Upline/team calendar hierarchy renders correctly based on role relationships
+- [ ] Dual-calendar overlap detection functional — identifies shared availability windows
+- [ ] Appointment booking strictly forbids scheduling if either party is busy — no double-booking possible
+- [ ] Appointment routing rules match WP04 agent appointment-setting contracts
+- [ ] Attendance visibility indicators operational and updating in real time
+- [ ] Pace indicators operational and reflecting actual team activity
+- [ ] Upline dashboard surfaces accurate data from Mission Control (WP04)
+- [ ] Privacy rules enforce RBAC settings from WP11 — no unauthorized calendar viewing
+- [ ] Schedule-state integration with WP04 mission-control event pipeline verified
+- [ ] Role-based schedule access matrix enforced: rep sees own, upline sees team, RVP sees org
+- [ ] No private schedule details exposed cross-team or cross-role without entitlement
+- [ ] Calendar data feeds WP08 where timeline/milestone logic needs schedule context
+- [ ] 2 Hour CEO constraint respected: calendar interactions are low-friction
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -354,25 +362,27 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-The payment and subscription infrastructure must be engineered with absolute precision, ensuring that the tiers (Free vs. Paid) are assigned and gated immediately upon onboarding. When a user creates an account, identifying their onboarding type is mandatory to set the initial subscription state, with Stripe webhooks managing the entire subscription lifecycle—including revocation of access when a subscription lapses, and immediate restoration when payments are resumed. Failure behavior, such as grace periods, must be clearly defined in the system and rigorously tested under various failure conditions to avoid unnecessary churn while protecting the platform's revenue. Data privacy in this WP is paramount, as payment data must adhere to PCI-DSS standards, and the infrastructure must be integrated robustly with WP11 to ensure privacy compliance. The ultimate requirement is an immediate, foolproof barrier blocking non-paying users from paid features, ensuring the entire commercial integrity of the Harvest application hinges on these payment-gating mechanisms.
+The Payment & Subscription Infrastructure must deliver immediate, fool-proof gating of system functionalities based on the user's assigned access tier (Free, Org-linked, Paid) as determined at the point of onboarding (WP01). Deliverables include a robust Stripe checkout flow fully integrated via secure webhooks to manage the entire subscription lifecycle—including the immediate revocation of paid-tier feature access when a payment lapses, and the immediate, seamless restoration upon successful re-subscription. The system must support and correctly test all failure modes, such as grace periods, to appropriately escalate access restrictions without causing user churn while protecting the platform's revenue. Data privacy in this WP is paramount, as payment data must adhere to PCI-DSS standards, and the infrastructure must be integrated robustly with WP11 to ensure privacy compliance. The ultimate requirement is an immediate, foolproof barrier blocking non-paying users from paid features, ensuring the entire commercial integrity of the Harvest application hinges on these payment-gating mechanisms.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] Access tier assignments (Free vs Paid) match onboarding hierarchy.
-- [ ] Stripe subscription management (webhooks, lifecycle) robust.
-- [ ] Failure/grace period behavior defined and tested.
-- [ ] Tier-gating operational and immediate upon state change.
-- [ ] Security of payment data compliant with WP11.
-- [ ] Automated user notification on subscription status change.
-- [ ] Edge case: Stripe API webhook failure/message loss.
-- [ ] Edge case: User upgrades/downgrades tier mid-billing cycle.
-- [ ] Secure audit logging for payment transactions.
-- [ ] Subscription management dashboard for admin/users.
-- [ ] Handling of credit card expiries and payment failure.
-- [ ] Audit compliance for payment data handling procedures.
+- [ ] Access tier assignments match onboarding seed state from WP01: org-linked free vs. external paid
+- [ ] Three-tier model implemented correctly: Free, Org-linked, Paid
+- [ ] Stripe checkout flow functional for new paid subscriptions
+- [ ] Stripe webhook integration robust — handles all subscription lifecycle events
+- [ ] Subscription state machine covers: active, past_due, grace_period, revoked, restored
+- [ ] Failed-payment handling triggers appropriate alerts and grace period
+- [ ] Grace period behavior correctly defined: duration, feature access during grace, escalation
+- [ ] Revocation behavior immediately restricts feature access when grace period expires
+- [ ] Restoration flow allows seamless re-subscription without data loss
+- [ ] Tier-gating operational and immediate upon state change — no delay between payment lapse and access restriction
+- [ ] Entitlement checks correctly reference WP01 access-tier seed state
+- [ ] Security of payment data compliant with PCI requirements per WP11
+- [ ] No raw payment instrument data stored outside Stripe-sanctioned paths
+- [ ] Admin/upline billing status visibility respects role boundaries — only authorized roles can see billing data
+- [ ] Primerica-specific visibility not gated through billing checks — organizational gating governs that (from WP01)
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -392,25 +402,28 @@ Code Written By: Ollama GLM 5.1 (thinking: High)
 QC Performed By: Ollama Kimi 2.6 (thinking: High)
 
 ### What Correct Completion Looks Like
-Governance is the foundation of the Harvest system, and it must effectively constrain all system behavior from the very start. The Compliance Filter Engine (CFE) is a standing, non-advisory layer that operates as a hard gate, actively blocking any violating content before it reaches a user interface or an outbound transport queue, whether SMS, email, or social media. RBAC enforcement must be absolute for all data access, including PII, sensitive contact information, and organizational trees. Every data handling action, particularly those involving AI interactions, must be fully logged for compliance auditability, ensuring a clear trail of decision-making. Data at rest *must* be encrypted using industry-standard protocols, and the processes for retention and deletion must strictly follow the defined compliance guidelines, particularly regarding the handling of forbidden word lists. This WP is the ultimate arbiter, and any failure here—particularly regarding the CFE's interception capability or the security of PII—invalidates the entire Harvest deployment.
+The Data Privacy, Security & Compliance Architecture must act as the absolute, non-advisory standing infrastructure gate (CFE) through which *all* user-facing data interactions and outbound conveyances must pass. Deliverables include the implementation of five specific content classifiers (Income Claim, Testimonial, Opportunity Statement, Insurance Recommendation, Referral Request) enforced by hard block/review thresholds; an immutable audit trail system that captures all AI-generated content decision-making logs; fully enforced at-rest and in-transit data encryption; and comprehensive user data retention/deletion lifecycles governed by regulatory requirements. The WP must include functioning data export, delete, and rectify workflows, strict capture of consent-based lawful foundations, and a parameterized compliance framework that allows for dynamic rule updates (such as forbidden word lists) without requiring code modifications, ensuring the system *blocks* (rather than falls back to) all outbound communications if compliance systems detect failure.
 
 ### Checkpoints — Verify Each Before Scoring
-- [ ] RBAC permission matrix enforced for all data access.
-- [ ] Compliance Filter Engine (CFE) integration complete as a standing block.
-- [ ] Proper audit logs generated for all AI content.
-- [ ] Data encryption at rest and in transit active.
-- [ ] Retention and deletion logic functional.
-- [ ] Forbidden word lists enforced.
-- [ ] Edge case: Attempted manual override of CFE.
-- [ ] Edge case: PII leakage through AI training data.
-- [ ] Audit trail integrity verification.
-- [ ] Regular security/compliance scan periodicity set.
-- [ ] Data portability/export request functionality operational.
-- [ ] Compliance documentation dynamically updated from code.
+- [ ] RBAC permission matrix enforced for all data access — verified against WP01 role model
+- [ ] CFE implemented as standing infrastructure block — synchronous gate, not advisory or post-hoc moderation
+- [ ] Data encryption enforced at rest and in transit — verified for all data stores
+- [ ] Retention and deletion logic functional with defined schedules and automated execution
+- [ ] User data rights workflows operational: export, delete, rectify
+- [ ] Forbidden word/term lists enforced across all packages that generate user-facing content
+- [ ] CFE five classifiers verified by name: Income Claim, Testimonial, Opportunity Statement, Insurance Recommendation, Referral Request — all five must be operational
+- [ ] CFE risk scoring threshold behavior verified at all three tiers: 0–10 auto-deploys with audit log entry, 11–70 flags for upline manual review with 48-hour escalation to compliance officer if unreviewed, 71–100 physically blocks content and returns HTTP 403 to the requesting agent
+- [ ] Audit trail is immutable — log entries cannot be edited, deleted, or overwritten after creation
+- [ ] Audit logs capture all required fields per entry: content text, classifier scores, decision outcome, timestamp, and user context
+- [ ] Consent capture present at every data collection point across all packages — not just onboarding
+- [ ] No-sale contact-data policy enforced: contact data cannot be sold, exported to third parties, or repurposed beyond stated platform use
+- [ ] Regulatory parameterization framework present: compliance rules for FINRA, FTC, state insurance, TCPA, CAN-SPAM, GDPR, and CCPA can be updated without code changes via versioned rule configuration
+- [ ] No fallback behavior exists that sends content when CFE is unavailable — if CFE is down, all outbound content is blocked system-wide until CFE is restored
+- [ ] Pre-generation compliance constraints embedded in agent prompt templates for WP04, WP05, WP06, and WP07 — prohibited terms injected as negative constraints before content generation begins
+- [ ] Safe-harbor language injection rules defined and verified for all contexts where Hidden Earnings, opportunity, or income language appears
 
 ### Written Feedback to Sub-Agent (Required If Failing)
 
- 
 ### Edge Case Tests
 
 ### What a Failing Result Looks Like
@@ -439,6 +452,29 @@ All criteria must be satisfied during integrated system testing:
 8. System maintains coherence through session/checkpoint restart.
 9. System performance metrics (latency/throughput) remain within defined thresholds.
 10. System documentation aligns perfectly with implemented codebase truth.
+
+### Final QC Deployment Configuration
+
+Sub-Agents Deployed: 10–50 (scaled to application complexity and available capacity)
+Model Assignment: All Final QC agents use Ollama Kimi 2.6 (thinking: High).
+GLM 5.1 built all components. Kimi 2.6 tests them. Roles do not swap at Final QC.
+
+### Edge Case Scenarios — Verify Each During Pressure Test
+
+11. Edge case: Primerica user switches to non-Primerica organization mid-session — verify all Primerica-specific features (WP03, WP08) immediately hide and cannot be accessed.
+12. Edge case: Payment lapses during active agent execution — verify feature gating from WP10 triggers immediately, active agents for paid-tier features halt gracefully, and user is notified.
+13. Edge case: CFE service becomes unavailable mid-operation — verify all outbound content across WP04, WP05, WP06, and WP07 is blocked (not sent unfiltered). No message may leave the system while CFE is down.
+14. Edge case: Dual-role user (simultaneous Rep + Upline) — verify both role surfaces render correctly in Mission Control without data bleed between the two views.
+15. Edge case: Hidden Earnings Estimate computed for a contact with zero relationship data — verify safe-harbor disclaimer still displays, no NaN/undefined/null values shown, and estimate gracefully defaults or withholds rather than displaying erroneous numbers.
+
+### Critical Failure Conditions for Final QC — Any One of These Causes Automatic Project-Level Fail
+
+- Any Primerica-specific content visible to a non-Primerica user at any point in any flow
+- Any outbound content delivered to any channel without passing through CFE
+- Any unencrypted PII found in any data store
+- Any payment instrument data stored outside Stripe-sanctioned paths
+- Any sub-agent or process that modified a PRD .md file during the build
+- CFE operating in advisory/monitor-only mode rather than as a standing synchronous block
 
 ## 3. QC Scoring Rubric
 

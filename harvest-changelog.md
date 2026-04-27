@@ -75,6 +75,28 @@
 
 ---
 
+## v0.3.2 — QC Checklist Deduplication Pass
+
+### 2026-04-27
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-04-27 |
+| **Version** | v0.3.2 |
+| **Author** | Claudia (Orchestrator) |
+| **Description** | Deduplication pass on harvest-qc-checklist.md. Removed 22 shorter duplicate checkpoints from WP02 (6), WP05 (6), and WP11 (10) — kept the more detailed version of each. Removed condensed Final QC section that duplicated the detailed Final QC Deployment Configuration section. File reduced from 587 to approximately 555 lines. No content lost — only shorter versions of duplicated checkpoints removed. |
+| **Files updated** | harvest-qc-checklist.md |
+
+## v0.3.1 — Round 4 Final QC Checklist Patch
+
+### 2026-04-27
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-04-27 |
+| **Version** | v0.3.1 |
+| **Author** | Claudia (Orchestrator) |
+| **Description** | Round 4 corrections — added missing deliverable-mapped checkpoints to WP02, WP05, and WP11 in harvest-qc-checklist.md, and expanded Final QC pressure test with deployment configuration, edge cases, and automatic-fail conditions. |
+| **Files updated** | harvest-qc-checklist.md |
+
 ## v0.2.0 — 9-Correction Package Complete
 
 ### 2026-04-27
@@ -97,3 +119,17 @@
 | **Version** | v0.3.0 |
 | **Author** | Claudia (Orchestrator) |
 | **Description** | Round 3 corrections applied. Correction 1: Expanded all 11 QC blocks in `harvest-qc-checklist.md` — each WP block now has 12 checkpoints (up from 4-6), 150+ word "What Correct Completion Looks Like" descriptions, "Written Feedback to Sub-Agent (Required If Failing)" section, and "Edge Case Tests" placeholder (file grew from 375 to 505 lines). Correction 2: Reconciled timeout discrepancy between `harvest-todo.md` (1200→1800) and `harvest-handoff.md` (noted 1800 with rationale). T06 verify text corrected to match. Interim grade: 9/10. Package zipped and delivered to Telegram. |
+
+---
+
+## v0.4.0 — All 11 WP Specs Complete, Integration Coherence PASS
+
+### 2026-04-27
+| Field | Value |
+|-------|-------|
+| **Date** | 2026-04-27 |
+| **Version** | v0.4.0 |
+| **Author** | Claudia (Orchestrator) |
+| **Model** | ollama/deepseek-v4-flash:cloud |
+| **Description** | All 11 WP specs complete and integration-coherent. WP01 v5: RVP role architecture, downstream data contracts (Section 7), upline invite state machine (Section 6), calendar contract fields, access tier/intensity schema. WP10 v5: WP01 integration contract (Section 2.4), billing RBAC (Section 11), real-time entitlement gating (Section 3.2), grace period documentation, refunds/chargebacks (Section 15.2) with section renumbering 11->15. Integration coherence v2: 9.0/10 PASS -- all 4 hard conflicts and 6 minor issues resolved. WP01 role enum now includes rvp. WP03 gating standardized as Universal with Primerica Overlay. All dependency tables corrected. Orphaned behaviors assigned. |
+| **Files updated** | wp01-onboarding.md, wp10-payment-subscription.md, harvest-todo.md, harvest-changelog.md, harvest-handoff.md, qc-reports/integration-coherence-v2.md |

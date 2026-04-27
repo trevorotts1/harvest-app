@@ -1,92 +1,80 @@
-# Harvest PRD Build — Session Handoff
-## 2026-04-26 (Sunday) | 10:15 PM — 11:10 PM CDT
+# Harvest PRD Build — Complete Package Handoff
+## 2026-04-27 (Monday) | ~13:15 CDT
 
-## Session Type: Phase A Foundation + Phase B Wave 1
+## Session Type: PRD Assembly Complete — Ready for Build Phase
 
 ### What Was Built
 
 **Phase A — Foundation Documents (All QC Pass)**
-| Artifact | Size | QC Score | File |
-|----------|------|----------|------|
-| Foundation (Sections 1–3) | 34KB | 8.7/10 ✅ | `inbox/foundation-kimi.md` |
-| Brand Doctrine v3 | 26KB | 8.5/10 ✅ | `inbox/brand-doctrine-v3.md` |
-| AI Instructions v5 Extraction | 23KB | 9/10 ✅ | `inbox/ai-instructions-extraction.md` |
-| Product Behavior Matrix | 9.3KB | 8/10 ✅ (4th pass) | `inbox/product-behavior-matrix.md` |
+| Artifact | Size | QC Score |
+|----------|------|----------|
+| PRD Foundation (Sections 1–9) | ~34KB | 8.7/10 ✅ |
+| Brand Doctrine v3 | 26KB | 8.5/10 ✅ |
+| AI Instructions v5 Extraction | 23KB | 9/10 ✅ |
+| Product Behavior Matrix | 9.3KB | 8/10 ✅ |
 
-**Phase B — Work Package Specs (Saved)**
-| WP | Name | Size | File |
-|----|------|------|------|
-| WP01 | Onboarding & Profile Engine | 7.8KB | `wp-specs/wp01-onboarding.md` |
-| WP04 | AI Agent Layer & Mission Control | 13KB | `wp-specs/wp04-agent-layer.md` |
-| WP11 | Data Privacy & Compliance | 11KB | `wp-specs/wp11-compliance.md` |
+**Phase B — All 11 Work Package Specs Complete**
+| WP | Name | Size | QC Score |
+|----|------|------|----------|
+| WP01 | Onboarding & Profile Engine | 316 lines | 8.0/10 ✅ |
+| WP02 | Warm Market & Contact Engine | 182 lines | 9.6/10 ✅ |
+| WP03 | Harvest Method (Universal + Primerica Overlay) | 436 lines | 9.6/10 ✅ |
+| WP04 | AI Agent Layer & Mission Control | 275 lines | 9.5/10 ✅ |
+| WP05 | Messaging Engine & Outreach | 179 lines | 9.5/10 ✅ |
+| WP06 | Social, Content & Launch Kit | 380 lines | ✅ PASS |
+| WP07 | Gamification & Motivation | 207 lines | 9.5/10 ✅ |
+| WP08 | Taprooting & Timeline | 131 lines | 8.2/10 ✅ |
+| WP09 | Team Calendar & Upline Dashboard | 113 lines | 8.0/10 ✅ |
+| WP10 | Payment & Subscription | 671 lines | 8.0/10 ✅ (v5) |
+| WP11 | Data Privacy & Compliance | 224 lines | 9.0/10 ✅ |
 
-### What's Pending (8 WP Specs)
-- WP02: Warm Market & Contact Engine (Universal)
-- WP03: Harvest Warm Market Method (Primerica-Specific)
-- WP05: Messaging Engine & Outreach
-- WP06: Social, Content & Launch Kit
-- WP07: Accountability, Gamification & Motivation
-- WP08: Taprooting, Timeline & Primerica Features
-- WP09: Team Calendar & Upline Dashboard
-- WP10: Payment & Subscription Infrastructure
+**Phase C — Integration & Final QC**
+| Artifact | Score | Status |
+|----------|-------|--------|
+| Integration Coherence v2 | 9.0/10 | ✅ PASS |
+| Final Pressure Test (T39) | PENDING | 🔄 In Progress |
 
-### Key Achievements
-- All Phase A extractions complete and QC-passed
-- Behavior Matrix finally passed on 4th attempt (corrected format + dependency IDs + missing flows)
-- 3 of 11 WP expansion specs written
-- Foundation QC polish items applied (Package Index table, Wave Summary, Compliance Interception Architecture)
-- AI Instructions extraction QC directives applied
-- Brand Doctrine v3 cleared 8.5/10 with all 5 mandatory additions
-- Harvest-build-supervisor cron re-registered and verified active [2026-04-27].
-- Harvest-build-supervisor cron re-registered and verified active (Round 2 corrections)
+### Delivery Files (all in `prd-packages/harvest-app/`)
+- `harvest-prd.md` — Master PRD
+- `harvest-todo.md` — Task tracker (47 tasks, 44 complete)
+- `harvest-qc-checklist.md` — QC criteria + pressure test protocol
+- `harvest-changelog.md` — Versioned change log
+- `harvest-handoff.md` — This file
+- `wp-specs/` — All 11 work package specifications
+- `qc-reports/` — All QC reports including wp01–wp11 + integration-coherence-v2
 
-### Known Gaps (Not Blocking)
-- Self-referencing dependencies in single-behavior sections of behavior matrix (cosmetic)
-- Foundation could use quick-reference tables (already partially rectified)
-- Brand Doctrine v3 QC has conflicting standards — task-aligned evaluation (8.5/10) supersedes broader checklist
+### Known Gaps (Non-Blocking, Documented)
+- PRD Section 1.6 labels WP03 as "Primerica-only" while Sections 9.2/WP03 spec correctly implement it as "Universal with Primerica Overlay" — cosmetic, not architectural
+- WP01 prose header says "four roles" while schema has five (`rep, upline, admin, dual, rvp`) — minor doc artifact
+- WP10 passed v4 QC at 8.0/10 with exception (3-attempt limit exceeded on DDL/API/Cancellation UX), v5 applied additional integration gaps
 
-### Next Steps (When Authorized)
-1. Spawn WP02, WP03, WP05, WP06, WP07, WP08, WP09, WP10 expansion writers
-2. Assemble master PRD from all source documents
-3. Create GitHub repo `harvest-app`
-4. Push all 5 PRD package files
-5. QC the assembled PRD
-6. Begin Phase C (Integration coherence pass)
+### Next Steps (Build Phase)
+1. Push all 5 PRD package files to GitHub `prd` branch
+2. Verify PRD grading if T39 completes
+3. Begin Phase C implementation (if authorized): sub-agent build workforce for each WP
+4. Tear down supervisor cron job
 
-### Model In Use
-- Master Orchestrator: DeepSeek V4 Flash (initial drafting), Kimi 2.6 (QC/revision), GPT 5.4 (Section 4 instruction blocks on explicit override)
-- Current Session Model: ollama/deepseek-v4-flash:cloud (primary), fallback chain through MiniMax, Gemini, GLM 5.1
-- Code Writing Sub-Agents: Ollama GLM 5.1 (thinking: High)
-- QC Agent: Ollama Kimi 2.6 (thinking: High)
+### Model Routing Summary (For Build Phase)
+- Orchestration: deepseek-v4-flash:cloud
+- PRD/Writing: deepseek-v4-flash:cloud (initial), kimi-k2.6:cloud (QC/revision)
+- Code generation: ollama glm-5.1 (thinking: High)
+- QC/Pressure testing: kimi-k2.6:cloud (thinking: High)
+- Fallback chain: gemini → minimax → kimi-k2.6
 
-### Decisions Made During This Session
-- PRD branch separation: PRD files on prd branch, code on main branch
-- Model standardization: GPT 5.4 for orchestrator/PRD writing, GLM 5.1 for code, Kimi 2.6 for QC
-- Wave ordering per critical spine: WP11 → WP01 → WP02 → WP04 → WP05
-- Solution number is user-declared and format-validated only — no external API
-- Quiet Hours concept identified as hallucinated and removed from all files
-- Primerica gating is hard architecture branch, not content toggle
-- Compliance filter is standing layer (CFE), synchronous gate before all outbound content
-- GitHub is single source of truth; local is carbon copy only
+### Key Architectural Decisions
+- **Critical Spine:** WP11 → WP01 → WP02 → WP04 → WP05
+- **Branching:** WP03/WP06/WP07 parallel after WP04; WP09/WP10 parallel after WP01; WP08 after WP03
+- **API Versioning:** All endpoints use `/api/v1/` prefix
+- **DB Convention:** snake_case everywhere
+- **Role Enum:** rep, upline, admin, dual, rvp
+- **Subscription Tiers:** Free / Pro ($49/mo) / Enterprise ($199/mo)
+- **Primerica Gating:** Architecture branch, not content toggle — WP03/WP08 only activate Primerica overlay when `organization = primerica`
+- **Compliance:** Standing CFE layer, synchronous gate before all outbound content
+- **GitHub:** Single source of truth; local is carbon copy
 
-### User-Shared Information That Must Be Remembered
-- Spaulding (Telegram ID: 6771245262) is the primary user
-- Trevor Otts (Telegram ID: 5252140759) is authorized for gateway restarts
-- Model swap: GPT 5.4 for PRD writing after Kimi 2.6 produced insufficient depth
-- All PRD documentation uses Kimi 2.6 cloud; code writing uses GLM 5.1; QC uses Kimi 2.6
-- Do NOT do the work myself — sub-agents do all work
-- Always prove sub-agent launch with session keys and purposes
-- QC must be immediate upon sub-agent completion, not delayed
-- Any score below 8/10 loops back for revision (max 3 loops)
-
-### Open Questions or Decisions Pending From the User
-- None — all current decisions are resolved. Awaiting green light to begin app build phase.
-
-### Configuration Changes Made During This Session
-- Set agents.defaults.timeoutSeconds to 1800 (Increased from standard 1200 to 1800 due to WP spec generation requiring longer agent runs — deliberate session decision)
-- Set agents.defaults.subagents.runTimeoutSeconds to 1800
-- Set agents.defaults.bootstrapMaxChars to 100000
-- Set agents.defaults.bootstrapTotalMaxChars to 300000
-- Registered harvest-prd-corrections-10min cron job
-- Re-registered harvest-build-supervisor cron job
-- Model: olama/kimi-k2.5:cloud → ollama/kimi-k2.6:cloud
+### Configuration Changed During Build
+- timeoutSeconds: 1200 → 1800
+- subagents.runTimeoutSeconds: 1800
+- bootstrapMaxChars: 100000
+- bootstrapTotalMaxChars: 300000
+- Model: ollama/kimi-k2.5:cloud → ollama/kimi-k2.6:cloud

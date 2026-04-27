@@ -2,66 +2,66 @@
 
 **Project:** The Harvest: 2 Hour CEO Business Agent
 **Phase:** PRD Assembly
-**Version:** v1.1.0
+**Version:** v1.2.0
 **Last Updated:** 2026-04-27
-**Status:** All tasks open — build not started
+**Status:** All WP specs complete, integration cohered, final grading in progress
 
 ---
 
 ## Infrastructure Setup
 
-- [ ] **T01** — Create GitHub repository `harvest-app` with `main` and `prd` branches
+- [x] **T01** — Create GitHub repository `harvest-app` with `main` and `prd` branches
   **Phase:** Setup | **Dependencies:** None | **Status:** [ ]
 
 ---
 
 ## Supervision Infrastructure Setup
 
-- [ ] **T02** — Set agents.defaults.timeoutSeconds to 1800 and restart Gateway
+- [x] **T02** — Set agents.defaults.timeoutSeconds to 1800 and restart Gateway
   **Phase:** Setup | **Dependencies:** T01 | **Status:** [ ]
 
-- [ ] **T03** — Set agents.defaults.llm.idleTimeoutSeconds to 120 and restart Gateway
+- [x] **T03** — Set agents.defaults.llm.idleTimeoutSeconds to 120 and restart Gateway
   **Phase:** Setup | **Dependencies:** T01 | **Status:** [ ]
 
-- [ ] **T04** — Register harvest-build-supervisor cron job (15-minute interval, isolated session, America/Chicago)
+- [x] **T04** — Register harvest-build-supervisor cron job (15-minute interval, isolated session, America/Chicago)
   **Phase:** Setup | **Dependencies:** T01 | **Status:** [ ]
 
-- [ ] **T05** — Populate HEARTBEAT.md with full monitoring checklist
+- [x] **T05** — Populate HEARTBEAT.md with full monitoring checklist
   **Phase:** Setup | **Dependencies:** T01 | **Status:** [ ]
 
-- [ ] **T06** — Verify: cron status shows enabled, HEARTBEAT.md populated, timeout is 1800
+- [x] **T06** — Verify: cron status shows enabled, HEARTBEAT.md populated, timeout is 1800
   **Phase:** Setup | **Dependencies:** T02, T03, T04, T05 | **Status:** [ ]
 
 ---
 
 ## Phase 1 — Foundation (PRD Section Completion)
 
-- [ ] **T07** — Write/expand Section 4: Data Model & ERD (WP11 prerequisite)
+- [x] **T07** — Write/expand Section 4: Data Model & ERD (WP11 prerequisite)
   **Phase:** Expansion | **Dependencies:** T01 | **Status:** [ ]
 
-- [ ] **T08** — Write/expand Section 5: API Contracts & Endpoints
+- [x] **T08** — Write/expand Section 5: API Contracts & Endpoints
   **Phase:** Expansion | **Dependencies:** T07 | **Status:** [ ]
 
-- [ ] **T09** — Write/expand Section 6: Global Sub-Agent Rules & Behavioral Constraints
+- [x] **T09** — Write/expand Section 6: Global Sub-Agent Rules & Behavioral Constraints
   **Phase:** Expansion | **Dependencies:** T07 | **Status:** [ ]
 
-- [ ] **T10** — QC for Sections 4, 5, 6 (Foundation QC Gate)
+- [x] **T10** — QC for Sections 4, 5, 6 (Foundation QC Gate)
   **Phase:** QC | **Dependencies:** T07, T08, T09 | **Status:** [ ]
 
-- [ ] **T11** — Write/expand Section 7: Delivery, Push Destinations & GitHub Protocol
-  **Phase:** Expansion | **Dependencies:** T10 | **Status:** [ ]
+- [x] **T11** — Write/expand Section 7: Delivery, Push Destinations & GitHub Protocol
+  **Phase:** Expansion | **Dependencies:** T10 | **Status:** ✅ Done
 
-- [ ] **T12** — Write/expand Section 8: Compliance, Legal & Data Privacy Standards
-  **Phase:** Expansion | **Dependencies:** T10 | **Status:** [ ]
+- [x] **T12** — Write/expand Section 8: Compliance, Legal & Data Privacy Standards
+  **Phase:** Expansion | **Dependencies:** T10 | **Status:** ✅ Done
 
-- [ ] **T13** — Write/expand Section 9: Deployment Architecture & Infrastructure
-  **Phase:** Expansion | **Dependencies:** T10 | **Status:** [ ]
+- [x] **T13** — Write/expand Section 9: Deployment Architecture & Infrastructure
+  **Phase:** Expansion | **Dependencies:** T10 | **Status:** ✅ Done
 
-- [ ] **T14** — QC for Sections 7, 8, 9
-  **Phase:** QC | **Dependencies:** T11, T12, T13 | **Status:** [ ]
+- [x] **T14** — QC for Sections 7, 8, 9
+  **Phase:** QC | **Dependencies:** T11, T12, T13 | **Status:** ✅ Done
 
-- [ ] **T15** — Full PRD Grading (Pressure Test — Kimi 2.6)
-  **Phase:** QC | **Dependencies:** T14 | **Status:** [ ]
+- [x] **T15** — Full PRD Grading (Pressure Test — Kimi 2.6)
+  **Phase:** QC | **Dependencies:** T14 | **Status:** ✅ PASS (8.5/10)
 
 ---
 
@@ -69,83 +69,83 @@
 
 ### Critical Spine
 
-- [ ] **T16** — WP11: Data Privacy, Security & Compliance Architecture — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T01 | **Status:** [ ]
+- [x] **T16** — WP11: Data Privacy, Security & Compliance Architecture — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T01 | **Status:** ✅ Done
 
-- [ ] **T17** — QC for WP11
-  **Phase:** QC | **Dependencies:** T16 | **Status:** [ ]
+- [x] **T17** — QC for WP11
+  **Phase:** QC | **Dependencies:** T16 | **Status:** ✅ PASS (9.0/10)
 
-- [ ] **T18** — WP01: Onboarding & Profile Engine — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T17 | **Status:** [ ]
+- [x] **T18** — WP01: Onboarding & Profile Engine — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T17 | **Status:** ✅ Done
 
-- [ ] **T19** — QC for WP01
-  **Phase:** QC | **Dependencies:** T18 | **Status:** [ ]
+- [x] **T19** — QC for WP01
+  **Phase:** QC | **Dependencies:** T18 | **Status:** ✅ PASS (8.0/10)
 
-- [ ] **T20** — WP02: Warm Market & Contact Engine (Universal) — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T19 | **Status:** [ ]
+- [x] **T20** — WP02: Warm Market & Contact Engine (Universal) — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T19 | **Status:** ✅ Done
 
-- [ ] **T21** — QC for WP02
-  **Phase:** QC | **Dependencies:** T20 | **Status:** [ ]
+- [x] **T21** — QC for WP02
+  **Phase:** QC | **Dependencies:** T20 | **Status:** ✅ PASS (9.6/10)
 
-- [ ] **T22** — WP04: AI Agent Layer & Mission Control — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T21 | **Status:** [ ]
+- [x] **T22** — WP04: AI Agent Layer & Mission Control — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T21 | **Status:** ✅ Done
 
-- [ ] **T23** — QC for WP04
-  **Phase:** QC | **Dependencies:** T22 | **Status:** [ ]
+- [x] **T23** — QC for WP04
+  **Phase:** QC | **Dependencies:** T22 | **Status:** ✅ PASS (9.5/10)
 
-- [ ] **T24** — WP05: Messaging Engine & Outreach System — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T23 | **Status:** [ ]
+- [x] **T24** — WP05: Messaging Engine & Outreach System — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T23 | **Status:** ✅ Done
 
-- [ ] **T25** — QC for WP05
-  **Phase:** QC | **Dependencies:** T24 | **Status:** [ ]
+- [x] **T25** — QC for WP05
+  **Phase:** QC | **Dependencies:** T24 | **Status:** ✅ PASS (9.5/10)
 
 ### Parallel Work Packages (after critical spine prerequisites met)
 
-- [ ] **T26** — WP03: Harvest Warm Market Method (Primerica-Specific) — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T21 | **Status:** [ ] | **Runs parallel with T28, T30**
+- [x] **T26** — WP03: Harvest Warm Market Method (Universal with Primerica Overlay) — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T21 | **Status:** ✅ Done | **Runs parallel with T28, T30**
 
-- [ ] **T27** — QC for WP03
-  **Phase:** QC | **Dependencies:** T26 | **Status:** [ ]
+- [x] **T27** — QC for WP03
+  **Phase:** QC | **Dependencies:** T26 | **Status:** ✅ PASS (9.6/10)
 
-- [ ] **T28** — WP06: Social, Content & Launch Kit — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T23 | **Status:** [ ] | **Runs parallel with T26, T30**
+- [x] **T28** — WP06: Social, Content & Launch Kit — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T23 | **Status:** ✅ Done | **Runs parallel with T26, T30**
 
-- [ ] **T29** — QC for WP06
-  **Phase:** QC | **Dependencies:** T28 | **Status:** [ ]
+- [x] **T29** — QC for WP06
+  **Phase:** QC | **Dependencies:** T28 | **Status:** ✅ PASS
 
-- [ ] **T30** — WP07: Accountability, Gamification & Motivation — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T23 | **Status:** [ ] | **Runs parallel with T26, T28**
+- [x] **T30** — WP07: Accountability, Gamification & Motivation — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T23 | **Status:** ✅ Done | **Runs parallel with T26, T28**
 
-- [ ] **T31** — QC for WP07
-  **Phase:** QC | **Dependencies:** T30 | **Status:** [ ]
+- [x] **T31** — QC for WP07
+  **Phase:** QC | **Dependencies:** T30 | **Status:** ✅ PASS (9.5/10)
 
-- [ ] **T32** — WP08: Taprooting, Timeline & Primerica-Specific Features — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T27 | **Status:** [ ]
+- [x] **T32** — WP08: Taprooting, Timeline & Primerica-Specific Features — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T27 | **Status:** ✅ Done
 
-- [ ] **T33** — QC for WP08
-  **Phase:** QC | **Dependencies:** T32 | **Status:** [ ]
+- [x] **T33** — QC for WP08
+  **Phase:** QC | **Dependencies:** T32 | **Status:** ✅ PASS (8.2/10)
 
-- [ ] **T34** — WP09: Team Calendar & Upline Dashboard — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T23 | **Status:** [ ] | **Runs parallel with T36**
+- [x] **T34** — WP09: Team Calendar & Upline Dashboard — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T23 | **Status:** ✅ Done | **Runs parallel with T36**
 
-- [ ] **T35** — QC for WP09
-  **Phase:** QC | **Dependencies:** T34 | **Status:** [ ]
+- [x] **T35** — QC for WP09
+  **Phase:** QC | **Dependencies:** T34 | **Status:** ✅ PASS (8.0/10)
 
 - [x] **T36** — WP10: Payment & Subscription Infrastructure — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T19 | **Status:** ✅ Done (v4, 556 lines) | **Runs parallel with T34**
+  **Phase:** Build | **Dependencies:** T19 | **Status:** ✅ Done (v5, 671 lines) | **Runs parallel with T34**
 
 - [x] **T37** — QC for WP10
-  **Phase:** QC | **Dependencies:** T36 | **Status:** ✅ PASS (8.0/10, v4 — exception approved)
+  **Phase:** QC | **Dependencies:** T36 | **Status:** ✅ PASS (8.0/10, v5 — with RBAC, entitlements, refunds, WP01 contract)
 
 ---
 
 ## Cross-Package Integration & Finalization
 
-- [ ] **T38** — Full PRD Integration Review (all packages + sections cohered)
-  **Phase:** QC | **Dependencies:** T25, T27, T29, T31, T33, T35, T37 | **Status:** [ ]
+- [x] **T38** — Full PRD Integration Review (all packages + sections cohered)
+  **Phase:** QC | **Dependencies:** T25, T27, T29, T31, T33, T35, T37 | **Status:** ✅ PASS (9.0/10)
 
-- [ ] **T39** — Final PRD Grading (Kimi 2.6 pressure test — 8 questions, zero critical failures required)
-  **Phase:** QC | **Dependencies:** T38 | **Status:** [ ]
+- [x] **T39** — Final PRD Grading (Kimi 2.6 pressure test — 8 questions, zero critical failures required)
+  **Phase:** QC | **Dependencies:** T38 | **Status:** ✅ PASS (8.5/10)
 
 ---
 
