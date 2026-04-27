@@ -1,18 +1,18 @@
 import {
   CFEInput,
   CFEResult,
-  CFEConfig,
-  DEFAULT_CFE_CONFIG,
   Classifier,
   ClassifierResult,
   CFEDecision,
   AuditPayload,
-  Regulation,
-  Channel,
-  Role,
-  ALL_CLASSIFIERS,
+  CLASSIFIER_WEIGHTS,
+  REGULATION_MULTIPLIERS,
+  RISK_THRESHOLDS,
   CFE_TIMEOUT_MS,
   CFE_RULE_VERSION,
+  Regulation,
+  ALL_CLASSIFIERS,
+  Regulation as RegulationType,
   PRE_GENERATION_CONSTRAINTS,
 } from '../../types/compliance';
 import { IncomeClaimClassifier } from './classifiers/income-claim.classifier';
@@ -22,18 +22,11 @@ import { InsuranceClassifier } from './classifiers/insurance.classifier';
 import { ReferralRequestClassifier } from './classifiers/referral-request.classifier';
 import { contentHash } from './encryption/encryption';
 import { determineSafeHarborInjections } from './safe-harbor';
-import { AuditService, AuditRepository, InMemoryAuditRepository } from './audit/audit-service';
 
 // Sensitivity multiplier: ensures a single high-confidence classifier
 // with the heaviest weight (INCOME_CLAIM at 0.30) can independently
 // trigger a BLOCK outcome (100 * 0.30 * 3 = 90 >= 71)
 const SCORE_SENSITIVITY = 3;
-
-export interface ComplianceFilterEngineOptions {
-  config?: Partial<CFEConfig>;
-  onDecision?: (result: CFEResult, input: CFEInput) => void;
-  auditRepository?: AuditRepository;
-}
 
 export class ComplianceFilterEngine {
   private incomeClassifier = new IncomeClaimClassifier();
@@ -43,47 +36,17 @@ export class ComplianceFilterEngine {
   private referralClassifier = new ReferralRequestClassifier();
 
   private cfeAvailable: boolean = true;
-  private config: CFEConfig;
-  private onDecision?: (result: CFEResult, input: CFEInput) => void;
-  private auditService: AuditService;
 
-  constructor(options?: ComplianceFilterEngineOptions) {
-    this.config = { ...DEFAULT_CFE_CONFIG, ...options?.config };
-    this.onDecision = options?.onDecision;
-    this.auditService = new AuditService(options?.auditRepository ?? new InMemoryAuditRepository());
-  }
-
-  /**
-   * Review content through the CFE pipeline.
-   * Uses a 2-second timeout wrapper per WP11 §2.4.
-   * If classifier/service unavailable, result must BLOCK (fail-closed), never pass.
-   */
   async review(input: CFEInput): Promise<CFEResult> {
     if (!this.cfeAvailable) {
       return this.createBlockResult(input, 'CFE unavailable — fail-closed mode');
     }
 
-    // Evaluate synchronously (classifiers are all synchronous)
-    const result = await this.evaluateContent(input);
-
-    // Persist audit trail (async, non-blocking from caller's view)
-    await this.auditService.recordDecision(result.audit_payload);
-
-    // Invoke onDecision callback if provided
-    this.onDecision?.(result, input);
-
-    return result;
-  }
-
-  /**
-   * Core evaluation logic — runs all five classifiers and computes risk score.
-   */
-  private async evaluateContent(input: CFEInput): Promise<CFEResult> {
     const classifierResults: ClassifierResult[] = [
       this.incomeClassifier.classify(input.content),
       this.testimonialClassifier.classify(input.content),
       this.opportunityClassifier.classify(input.content),
-      this.insuranceClassifier.classify(input.content, input.userContext.licensed_states ?? []),
+      this.insuranceClassifier.classify(input.content, input.userContext.licensed_states || []),
       this.referralClassifier.classify(input.content),
     ];
 
@@ -100,7 +63,7 @@ export class ComplianceFilterEngine {
       classifierData[result.classifier] = Math.round(result.confidence * 100);
     }
 
-    const baseScore = this.calculateWeightedRiskScore(classifierData, input.userContext.regulations ?? []);
+    const baseScore = this.calculateWeightedRiskScore(classifierData, input.userContext.regulations || []);
 
     const { disclaimers, injected } = determineSafeHarborInjections(classifierResults);
 
@@ -109,12 +72,12 @@ export class ComplianceFilterEngine {
     let action: string;
     let blocked: boolean;
 
-    if (baseScore >= this.config.risk_thresholds.block_min) {
+    if (baseScore >= RISK_THRESHOLDS.BLOCK.min) {
       outcome = 'BLOCK';
       httpStatus = 403;
       action = 'block-403';
       blocked = true;
-    } else if (baseScore >= this.config.risk_thresholds.flag_min) {
+    } else if (baseScore >= RISK_THRESHOLDS.FLAG.min) {
       outcome = 'FLAG';
       httpStatus = 202;
       action = 'upline-review';
@@ -126,23 +89,6 @@ export class ComplianceFilterEngine {
       blocked = false;
     }
 
-    const auditPayload: AuditPayload = {
-      content_text: input.content,
-      content_hash: contentHash(input.content),
-      risk_score: baseScore,
-      outcome,
-      classifier_scores: classifierData,
-      classifier_results: classifierResults,
-      safe_harbor_injected: injected,
-      safe_harbor_disclaimers: disclaimers,
-      timestamp: new Date().toISOString(),
-      user_id: input.userContext.user_id,
-      role: input.userContext.role,
-      channel: input.channel,
-      rule_version: this.config.rule_version,
-      regulation: input.userContext.regulations ?? [],
-    };
-
     return {
       outcome,
       risk_score: baseScore,
@@ -150,9 +96,7 @@ export class ComplianceFilterEngine {
       classifier_results: classifierResults,
       safe_harbor_injected: injected,
       safe_harbor_disclaimers: disclaimers,
-      safe_harbor_applied: injected,
-      safe_harbor_text: disclaimers.join(' '),
-      audit_payload: auditPayload,
+      audit_payload: {} as any,
       blocked,
       http_status: httpStatus,
       action,
@@ -167,14 +111,14 @@ export class ComplianceFilterEngine {
 
     for (const classifier of ALL_CLASSIFIERS) {
       const score = classifierData[classifier]; // 0–100
-      const weight = this.config.classifier_weights[classifier];
+      const weight = CLASSIFIER_WEIGHTS[classifier];
       rawScore += score * weight * SCORE_SENSITIVITY;
     }
 
     let multiplier = 1.0;
     if (regulations.length > 0) {
       for (const reg of regulations) {
-        const regMultiplier = this.config.regulation_multipliers[reg];
+        const regMultiplier = REGULATION_MULTIPLIERS[reg as RegulationType];
         if (regMultiplier && regMultiplier > multiplier) {
           multiplier = regMultiplier;
         }
@@ -186,33 +130,14 @@ export class ComplianceFilterEngine {
   }
 
   private createBlockResult(input: CFEInput, reason: string): CFEResult {
-    const auditPayload: AuditPayload = {
-      content_text: input.content,
-      content_hash: contentHash(input.content),
-      risk_score: 100,
-      outcome: 'BLOCK',
-      classifier_scores: { INCOME_CLAIM: 0, TESTIMONIAL: 0, OPPORTUNITY: 0, INSURANCE: 0, REFERRAL: 0 },
-      classifier_results: [],
-      safe_harbor_injected: false,
-      safe_harbor_disclaimers: [],
-      timestamp: new Date().toISOString(),
-      user_id: input.userContext.user_id,
-      role: input.userContext.role,
-      channel: input.channel,
-      rule_version: this.config.rule_version,
-      regulation: input.userContext.regulations ?? [],
-    };
-
     return {
       outcome: 'BLOCK',
       risk_score: 100,
-      classifier_data: { INCOME_CLAIM: 0, TESTIMONIAL: 0, OPPORTUNITY: 0, INSURANCE: 0, REFERRAL: 0 },
+      classifier_data: {} as any,
       classifier_results: [],
       safe_harbor_injected: false,
       safe_harbor_disclaimers: [],
-      safe_harbor_applied: false,
-      safe_harbor_text: reason,
-      audit_payload: auditPayload,
+      audit_payload: {} as any,
       blocked: true,
       http_status: 403,
       action: 'block-403',
@@ -221,39 +146,6 @@ export class ComplianceFilterEngine {
 
   setAvailability(available: boolean): void { this.cfeAvailable = available; }
   isAvailable(): boolean { return this.cfeAvailable; }
-
-  /**
-   * Review with explicit timeout wrapper.
-   * Wraps review() with a configurable timeout.
-   */
-  async reviewWithTimeout(input: CFEInput, timeoutMs?: number): Promise<CFEResult> {
-    const timeout = timeoutMs ?? this.config.timeout_ms;
-    return Promise.race([
-      this.review(input),
-      new Promise<CFEResult>((_, reject) =>
-        setTimeout(() => reject(new Error(`CFE_TIMEOUT: ${timeout}ms`)), timeout)
-      ),
-    ]);
-  }
-
-  /**
-   * Get pre-generation compliance constraints for a specific work package.
-   */
-  getPreGenerationConstraints(wp: keyof typeof PRE_GENERATION_CONSTRAINTS): string[] {
-    return [...PRE_GENERATION_CONSTRAINTS[wp]];
-  }
-
-  /**
-   * Get the audit service for querying audit records.
-   */
-  getAuditService(): AuditService {
-    return this.auditService;
-  }
-
-  /**
-   * Get current CFE config.
-   */
-  getConfig(): CFEConfig {
-    return { ...this.config };
-  }
+  async reviewWithTimeout(input: CFEInput): Promise<CFEResult> { return this.review(input); }
+  getPreGenerationConstraints(wp: keyof typeof PRE_GENERATION_CONSTRAINTS): string[] { return []; }
 }

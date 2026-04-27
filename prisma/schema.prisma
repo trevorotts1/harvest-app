@@ -46,10 +46,15 @@ enum CFEOutcome {
 model AuditEntry {
   id              String     @id @default(uuid())
   user_id         String
+  content_text    String     // Added
   content_hash    String
   risk_score      Int
   outcome         CFEOutcome
   classifier_data Json
+  rule_version    String     // Added
+  regulation      String     // Added
+  reviewer_id     String?    // Added
+  reviewer_action String?    // Added
   role            Role       @default(REP)
   created_at      DateTime   @default(now())
 
@@ -66,6 +71,57 @@ model ComplianceConsent {
 
   @@index([timestamp])
   @@index([user_id, timestamp])
+}
+
+model ComplianceRule {
+  id              String   @id @default(uuid())
+  name            String
+  regulation      String
+  version         String
+  parameters      Json
+  is_active       Boolean  @default(true)
+  created_at      DateTime @default(now())
+}
+
+model ComplianceReviewQueue {
+  id              String   @id @default(uuid())
+  audit_entry_id  String   @unique
+  status          String   // PENDING, APPROVED, REJECTED, MODIFIED
+  upline_id       String
+  created_at      DateTime @default(now())
+}
+
+model ComplianceUplineReview {
+  id              String   @id @default(uuid())
+  audit_entry_id  String
+  reviewer_id     String
+  action          String
+  feedback        String?
+  timestamp       DateTime @default(now())
+}
+
+model ComplianceException {
+  id              String   @id @default(uuid())
+  audit_entry_id  String
+  reason          String
+  created_at      DateTime @default(now())
+}
+
+model UserDataExport {
+  id              String   @id @default(uuid())
+  user_id         String
+  status          String   // PENDING, COMPLETED, FAILED
+  expires_at      DateTime
+  created_at      DateTime @default(now())
+}
+
+model UserDataDeletion {
+  id              String   @id @default(uuid())
+  user_id         String
+  status          String   // PENDING, COMPLETED, FAILED
+  anonymized_fields String[]
+  requested_at    DateTime @default(now())
+  completed_at    DateTime?
 }
 
 model Organization {
