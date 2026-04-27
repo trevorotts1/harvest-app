@@ -43,18 +43,48 @@ enum CFEOutcome {
   BLOCK
 }
 
+enum PipelineStage {
+  NEW
+  ENGAGED
+  PIPELINE
+  ACTIVATED
+  ARCHIVED
+}
+
+enum ContactDataClassification {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum ImportSource {
+  IOS_CONTACTS
+  ANDROID_CONTACTS
+  CSV_UPLOAD
+  MANUAL_ENTRY
+}
+
 model AuditEntry {
   id              String     @id @default(uuid())
   user_id         String
-  content_text    String     // Added
+  content_text    String
   content_hash    String
   risk_score      Int
   outcome         CFEOutcome
   classifier_data Json
-  rule_version    String     // Added
-  regulation      String     // Added
-  reviewer_id     String?    // Added
-  reviewer_action String?    // Added
+  rule_version    String
+  regulation      String
+  reviewer_id     String?
+  reviewer_action String?
   role            Role       @default(REP)
   created_at      DateTime   @default(now())
 
@@ -86,7 +116,7 @@ model ComplianceRule {
 model ComplianceReviewQueue {
   id              String   @id @default(uuid())
   audit_entry_id  String   @unique
-  status          String   // PENDING, APPROVED, REJECTED, MODIFIED
+  status          String
   upline_id       String
   created_at      DateTime @default(now())
 }
@@ -110,7 +140,7 @@ model ComplianceException {
 model UserDataExport {
   id              String   @id @default(uuid())
   user_id         String
-  status          String   // PENDING, COMPLETED, FAILED
+  status          String
   expires_at      DateTime
   created_at      DateTime @default(now())
 }
@@ -118,7 +148,7 @@ model UserDataExport {
 model UserDataDeletion {
   id              String   @id @default(uuid())
   user_id         String
-  status          String   // PENDING, COMPLETED, FAILED
+  status          String
   anonymized_fields String[]
   requested_at    DateTime @default(now())
   completed_at    DateTime?
@@ -148,6 +178,9 @@ model User {
   commitment_score Int      @default(0)
   organization_id String?
   organization    Organization? @relation(fields: [organization_id], references: [id])
+  contacts        Contact[] @relation("UserContacts")
+  importJobs      ContactImportJob[] @relation("UserImportJobs")
+  earningsSnapshots HiddenEarningsSnapshot[] @relation("UserEarningsSnapshots")
   onboarding_sessions OnboardingSession[]
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
@@ -163,4 +196,92 @@ model OnboardingSession {
   intensity_data Json?
   completed     Boolean  @default(false)
   created_at    DateTime @default(now())
+}
+
+model Contact {
+  id                     String                @id @default(uuid())
+  user_id                String                @map("user_id")
+  user                   User                  @relation("UserContacts", fields: [user_id], references: [id])
+  first_name             String                @map("first_name")
+  last_name              String                @map("last_name")
+  phone                  String?
+  email                  String?
+  relationship_type      String                @map("relationship_type")
+  pipeline_stage         PipelineStage         @default(NEW) @map("pipeline_stage")
+  segment_score          Int                   @default(0) @map("segment_score")
+  segment_score_factors  Json?                 @map("segment_score_factors")
+  is_recruit_target      Boolean               @default(false) @map("is_recruit_target")
+  is_client              Boolean               @default(false) @map("is_client")
+  is_a_list              Boolean               @default(false) @map("is_a_list")
+  last_contact_date      DateTime?             @map("last_contact_date")
+  notes                  String?
+  source                 String
+  import_batch_id        String?               @map("import_batch_id")
+  data_classification    ContactDataClassification @default(RESTRICTED) @map("data_classification")
+  consent_given_at       DateTime?             @map("consent_given_at")
+  encrypted_pii_payload  String?               @map("encrypted_pii_payload")
+  encrypted_pii_iv       String?               @map("encrypted_pii_iv")
+  encrypted_pii_auth_tag String?               @map("encrypted_pii_auth_tag")
+  life_events            Json?                 @map("life_events")
+  trust_score            Int?                  @map("trust_score")
+  created_at             DateTime              @default(now()) @map("created_at")
+  updated_at             DateTime              @updatedAt @map("updated_at")
+
+  interactions           ContactInteraction[]
+
+  @@index([user_id, phone])
+  @@index([user_id, email])
+  @@index([user_id, pipeline_stage])
+  @@map("contacts")
+}
+
+model ContactInteraction {
+  id          String   @id @default(uuid())
+  contact_id  String   @map("contact_id")
+  contact     Contact  @relation(fields: [contact_id], references: [id])
+  type        String
+  timestamp   DateTime @default(now())
+  details     String?
+
+  @@index([contact_id, timestamp])
+  @@map("contact_interactions")
+}
+
+model HiddenEarningsSnapshot {
+  id                        String   @id @default(uuid())
+  user_id                   String   @map("user_id")
+  user                      User     @relation("UserEarningsSnapshots", fields: [user_id], references: [id])
+  total_contacts            Int      @map("total_contacts")
+  segment_breakdown         Json     @map("segment_breakdown")
+  estimated_appointments    Int      @map("estimated_appointments")
+  estimated_clients         Int      @map("estimated_clients")
+  avg_monthly_value         Int      @map("avg_monthly_value")
+  estimated_monthly_value   Int      @map("estimated_monthly_value")
+  disclaimer_text           String   @map("disclaimer_text")
+  calculated_at             DateTime @default(now()) @map("calculated_at")
+
+  @@unique([user_id])
+  @@index([user_id, calculated_at])
+  @@map("hidden_earnings_snapshots")
+}
+
+model ContactImportJob {
+  id                  String         @id @default(uuid())
+  user_id             String         @map("user_id")
+  user                User           @relation("UserImportJobs", fields: [user_id], references: [id])
+  source              ImportSource   @map("source")
+  status              ImportJobStatus @default(PENDING) @map("status")
+  total_records       Int            @default(0) @map("total_records")
+  imported_count      Int            @default(0) @map("imported_count")
+  skipped_count       Int            @default(0) @map("skipped_count")
+  error_count         Int            @default(0) @map("error_count")
+  field_mapping       Json?          @map("field_mapping")
+  conflict_resolution String?        @map("conflict_resolution")
+  error_details       Json?          @map("error_details")
+  started_at          DateTime?      @map("started_at")
+  completed_at        DateTime?      @map("completed_at")
+  created_at          DateTime       @default(now()) @map("created_at")
+
+  @@index([user_id, status])
+  @@map("contact_import_jobs")
 }
