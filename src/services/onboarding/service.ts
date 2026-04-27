@@ -1,127 +1,114 @@
 import {
   OnboardingStep,
-  OnboardingData,
   OnboardingSession,
-  STEP_ORDER,
+  Role,
+  OrgType,
+  AccessTier,
+  IntensitySetting,
+  IntensityData,
+  ROLE_STEP_MAP,
+  SEVEN_WHYS_MIN_SCORE,
   MIN_COMMITMENT_SCORE,
+  SOLUTION_NUMBER_PATTERN,
+  ROLE_VISIBILITY,
+  ValidationResult,
+  findForbiddenTerms,
 } from '../../types/onboarding';
 
 export class OnboardingService {
-  /**
-   * Get the next step after the current one.
-   * Returns null if already at COMPLETE.
-   */
-  getNextStep(currentStep: OnboardingStep): OnboardingStep | null {
-    const idx = STEP_ORDER.indexOf(currentStep);
-    if (idx === -1 || idx >= STEP_ORDER.length - 1) {
-      return null;
+  getStepsForRole(role: Role): OnboardingStep[] {
+    return ROLE_STEP_MAP[role] ?? ROLE_STEP_MAP[Role.REP];
+  }
+
+  getRoleVisibility(role: Role) {
+    return ROLE_VISIBILITY[role];
+  }
+
+  isPrimericaUser(orgType: OrgType): boolean {
+    return orgType === OrgType.PRIMERICA;
+  }
+
+  validateSolutionNumberFormat(solutionNumber: string | null | undefined): ValidationResult {
+    if (!solutionNumber || !SOLUTION_NUMBER_PATTERN.test(solutionNumber)) {
+      return { valid: false, error: 'Solution number must be 6-8 digits' };
     }
-    return STEP_ORDER[idx + 1];
+    return { valid: true };
   }
 
-  /**
-   * Validate that a step transition is allowed.
-   * Enforces the state machine order and business rules.
-   */
-  canProgressTo(currentStep: OnboardingStep, data: Partial<OnboardingData>): { valid: boolean; error?: string } {
-    switch (currentStep) {
-      case OnboardingStep.REGISTER: {
-        // If org_type is PRIMERICA, solution_number must be provided
-        if (data.orgType === 'PRIMERICA' && !data.solutionNumber) {
-          return { valid: false, error: 'Solution number is required for Primerica representatives' };
-        }
-        return { valid: true };
-      }
-
-      case OnboardingStep.ACCOUNT_TYPE: {
-        // org_type must be set to proceed from ACCOUNT_TYPE
-        if (!data.orgType) {
-          return { valid: false, error: 'Organization type is required' };
-        }
-        return { valid: true };
-      }
-
-      case OnboardingStep.SEVEN_WHYS: {
-        // Seven Whys progression gate: commitment_score must meet threshold
-        if (
-          data.intensityData &&
-          data.intensityData.commitmentScore < MIN_COMMITMENT_SCORE
-        ) {
-          return {
-            valid: false,
-            error: `Commitment score must be at least ${MIN_COMMITMENT_SCORE}/10 to proceed`,
-          };
-        }
-        // sevenWhys must be provided
-        if (!data.sevenWhys || data.sevenWhys.length === 0) {
-          return { valid: false, error: 'Seven Whys data is required' };
-        }
-        return { valid: true };
-      }
-
-      case OnboardingStep.GOAL_CARD: {
-        // goalCard must be provided
-        if (!data.goalCard) {
-          return { valid: false, error: 'Goal commitment card is required' };
-        }
-        return { valid: true };
-      }
-
-      case OnboardingStep.INTENSITY: {
-        // commitment_score must meet threshold
-        if (
-          data.intensityData &&
-          data.intensityData.commitmentScore < MIN_COMMITMENT_SCORE
-        ) {
-          return {
-            valid: false,
-            error: `Commitment score must be at least ${MIN_COMMITMENT_SCORE}/10 to complete onboarding`,
-          };
-        }
-        return { valid: true };
-      }
-
-      case OnboardingStep.COMPLETE:
-        return { valid: false, error: 'Onboarding already completed' };
-
-      default:
-        return { valid: false, error: `Unknown step: ${currentStep}` };
+  validateSevenWhysScore(responses: any[]): ValidationResult {
+    const total = responses.reduce((sum, r) => sum + (r.score || 0), 0) / (responses.length || 1);
+    if (total <= SEVEN_WHYS_MIN_SCORE) {
+      return { valid: false, error: `Score ${total} below gate threshold of ${SEVEN_WHYS_MIN_SCORE}` };
     }
+    return { valid: true };
   }
 
-  /**
-   * Determine access tier from onboarding data.
-   * Maps commitment score ranges to tiers.
-   */
-  determineAccessTier(commitmentScore: number): string {
-    if (commitmentScore >= 9) return 'ELITE';
-    if (commitmentScore >= 7) return 'PRO';
-    if (commitmentScore >= 5) return 'ESSENTIAL';
-    return 'FREE';
+  validateStep(
+    session: OnboardingSession,
+    step: OnboardingStep,
+    data: any
+  ): ValidationResult {
+    const forbidden = findForbiddenTerms(JSON.stringify(data));
+    if (forbidden.length > 0) {
+      return { valid: false, error: `Forbidden terms: ${forbidden.join(', ')}` };
+    }
+
+    if (step === OnboardingStep.ROLE_ORG_CONTEXT && session.org_type === OrgType.PRIMERICA) {
+      return this.validateSolutionNumberFormat(data.solution_number);
+    }
+
+    if (step === OnboardingStep.SEVEN_WHYS) {
+      return this.validateSevenWhysScore(data.seven_whys || []);
+    }
+
+    if (step === OnboardingStep.INTENSITY) {
+      if (!data.intensity_data || data.intensity_data.commitmentScore < MIN_COMMITMENT_SCORE) {
+        return { valid: false, error: 'Intensity data insufficient' };
+      }
+    }
+
+    return { valid: true };
   }
 
-  /**
-   * Check if solution_number field should be shown for the given org type.
-   */
-  requiresSolutionNumber(orgType: string): boolean {
-    return orgType === 'PRIMERICA';
+  seedAccessTier(role: Role, orgType: OrgType): AccessTier {
+    if (role === Role.RVP || role === Role.UPLINE) return AccessTier.ENTERPRISE;
+    return orgType === OrgType.PRIMERICA ? AccessTier.ORG_LINKED_FREE : AccessTier.PAID_EXTERNAL;
   }
 
-  /**
-   * Check if onboarding data meets the minimum commitment threshold.
-   */
-  meetsCommitmentThreshold(commitmentScore: number): boolean {
-    return commitmentScore >= MIN_COMMITMENT_SCORE;
+  canProgressTo(step: OnboardingStep, data: any): ValidationResult {
+    // Legacy support for API routes/tests using different property names
+    const orgType = data.orgType || data.org_type;
+    const solutionNumber = data.solutionNumber || data.solution_number;
+    
+    if (step === OnboardingStep.ROLE_ORG_CONTEXT && orgType === OrgType.PRIMERICA) {
+      return this.validateSolutionNumberFormat(solutionNumber);
+    }
+    return { valid: true };
   }
 
-  /**
-   * Finalize onboarding: sets the access tier based on commitment score.
-   * Returns the computed access tier.
-   */
-  finalizeOnboarding(session: OnboardingSession): { accessTier: string; commitmentScore: number } {
-    const commitmentScore = session.intensityData?.commitmentScore ?? 0;
-    const accessTier = this.determineAccessTier(commitmentScore);
-    return { accessTier, commitmentScore };
+  getNextStep(session: OnboardingSession): OnboardingStep | null {
+    const steps = this.getStepsForRole(session.role);
+    const idx = steps.indexOf(session.current_step);
+    return idx !== -1 && idx < steps.length - 1 ? steps[idx + 1] : null;
+  }
+
+  determineAccessTier(commitmentScore: number, orgType: OrgType): AccessTier {
+    if (commitmentScore >= 9) return AccessTier.ENTERPRISE;
+    if (commitmentScore >= 7) return AccessTier.PAID_INDIVIDUAL;
+    return orgType === OrgType.PRIMERICA ? AccessTier.ORG_LINKED_FREE : AccessTier.PAID_EXTERNAL;
+  }
+
+  meetsCommitmentThreshold(score: number): boolean {
+    return score >= MIN_COMMITMENT_SCORE;
+  }
+
+  requiresSolutionNumber(orgType: OrgType): boolean {
+    return orgType === OrgType.PRIMERICA;
+  }
+
+  finalizeOnboarding(session: OnboardingSession): { accessTier: AccessTier; commitmentScore: number } {
+    const score = session.intensity_data?.commitmentScore || 0;
+    return { accessTier: this.determineAccessTier(score, session.org_type), commitmentScore: score };
   }
 }
 

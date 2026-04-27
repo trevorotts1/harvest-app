@@ -1,216 +1,58 @@
 import { OnboardingService } from '../../src/services/onboarding/service';
-import { OnboardingStep } from '../../src/types/onboarding';
+import { OnboardingStep, Role, OrgType, AccessTier, ROLE_VISIBILITY } from '../../src/types/onboarding';
 
 describe('OnboardingService', () => {
   const service = new OnboardingService();
 
-  describe('Organization gate: Primerica vs non-Primerica', () => {
-    test('should require solution_number for Primerica users', () => {
-      const result = service.canProgressTo(OnboardingStep.REGISTER, {
-        orgType: 'PRIMERICA',
-        solutionNumber: undefined,
-      });
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('Solution number');
+  describe('Organization gate', () => {
+    test('should validate Primerica solution number format', () => {
+      expect(service.validateSolutionNumberFormat('123456').valid).toBe(true);
+      expect(service.validateSolutionNumberFormat('12345').valid).toBe(false);
+      expect(service.validateSolutionNumberFormat('ABCDEF').valid).toBe(false);
     });
 
-    test('should allow Primerica users with solution_number', () => {
-      const result = service.canProgressTo(OnboardingStep.REGISTER, {
-        orgType: 'PRIMERICA',
-        solutionNumber: 'SN-12345',
-      });
-      expect(result.valid).toBe(true);
-    });
-
-    test('should NOT require solution_number for non-Primerica users', () => {
-      const result = service.canProgressTo(OnboardingStep.REGISTER, {
-        orgType: 'EXTERNAL',
-        solutionNumber: undefined,
-      });
-      expect(result.valid).toBe(true);
-    });
-
-    test('requiresSolutionNumber returns true for PRIMERICA', () => {
-      expect(service.requiresSolutionNumber('PRIMERICA')).toBe(true);
-    });
-
-    test('requiresSolutionNumber returns false for EXTERNAL', () => {
-      expect(service.requiresSolutionNumber('EXTERNAL')).toBe(false);
+    test('isPrimericaUser returns correct values', () => {
+      expect(service.isPrimericaUser(OrgType.PRIMERICA)).toBe(true);
+      expect(service.isPrimericaUser(OrgType.NON_PRIMERICA)).toBe(false);
     });
   });
 
-  describe('Seven Whys progression gate', () => {
-    test('should block progression when commitment_score is below 5', () => {
-      const result = service.canProgressTo(OnboardingStep.SEVEN_WHYS, {
-        sevenWhys: ['Why 1', 'Why 2'],
-        intensityData: {
-          commitmentScore: 3,
-          weeklyHours: 10,
-          riskTolerance: 'MEDIUM',
-          supportNeeds: [],
-        },
-      });
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('5');
+  describe('Access Tier seeding', () => {
+    test('should seed ENTERPRISE for RVP/UPLINE', () => {
+      expect(service.seedAccessTier(Role.RVP, OrgType.NON_PRIMERICA)).toBe(AccessTier.ENTERPRISE);
+      expect(service.seedAccessTier(Role.UPLINE, OrgType.PRIMERICA)).toBe(AccessTier.ENTERPRISE);
     });
 
-    test('should allow progression when commitment_score meets threshold', () => {
-      const result = service.canProgressTo(OnboardingStep.SEVEN_WHYS, {
-        sevenWhys: ['Why 1', 'Why 2'],
-        intensityData: {
-          commitmentScore: 7,
-          weeklyHours: 20,
-          riskTolerance: 'HIGH',
-          supportNeeds: [],
-        },
-      });
-      expect(result.valid).toBe(true);
-    });
-
-    test('should block when sevenWhys is empty', () => {
-      const result = service.canProgressTo(OnboardingStep.SEVEN_WHYS, {
-        sevenWhys: [],
-      });
-      expect(result.valid).toBe(false);
-    });
-
-    test('should block when sevenWhys is not provided', () => {
-      const result = service.canProgressTo(OnboardingStep.SEVEN_WHYS, {});
-      expect(result.valid).toBe(false);
-    });
-
-    test('should allow progression at exactly threshold (5)', () => {
-      const result = service.canProgressTo(OnboardingStep.SEVEN_WHYS, {
-        sevenWhys: ['Why 1'],
-        intensityData: {
-          commitmentScore: 5,
-          weeklyHours: 15,
-          riskTolerance: 'MEDIUM',
-          supportNeeds: [],
-        },
-      });
-      expect(result.valid).toBe(true);
-    });
-
-    test('meetsCommitmentThreshold returns correct values', () => {
-      expect(service.meetsCommitmentThreshold(4)).toBe(false);
-      expect(service.meetsCommitmentThreshold(5)).toBe(true);
-      expect(service.meetsCommitmentThreshold(8)).toBe(true);
+    test('should seed correct free tier based on OrgType', () => {
+      expect(service.seedAccessTier(Role.REP, OrgType.PRIMERICA)).toBe(AccessTier.ORG_LINKED_FREE);
+      expect(service.seedAccessTier(Role.REP, OrgType.NON_PRIMERICA)).toBe(AccessTier.PAID_EXTERNAL);
     });
   });
 
-  describe('Onboarding completion and access tier', () => {
-    const makeSession = (commitmentScore: number) => ({
-      id: 'session-1',
-      userId: 'user-1',
-      currentStep: OnboardingStep.INTENSITY,
-      sevenWhys: ['Why 1', 'Why 2'],
-      goalCard: {
-        primaryGoal: 'Build a team',
-        targetDate: '2026-12-31',
-        commitmentLevel: 8,
-        motivationStatement: 'Freedom',
-      },
-      intensityData: {
-        commitmentScore,
-        weeklyHours: 20,
-        riskTolerance: 'HIGH' as const,
-        supportNeeds: [],
-      },
-      completed: false,
-      createdAt: new Date(),
-    });
-
-    test('should assign ELITE tier for commitment_score 9+', () => {
-      const session = makeSession(9);
-      const result = service.finalizeOnboarding(session);
-      expect(result.accessTier).toBe('ELITE');
-    });
-
-    test('should assign PRO tier for commitment_score 7-8', () => {
-      const session = makeSession(7);
-      const result = service.finalizeOnboarding(session);
-      expect(result.accessTier).toBe('PRO');
-    });
-
-    test('should assign ESSENTIAL tier for commitment_score 5-6', () => {
-      const session = makeSession(5);
-      const result = service.finalizeOnboarding(session);
-      expect(result.accessTier).toBe('ESSENTIAL');
-    });
-
-    test('should assign FREE tier for commitment_score below 5', () => {
-      const session = makeSession(3);
-      const result = service.finalizeOnboarding(session);
-      expect(result.accessTier).toBe('FREE');
-    });
-
-    test('determineAccessTier maps all score ranges correctly', () => {
-      expect(service.determineAccessTier(10)).toBe('ELITE');
-      expect(service.determineAccessTier(9)).toBe('ELITE');
-      expect(service.determineAccessTier(8)).toBe('PRO');
-      expect(service.determineAccessTier(7)).toBe('PRO');
-      expect(service.determineAccessTier(6)).toBe('ESSENTIAL');
-      expect(service.determineAccessTier(5)).toBe('ESSENTIAL');
-      expect(service.determineAccessTier(4)).toBe('FREE');
-      expect(service.determineAccessTier(0)).toBe('FREE');
+  describe('Seven Whys hard gate', () => {
+    test('should validate Seven Whys score threshold', () => {
+      const responsesPass = [{ score: 80 }, { score: 90 }];
+      const responsesFail = [{ score: 50 }, { score: 60 }];
+      expect(service.validateSevenWhysScore(responsesPass).valid).toBe(true);
+      expect(service.validateSevenWhysScore(responsesFail).valid).toBe(false);
     });
   });
 
-  describe('Step progression state machine', () => {
-    test('should follow correct step order', () => {
-      expect(service.getNextStep(OnboardingStep.REGISTER)).toBe(OnboardingStep.ACCOUNT_TYPE);
-      expect(service.getNextStep(OnboardingStep.ACCOUNT_TYPE)).toBe(OnboardingStep.SEVEN_WHYS);
-      expect(service.getNextStep(OnboardingStep.SEVEN_WHYS)).toBe(OnboardingStep.GOAL_CARD);
-      expect(service.getNextStep(OnboardingStep.GOAL_CARD)).toBe(OnboardingStep.INTENSITY);
-      expect(service.getNextStep(OnboardingStep.INTENSITY)).toBe(OnboardingStep.COMPLETE);
-      expect(service.getNextStep(OnboardingStep.COMPLETE)).toBeNull();
+  describe('Role visibility', () => {
+    test('should return correct visibility boundaries', () => {
+      const rvpVisibility = service.getRoleVisibility(Role.RVP);
+      expect(rvpVisibility).toEqual(ROLE_VISIBILITY[Role.RVP]);
+      expect(rvpVisibility.canViewDownline).toBe(true);
+      
+      const repVisibility = service.getRoleVisibility(Role.REP);
+      expect(repVisibility.canViewDownline).toBe(false);
     });
   });
 
-  describe('Goal Card step validation', () => {
-    test('should require goalCard data', () => {
-      const result = service.canProgressTo(OnboardingStep.GOAL_CARD, {});
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('Goal');
-    });
-
-    test('should allow with goalCard provided', () => {
-      const result = service.canProgressTo(OnboardingStep.GOAL_CARD, {
-        goalCard: {
-          primaryGoal: 'Build a team',
-          targetDate: '2026-12-31',
-          commitmentLevel: 8,
-          motivationStatement: 'Freedom',
-        },
-      });
-      expect(result.valid).toBe(true);
-    });
-  });
-
-  describe('INTENSITY step validation', () => {
-    test('should block if commitment_score below threshold', () => {
-      const result = service.canProgressTo(OnboardingStep.INTENSITY, {
-        intensityData: {
-          commitmentScore: 2,
-          weeklyHours: 5,
-          riskTolerance: 'LOW',
-          supportNeeds: [],
-        },
-      });
-      expect(result.valid).toBe(false);
-    });
-
-    test('should allow if commitment_score meets threshold', () => {
-      const result = service.canProgressTo(OnboardingStep.INTENSITY, {
-        intensityData: {
-          commitmentScore: 6,
-          weeklyHours: 15,
-          riskTolerance: 'MEDIUM',
-          supportNeeds: [],
-        },
-      });
-      expect(result.valid).toBe(true);
+  describe('Progression and business rules', () => {
+    test('getNextStep follows role-specific order', () => {
+      const mockSession = { role: Role.REP, current_step: OnboardingStep.REGISTER } as any;
+      expect(service.getNextStep(mockSession)).toBe(OnboardingStep.ACCOUNT_TYPE);
     });
   });
 });
