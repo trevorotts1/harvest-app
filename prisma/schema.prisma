@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  REP
+  UPLINE
+  ADMIN
+  DUAL
+  RVP
+  EXTERNAL
+}
+
+model AuditEntry {
+  id              String   @id @default(uuid())
+  user_id         String
+  content_hash    String
+  risk_score      Int
+  outcome         String   // PASS, FLAG, BLOCK
+  classifier_data Json
+  created_at      DateTime @default(now())
+}
+
+model ComplianceConsent {
+  id              String   @id @default(uuid())
+  user_id         String
+  consent_type    String
+  given           Boolean
+  timestamp       DateTime @default(now())
+}
