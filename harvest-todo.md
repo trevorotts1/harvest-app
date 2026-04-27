@@ -17,7 +17,7 @@
 
 ## Supervision Infrastructure Setup
 
-- [ ] **T02** — Set agents.defaults.timeoutSeconds to 1200 and restart Gateway
+- [ ] **T02** — Set agents.defaults.timeoutSeconds to 1800 and restart Gateway
   **Phase:** Setup | **Dependencies:** T01 | **Status:** [ ]
 
 - [ ] **T03** — Set agents.defaults.llm.idleTimeoutSeconds to 120 and restart Gateway
@@ -29,7 +29,7 @@
 - [ ] **T05** — Populate HEARTBEAT.md with full monitoring checklist
   **Phase:** Setup | **Dependencies:** T01 | **Status:** [ ]
 
-- [ ] **T06** — Verify: cron status shows enabled, HEARTBEAT.md populated, timeout is 1200
+- [ ] **T06** — Verify: cron status shows enabled, HEARTBEAT.md populated, timeout is 1800
   **Phase:** Setup | **Dependencies:** T02, T03, T04, T05 | **Status:** [ ]
 
 ---
@@ -131,11 +131,11 @@
 - [ ] **T35** — QC for WP09
   **Phase:** QC | **Dependencies:** T34 | **Status:** [ ]
 
-- [ ] **T36** — WP10: Payment & Subscription Infrastructure — specification + implementation draft
-  **Phase:** Build | **Dependencies:** T19 | **Status:** [ ] | **Runs parallel with T34**
+- [x] **T36** — WP10: Payment & Subscription Infrastructure — specification + implementation draft
+  **Phase:** Build | **Dependencies:** T19 | **Status:** ✅ Done (v4, 556 lines) | **Runs parallel with T34**
 
-- [ ] **T37** — QC for WP10
-  **Phase:** QC | **Dependencies:** T36 | **Status:** [ ]
+- [x] **T37** — QC for WP10
+  **Phase:** QC | **Dependencies:** T36 | **Status:** ✅ PASS (8.0/10, v4 — exception approved)
 
 ---
 

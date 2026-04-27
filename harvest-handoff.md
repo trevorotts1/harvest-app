@@ -83,7 +83,7 @@
 - None — all current decisions are resolved. Awaiting green light to begin app build phase.
 
 ### Configuration Changes Made During This Session
-- Set agents.defaults.timeoutSeconds to 1800
+- Set agents.defaults.timeoutSeconds to 1800 (Increased from standard 1200 to 1800 due to WP spec generation requiring longer agent runs — deliberate session decision)
 - Set agents.defaults.subagents.runTimeoutSeconds to 1800
 - Set agents.defaults.bootstrapMaxChars to 100000
 - Set agents.defaults.bootstrapTotalMaxChars to 300000

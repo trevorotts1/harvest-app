@@ -86,7 +86,39 @@ It is a **Mission Control operating layer** over:
 
 The correct mental model is: **business-in-a-box command system with autonomous execution agents**.
 
-### 1.5 User System and Role Architecture
+### 1.5 Compliance Interception Architecture
+
+### Timing
+Interception occurs at two points:
+1. **Pre-generation:** Agent prompt templates contain embedded compliance rules (prohibited terms injected as negative constraints). This prevents non-compliant output at the source.
+2. **Pre-send:** Every agent-generated message passes through the Compliance Filter Engine (CFE) as a synchronous gate before reaching any delivery channel.
+
+### Enforcement
+- Dedicated Compliance Filter Engine (WP11) with five classifiers: Income Claim, Testimonial, Opportunity Statement, Insurance Recommendation, Referral Request
+- Risk scoring: 0-10 auto-deploy, 11-70 flag for upline manual review, 71-100 physically blocked
+- Blocked content returns HTTP 403 to the agent — physically prevented from deployment
+
+### Failure Handling
+| Score | Action | Fallback |
+|-------|--------|----------|
+| 0-10 | Auto-deploy with audit log | — |
+| 11-70 | Route to upline review queue | Escalate to compliance officer after 48hr |
+| 71-100 | Physically blocked | Alert agent and compliance officer; content quarantined |
+
+### Minimum Schema
+```
+ComplianceRule {
+  ruleId: string
+  classifier: IncomeClaim | Testimonial | Opportunity | Insurance | Referral
+  confidenceThreshold: float (0.0-1.0)
+  action: Pass | Flag | Block
+  regulation: FINRA | FTC | StateInsurance | TCPA | CAN-SPAM | GDPR
+  lastUpdated: timestamp
+  parameterized: boolean  // true = updateable via config, false = code change required
+}
+```
+
+### 1.6 User System and Role Architecture
 
 The product must serve four primary role types:
 
@@ -114,7 +146,7 @@ The product must serve four primary role types:
 
 The system must also support dual-role users who are simultaneously rep and upline. This is not edge behavior; it is structural.
 
-### 1.6 Universal vs. Primerica-Specific System Law
+### 1.7 Universal vs. Primerica-Specific System Law
 
 A foundational architectural law of the product is **organization-conditional behavior**.
 
@@ -142,7 +174,7 @@ Primerica-only systems include, at minimum:
 
 This conditionality is a hard architecture branch, not a content toggle.
 
-### 1.7 The 11 Work Packages as the Product Backbone
+### 1.8 The 11 Work Packages as the Product Backbone
 
 The product roadmap must be realized through these 11 work packages, each retained as a distinct implementation domain inside the master PRD and later build plan:
 
@@ -160,7 +192,7 @@ The product roadmap must be realized through these 11 work packages, each retain
 
 No package may be treated as optional if it is in Phase 1 scope. The PRD must preserve each package's explicit responsibilities and the dependencies between them.
 
-### 1.8 Dependency Truths That Govern the Build
+### 1.9 Dependency Truths That Govern the Build
 
 The core dependency truths are:
 
@@ -179,7 +211,7 @@ The practical critical spine is:
 
 Secondary and tertiary systems branch from that spine only after it is stable.
 
-### 1.9 Business Logic Assumptions That Must Be Preserved
+### 1.10 Business Logic Assumptions That Must Be Preserved
 
 The PRD and later implementation must preserve these project truths already established:
 
@@ -191,7 +223,7 @@ The PRD and later implementation must preserve these project truths already esta
 - The product is being specified now; the app itself is **not** being built in this phase.
 - The PRD must be detailed enough that an AI build workforce could execute from it without human re-interpretation.
 
-### 1.10 What "Done" Means for This PRD Foundation
+### 1.11 What "Done" Means for This PRD Foundation
 
 Sections 1–3 of the master PRD are done only when they make the following unambiguous to a downstream AI builder:
 
@@ -771,3 +803,32 @@ If those conditions are not met, the PRD remains in loop status and must not be 
 **END OF FOUNDATION PHASE — SECTIONS 1–3**
 
 **Status: Ready for master assembly**
+
+---
+
+## 3.10 Package Index Table
+
+| Package # | Package Name | Wave | Hard Prerequisites | Blocked Descendants | Critical Path? |
+|-----------|-------------|------|--------------------|--------------------|----------------|
+| WP01 | Onboarding & Profile Engine | Wave 1 | WP11 | WP02-WP10 | Y |
+| WP02 | Warm Market & Contact Engine | Wave 1 | WP01, WP11 | WP03, WP04, WP08 | Y |
+| WP03 | Harvest Warm Market Method (Primerica) | Wave 2 | WP01, WP02, WP11 | WP08 | N |
+| WP04 | AI Agent Layer & Mission Control | Wave 2 | WP01, WP02, WP11 | WP05, WP06, WP07 | Y |
+| WP05 | Messaging Engine & Outreach | Wave 2 | WP04, WP11 | WP06 | N |
+| WP06 | Social, Content & Launch Kit | Wave 2 | WP01, WP05, WP11 | — | N |
+| WP07 | Accountability, Gamification & Motivation | Wave 2 | WP01, WP04, WP11 | WP08 | N |
+| WP08 | Taprooting, Timeline & Primerica Features | Wave 3 | WP01-WP03, WP07, WP11 | — | N |
+| WP09 | Team Calendar & Upline Dashboard | Wave 2 | WP01, WP11 | — | N |
+| WP10 | Payment & Subscription | Wave 2 | WP01, WP11 | — | N |
+| WP11 | Data Privacy & Compliance | Wave 0 (Foundation) | None | All packages | Y (First) |
+
+## 3.11 Wave Summary Table
+
+| Wave | Packages | Unblocking Condition |
+|------|----------|---------------------|
+| Wave 0 | WP11 | WP11 complete and operational |
+| Wave 1 | WP01, WP02 | WP11 complete + WP01 gates downstream |
+| Wave 2 | WP03-WP07, WP09, WP10 | WP01/WP02 complete + WP11 operational + WP04 gates WP05-WP07 |
+| Wave 3 | WP08 | All prior waves complete + Primerica org selected |
+
+
