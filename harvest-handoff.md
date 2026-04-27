@@ -37,7 +37,8 @@
 - Foundation QC polish items applied (Package Index table, Wave Summary, Compliance Interception Architecture)
 - AI Instructions extraction QC directives applied
 - Brand Doctrine v3 cleared 8.5/10 with all 5 mandatory additions
-- Harvest-build-supervisor cron removed
+- Harvest-build-supervisor cron re-registered and verified active [2026-04-27].
+- Harvest-build-supervisor cron re-registered and verified active (Round 2 corrections)
 
 ### Known Gaps (Not Blocking)
 - Self-referencing dependencies in single-behavior sections of behavior matrix (cosmetic)
@@ -51,3 +52,41 @@
 4. Push all 5 PRD package files
 5. QC the assembled PRD
 6. Begin Phase C (Integration coherence pass)
+
+### Model In Use
+- Master Orchestrator: DeepSeek V4 Flash (initial drafting), Kimi 2.6 (QC/revision), GPT 5.4 (Section 4 instruction blocks on explicit override)
+- Current Session Model: ollama/deepseek-v4-flash:cloud (primary), fallback chain through MiniMax, Gemini, GLM 5.1
+- Code Writing Sub-Agents: Ollama GLM 5.1 (thinking: High)
+- QC Agent: Ollama Kimi 2.6 (thinking: High)
+
+### Decisions Made During This Session
+- PRD branch separation: PRD files on prd branch, code on main branch
+- Model standardization: GPT 5.4 for orchestrator/PRD writing, GLM 5.1 for code, Kimi 2.6 for QC
+- Wave ordering per critical spine: WP11 → WP01 → WP02 → WP04 → WP05
+- Solution number is user-declared and format-validated only — no external API
+- Quiet Hours concept identified as hallucinated and removed from all files
+- Primerica gating is hard architecture branch, not content toggle
+- Compliance filter is standing layer (CFE), synchronous gate before all outbound content
+- GitHub is single source of truth; local is carbon copy only
+
+### User-Shared Information That Must Be Remembered
+- Spaulding (Telegram ID: 6771245262) is the primary user
+- Trevor Otts (Telegram ID: 5252140759) is authorized for gateway restarts
+- Model swap: GPT 5.4 for PRD writing after Kimi 2.6 produced insufficient depth
+- All PRD documentation uses Kimi 2.6 cloud; code writing uses GLM 5.1; QC uses Kimi 2.6
+- Do NOT do the work myself — sub-agents do all work
+- Always prove sub-agent launch with session keys and purposes
+- QC must be immediate upon sub-agent completion, not delayed
+- Any score below 8/10 loops back for revision (max 3 loops)
+
+### Open Questions or Decisions Pending From the User
+- None — all current decisions are resolved. Awaiting green light to begin app build phase.
+
+### Configuration Changes Made During This Session
+- Set agents.defaults.timeoutSeconds to 1800
+- Set agents.defaults.subagents.runTimeoutSeconds to 1800
+- Set agents.defaults.bootstrapMaxChars to 100000
+- Set agents.defaults.bootstrapTotalMaxChars to 300000
+- Registered harvest-prd-corrections-10min cron job
+- Re-registered harvest-build-supervisor cron job
+- Model: olama/kimi-k2.5:cloud → ollama/kimi-k2.6:cloud
