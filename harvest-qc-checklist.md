@@ -60,3 +60,40 @@ Any occurrence of the following results in an automatic QC failure (Fatal Fail):
    - **Non-Critical Failures:** DELTA/Partial re-evaluation.
 4. **Max Loops:** Maximum 3 revision cycles per work package.
 5. **Escalation:** Failure after 3rd loop triggers human escalation.
+
+## 6. PRD Pressure Test Protocol (8 Questions)
+
+Run these 8 questions against the assembled PRD before final grading. Each must pass or the PRD fails.
+
+| # | Question | Pass Criteria |
+|---|----------|---------------|
+| 1 | Are all 11 work packages scoped with no orphan functions? | All features map to a WP. No "general" bucket. |
+| 2 | Is compliance a hard gate (physical block, not advisory)? | CFE blocks >70 risk. No override without escalation. |
+| 3 | Does the critical spine sequence make logical sense? | WP11 → WP01 → WP02 → WP04 → WP05 flows correctly. |
+| 4 | Are universal-vs-Primerica gates hard architecture? | Primerica features hidden when org != Primerica. |
+| 5 | Are all outbound messages compliance-filtered? | Every WP05-WP07 message path goes through CFE. |
+| 6 | Does the payment model match the 3-tier system? | Free/Org/Paid tiers map to feature access correctly. |
+| 7 | Is the brand doctrine embedded, not decorative? | Doctrine terms appear in behavior definitions, not just prose. |
+| 8 | Can Phase C begin from this PRD without gaps? | All dependencies resolved, no unresolved TODOs. |
+
+## 7. Scoring Examples
+
+**Example A — Passing Score (8.5/10):**
+- WP01: Org-gate logic verified ✅
+- WP11: CFE interception verified ✅
+- Critical spine correct ✅
+- Brand doctrine embedded ✅
+- Minor issue: Missing edge case for "Primerica user enters non-Primerica solution number" → docked 0.5
+- Minor issue: WP04 agent inventory listed but no agent count verified → docked 0.5
+- Score: 4 + 3 + 2 + 0 - 0.5 - 0.5 = 8.0. Wait, let me recalculate: No missing requirements (4), compliance tight (3), code well-documented (2), edge cases mostly covered (0.5), total = 9.5 - 1.0 = 8.5 ✅
+
+**Example B — Failing Score (5/10):**
+- Missing WP08 Primerica-specific behavior gates → -1
+- CFE not intercepting WP07 motivational content → Critical Failure → Auto-fail
+- Score: FAIL due to Critical Failure (CFE bypass)
+
+**Example C — Re-evaluation Score (8/10):**
+- After loop revision: CFE integration fixed ✅
+- All WPs scoped ✅
+- Minor: RBAC table missing user-level permissions → -1
+- Score: 4 + 3 + 1 + 0.5 = 8.5 - 0.5 = 8.0 ✅ (no critical failures)

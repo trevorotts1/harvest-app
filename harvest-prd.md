@@ -175,7 +175,7 @@ The core dependency truths are:
 
 The practical critical spine is:
 
-**Onboarding/Profile → Privacy/Compliance → Warm Market Universal → AI Agent Layer/Mission Control → Messaging/Outreach**
+**Privacy/Compliance → Onboarding/Profile → Warm Market Universal → AI Agent Layer/Mission Control → Messaging/Outreach**
 
 Secondary and tertiary systems branch from that spine only after it is stable.
 
@@ -222,6 +222,34 @@ ComplianceRule {
   parameterized: boolean  // true = updateable via config, false = code change required
 }
 ```
+
+### 1.10.1 Agent Integration Contract
+
+Every AI agent in WP04–WP07 that generates outbound content MUST call the Compliance Filter Engine (CFE) as a synchronous gate BEFORE content delivery. The contract is:
+
+1. **Pre-Generation:** Agent prompt templates embed compliance constraints as system-level directives. Prohibited terms (income guarantees, benefit claims, medical advice) are injected as negative constraints in the system prompt.
+
+2. **Pre-Send:** After generation, agent calls CFE endpoint: `POST /api/v1/compliance/review` with payload `{content, channel, context}`. CFE returns one of:
+   - `pass (0-10)`: Auto-deploy. Content sent to delivery channel.
+   - `flag (11-70)`: Held in queue. Upline notified for manual review. Content NOT sent.
+   - `block (71-100)`: Physically blocked. Agent receives HTTP 403. Content quarantined with full audit trail.
+
+3. **Agent Response Protocol on CFE Block:**
+   - Agent logs reason for block to audit trail
+   - Agent generates alternative version with compliance issues corrected
+   - Agent resubmits to CFE
+   - If block persists after 3 attempts: content escalated to human compliance officer via notification
+
+4. **CFE Timeout Behavior:**
+   - CFE must respond within 2 seconds
+   - If CFE is non-responsive: all outbound messaging PAUSED. No messages sent.
+   - Agent queue enters safe-fail state: "Messaging paused pending compliance system"
+   - Upline and system admin notified of compliance system downtime
+
+5. **Audit Requirements:**
+   - Every CFE review call logged: timestamp, agent_id, content_hash, risk_score, outcome, reviewer_id (if human)
+   - Audit trail is immutable (append-only)
+   - Full audit history available to compliance officers within Mission Control
 
 ### 1.11 What "Done" Means for This PRD Foundation
 
@@ -903,10 +931,10 @@ Inputs Required Before This Package Can Begin:
   - Product-level naming vocabulary and forbidden-term replacements from doctrine/compliance extracts
 
 Sequential Dependency:
-  None
+  WORK PACKAGE 11 must be fully complete and QC-approved before this package begins.
 
 Can Run In Parallel With:
-  WORK PACKAGE 11: Data Privacy, Security & Compliance Architecture
+  None during initial build. After WP01 completes, WP02 and WP04 structural tracks may begin in constrained parallel.
 
 Output Delivered:
   - Onboarding flow specification (screen-by-screen and API-by-API)
@@ -1067,6 +1095,8 @@ WORK PACKAGE 5: Messaging Engine & Outreach System
 What This Sub-Agent Is Building:
   Multi-channel outreach and handoff system including message generation architecture, cadence logic, channel routing (SMS/email/in-app), personalization using contact/warm-market context, compliance interception path enforcement, upline review path for flagged content, script generation for introductions/referrals/follow-ups, response-state handling, and performance telemetry hooks. Includes explicit support for service-first language transformation and forbidden-term replacement.
 
+> **CFE Integration Note:** This WP integrates with the CFE per the Agent Integration Contract in Section 1.10.1 — all generated content passes through the synchronous compliance gate before delivery.
+
 Inputs Required Before This Package Can Begin:
   - Output from WORK PACKAGE 1: role/user profile and org branch data
   - Output from WORK PACKAGE 2: contact/segment context
@@ -1152,6 +1182,8 @@ WORK PACKAGE 7: Accountability, Gamification & Motivation
 
 What This Sub-Agent Is Building:
   Behavior reinforcement engine including 48-hour countdown mechanics, momentum scoring framework, milestone detection, celebration triggers, quote/motivation scheduling, anchor statement reinforcement loops, inactivity nudges, and leaderboard/ranking surfaces where permitted by role. Includes event model for IPA logs and mission-control-integrated motivational interventions.
+
+> **CFE Integration Note:** This WP integrates with the CFE per the Agent Integration Contract in Section 1.10.1 — all generated content passes through the synchronous compliance gate before delivery.
 
 Inputs Required Before This Package Can Begin:
   - Output from WORK PACKAGE 1: Seven Whys/anchor and profile context
@@ -1239,6 +1271,8 @@ WORK PACKAGE 9: Team Calendar & Upline Dashboard
 
 What This Sub-Agent Is Building:
   Team scheduling and leadership visibility layer including shared availability logic, dual-calendar overlap checks, appointment routing rules, attendance/pace indicators, upline dashboard surfaces, and team-level mission-control calendar intelligence. Includes role-aware visibility constraints and schedule-state integration with agent appointment actions.
+
+> **CFE Integration Note:** This WP integrates with the CFE per the Agent Integration Contract in Section 1.10.1 — all generated content passes through the synchronous compliance gate before delivery.
 
 Inputs Required Before This Package Can Begin:
   - Output from WORK PACKAGE 1: hierarchy and role linkage, calendar entry points
@@ -1723,8 +1757,6 @@ The master orchestrator maintains the authority to terminate any sub-agent immed
 
 
 ## Section 6: QC Standards, Loop Rules, and QC Criteria
-
-# Section 6: Quality Control (QC) Standards, Loop Rules, and QC Criteria
 
 ## 6.0 Overview
 This section defines the mandatory Quality Control (QC) framework for The Harvest project. Every work package produced by sub-agents must undergo strict, independent verification before advancement.
@@ -2251,8 +2283,6 @@ Every synchronization event must leave an audit trail in `harvest-changelog.md`:
 
 
 ## Section 8: Compliance, Legal, and Data Privacy Standards
-
-# Section 8 — Compliance, Legal, and Data Privacy Standards
 
 This section defines the compliance, legal, and data privacy framework that governs The Harvest Platform and all AI-generated content. These standards are foundational to product architecture, ensuring all platform activities—from agent growth to wealth tracking—remain within the highest regulatory and ethical constraints.
 
