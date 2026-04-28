@@ -46,7 +46,7 @@ class CalendarService {
     };
 
     this.events.set(event.id, event);
-    return { event, overlap: { hasOverlap: false, conflictingEventIds: [], conflictingParticipantIds: [], message: 'No conflicts' } };
+    return { event, overlap: { hasConflict: false, hasOverlap: false, conflictingEventIds: [], conflictingParticipantIds: [], conflictingUserIds: [], message: 'No conflicts' } };
   }
 
   /**
@@ -87,9 +87,11 @@ class CalendarService {
 
     const hasOverlap = conflictingParticipantIds.length > 0;
     return {
+      hasConflict: hasOverlap,
       hasOverlap,
       conflictingEventIds,
       conflictingParticipantIds,
+      conflictingUserIds: conflictingParticipantIds,
       message: hasOverlap
         ? `Conflicts for participants: ${conflictingParticipantIds.join(', ')}`
         : 'No conflicts',
@@ -113,6 +115,10 @@ class CalendarService {
 
       // Upline sees availability only — mask details
       const masked: TeamVisibility = {
+        uplineId,
+        repId: event.ownerId,
+        canViewAvailability: true,
+        canViewDetails: false,
         canSeeDetails: false,
         canSeeAvailability: true,
         maskedEvent: {

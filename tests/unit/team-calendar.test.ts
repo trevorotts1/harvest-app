@@ -1,6 +1,6 @@
 import { calendarService } from '../../src/services/team-calendar/calendar.service';
 import { dashboardService } from '../../src/services/team-calendar/dashboard.service';
-import { CalendarEventType, EventStatus } from '../../src/types/team-calendar';
+import { CalendarEventType, EventStatus, Role } from '../../src/types/team-calendar';
 
 // Helper to reset state between tests
 function resetAll() {
@@ -25,12 +25,11 @@ describe('WP09 Team Calendar', () => {
       title: 'Client Call with Sarah',
       type: CalendarEventType.CALL,
       status: EventStatus.SCHEDULED,
+      userId: 'rep-1',
       ownerId: 'rep-1',
-      ownerRole: 'REP',
       participantIds: ['rep-1', 'upline-1'],
       startTime: today(1),
       endTime: today(2),
-      description: 'Follow-up call',
     });
 
     expect(result.event).toBeDefined();
@@ -52,8 +51,8 @@ describe('WP09 Team Calendar', () => {
       title: 'Team Meeting',
       type: CalendarEventType.MEETING,
       status: EventStatus.SCHEDULED,
+      userId: 'rep-1',
       ownerId: 'rep-1',
-      ownerRole: 'REP',
       participantIds: ['rep-1'],
       startTime: today(1),
       endTime: today(2),
@@ -65,8 +64,8 @@ describe('WP09 Team Calendar', () => {
       title: 'Another Meeting',
       type: CalendarEventType.APPOINTMENT,
       status: EventStatus.SCHEDULED,
+      userId: 'rep-2',
       ownerId: 'rep-2',
-      ownerRole: 'REP',
       participantIds: ['rep-1', 'rep-2'],
       startTime: today(1.5), // overlaps with first event
       endTime: today(3),
@@ -86,8 +85,8 @@ describe('WP09 Team Calendar', () => {
       title: 'Private Client Meeting',
       type: CalendarEventType.APPOINTMENT,
       status: EventStatus.CONFIRMED,
+      userId: 'rep-1',
       ownerId: 'rep-1',
-      ownerRole: 'REP',
       participantIds: ['rep-1'],
       startTime: today(2),
       endTime: today(3),
@@ -97,8 +96,8 @@ describe('WP09 Team Calendar', () => {
       title: 'Team Standup',
       type: CalendarEventType.MEETING,
       status: EventStatus.SCHEDULED,
+      userId: 'rep-2',
       ownerId: 'rep-2',
-      ownerRole: 'REP',
       participantIds: ['rep-2'],
       startTime: today(4),
       endTime: today(5),
@@ -127,24 +126,24 @@ describe('WP09 Team Calendar', () => {
       title: 'Rep 1 Event',
       type: CalendarEventType.CALL,
       status: EventStatus.SCHEDULED,
+      userId: 'rep-1',
       ownerId: 'rep-1',
-      ownerRole: 'REP',
       participantIds: ['rep-1'],
       startTime: today(1),
       endTime: today(2),
     });
 
     // rep-1 viewing own dashboard — allowed
-    const ownDashboard = dashboardService.getRepDashboard('rep-1', 'rep-1', 'REP');
+    const ownDashboard = dashboardService.getRepDashboard('rep-1', 'rep-1', Role.REP);
     expect(ownDashboard).not.toBeNull();
     expect(ownDashboard!.myEvents.length).toBeGreaterThanOrEqual(1);
 
     // rep-2 trying to view rep-1's dashboard — BLOCKED
-    const otherDashboard = dashboardService.getRepDashboard('rep-1', 'rep-2', 'REP');
+    const otherDashboard = dashboardService.getRepDashboard('rep-1', 'rep-2', Role.REP);
     expect(otherDashboard).toBeNull();
 
     // Upline CAN view rep-1's dashboard
-    const uplineDashboard = dashboardService.getRepDashboard('rep-1', 'upline-1', 'UPLINE');
+    const uplineDashboard = dashboardService.getRepDashboard('rep-1', 'upline-1', Role.UPLINE);
     expect(uplineDashboard).not.toBeNull();
     expect(uplineDashboard!.myEvents.length).toBeGreaterThanOrEqual(1);
   });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OnboardingStep, STEP_ORDER, MIN_COMMITMENT_SCORE } from '@/types/onboarding';
+import { OnboardingStep, OnboardingSession, STEP_ORDER, MIN_COMMITMENT_SCORE } from '@/types/onboarding';
 import { onboardingService } from '@/services/onboarding/service';
 
 // In-memory store for tests
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Advance step
-    const nextStep = onboardingService.getNextStep(step);
+    const nextStep = onboardingService.getNextStep(session as OnboardingSession);
     if (nextStep) {
       session.current_step = nextStep;
     }
@@ -108,5 +108,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export sessions for testing
-export { sessions };
+// sessions array accessible via module internals for testing only

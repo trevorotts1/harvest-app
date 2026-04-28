@@ -124,6 +124,37 @@ model UserDataDeletion {
   completed_at    DateTime?
 }
 
+model Contact {
+  id                  String           @id @default(uuid())
+  user_id             String
+  name                String
+  phone               String?
+  email               String?
+  relationship_strength Int             @default(0)
+  source              String           @default("MANUAL")
+  industry            String?
+  notes               String?
+  linked_user_id      String?
+  pipeline_stage      String           @default("DISCOVERY")
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+  interactions        ContactInteraction[]
+
+  @@index([user_id])
+  @@index([user_id, pipeline_stage])
+}
+
+model ContactInteraction {
+  id          String   @id @default(uuid())
+  contact_id  String
+  type        String   @default("NOTE")
+  notes       String   @default("")
+  created_at  DateTime @default(now())
+  contact     Contact  @relation(fields: [contact_id], references: [id])
+
+  @@index([contact_id])
+}
+
 model Organization {
   id         String   @id @default(uuid())
   name       String

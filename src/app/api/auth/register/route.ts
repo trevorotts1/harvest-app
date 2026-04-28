@@ -91,5 +91,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export users for testing
-export { users };
+// users array accessible via module.__test_users for testing only

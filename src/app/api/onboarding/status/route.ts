@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OnboardingStep } from '@/types/onboarding';
 
-// In-memory store for tests
+// @internal test store — not exported to avoid Next.js route type pollution
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sessions: any[] = [];
+const _sessions: any[] = [];
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const session = sessions.find((s) => s.user_id === userId);
+    const session = _sessions.find((s) => s.user_id === userId);
 
     if (!session) {
       return NextResponse.json(
@@ -37,5 +37,4 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Export sessions for testing
-export { sessions };
+// @internal test store accessor — not exported to avoid Next.js route type pollution
