@@ -285,3 +285,114 @@ model ContactImportJob {
   @@index([user_id, status])
   @@map("contact_import_jobs")
 }
+
+// ─── WP04 Agent Layer Models ───────────────────────────────────────────
+
+enum AgentType {
+  PROSPECTING
+  PRE_SALE_NURTURE
+  POST_SALE_NURTURE
+  APPOINTMENT
+  REPORTING
+  QUOTA
+  IPA_VALUE
+  INACTIVITY_REENGAGEMENT
+}
+
+enum AgentActionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  BLOCKED_BY_COMPLIANCE
+  HELD_FOR_REVIEW
+}
+
+enum InactivityLevel {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ThreeLaw {
+  GROW_DOWNLINE
+  ENGAGE_BASE
+  INCREASE_WEALTH
+}
+
+model AgentActionRecord {
+  id              String            @id @default(uuid())
+  agent_type      AgentType         @map("agent_type")
+  action_type     String            @map("action_type")
+  status          AgentActionStatus @default(PENDING) @map("status")
+  contact_id      String?           @map("contact_id")
+  user_id         String             @map("user_id")
+  payload         Json               @map("payload")
+  result          Json?              @map("result")
+  compliance_result Json?            @map("compliance_result")
+  created_at      DateTime          @default(now()) @map("created_at")
+  completed_at    DateTime?         @map("completed_at")
+
+  @@index([user_id, agent_type])
+  @@index([user_id, status])
+  @@index([created_at])
+  @@map("agent_actions")
+}
+
+model AgentEventRecord {
+  id                String    @id @default(uuid())
+  agent_type        AgentType @map("agent_type")
+  action_type       String    @map("action_type")
+  user_id           String    @map("user_id")
+  contact_id        String?   @map("contact_id")
+  payload           Json      @map("payload")
+  result            Json?     @map("result")
+  compliance_passed  Boolean   @default(true) @map("compliance_passed")
+  timestamp         DateTime  @default(now()) @map("timestamp")
+
+  @@index([user_id, timestamp])
+  @@index([agent_type, timestamp])
+  @@map("agent_events")
+}
+
+model MissionControlState {
+  id                          String   @id @default(uuid())
+  user_id                     String   @unique @map("user_id")
+  last_briefing_date          String?  @map("last_briefing_date")
+  three_law_grow_score        Int      @default(0) @map("three_law_grow_score")
+  three_law_engage_score      Int      @default(0) @map("three_law_engage_score")
+  three_law_wealth_score      Int      @default(0) @map("three_law_wealth_score")
+  inactivity_level            InactivityLevel @default(NONE) @map("inactivity_level")
+  inactivity_days             Int      @default(0) @map("inactivity_days")
+  weekly_ipa_count            Int      @default(0) @map("weekly_ipa_count")
+  weekly_ipa_target           Int      @default(0) @map("weekly_ipa_target")
+  momentum_score              Int      @default(0) @map("momentum_score")
+  quota_weekly_target         Int      @default(0) @map("quota_weekly_target")
+  quota_weekly_actual         Int      @default(0) @map("quota_weekly_actual")
+  quota_monthly_target        Int      @default(0) @map("quota_monthly_target")
+  quota_monthly_actual        Int      @default(0) @map("quota_monthly_actual")
+  ipa_agent_ratio             Float    @default(0) @map("ipa_agent_ratio")
+  ipa_field_trainer_ratio     Float    @default(0) @map("ipa_field_trainer_ratio")
+  ipa_dollar_value            Int      @default(0) @map("ipa_dollar_value")
+  updated_at                  DateTime @updatedAt @map("updated_at")
+
+  @@map("mission_control_state")
+}
+
+model CorrectiveNudgeRecord {
+  id                String    @id @default(uuid())
+  user_id           String    @map("user_id")
+  law               ThreeLaw  @map("law")
+  severity          String    @map("severity")
+  message           String    @map("message")
+  suggested_action  String    @map("suggested_action")
+  escalated_to_upline Boolean @default(false) @map("escalated_to_upline")
+  dismissed_at      DateTime? @map("dismissed_at")
+  created_at        DateTime  @default(now()) @map("created_at")
+
+  @@index([user_id, law])
+  @@index([created_at])
+  @@map("corrective_nudges")
+}
