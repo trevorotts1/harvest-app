@@ -96,6 +96,39 @@ export function decrypt(input: DecryptionInput, keyBase64: string): string {
 }
 
 /**
+ * Convenience wrapper: encrypt PII string, returning an EncryptedPayload object.
+ * If no key is provided, a new one is generated (use for one-shot encryption).
+ */
+export function encryptPII(plaintext: string, keyBase64?: string): EncryptedPayload & { key?: string } {
+  const key = keyBase64 || generateEncryptionKey();
+  const result = encrypt(plaintext, key);
+  return {
+    ciphertext: result.ciphertext,
+    iv: result.iv,
+    authTag: result.authTag,
+    algorithm: result.algorithm,
+    key: keyBase64 ? undefined : key,
+  };
+}
+
+/**
+ * Convenience wrapper: decrypt an EncryptedPayload back to plaintext.
+ * If payload includes a key property, uses that; otherwise requires keyBase64.
+ */
+export function decryptPII(payload: EncryptedPayload & { key?: string }, keyBase64?: string): string {
+  const key = keyBase64 || payload.key || '';
+  return decrypt(
+    { ciphertext: payload.ciphertext, iv: payload.iv, authTag: payload.authTag },
+    key
+  );
+}
+
+/**
+ * Re-export EncryptedPayload as a convenience alias for data-rights consumers.
+ */
+export type EncryptedPayload = EncryptionResult;
+
+/**
  * Enforce TLS 1.3 minimum for a given connection configuration.
  * Returns an object suitable for Node.js https/tls options.
  */

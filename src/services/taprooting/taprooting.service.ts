@@ -1,3 +1,5 @@
+import { DownlineMetrics } from '../../types/taprooting';
+
 // WP08: Taprooting Service
 // 3-level organizational tree builder with Primerica gating
 

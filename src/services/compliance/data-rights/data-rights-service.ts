@@ -222,11 +222,12 @@ export class DataRightsService {
 
   /**
    * Decrypt PII fields from at-rest storage.
+   * Requires the encryption key to decrypt.
    */
-  decryptPIIFields(encrypted: Record<string, EncryptedPayload>): Record<string, string> {
+  decryptPIIFields(encrypted: Record<string, EncryptedPayload>, keyBase64: string): Record<string, string> {
     const decrypted: Record<string, string> = {};
     for (const [field, payload] of Object.entries(encrypted)) {
-      decrypted[field] = decryptPII(payload);
+      decrypted[field] = decryptPII(payload, keyBase64);
     }
     return decrypted;
   }

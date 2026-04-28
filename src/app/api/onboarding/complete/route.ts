@@ -85,5 +85,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export for testing
-export { sessions, users };
+// sessions/users arrays accessible via module internals for testing only

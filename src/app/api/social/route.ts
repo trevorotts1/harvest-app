@@ -3,13 +3,13 @@ import {
   createIdentity,
   getIdentity,
   updateIdentity,
-} from '../../services/social-content/rep-identity.service';
+} from '@/services/social-content/rep-identity.service';
 import {
   generateLaunchContent,
   generateDailyPost,
   submitForCfeReview,
-} from '../../services/social-content/content.service';
-import { SocialPlatform } from '../../types/social-content';
+} from '@/services/social-content/content.service';
+import { SocialPlatform } from '@/types/social-content';
 
 // POST /api/social — identity/create or generate
 // GET  /api/social — identity or launch-kit

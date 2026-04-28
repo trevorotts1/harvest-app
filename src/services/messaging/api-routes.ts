@@ -1,8 +1,8 @@
-import { MessagingEngine } from '../../src/services/messaging/engine.service';
-import { TemplateService } from '../../src/services/messaging/template.service';
-import { HandoffService } from '../../src/services/messaging/handoff.service';
-import { ComplianceFilterEngine } from '../../src/compliance/engine';
-import { MessageChannel } from '../../src/types/messaging';
+import { MessagingEngine } from '../../services/messaging/engine.service';
+import { TemplateService } from '../../services/messaging/template.service';
+import { HandoffService } from '../../services/messaging/handoff.service';
+import { ComplianceFilterEngine } from '../../services/compliance/engine';
+import { MessageChannel } from '../../types/messaging';
 
 // In-memory store for API demonstration
 const cfe = new ComplianceFilterEngine();
