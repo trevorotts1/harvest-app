@@ -1,19 +1,79 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const steps = [
-  { title: 'Your role', copy: 'Choose how Harvest should shape visibility, nudges, and team context.', field: 'I am building as a Rep with upline support.' },
-  { title: 'Seven Whys', copy: 'Anchor the daily command center to the reason you are building, not just the task list.', field: 'I am building durable freedom for my family and my team.' },
-  { title: 'Warm market consent', copy: 'Harvest keeps outreach relationship-first and blocks delivery until consent/compliance are clear.', field: 'I consent to demo contact organization and agent draft review.' },
-  { title: 'Daily intensity', copy: 'Set the operating pace so the app protects the 2 Hour CEO constraint.', field: '30 minutes daily, focused actions only.' },
+  {
+    title: 'Your role',
+    copy: 'Confirm the operating context Harvest should use for visibility, nudges, and team support.',
+  },
+  {
+    title: 'Seven Whys',
+    copy: 'Drive beneath the surface goal until the real reason is clear enough to guide daily behavior.',
+  },
+  {
+    title: 'Warm market consent',
+    copy: 'Confirm relationship-first contact organization and compliance-safe agent review.',
+  },
+  {
+    title: 'Daily intensity',
+    copy: 'Choose how strongly Harvest should interact with you while protecting the 2 Hour CEO constraint.',
+  },
+  {
+    title: 'Downline Maxxer visualization',
+    copy: 'Picture the downline business you are building so Mission Control can connect activity to the larger scoreboard.',
+  },
+];
+
+const defaultWhys = [
+  'I want to build a stronger business with consistent daily activity.',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+];
+
+const intensityLevels = [
+  {
+    value: 'LOW',
+    label: 'Low — Quiet support',
+    description: 'Light reminders, fewer nudges, and a slower pace. Best when you want Harvest to stay calm in the background.',
+  },
+  {
+    value: 'MEDIUM',
+    label: 'Medium — Standard 2 Hour CEO rhythm',
+    description: 'Daily briefing, priority actions, and follow-up prompts. Best for steady business-building without pressure.',
+  },
+  {
+    value: 'HIGH',
+    label: 'High — Active accountability',
+    description: 'Stronger nudges, faster escalation, and more direct reminders when actions stall. Best during a launch or promotion push.',
+  },
 ];
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
+  const [role, setRole] = useState('REP');
+  const [business, setBusiness] = useState('Primerica');
+  const [solutionNumber, setSolutionNumber] = useState('');
+  const [upline, setUpline] = useState('');
+  const [whys, setWhys] = useState(defaultWhys);
+  const [consent, setConsent] = useState('I consent to relationship-first contact organization, agent draft review, and compliance-safe delivery blocks.');
+  const [intensity, setIntensity] = useState('MEDIUM');
+  const [monthlyGoal, setMonthlyGoal] = useState('$5,000/month');
+  const [teamGoal, setTeamGoal] = useState('Build a stable, duplicatable team of 12 active builders.');
+  const [promotionTarget, setPromotionTarget] = useState('Reach the next leadership milestone in 90 days.');
+
   const current = steps[step];
   const isLast = step === steps.length - 1;
+  const selectedIntensity = useMemo(
+    () => intensityLevels.find((level) => level.value === intensity) || intensityLevels[1],
+    [intensity],
+  );
+  const deepestWhy = [...whys].reverse().find((why) => why.trim().length > 0) || whys[0];
 
   return (
     <main className="form-page">
@@ -22,7 +82,8 @@ export default function OnboardingPage() {
           <Link href="/" className="brand"><span className="brand-mark">H</span><span>The Harvest</span></Link>
           <h1 id="onboarding-title" style={{ fontSize: '3rem', marginTop: 48 }}>Set the operating system.</h1>
           <p style={{ color: 'rgba(255,255,255,.72)', lineHeight: 1.6 }}>
-            Four demo steps create the minimum profile needed for Mission Control to brief the day.
+            Five demo steps create the profile Mission Control needs: role, business association, deep why,
+            consent, intensity, and downline vision.
           </p>
         </aside>
 
@@ -33,11 +94,118 @@ export default function OnboardingPage() {
           </div>
           <h2>{current.title}</h2>
           <p className="lede" style={{ fontSize: '1rem' }}>{current.copy}</p>
-          <div className="field">
-            <label htmlFor="response">Demo response</label>
-            <textarea id="response" rows={5} defaultValue={current.field} />
-          </div>
-          <div className="notice">Primerica-specific fields stay hidden unless the profile is explicitly organization-linked.</div>
+
+          {step === 0 ? (
+            <div className="stack compact-stack">
+              <div className="field">
+                <label htmlFor="role">Role</label>
+                <select id="role" value={role} onChange={(event) => setRole(event.target.value)}>
+                  <option value="REP">Rep/User</option>
+                  <option value="UPLINE">Upline</option>
+                  <option value="RVP">RVP</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="business">Downline business / company</label>
+                <select id="business" value={business} onChange={(event) => setBusiness(event.target.value)}>
+                  <option>Primerica</option>
+                  <option>Other financial services organization</option>
+                  <option>Other network marketing / downline business</option>
+                  <option>Independent / not company-linked</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="solutionNumber">Solution number / business identifier</label>
+                <input
+                  id="solutionNumber"
+                  value={solutionNumber}
+                  onChange={(event) => setSolutionNumber(event.target.value)}
+                  placeholder="For Primerica, this links the rep/upline/RVP relationship"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="upline">Associated upline, field trainer, or RVP</label>
+                <input id="upline" value={upline} onChange={(event) => setUpline(event.target.value)} placeholder="Name of the person this account should connect to" />
+              </div>
+            </div>
+          ) : null}
+
+          {step === 1 ? (
+            <div className="why-stack">
+              {whys.map((why, index) => (
+                <div className="field why-row" key={`why-${index + 1}`}>
+                  <label htmlFor={`why-${index + 1}`}>Why {index + 1}</label>
+                  <textarea
+                    id={`why-${index + 1}`}
+                    rows={index === 0 ? 2 : 3}
+                    value={why}
+                    placeholder={index === 0 ? 'What do you want?' : `Why does answer ${index} matter?`}
+                    onChange={(event) => {
+                      const next = [...whys];
+                      next[index] = event.target.value;
+                      setWhys(next);
+                    }}
+                  />
+                </div>
+              ))}
+              <div className="notice">Deepest why detected: {deepestWhy}</div>
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="field">
+              <label htmlFor="consent">Consent statement</label>
+              <textarea id="consent" rows={6} value={consent} onChange={(event) => setConsent(event.target.value)} />
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="stack compact-stack">
+              <div className="field">
+                <label htmlFor="intensity">Daily intensity level</label>
+                <select id="intensity" value={intensity} onChange={(event) => setIntensity(event.target.value)}>
+                  {intensityLevels.map((level) => <option key={level.value} value={level.value}>{level.label}</option>)}
+                </select>
+              </div>
+              <div className="notice">
+                <strong>{selectedIntensity.label}</strong><br />
+                {selectedIntensity.description}
+              </div>
+            </div>
+          ) : null}
+
+          {step === 4 ? (
+            <div className="stack compact-stack">
+              <div className="grid-2">
+                <div className="field">
+                  <label htmlFor="monthlyGoal">Target monthly outcome</label>
+                  <input id="monthlyGoal" value={monthlyGoal} onChange={(event) => setMonthlyGoal(event.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="promotionTarget">Promotion target</label>
+                  <input id="promotionTarget" value={promotionTarget} onChange={(event) => setPromotionTarget(event.target.value)} />
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="teamGoal">Downline vision</label>
+                <textarea id="teamGoal" rows={4} value={teamGoal} onChange={(event) => setTeamGoal(event.target.value)} />
+              </div>
+              <div className="downline-visual" aria-label="Downline Maxxer visualization preview">
+                <div className="visual-node visual-root">
+                  <strong>{role === 'REP' ? 'You' : role}</strong>
+                  <span>{business}</span>
+                </div>
+                <div className="visual-branches">
+                  <div className="visual-node"><strong>Personal Base</strong><span>Warm market contacts</span></div>
+                  <div className="visual-node"><strong>Builder Team</strong><span>{teamGoal}</span></div>
+                  <div className="visual-node"><strong>Leadership Path</strong><span>{promotionTarget}</span></div>
+                </div>
+                <div className="notice">Downline Maxxer target: {monthlyGoal} tied to {selectedIntensity.label.toLowerCase()}.</div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="notice">Primerica-specific logic activates when the profile is linked to Primerica through the company selection and solution number/business identifier.</div>
           <div className="actions">
             <button className="btn btn-secondary" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>Back</button>
             {isLast ? (
