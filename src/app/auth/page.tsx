@@ -125,10 +125,13 @@ export default function AuthPage() {
                   <div className="field">
                     <label htmlFor="primericaLevel">Primerica level</label>
                     <select id="primericaLevel" name="primericaLevel" defaultValue="REPRESENTATIVE">
-                      <option value="VP_RVP">VP / RVP</option>
-                      <option value="REGIONAL_LEADER">Regional Leader</option>
-                      <option value="DISTRICT_LEADER">District Leader</option>
                       <option value="REPRESENTATIVE">Representative</option>
+                      <option value="DISTRICT_LEADER">District Leader</option>
+                      <option value="REGIONAL_LEADER">Regional Leader</option>
+                      <option value="RVP">RVP</option>
+                      <option value="SVP">SVP</option>
+                      <option value="NSD">NSD</option>
+                      <option value="SNSD">SNSD</option>
                     </select>
                   </div>
                   <div className="field">

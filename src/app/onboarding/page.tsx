@@ -81,10 +81,13 @@ const franchiseTypes = [
 ];
 
 const primericaLevels = [
-  'VP / RVP',
-  'Regional Leader',
-  'District Leader',
   'Representative',
+  'District Leader',
+  'Regional Leader',
+  'RVP',
+  'SVP',
+  'NSD',
+  'SNSD',
 ];
 
 export default function OnboardingPage() {
