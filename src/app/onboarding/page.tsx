@@ -81,13 +81,15 @@ const franchiseTypes = [
 ];
 
 const primericaLevels = [
-  'Representative',
-  'District Leader',
-  'Regional Leader',
-  'RVP',
-  'SVP',
-  'NSD',
-  'SNSD',
+  'SNSD (Senior National Sales Director)',
+  'NSD (National Sales Director)',
+  'SVP (Senior Vice President)',
+  'RVP (Regional Vice President)',
+  'RL (Regional Leader)',
+  'DL (Division Leader)',
+  'District (District Leader)',
+  'Sr. Rep (Senior Representative)',
+  'Rep (Representative)',
 ];
 
 export default function OnboardingPage() {
@@ -96,7 +98,7 @@ export default function OnboardingPage() {
   const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
   const [organizationName, setOrganizationName] = useState('');
-  const [primericaLevel, setPrimericaLevel] = useState('Representative');
+  const [primericaLevel, setPrimericaLevel] = useState('Rep (Representative)');
   const [solutionNumber, setSolutionNumber] = useState('');
   const [upline, setUpline] = useState('');
   const [supportRelationship, setSupportRelationship] = useState('My immediate upline');
