@@ -37,12 +37,29 @@ export default function AuthPage() {
             <div className="field">
               <label htmlFor="role">Role</label>
               <select id="role" name="role" defaultValue="REP">
-                <option value="REP">Rep</option>
+                <option value="REP">Rep/User</option>
                 <option value="UPLINE">Upline</option>
                 <option value="RVP">RVP</option>
               </select>
             </div>
-            <div className="notice">No real message, payment, or external account action happens in this demo.</div>
+            <div className="field">
+              <label htmlFor="downlineBusiness">Downline business / company</label>
+              <select id="downlineBusiness" name="downlineBusiness" defaultValue="PRIMERICA">
+                <option value="PRIMERICA">Primerica</option>
+                <option value="OTHER_FINANCIAL_SERVICES">Other financial services organization</option>
+                <option value="OTHER_NETWORK_MARKETING">Other network marketing / downline business</option>
+                <option value="INDEPENDENT">Independent / not company-linked</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="solutionNumber">Primerica solution number / business identifier</label>
+              <input id="solutionNumber" name="solutionNumber" placeholder="Used to link rep, upline, field trainer, or RVP" />
+            </div>
+            <div className="field">
+              <label htmlFor="uplineName">Associated upline or RVP</label>
+              <input id="uplineName" name="uplineName" placeholder="Name of upline, field trainer, or RVP" />
+            </div>
+            <div className="notice">The downline business and solution number identify whether this profile belongs to Primerica or another company structure. No real message, payment, or external account action happens in this demo.</div>
             <div className="actions">
               <button className="btn btn-primary" type="submit">Continue to onboarding</button>
               <Link className="btn btn-secondary" href="/dashboard">Skip to dashboard</Link>
