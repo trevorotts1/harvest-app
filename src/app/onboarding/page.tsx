@@ -92,7 +92,7 @@ export default function OnboardingPage() {
   const [industry, setIndustry] = useState('Financial services');
   const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
-  const [organizationName, setOrganizationName] = useState('Primerica');
+  const [organizationName, setOrganizationName] = useState('');
   const [primericaLevel, setPrimericaLevel] = useState('Representative');
   const [solutionNumber, setSolutionNumber] = useState('');
   const [upline, setUpline] = useState('');

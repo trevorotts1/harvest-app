@@ -34,7 +34,7 @@ export default function AuthPage() {
   const [industry, setIndustry] = useState('Financial services');
   const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
-  const [organizationName, setOrganizationName] = useState('Primerica');
+  const [organizationName, setOrganizationName] = useState('');
 
   const isFranchise = industry === 'Franchise' || businessModel === 'Franchise owner';
   const isPrimerica = useMemo(
