@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ContactUploadDemo from './contact-upload-demo';
 
 const actions = [
   { title: 'Approve first-touch draft', contact: 'Maya Johnson', agent: 'Prospecting', minutes: 2 },
@@ -21,6 +22,7 @@ export default function DashboardPage() {
           <a className="side-link active" href="#briefing">Mission Control</a>
           <a className="side-link" href="#queue">Action Queue</a>
           <a className="side-link" href="#warm-market">Warm Market</a>
+          <a className="side-link" href="#contact-upload">Upload Contacts</a>
           <a className="side-link" href="#compliance">Compliance</a>
         </nav>
       </aside>
@@ -44,6 +46,8 @@ export default function DashboardPage() {
                 No outbound message leaves the system without review.
               </p>
             </section>
+
+            <ContactUploadDemo />
 
             <section className="card panel" id="queue">
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
