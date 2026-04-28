@@ -99,6 +99,9 @@ export default function OnboardingPage() {
   const [primericaLevel, setPrimericaLevel] = useState('Representative');
   const [solutionNumber, setSolutionNumber] = useState('');
   const [upline, setUpline] = useState('');
+  const [supportRelationship, setSupportRelationship] = useState('My immediate upline');
+  const [knowsUplineSolutionId, setKnowsUplineSolutionId] = useState('Not sure');
+  const [uplineSolutionId, setUplineSolutionId] = useState('');
   const [whys, setWhys] = useState(defaultWhys);
   const [consent, setConsent] = useState('I consent to relationship-first contact organization, agent draft review, and compliance-safe delivery blocks.');
   const [intensity, setIntensity] = useState('MEDIUM');
@@ -182,17 +185,43 @@ export default function OnboardingPage() {
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="solutionNumber">Solution number</label>
+                    <label htmlFor="solutionNumber">What is your solution number?</label>
                     <input
                       id="solutionNumber"
                       value={solutionNumber}
                       onChange={(event) => setSolutionNumber(event.target.value)}
-                      placeholder="Unique identifier used to link the organization relationship"
+                      placeholder="Enter your Primerica solution number"
                     />
                   </div>
                   <div className="field">
-                    <label htmlFor="upline">Associated upline, field trainer, or RVP</label>
+                    <label htmlFor="supportRelationship">Who can you identify for pairing?</label>
+                    <select id="supportRelationship" value={supportRelationship} onChange={(event) => setSupportRelationship(event.target.value)}>
+                      <option>My immediate upline</option>
+                      <option>My field trainer</option>
+                      <option>My RVP</option>
+                      <option>I do not know yet</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="upline">Name of upline, field trainer, or RVP</label>
                     <input id="upline" value={upline} onChange={(event) => setUpline(event.target.value)} placeholder="Name of the person this account should connect to" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="knowsUplineSolutionId">Do you know their solution ID?</label>
+                    <select id="knowsUplineSolutionId" value={knowsUplineSolutionId} onChange={(event) => setKnowsUplineSolutionId(event.target.value)}>
+                      <option>Yes</option>
+                      <option>No</option>
+                      <option>Not sure</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="uplineSolutionId">Upline solution ID</label>
+                    <input
+                      id="uplineSolutionId"
+                      value={uplineSolutionId}
+                      onChange={(event) => setUplineSolutionId(event.target.value)}
+                      placeholder="If known, enter it so Harvest can pair accounts when both are on-platform"
+                    />
                   </div>
                 </div>
               ) : null}

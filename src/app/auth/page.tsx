@@ -135,12 +135,33 @@ export default function AuthPage() {
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="solutionNumber">Solution number</label>
-                    <input id="solutionNumber" name="solutionNumber" placeholder="Unique identifier used to link the organization relationship" />
+                    <label htmlFor="solutionNumber">What is your solution number?</label>
+                    <input id="solutionNumber" name="solutionNumber" placeholder="Enter your Primerica solution number" />
                   </div>
                   <div className="field">
-                    <label htmlFor="uplineName">Associated upline, field trainer, or RVP</label>
+                    <label htmlFor="supportRelationship">Who can you identify for pairing?</label>
+                    <select id="supportRelationship" name="supportRelationship" defaultValue="IMMEDIATE_UPLINE">
+                      <option value="IMMEDIATE_UPLINE">My immediate upline</option>
+                      <option value="FIELD_TRAINER">My field trainer</option>
+                      <option value="RVP">My RVP</option>
+                      <option value="UNKNOWN">I do not know yet</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="uplineName">Name of upline, field trainer, or RVP</label>
                     <input id="uplineName" name="uplineName" placeholder="Name of the person this account should connect to" />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="knowsUplineSolutionId">Do you know their solution ID?</label>
+                    <select id="knowsUplineSolutionId" name="knowsUplineSolutionId" defaultValue="UNKNOWN">
+                      <option value="YES">Yes</option>
+                      <option value="NO">No</option>
+                      <option value="UNKNOWN">Not sure</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="uplineSolutionId">Upline solution ID</label>
+                    <input id="uplineSolutionId" name="uplineSolutionId" placeholder="If known, enter it so Harvest can pair accounts when both are on-platform" />
                   </div>
                 </div>
               ) : null}
