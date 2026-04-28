@@ -15,9 +15,14 @@
 | Tests | **PASS** — 69 tests across 11 suites |
 | Build | **PASS** — 25 app routes generated |
 | Vercel CLI | Installed/authenticated on this machine when last checked |
-| Vercel project | Needs project linkage before a hosted preview URL exists |
+| Vercel project | **LINKED + DEPLOYED** |
+| Production demo URL | `https://harvest-app-inky.vercel.app` |
 
 ## Human Demo Path
+
+Public demo URL:
+
+- `https://harvest-app-inky.vercel.app`
 
 Local demo path after install/build:
 
@@ -73,19 +78,19 @@ Required only when enabling live integrations:
 - [x] Demo auth/onboarding/dashboard pages exist
 - [x] Demo-safe API fallbacks exist
 - [x] `.env.example` exists with non-secret placeholders
-- [ ] Link/create Vercel project
+- [x] Link/create Vercel project
+- [x] Deploy production demo URL
 - [ ] Add environment variables in Vercel dashboard if using database/live integrations
-- [ ] Deploy preview from `main`
 
 ### Post-Deploy Verification
 
-- [ ] Root URL loads without 404
-- [ ] `/auth` loads and continues to onboarding
-- [ ] `/onboarding` wizard advances to dashboard
-- [ ] `/dashboard` displays Mission Control demo state
-- [ ] `/api/mission-control/briefing` responds with `x-user-id` header
-- [ ] `/api/contacts/pipeline` responds with demo pipeline data
-- [ ] Vercel build logs show no errors
+- [x] Root URL loads without 404
+- [x] `/auth` loads
+- [x] `/onboarding` loads
+- [x] `/dashboard` displays Mission Control demo state
+- [x] `/api/mission-control/briefing` responds with `x-user-id` header
+- [x] `/api/contacts/pipeline` responds with demo pipeline data
+- [x] Vercel deployment completed
 
 ## Safety Notes
 
@@ -104,4 +109,8 @@ npm test -- --runInBand --silent
   Tests:       69 passed, 69 total
 npm run build          PASS
   Static/dynamic routes generated: 25
+vercel deploy --yes    PASS
+  Public URL: https://harvest-app-inky.vercel.app
+Live route smoke test  PASS
+  /, /auth, /onboarding, /dashboard, /api/contacts/pipeline, /api/mission-control/briefing returned 200
 ```
