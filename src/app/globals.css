@@ -106,6 +106,8 @@ h3 { margin: 0 0 8px; letter-spacing: -0.025em; }
 .visual-root { background: var(--bg-deep); color: white; text-align: center; }
 .visual-root span { color: rgba(255,255,255,.72); }
 .visual-branches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.wizard-block { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(135deg, #fffaf0, #f3ead8); margin-bottom: 16px; }
+.primerica-fields { display: grid; gap: 12px; padding: 14px; border: 1px solid #c6dccb; border-radius: 18px; background: var(--leaf-soft); }
 .action-row { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
 .action-row:last-child { border-bottom: 0; }
 .priority { width: 34px; height: 34px; border-radius: 12px; display: grid; place-items: center; background: var(--cream); color: var(--harvest-dark); font-weight: 900; }

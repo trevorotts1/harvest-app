@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react';
 
 const steps = [
   {
-    title: 'Your role',
-    copy: 'Confirm the operating context Harvest should use for visibility, nudges, and team support.',
+    title: 'Business / Industry',
+    copy: 'Classify the business first, then ask only the follow-up questions that fit that structure.',
   },
   {
     title: 'Seven Whys',
@@ -54,10 +54,46 @@ const intensityLevels = [
   },
 ];
 
+const industries = [
+  'Financial services',
+  'Restaurant',
+  'Food service',
+  'Education',
+  'Consulting',
+  'Franchise',
+  'Real estate',
+  'Health & wellness',
+  'Beauty / personal care',
+  'Retail / e-commerce',
+  'Professional services',
+  'Nonprofit / community organization',
+  'Other',
+];
+
+const franchiseTypes = [
+  'Food service franchise',
+  'Financial services franchise',
+  'Tax preparation franchise',
+  'Retail franchise',
+  'Fitness / wellness franchise',
+  'Home services franchise',
+  'Other franchise',
+];
+
+const primericaLevels = [
+  'VP / RVP',
+  'Regional Leader',
+  'District Leader',
+  'Representative',
+];
+
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
-  const [role, setRole] = useState('REP');
-  const [business, setBusiness] = useState('Primerica');
+  const [industry, setIndustry] = useState('Financial services');
+  const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
+  const [franchiseType, setFranchiseType] = useState('Financial services franchise');
+  const [organizationName, setOrganizationName] = useState('Primerica');
+  const [primericaLevel, setPrimericaLevel] = useState('Representative');
   const [solutionNumber, setSolutionNumber] = useState('');
   const [upline, setUpline] = useState('');
   const [whys, setWhys] = useState(defaultWhys);
@@ -74,6 +110,8 @@ export default function OnboardingPage() {
     [intensity],
   );
   const deepestWhy = [...whys].reverse().find((why) => why.trim().length > 0) || whys[0];
+  const isFranchise = industry === 'Franchise' || businessModel === 'Franchise owner';
+  const isPrimerica = organizationName.trim().toLowerCase().includes('primerica');
 
   return (
     <main className="form-page">
@@ -82,7 +120,7 @@ export default function OnboardingPage() {
           <Link href="/" className="brand"><span className="brand-mark">H</span><span>The Harvest</span></Link>
           <h1 id="onboarding-title" style={{ fontSize: '3rem', marginTop: 48 }}>Set the operating system.</h1>
           <p style={{ color: 'rgba(255,255,255,.72)', lineHeight: 1.6 }}>
-            Five demo steps create the profile Mission Control needs: role, business association, deep why,
+            Five demo steps create the profile Mission Control needs: industry, business structure, deep why,
             consent, intensity, and downline vision.
           </p>
         </aside>
@@ -98,35 +136,63 @@ export default function OnboardingPage() {
           {step === 0 ? (
             <div className="stack compact-stack">
               <div className="field">
-                <label htmlFor="role">Role</label>
-                <select id="role" value={role} onChange={(event) => setRole(event.target.value)}>
-                  <option value="REP">Rep/User</option>
-                  <option value="UPLINE">Upline</option>
-                  <option value="RVP">RVP</option>
+                <label htmlFor="industry">What is the business industry?</label>
+                <select id="industry" value={industry} onChange={(event) => setIndustry(event.target.value)}>
+                  {industries.map((item) => <option key={item}>{item}</option>)}
                 </select>
               </div>
               <div className="field">
-                <label htmlFor="business">Downline business / company</label>
-                <select id="business" value={business} onChange={(event) => setBusiness(event.target.value)}>
-                  <option>Primerica</option>
-                  <option>Other financial services organization</option>
-                  <option>Other network marketing / downline business</option>
-                  <option>Independent / not company-linked</option>
+                <label htmlFor="businessModel">Which structure best describes it?</label>
+                <select id="businessModel" value={businessModel} onChange={(event) => setBusinessModel(event.target.value)}>
+                  <option>Downline / team-based organization</option>
+                  <option>Franchise owner</option>
+                  <option>Independent professional practice</option>
+                  <option>Local service business</option>
+                  <option>Consulting firm</option>
+                  <option>School / education program</option>
+                  <option>Corporate team</option>
                 </select>
               </div>
+              {isFranchise ? (
+                <div className="field">
+                  <label htmlFor="franchiseType">What type of franchise?</label>
+                  <select id="franchiseType" value={franchiseType} onChange={(event) => setFranchiseType(event.target.value)}>
+                    {franchiseTypes.map((item) => <option key={item}>{item}</option>)}
+                  </select>
+                </div>
+              ) : null}
               <div className="field">
-                <label htmlFor="solutionNumber">Solution number / business identifier</label>
+                <label htmlFor="organizationName">Name of business or organization</label>
                 <input
-                  id="solutionNumber"
-                  value={solutionNumber}
-                  onChange={(event) => setSolutionNumber(event.target.value)}
-                  placeholder="For Primerica, this links the rep/upline/RVP relationship"
+                  id="organizationName"
+                  value={organizationName}
+                  onChange={(event) => setOrganizationName(event.target.value)}
+                  placeholder="Example: business, franchise, school, firm, or organization name"
                 />
               </div>
-              <div className="field">
-                <label htmlFor="upline">Associated upline, field trainer, or RVP</label>
-                <input id="upline" value={upline} onChange={(event) => setUpline(event.target.value)} placeholder="Name of the person this account should connect to" />
-              </div>
+              {isPrimerica ? (
+                <div className="primerica-fields">
+                  <div className="field">
+                    <label htmlFor="primericaLevel">Okay, what is your level?</label>
+                    <select id="primericaLevel" value={primericaLevel} onChange={(event) => setPrimericaLevel(event.target.value)}>
+                      {primericaLevels.map((level) => <option key={level}>{level}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="solutionNumber">Solution number</label>
+                    <input
+                      id="solutionNumber"
+                      value={solutionNumber}
+                      onChange={(event) => setSolutionNumber(event.target.value)}
+                      placeholder="Unique identifier used to link the organization relationship"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="upline">Associated upline, field trainer, or RVP</label>
+                    <input id="upline" value={upline} onChange={(event) => setUpline(event.target.value)} placeholder="Name of the person this account should connect to" />
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -192,8 +258,8 @@ export default function OnboardingPage() {
               </div>
               <div className="downline-visual" aria-label="Downline Maxxer visualization preview">
                 <div className="visual-node visual-root">
-                  <strong>{role === 'REP' ? 'You' : role}</strong>
-                  <span>{business}</span>
+                  <strong>{isPrimerica ? primericaLevel : 'You'}</strong>
+                  <span>{organizationName || industry}</span>
                 </div>
                 <div className="visual-branches">
                   <div className="visual-node"><strong>Personal Base</strong><span>Warm market contacts</span></div>
@@ -205,7 +271,7 @@ export default function OnboardingPage() {
             </div>
           ) : null}
 
-          <div className="notice">Primerica-specific logic activates when the profile is linked to Primerica through the company selection and solution number/business identifier.</div>
+          <div className="notice">Business-specific logic activates only after the user identifies the industry, business structure, and organization name.</div>
           <div className="actions">
             <button className="btn btn-secondary" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>Back</button>
             {isLast ? (
