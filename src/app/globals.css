@@ -124,6 +124,30 @@ h3 { margin: 0 0 8px; letter-spacing: -0.025em; }
    failure mode this fix is closing. */
 .score-ring .grid-3 { gap: 10px; }
 .score-ring .score-stat { background: var(--grove-950); border-radius: 14px; padding: 10px 12px; }
+/* T-05 QC fix (3rd recurrence of this exact defect class — see the
+   .score-stat comment above for the first instance): the supporting
+   paragraph under the headline used to be
+   `<p style={{ color: 'rgba(255,255,255,0.78)' }}>` sitting directly on
+   the raw gradient. Measured render (Playwright + real composited pixel
+   sampling, scripts/verify-rendered-contrast.mjs) showed this passes at
+   narrow/mobile widths (~5.0:1, card is short and the text never reaches
+   the amber end) but FAILS at wide/desktop widths (~4.27:1 at 1440px,
+   worse at wider still) once the card's aspect ratio pushes the second
+   text line further down the 160deg gradient toward #c8852c. That
+   viewport-dependence is exactly why per-breakpoint spot-checking missed
+   it twice before: a fix that "looks fine" in one browser width is not
+   evidence it holds at another. Per the .score-stat precedent, the only
+   viewport-independent fix is the same one: a fully OPAQUE backing
+   surface (--grove-950) instead of any translucent or flat color sitting
+   directly on the gradient. This card's OTHER two text nodes do not need
+   this treatment and are intentionally left alone: the "Mission Control
+   preview" badge already paints its own opaque --leaf-100 fill (`.badge`,
+   above) before the gradient is ever visible, and the "Today's harvest
+   score: 82" heading is large text (>=32px bold, thresholds at 3:1, not
+   4.5:1) which the render check confirms clears >=7:1 at every sampled
+   point of the gradient at every viewport checked — both were verified
+   by the same render check, not assumed. */
+.score-ring .score-copy { background: var(--grove-950); border-radius: 14px; padding: 12px 14px; margin: 14px 0 0; color: white; line-height: 1.6; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
 .metric { padding: 16px; background: rgba(255,255,255,0.68); border: 1px solid var(--line); border-radius: 18px; }
 .metric strong { display: block; font-size: 1.8rem; letter-spacing: -0.05em; }

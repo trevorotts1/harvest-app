@@ -42,7 +42,7 @@ export default function LandingPage() {
             <div>
               <span className="badge">Mission Control preview</span>
               <h2 style={{ marginTop: 22 }}>Today’s harvest score: 82</h2>
-              <p style={{ color: 'rgba(255,255,255,0.78)', lineHeight: 1.6 }}>
+              <p className="score-copy">
                 Three high-trust contacts, two nurture moments, one appointment window. Nothing noisy.
               </p>
             </div>
