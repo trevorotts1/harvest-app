@@ -133,10 +133,14 @@ export default function DesignTokensPage() {
             </div>
             <div
               className={styles.pairCard}
-              style={{ background: 'var(--cream)', borderColor: 'var(--line)', color: 'var(--color-harvest-text)' }}
+              style={{ background: 'var(--cream)', borderColor: 'var(--line)', color: 'var(--color-harvest-on-cream)' }}
             >
               <span className={styles.pairSample}>Harvest / wealth moment</span>
-              <span className={styles.pairMeta}>color-harvest-text / cream — 6.9:1 (light) · never text-on-canvas below harvest-700</span>
+              <span className={styles.pairMeta}>
+                color-harvest-on-cream / cream — 6.85:1 (light) · 6.85:1 (dark, token is intentionally
+                theme-invariant — --cream never flips, so its paired text token must not either;
+                see tokens.css §1.2.2)
+              </span>
             </div>
             <div
               className={styles.pairCard}
@@ -150,14 +154,14 @@ export default function DesignTokensPage() {
               style={{ background: 'var(--color-caution-bg)', borderColor: 'var(--line)', color: 'var(--color-caution-text)' }}
             >
               <span className={styles.pairSample}>Caution / flagged</span>
-              <span className={styles.pairMeta}>color-caution-text / color-caution-bg — 7.4:1 (light) · 9.2:1 (dark, on canvas)</span>
+              <span className={styles.pairMeta}>color-caution-text / color-caution-bg — 7.4:1 (light) · 7.2:1 (dark)</span>
             </div>
             <div
               className={styles.pairCard}
               style={{ background: 'var(--color-danger-form-bg)', borderColor: 'var(--line)', color: 'var(--color-danger-form-text)' }}
             >
               <span className={styles.pairSample}>Ordinary form error</span>
-              <span className={styles.pairMeta}>color-danger-form-text / color-danger-form-bg — 7.1:1 (light)</span>
+              <span className={styles.pairMeta}>color-danger-form-text / color-danger-form-bg — 7.1:1 (light) · 5.5:1 (dark)</span>
             </div>
           </div>
         </section>

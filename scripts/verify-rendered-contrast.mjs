@@ -44,19 +44,32 @@
  * the known defect was viewport-dependent — checking only one width is
  * exactly the blind spot that let it recur.
  *
+ * Checked in BOTH themes (light AND dark, via `page.emulateMedia({
+ * colorScheme })`, which drives the real `@media (prefers-color-scheme)`
+ * rules in tokens.css — the same mechanism a real OS-dark-mode user hits,
+ * with no saved manual override in local storage to short-circuit it).
+ * This is not optional: the QC round-4 dark-theme AA miss (the
+ * `--color-harvest-text` on `--cream` pairing on `/design-tokens`,
+ * 2.13:1) rendered FINE in light and only failed in dark — a single-theme
+ * render gate is exactly as blind to theme-dependent regressions as a
+ * single-viewport one is to width-dependent ones. Every (theme x
+ * viewport x surface) combination below is gated independently.
+ *
  * WIRING (deliberately NOT in `postbuild`): a full `next build` + boot a
  * production server + launch a browser is much heavier than the two
  * static checks that already run after every build, and flakier in a
  * constrained CI sandbox (port binding, browser download/launch). Per
  * the pragmatic instruction this script was commissioned under, it is
- * wired as:
+ * wired THREE independent ways so this class of defect cannot silently
+ * stop being checked the way a quietly-skipped manual step could:
  *   - an explicitly-invoked script: `npm run verify:rendered-contrast`
  *   - a jest test that runs it: tests/unit/rendered-contrast-gate.test.ts
- * CI is expected to run `npm run verify:rendered-contrast` as an
- * explicit step after `npm run build` (in addition to `npm test`, which
- * already exercises it via the jest test above) so this class of defect
- * cannot silently stop being checked the way a quietly-skipped manual
- * step could.
+ *     (so `npm test` alone also exercises it)
+ *   - an explicit `.github/workflows/ci.yml` step, "Render-based WCAG AA
+ *     contrast gate (both themes x both viewports, T-05 spec §6.1)", run
+ *     after the "Build" step (reusing that step's `.next` output) and
+ *     after a preceding "Install Playwright Chromium" step installs the
+ *     browser binary CI needs.
  *
  * Exits 0 on success, 1 with a per-node report on any AA failure.
  */
@@ -84,6 +97,15 @@ const TARGETS = [
 const VIEWPORTS = [
   { width: 1440, height: 900, label: 'desktop-1440' },
   { width: 390, height: 844, label: 'mobile-390' },
+];
+
+// Both themes, driven by the real `prefers-color-scheme` media feature
+// (see header comment) — NOT a `data-theme` DOM override, so this
+// exercises the same code path an OS-dark-mode visitor with no saved
+// preference actually hits.
+const THEMES = [
+  { name: 'light', colorScheme: 'light' },
+  { name: 'dark', colorScheme: 'dark' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -194,7 +216,8 @@ function startServer(port) {
  * before returning (defensive — a fresh `page.goto` per target already
  * makes this unnecessary, but cheap to be correct).
  */
-async function measurePage(page, url, scopeSelector) {
+async function measurePage(page, url, scopeSelector, colorScheme) {
+  await page.emulateMedia({ colorScheme });
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.evaluate(() => window.scrollTo(0, 0));
 
@@ -321,27 +344,31 @@ async function main() {
 
     console.log('Render-based WCAG AA contrast gate (T-05, spec §6.1)\n');
 
-    for (const viewport of VIEWPORTS) {
-      for (const target of TARGETS) {
-        const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: 2 });
-        const url = baseUrl + target.path;
-        const results = await measurePage(page, url, target.scope);
-        await page.close();
+    for (const theme of THEMES) {
+      for (const viewport of VIEWPORTS) {
+        for (const target of TARGETS) {
+          const page = await browser.newPage({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: 2 });
+          const url = baseUrl + target.path;
+          const results = await measurePage(page, url, target.scope, theme.colorScheme);
+          await page.close();
 
-        console.log(`--- ${target.label} @ ${viewport.label} (${viewport.width}x${viewport.height}) — ${results.length} text node(s) ---`);
-        for (const r of results) {
-          totalChecked++;
-          const pass = r.worstRatio >= r.target;
-          if (!pass) failures++;
-          const selector = `<${r.tag.toLowerCase()}${r.className ? '.' + String(r.className).trim().split(/\s+/).join('.') : ''}>`;
-          const bgStr = r.worstBg ? `rgb(${r.worstBg.r},${r.worstBg.g},${r.worstBg.b})` : 'n/a';
           console.log(
-            `  [${pass ? 'PASS' : 'FAIL'}] ${selector} "${r.text.slice(0, 48)}${r.text.length > 48 ? '…' : ''}" ` +
-              `— ${r.color}, ${r.fontSize}px/${r.fontWeight}${r.isLarge ? ' (large)' : ''}, ` +
-              `worst ${r.worstRatio.toFixed(2)}:1 (need >=${r.target}:1) vs backdrop ~${bgStr}`
+            `--- ${target.label} @ ${viewport.label} (${viewport.width}x${viewport.height}) [${theme.name} theme] — ${results.length} text node(s) ---`
           );
+          for (const r of results) {
+            totalChecked++;
+            const pass = r.worstRatio >= r.target;
+            if (!pass) failures++;
+            const selector = `<${r.tag.toLowerCase()}${r.className ? '.' + String(r.className).trim().split(/\s+/).join('.') : ''}>`;
+            const bgStr = r.worstBg ? `rgb(${r.worstBg.r},${r.worstBg.g},${r.worstBg.b})` : 'n/a';
+            console.log(
+              `  [${pass ? 'PASS' : 'FAIL'}] (${theme.name}) ${selector} "${r.text.slice(0, 48)}${r.text.length > 48 ? '…' : ''}" ` +
+                `— ${r.color}, ${r.fontSize}px/${r.fontWeight}${r.isLarge ? ' (large)' : ''}, ` +
+                `worst ${r.worstRatio.toFixed(2)}:1 (need >=${r.target}:1) vs backdrop ~${bgStr}`
+            );
+          }
+          console.log('');
         }
-        console.log('');
       }
     }
   } finally {
@@ -349,7 +376,9 @@ async function main() {
     server.kill();
   }
 
-  console.log(`verify-rendered-contrast: ${totalChecked} text node(s) checked across ${TARGETS.length} surface(s) x ${VIEWPORTS.length} viewport(s), ${failures} failing.`);
+  console.log(
+    `verify-rendered-contrast: ${totalChecked} text node(s) checked across ${TARGETS.length} surface(s) x ${VIEWPORTS.length} viewport(s) x ${THEMES.length} theme(s), ${failures} failing.`
+  );
   if (failures > 0) {
     console.error(`\nverify-rendered-contrast: ${failures} node(s) fail their WCAG AA render-based contrast target.\n`);
     process.exitCode = 1;

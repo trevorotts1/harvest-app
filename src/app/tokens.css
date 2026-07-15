@@ -126,6 +126,17 @@
 
   /* harvest = wealth/milestone moments only (reserved meaning, §1.2.2) */
   --color-harvest-text: var(--harvest-700);   /* text-safe step, never -500 */
+  /* --color-harvest-on-cream is DELIBERATELY theme-invariant (fixed at
+     --harvest-700, 6.85:1) and MUST NOT gain a dark-theme override below.
+     --cream (§1.2.1) is itself a theme-invariant "harvest-tinted surface"
+     seed — it never flips to a dark value — so the ONLY text token legal
+     on top of it is one that also never flips. `--color-harvest-text` DOES
+     flip (to --harvest-400 in dark, for use on the surfaces that flip with
+     it, e.g. surface-canvas) — pairing a flipping foreground with this
+     invariant background is exactly the T-05 QC round-4 defect: harvest-400
+     on cream measures 2.13:1, failing AA. Any component painting text on
+     `var(--cream)` must use `--color-harvest-on-cream`, never
+     `--color-harvest-text` — enforced by verify-contrast.mjs. */
   --color-harvest-on-cream: var(--harvest-700);
   --color-harvest-fill: var(--harvest-400);   /* dark ink on top, 7.4:1 */
   --color-harvest-fill-strong: var(--harvest-500);
@@ -267,7 +278,10 @@
     --color-growth: var(--leaf-300);
 
     --color-harvest-text: var(--harvest-400);
-    --color-harvest-on-cream: var(--harvest-400);
+    /* --color-harvest-on-cream intentionally has NO dark override here —
+       see the :root definition (§1.2.2): it stays pinned to --harvest-700
+       in both themes because its paired surface, --cream, never flips
+       either. Do not add one back (T-05 QC round-4 regression). */
     --color-harvest-fill: var(--harvest-500);
     --color-harvest-fill-strong: var(--harvest-500);
     --on-harvest-fill: var(--ink-inverse);
@@ -313,7 +327,12 @@
   --color-growth: var(--leaf-300);
 
   --color-harvest-text: var(--harvest-400);
-  --color-harvest-on-cream: var(--harvest-400);
+  /* --color-harvest-on-cream intentionally has NO dark override here —
+     see the :root definition (§1.2.2): it stays pinned to --harvest-700
+     in both themes because its paired surface, --cream, never flips
+     either. Do not add one back (T-05 QC round-4 regression). Both dark
+     blocks must stay in sync (§1.2.2 contract, enforced by
+     verify-contrast.mjs) — this property is simply absent from both. */
   --color-harvest-fill: var(--harvest-500);
   --color-harvest-fill-strong: var(--harvest-500);
   --on-harvest-fill: var(--ink-inverse);

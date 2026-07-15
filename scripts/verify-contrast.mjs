@@ -225,7 +225,11 @@ const LIGHT_PAIRS = [
   pair('text-secondary on surface-canvas (secondary body — AA-corrected)', 'light', '--text-secondary', '--surface-canvas'),
   pair('color-action text on surface-canvas', 'light', '--color-action', '--surface-canvas'),
   pair('on-action on color-action fill (button label)', 'light', '--on-action', '--color-action'),
-  pair('color-harvest-text on cream', 'light', '--color-harvest-text', '--cream'),
+  // NOTE: --cream is a theme-invariant surface (§1.2.1) — the only text
+  // token legal on top of it is the equally-invariant
+  // --color-harvest-on-cream, never the theme-flipping --color-harvest-text
+  // (that mismatch was the T-05 QC round-4 defect; see KNOWN_BAD_PAIRS).
+  pair('color-harvest-on-cream on cream', 'light', '--color-harvest-on-cream', '--cream'),
   pair('color-harvest-text on surface-canvas', 'light', '--color-harvest-text', '--surface-canvas'),
   pair('text-primary on color-harvest-fill (large numerals on harvest-400)', 'light', '--text-primary', '--color-harvest-fill', 'large'),
   pair('color-blocked-fill text on surface-canvas', 'light', '--color-blocked-fill', '--surface-canvas'),
@@ -244,8 +248,14 @@ const DARK_PAIRS = [
   pair('color-action text on surface-canvas', 'dark', '--color-action', '--surface-canvas'),
   pair('on-action on color-action fill (button label)', 'dark', '--on-action', '--color-action'),
   pair('color-harvest-text on surface-canvas', 'dark', '--color-harvest-text', '--surface-canvas'),
+  // --cream is theme-invariant; this pairing must hold in dark too (the
+  // fix for the T-05 QC round-4 defect — see KNOWN_BAD_PAIRS below).
+  pair('color-harvest-on-cream on cream', 'dark', '--color-harvest-on-cream', '--cream'),
   pair('color-blocked-fill on surface-canvas', 'dark', '--color-blocked-fill', '--surface-canvas'),
+  pair('on-blocked on color-blocked-fill (button label)', 'dark', '--on-blocked', '--color-blocked-fill'),
   pair('color-caution-text on surface-canvas', 'dark', '--color-caution-text', '--surface-canvas'),
+  pair('color-caution-text on color-caution-bg', 'dark', '--color-caution-text', '--color-caution-bg'),
+  pair('color-danger-form-text on color-danger-form-bg', 'dark', '--color-danger-form-text', '--color-danger-form-bg'),
   pair('focus ring (color-action) vs surface-canvas', 'dark', '--color-action', '--surface-canvas', 'nontext'),
 ];
 
@@ -266,6 +276,17 @@ const KNOWN_BAD_PAIRS = [
     label: '--harvest-500 (#c8852c) as text-on-light on --soil-100 (barred by spec §1.2.4)',
     fg: '--harvest-500',
     bg: '--soil-100',
+    target: AA_NORMAL,
+    expectFail: true,
+  },
+  {
+    label:
+      '--harvest-400 (#d9a250, i.e. --color-harvest-text in dark) as text on --cream (#fff7e7) — ' +
+      'the T-05 QC round-4 dark-theme AA miss: a theme-invariant surface (--cream) paired with a ' +
+      'theme-flipping text token. The fix is --color-harvest-on-cream (pinned to --harvest-700 in ' +
+      'both themes), never --color-harvest-text, on this surface.',
+    fg: '--harvest-400',
+    bg: '--cream',
     target: AA_NORMAL,
     expectFail: true,
   },

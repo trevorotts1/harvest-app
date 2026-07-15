@@ -1,9 +1,15 @@
 # CI — quality gates (T-06)
 #
 # Runs the full quality-gate sequence (install, prisma generate, typecheck, lint, test, build,
-# actionlint) on every push to main/build/** and on every PR into main. This is the NON-deploy
-# half of T-06; the Vercel deploy workflow is a separate, deferred stub (see deploy.yml) that
-# activates in T-02 once the operator provides Vercel secrets.
+# a render-based WCAG AA contrast gate, actionlint) on every push to main/build/** and on every PR
+# into main. This is the NON-deploy half of T-06; the Vercel deploy workflow is a separate,
+# deferred stub (see deploy.yml) that activates in T-02 once the operator provides Vercel secrets.
+#
+# The render-based contrast gate (T-05, spec §6.1) is a separate explicit step rather than folded
+# into `postbuild` (see scripts/verify-rendered-contrast.mjs's header comment for the full
+# rationale): it needs a real headless browser, so it gets its own Playwright-install step
+# immediately before it, reusing the `.next` production build the preceding Build step already
+# produced (the script's `ensureBuilt()` no-ops when `.next/BUILD_ID` already exists).
 #
 # The final step runs actionlint (github.com/rhysd/actionlint) against every workflow file in
 # .github/workflows/ so unsupported-context defects (e.g. `secrets` in a job-level `if:`, which
@@ -70,8 +76,14 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build (runs postbuild verify:middleware + verify:api-auth guards)
+      - name: "Build (runs postbuild: verify:middleware + verify:api-auth + verify:contrast + guard:no-opacity-on-text)"
         run: npm run build
+
+      - name: Install Playwright Chromium (render-based contrast gate)
+        run: npx playwright install --with-deps chromium
+
+      - name: Render-based WCAG AA contrast gate (both themes x both viewports, T-05 spec §6.1)
+        run: npm run verify:rendered-contrast
 
       - name: Lint workflow files (actionlint)
         run: |

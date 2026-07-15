@@ -17,10 +17,9 @@ import path from 'node:path';
  * + headless-browser launch is meaningfully heavier and more
  * environment-dependent than the two static checks that already run
  * after every build). It is wired here instead, plus as the
- * explicitly-invocable `npm run verify:rendered-contrast`. CI is
- * expected to run `npm run verify:rendered-contrast` as an explicit step
- * after `npm run build`, in addition to `npm test` (which exercises the
- * exact same script via this test) — so the check runs twice via two
+ * explicitly-invocable `npm run verify:rendered-contrast`, PLUS as its
+ * own explicit `.github/workflows/ci.yml` step (after "Build" and an
+ * "Install Playwright Chromium" step) — so the check runs via three
  * independent hooks, the same "can't go quiet" pattern
  * `contrast-gate.test.ts` already uses for the static checks.
  *
@@ -33,7 +32,7 @@ describe('Render-based WCAG AA contrast gate (T-05)', () => {
   const repoRoot = path.join(__dirname, '..', '..');
 
   it(
-    'verify:rendered-contrast — every text node on `.score-ring` (/) and the full /design-tokens page meets its AA target at every checked viewport',
+    'verify:rendered-contrast — every text node on `.score-ring` (/) and the full /design-tokens page meets its AA target at every checked viewport x theme combination',
     () => {
       const scriptPath = path.join(repoRoot, 'scripts', 'verify-rendered-contrast.mjs');
       expect(() => execFileSync('node', [scriptPath], { stdio: 'pipe', timeout: 120000 })).not.toThrow();

@@ -70,7 +70,25 @@
  * anywhere else in the tree, still fails the gate. Do not add to this
  * list without a linked tracking ticket, and only remove entries when
  * the underlying code is actually fixed.
+ *
+ * EXEMPTION KEY GRANULARITY (T-05 QC round-4 hardening): exemption keys
+ * are PER-INSTANCE fingerprints, not per-file and not even per-selector.
+ * A key is `${relPath}::${selector-or-line}::${first10HexOfSha256(decl)}`
+ * where `decl` is the exact matched declaration text (e.g.
+ * `color: rgba(255,255,255,.72)`). This matters because the TSX side
+ * originally keyed exemptions by FILE ONLY
+ * (`${relPath}::style={{...}} (inline <p>)`, constant regardless of which
+ * style object or which violation) — so a SECOND, DIFFERENT violation
+ * added to an already-exempted file (e.g. a new `opacity: 0.6` on some
+ * other inline style in auth/page.tsx) would silently match the same
+ * blanket key and pass unnoticed. The CSS side already keyed per-selector
+ * (`${relPath}::${selector}`), which is why only the TSX side needed this
+ * fix. The content-hash component additionally distinguishes two
+ * DIFFERENT violations that happen to land on the same line/selector
+ * (e.g. both a bad `opacity` and a bad `color` in one rule) — each gets
+ * its own fingerprint, so exempting one never silently exempts the other.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -79,14 +97,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..');
 const SRC_ROOT = path.join(REPO_ROOT, 'src');
 
-// Pre-existing, out-of-scope-for-T-05 violations. Keys are
-// `${relativeFilePath}::${selectorOrElementDescription}`. See the header
-// comment above for the rationale and the rule for touching this list.
+/** First 10 hex chars of the sha256 of `text` — enough to disambiguate the small number of real violations in this repo without being a security primitive. */
+function fingerprint(text) {
+  return createHash('sha256').update(text).digest('hex').slice(0, 10);
+}
+
+// Pre-existing, out-of-scope-for-T-05 violations. CSS keys are
+// `${relativeFilePath}::${selector}::${fingerprint(decl)}` (per-selector,
+// per-declaration-content). TSX keys are
+// `${relativeFilePath}:${lineNumber}::${fingerprint(decl)}`
+// (per-line, per-declaration-content) — see the header comment above for
+// why line+content, not just file, is required. Regenerate a fingerprint
+// with `fingerprint('<prop>: <value>')` (exact matched declaration text)
+// if one of these ever needs to move; do not hand-guess the hex.
 const KNOWN_PRE_EXISTING_EXEMPTIONS = new Set([
-  'src/app/auth/page.tsx::style={{...}} (inline <p>)',
-  'src/app/onboarding/page.tsx::style={{...}} (inline <p>)',
-  'src/app/globals.css::.side-link',
-  'src/app/globals.css::.visual-root span',
+  `src/app/auth/page.tsx:87::${fingerprint("color: rgba(255,255,255,.72)")}`,
+  `src/app/onboarding/page.tsx:130::${fingerprint("color: rgba(255,255,255,.72)")}`,
+  `src/app/globals.css::.side-link::${fingerprint('color: rgba(255,255,255,0.72)')}`,
+  `src/app/globals.css::.visual-root span::${fingerprint('color: rgba(255,255,255,.72)')}`,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -190,7 +218,7 @@ function alphaOf(value) {
 
 /**
  * @param {string} body declarations separated by `;` (CSS rule body)
- * @returns {Array<{ kind: 'opacity'|'color-alpha', raw: string }>}
+ * @returns {Array<{ kind: 'opacity'|'color-alpha', raw: string, decl: string }>}
  */
 function findCssDeclViolations(body) {
   const violations = [];
@@ -203,16 +231,16 @@ function findCssDeclViolations(body) {
     const value = decl.slice(colon + 1).trim();
 
     if (prop === 'opacity' && !isFullyOpaqueOpacityValue(value)) {
-      violations.push({ kind: 'opacity', raw: value });
+      violations.push({ kind: 'opacity', raw: value, decl: `${prop}: ${value}` });
     } else if (prop === 'color') {
       const a = alphaOf(value);
-      if (a !== null && a < 1) violations.push({ kind: 'color-alpha', raw: value });
+      if (a !== null && a < 1) violations.push({ kind: 'color-alpha', raw: value, decl: `${prop}: ${value}` });
     }
   }
   return violations;
 }
 
-function checkCssFile(absPath, relPath, exemptionKeyFor) {
+function checkCssFile(absPath, relPath) {
   const css = stripCssComments(readFileSync(absPath, 'utf8'));
   const blocks = parseCssBlocks(css);
   const reports = [];
@@ -221,7 +249,11 @@ function checkCssFile(absPath, relPath, exemptionKeyFor) {
     checkedRules++;
     if (inKeyframes) continue; // transient animation — exempt, see header.
     for (const v of findCssDeclViolations(body)) {
-      const exemptionKey = exemptionKeyFor(selector);
+      // Per-instance: selector + a fingerprint of the exact violating
+      // declaration, so two DIFFERENT violations on the same selector
+      // (e.g. a bad `opacity` and a bad `color` in one rule) never share
+      // an exemption — each must be individually grandfathered.
+      const exemptionKey = `${relPath}::${selector}::${fingerprint(v.decl)}`;
       reports.push({ relPath, selector, ...v, exempt: KNOWN_PRE_EXISTING_EXEMPTIONS.has(exemptionKey) });
     }
   }
@@ -236,11 +268,33 @@ function checkCssFile(absPath, relPath, exemptionKeyFor) {
 //    get mistaken for object-property separators).
 // ---------------------------------------------------------------------------
 
+/**
+ * Blanks out comment characters (replacing each with a space) rather than
+ * deleting them, so every remaining character's offset — and therefore
+ * every line number computed from those offsets — stays identical to the
+ * original file. A block comment's internal newlines are left in place
+ * for the same reason. This matters here (and didn't before) because
+ * `checkTsxFile` below now derives a per-instance exemption fingerprint
+ * from the LINE NUMBER of each violation — a naive delete-based strip
+ * would silently shift every subsequent line number by however many
+ * newlines a multi-line comment consumed.
+ */
 function stripJsComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
 }
 
-/** @returns {string[]} the raw text inside each `style={{ ... }}` found in `src`, braces excluded. */
+/** 1-based line number of character offset `pos` in `src`. */
+function lineNumberAt(src, pos) {
+  let line = 1;
+  for (let i = 0; i < pos; i++) {
+    if (src.charCodeAt(i) === 10 /* \n */) line++;
+  }
+  return line;
+}
+
+/** @returns {Array<{ body: string, line: number }>} each `style={{ ... }}` found in `src` (braces excluded), with the 1-based line number where its `style={{` marker starts. */
 function findInlineStyleObjects(src) {
   const out = [];
   const marker = 'style={{';
@@ -256,7 +310,7 @@ function findInlineStyleObjects(src) {
       j++;
     }
     // j now points just past the matching `}}` (depth hit 0 after the 2nd closing brace)
-    out.push(src.slice(start + marker.length, j - 2));
+    out.push({ body: src.slice(start + marker.length, j - 2), line: lineNumberAt(src, start) });
     searchFrom = j;
   }
   return out;
@@ -289,7 +343,7 @@ function unquote(str) {
   return s;
 }
 
-/** @returns {Array<{ kind: 'opacity'|'color-alpha', raw: string }>} */
+/** @returns {Array<{ kind: 'opacity'|'color-alpha', raw: string, decl: string }>} */
 function findInlineStyleViolations(objectBody) {
   const violations = [];
   for (const entry of splitTopLevelObjectEntries(objectBody)) {
@@ -306,25 +360,35 @@ function findInlineStyleViolations(objectBody) {
       // evaluated statically anyway.
       const numeric = rawValue.replace(/,\s*$/, '');
       if (/^[0-9]*\.?[0-9]+%?$/.test(numeric) && !isFullyOpaqueOpacityValue(numeric)) {
-        violations.push({ kind: 'opacity', raw: numeric });
+        violations.push({ kind: 'opacity', raw: numeric, decl: `opacity: ${numeric}` });
       }
     } else if (key === 'color') {
       const value = unquote(rawValue.replace(/,\s*$/, ''));
       const a = alphaOf(value);
-      if (a !== null && a < 1) violations.push({ kind: 'color-alpha', raw: value });
+      if (a !== null && a < 1) violations.push({ kind: 'color-alpha', raw: value, decl: `color: ${value}` });
     }
   }
   return violations;
 }
 
-function checkTsxFile(absPath, relPath, exemptionKeyFor) {
+function checkTsxFile(absPath, relPath) {
   const src = stripJsComments(readFileSync(absPath, 'utf8'));
   const objects = findInlineStyleObjects(src);
   const reports = [];
   for (const obj of objects) {
-    for (const v of findInlineStyleViolations(obj)) {
-      const exemptionKey = exemptionKeyFor();
-      reports.push({ relPath, selector: 'style={{...}} (inline)', ...v, exempt: KNOWN_PRE_EXISTING_EXEMPTIONS.has(exemptionKey) });
+    for (const v of findInlineStyleViolations(obj.body)) {
+      // Per-instance: line number + a fingerprint of the exact violating
+      // declaration. Line number alone would still conflate two
+      // DIFFERENT violations that happen to sit on the same line (e.g.
+      // `style={{ opacity: 0.5, color: 'rgba(0,0,0,.5)' }}`); the
+      // fingerprint of the declaration text disambiguates those too.
+      const exemptionKey = `${relPath}:${obj.line}::${fingerprint(v.decl)}`;
+      reports.push({
+        relPath,
+        selector: `style={{...}} (inline, line ${obj.line})`,
+        ...v,
+        exempt: KNOWN_PRE_EXISTING_EXEMPTIONS.has(exemptionKey),
+      });
     }
   }
   return { reports, checkedRules: objects.length };
@@ -349,7 +413,7 @@ function main() {
   const allCssFiles = [...moduleCssFiles, globalsCssPath];
   for (const file of allCssFiles) {
     const relPath = path.relative(REPO_ROOT, file);
-    const { reports, checkedRules: n } = checkCssFile(file, relPath, (selector) => `${relPath}::${selector}`);
+    const { reports, checkedRules: n } = checkCssFile(file, relPath);
     checkedRules += n;
     for (const r of reports) {
       if (r.exempt) {
@@ -373,7 +437,7 @@ function main() {
 
   for (const file of tsxFiles) {
     const relPath = path.relative(REPO_ROOT, file);
-    const { reports, checkedRules: n } = checkTsxFile(file, relPath, () => `${relPath}::style={{...}} (inline <p>)`);
+    const { reports, checkedRules: n } = checkTsxFile(file, relPath);
     checkedRules += n;
     for (const r of reports) {
       if (r.exempt) {
