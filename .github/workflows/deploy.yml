@@ -1,0 +1,94 @@
+# Deploy — Vercel production promotion (DEFERRED STUB, T-06 / activates in T-02)
+#
+# This workflow is intentionally inert until the operator provisions Vercel and adds three GitHub
+# Actions repo secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (per master spec §2.2 —
+# production promotes from `main` only; every PR gets a preview deploy). GitHub Actions does NOT
+# permit the `secrets` context inside a job-level `if:` (only `github`, `inputs`, `needs`, `vars`
+# are allowed there) — so the gate is implemented as a preliminary `gate` job that reads the three
+# secrets via `env:` (where the `secrets` context IS allowed) and emits a `deployable` output. The
+# `deploy` job then guards on `needs.gate.outputs.deployable == 'true'`, which job-level `if:` does
+# support. Until all three secrets are set, `gate` emits `deployable=false` and `deploy` is cleanly
+# marked SKIPPED, not FAILED — this workflow never breaks CI in the meantime and never produces the
+# workflow error that a bare `secrets`-in-`if:` guard would. No secret value is ever printed;
+# secrets are referenced by name only and consumed directly by the Vercel CLI's own env vars. The
+# Claude API remains the only AI provider referenced anywhere in this app (master spec §0.3) — this
+# workflow deploys application code only and names no other model provider.
+#
+# To activate (T-02 / T-60): add the three secrets above in the repo's GitHub Settings > Secrets
+# and variables > Actions. No edit to this file is required — the gate flips on automatically once
+# all three are present.
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Check Vercel secrets
+    runs-on: ubuntu-latest
+    outputs:
+      deployable: ${{ steps.check.outputs.deployable }}
+    steps:
+      - name: Evaluate Vercel secret presence
+        id: check
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "deployable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployable=false" >> "$GITHUB_OUTPUT"
+            echo "Vercel secrets not set — skipping deploy (expected until T-02)."
+          fi
+
+  deploy:
+    name: Vercel production deploy
+    needs: [gate]
+    # Gate: skipped (not failed) until all three Vercel secrets are set. This reads needs.gate's
+    # output, not the secrets context directly — job-level `if:` does not support `secrets`.
+    # Remove/relax this guard only when T-02 confirms the secrets are in place and the promotion
+    # path has been reviewed.
+    if: needs.gate.outputs.deployable == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment (production)
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build project artifacts
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
