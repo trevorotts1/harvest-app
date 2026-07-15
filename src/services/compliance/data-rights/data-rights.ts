@@ -19,10 +19,15 @@ import { DataRightsAuditSink, buildDataRightsAuditEvent } from './audit-emit';
  *   1. If an ACTIVE LegalHold exists on the user, the deletion is BLOCKED — recorded as HELD,
  *      and NOTHING is touched (no PII scrub happens). See §16.3 "GDPR/CCPA deletion vs. FINRA
  *      retention" and §3.4 "Deletion cascade with legal hold".
- *   2. Otherwise, ordinary PII on `User` and the user's `Contact` rows is deleted/anonymized —
- *      but FINRA 2210/3110-required communications (`AuditEntry` rows tagged `regulation:
- *      'FINRA'`) are never touched. They are only *read* (to list them in the certificate), never
- *      deleted or updated. That is the legal-hold carve-out (§16.2, §16.3, §3.4).
+ *   2. Otherwise, ordinary PII is deleted/anonymized across every user-owned model: `User`,
+ *      `Contact`, `WhySession` (the Seven Whys transcript, anchor statement, and why-photo —
+ *      §16.3's named sensitive-data class), `OnboardingSession`, `ContactInteraction` (notes on
+ *      the user's own contacts), `Message`/`DraftMessage` (body text), and `WarmMarketExercise`
+ *      (per-contact blank-canvas/background/highlights context). FINRA 2210/3110-required
+ *      communications (`AuditEntry` rows tagged `regulation: 'FINRA'`) are never touched — they
+ *      are only *read* (to list them in the certificate), never deleted or updated. That is the
+ *      legal-hold carve-out (§16.2, §16.3, §3.4); it is the ONLY carve-out — none of the models
+ *      above are FINRA-retained.
  *   3. A `DeletionCertificate` documents exactly what was deleted vs. retained and why, and its
  *      URL is written to `UserDataDeletion.deletion_certificate_url`.
  *
@@ -51,6 +56,56 @@ export interface DataRightsPrismaClient {
   };
   auditEntry: {
     findMany(args: { where: Record<string, unknown> }): Promise<AuditEntryRow[]>;
+  };
+  // ── T-11 QC fix (§16.3): the models below hold user-owned PII beyond User/Contact and must be
+  // scrubbed on the same COMPLETED deletion run — none of them are FINRA-retained (the carve-out
+  // is AuditEntry only). Each follows the same narrow updateMany-only shape already used by
+  // `contact` above; no `delete`/`deleteMany` is ever needed here because the established pattern
+  // is anonymize-via-update, not hard-delete (see the User/Contact blocks below).
+  whySession: {
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
+  };
+  onboardingSession: {
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
+  };
+  contactInteraction: {
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
+  };
+  // Message has no user_id scalar (only thread_id); schema.prisma's own convention note (§3
+  // header) prefers plain scalar FK filtering over relation traversal, so the owning thread's
+  // ids are resolved first via `messageThread.findMany({ where: { user_id } })` and then used to
+  // scope `message.updateMany` by `thread_id: { in: [...] }` — the same one-hop
+  // fetch-ids-then-filter shape already used for ContactInteraction (via `contact_id: { in: [...] }`
+  // below), not a nested relation filter.
+  messageThread: {
+    findMany(args: { where: Record<string, unknown> }): Promise<MessageThreadRow[]>;
+  };
+  message: {
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
+  };
+  draftMessage: {
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
+  };
+  warmMarketExercise: {
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
   };
   userDataDeletion: {
     create(args: { data: Record<string, unknown> }): Promise<UserDataDeletionRow>;
@@ -101,6 +156,12 @@ interface AuditEntryRow {
   regulation: string;
   content_hash: string;
   created_at: Date | string;
+}
+
+interface MessageThreadRow {
+  id: string;
+  user_id: string;
+  [key: string]: unknown;
 }
 
 interface UserDataDeletionRow {
@@ -290,6 +351,113 @@ export class DataRightsService {
       );
     }
 
+    // ── T-11 QC fix (§16.3): scrub every OTHER user-owned, PII-bearing model. None of these are
+    // FINRA-retained — the carve-out below is AuditEntry only. §16.3 explicitly names "why-photos,
+    // Seven Whys transcripts, and anchor statements" as the sensitive-data class requiring the
+    // same treatment as Contact PII; the models below are that class plus the other user-owned
+    // free-text/PII surfaces in prisma/schema.prisma. Anonymize-via-update, matching the User/
+    // Contact pattern above — never a hard delete.
+
+    // WhySession: the Seven Whys transcript, anchor statement, and why-photo pointer (§16.3, §6).
+    // transcript is a non-nullable Json column, so it is redacted to `{}` (the Json analog of the
+    // empty-string redaction used for Contact.last_name above) rather than nulled.
+    const whySessionResult = await this.prisma.whySession.updateMany({
+      where: { user_id },
+      data: {
+        transcript: {},
+        anchor_statement: null,
+        why_photo_ref: null,
+      },
+    });
+    if (whySessionResult.count > 0) {
+      deletedFields.push('WhySession.transcript', 'WhySession.anchor_statement', 'WhySession.why_photo_ref');
+    }
+
+    // OnboardingSession: the Seven Whys/goal-card/intensity payloads captured during onboarding
+    // (distinct rows from WhySession's richer transcript — retained for step-resumption state,
+    // §3.2 — but still user-owned PII once populated).
+    const onboardingResult = await this.prisma.onboardingSession.updateMany({
+      where: { user_id },
+      data: {
+        seven_whys: null,
+        goal_card: null,
+        intensity_data: null,
+      },
+    });
+    if (onboardingResult.count > 0) {
+      deletedFields.push(
+        'OnboardingSession.seven_whys',
+        'OnboardingSession.goal_card',
+        'OnboardingSession.intensity_data'
+      );
+    }
+
+    // ContactInteraction: free-text notes on the user's own contacts (per-rep, never cross-rep —
+    // §3.4). Scoped via the contact ids already fetched above; notes is non-nullable
+    // (`@default("")`) so it is redacted to '' rather than nulled, mirroring Contact.last_name.
+    const contactIds = contacts.map((c) => c.id);
+    if (contactIds.length > 0) {
+      const interactionResult = await this.prisma.contactInteraction.updateMany({
+        where: { contact_id: { in: contactIds } },
+        data: { notes: '' },
+      });
+      if (interactionResult.count > 0) {
+        deletedFields.push('ContactInteraction.notes');
+      }
+    }
+
+    // Message: body text on the user's own message threads. Message has no user_id scalar (only
+    // thread_id) — per this schema's own scalar-FK convention (see prisma/schema.prisma header),
+    // the owning thread ids are resolved first, then used to scope the update, rather than a
+    // nested relation filter.
+    const ownedThreads = await this.prisma.messageThread.findMany({ where: { user_id } });
+    const threadIds = ownedThreads.map((t) => t.id);
+    if (threadIds.length > 0) {
+      const messageResult = await this.prisma.message.updateMany({
+        where: { thread_id: { in: threadIds } },
+        data: { body: '' },
+      });
+      if (messageResult.count > 0) {
+        deletedFields.push('Message.body');
+      }
+    }
+
+    // DraftMessage: drafted outbound body text awaiting CFE/approval (§5.5) — non-nullable, so
+    // redacted to '' like Message.body above.
+    const draftResult = await this.prisma.draftMessage.updateMany({
+      where: { user_id },
+      data: { body: '' },
+    });
+    if (draftResult.count > 0) {
+      deletedFields.push('DraftMessage.body');
+    }
+
+    // WarmMarketExercise: blank-canvas names, background context, and highlights are personal
+    // context about the user's specific relationships (§8) — the same sensitive-data class as
+    // Contact PII. match_results/readiness_scores/qualities are keyed off those same per-contact
+    // payloads, so all Json fields on this model are scrubbed together.
+    const warmMarketResult = await this.prisma.warmMarketExercise.updateMany({
+      where: { user_id },
+      data: {
+        blank_canvas_names: null,
+        qualities: null,
+        background_context: null,
+        highlights: null,
+        match_results: null,
+        readiness_scores: null,
+      },
+    });
+    if (warmMarketResult.count > 0) {
+      deletedFields.push(
+        'WarmMarketExercise.blank_canvas_names',
+        'WarmMarketExercise.qualities',
+        'WarmMarketExercise.background_context',
+        'WarmMarketExercise.highlights',
+        'WarmMarketExercise.match_results',
+        'WarmMarketExercise.readiness_scores'
+      );
+    }
+
     // THE CARVE-OUT: read (never write/delete) the FINRA-tagged compliance/communications audit
     // trail for this user. These rows survive the deletion untouched.
     const regulated = await this.prisma.auditEntry.findMany({
@@ -414,9 +582,16 @@ export class DataRightsService {
  * quote (the CSV standard's escape convention — NOT backslash-escaping, which is not valid CSV
  * and would misparse under a real CSV reader once a field contains embedded commas/quotes, as
  * any nested-JSON field here will).
+ *
+ * Also guards against CSV/spreadsheet formula injection (OWASP CSV Injection): a field whose
+ * content begins with `=`, `+`, `-`, or `@` can be interpreted as a formula by Excel/Sheets when
+ * this export is opened, potentially executing attacker-controlled content (e.g. a contact's
+ * `notes` field). A leading single quote forces literal-text interpretation without altering the
+ * field's actual data (RFC 4180 quoting handles the rest).
  */
 function csvField(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
+  const formulaGuarded = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return `"${formulaGuarded.replace(/"/g, '""')}"`;
 }
 
 /** Flat, dependency-free CSV serializer — good enough for a self-contained data export. */

@@ -135,7 +135,12 @@ export interface DeletionCertificate {
   requested_at: string;
   completed_at: string | null;
   status: DeletionStatus;
-  /** Ordinary PII fields deleted/anonymized on User + Contact records. */
+  /**
+   * Ordinary PII fields deleted/anonymized across every user-owned model — User, Contact,
+   * WhySession, OnboardingSession, ContactInteraction, Message, DraftMessage, and
+   * WarmMarketExercise (§16.3). None of these are FINRA-retained; the carve-out below is
+   * AuditEntry only.
+   */
   deleted_fields: string[];
   /** The FINRA legal-hold carve-out set: what was retained, and why. Empty when the deletion is HELD (nothing was processed). */
   retained_records: RetainedRecordRef[];
