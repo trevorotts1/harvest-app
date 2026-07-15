@@ -51,6 +51,21 @@ export interface UserContext {
   role: Role;
   regulations?: Regulation[];
   licensed_states?: string[];
+  // --- §5.3 / §5.5 context gates (optional so every existing caller keeps
+  // compiling; the CFE reads them for licensing, signed release, opt-in, etc.).
+  /** Active insurance license (IBA/POL) for the recipient's state (§5.3-4, §5.5). */
+  insurance_licensed?: boolean;
+  recipient_state?: string;
+  /** Roadmap days 8–30: insurance-recommendation content is hard-blocked (§5.5). */
+  licensing_phase?: boolean;
+  /** A signed testimonial release is on file (§5.3-2). */
+  signed_testimonial_release?: boolean;
+  /** Explicit TCPA referral opt-in on file (§5.3-5). */
+  referral_opt_in?: boolean;
+  /** Recipient/rep is in a state that regulates the business opportunity (§5.3-3). */
+  regulated_state?: boolean;
+  /** Correlates the decision to a content record for the audit trail. */
+  content_id?: string;
 }
 
 export interface CFEInput {
@@ -77,6 +92,10 @@ export interface CFEResult {
   blocked: boolean;
   http_status: number;
   action: string;
+  /** Fail-closed hold flag (§5.2). true = not released, held for review. */
+  held: boolean;
+  /** §5.4 band mirrored onto the legacy result shape. */
+  band: CFEBand;
 }
 
 export interface AuditPayload {
@@ -285,32 +304,4 @@ export interface CFEVerdict {
   httpStatus: number;
   ruleVersion: string;
   auditEvent: CFEAuditEvent;
-}
-
-/**
- * Declaration-merged extensions to the existing shapes. Fields are optional so
- * every existing caller keeps compiling; the CFE reads them for the §5.3 /
- * §5.5 context gates (licensing, signed release, TCPA opt-in, etc.).
- */
-export interface UserContext {
-  /** Active insurance license (IBA/POL) for the recipient's state (§5.3-4, §5.5). */
-  insurance_licensed?: boolean;
-  recipient_state?: string;
-  /** Roadmap days 8–30: insurance-recommendation content is hard-blocked (§5.5). */
-  licensing_phase?: boolean;
-  /** A signed testimonial release is on file (§5.3-2). */
-  signed_testimonial_release?: boolean;
-  /** Explicit TCPA referral opt-in on file (§5.3-5). */
-  referral_opt_in?: boolean;
-  /** Recipient/rep is in a state that regulates the business opportunity (§5.3-3). */
-  regulated_state?: boolean;
-  /** Correlates the decision to a content record for the audit trail. */
-  content_id?: string;
-}
-
-export interface CFEResult {
-  /** Fail-closed hold flag (§5.2). true = not released, held for review. */
-  held: boolean;
-  /** §5.4 band mirrored onto the legacy result shape. */
-  band: CFEBand;
 }

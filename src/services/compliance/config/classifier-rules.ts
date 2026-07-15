@@ -104,22 +104,36 @@ export function evaluateClassifierRules(
     escalate('review', 'opportunity_disclaimer(>=0.6)');
   }
 
-  // 4. Insurance — ≥0.8 always block; ≥0.5 block UNLESS an active license
-  //    exists (and not in the licensing phase). AC §5.8-7: an unlicensed rep is
-  //    blocked from insurance-recommendation content regardless of score. The
-  //    default (no `insurance_licensed` flag) is UNLICENSED — fail-closed.
-  const insurance = confOf(results, 'INSURANCE');
+  // 4. Insurance — §5.5 licensing hard-block + §5.3-4 scoring.
+  //    • ≥0.8 → ALWAYS block (licensed or not).
+  //    • Unlicensed / licensing-phase rep + ANY insurance-recommendation signal
+  //      → BLOCKED regardless of score (master-spec §2.1/§2.4 "unlicensed = zero
+  //      insurance product discussion"; §5.5 licensing-phase hard-block; AC
+  //      §5.8-7; qc-checklist WP11 named critical failure). "Any signal" = the
+  //      classifier reported nonzero confidence OR a matched pattern — it is NOT
+  //      the mere fact of being unlicensed, so genuinely clean (zero-signal)
+  //      content is never force-blocked.
+  //    • Licensed rep + ≥0.5 (below always-block) → review + disclaimer.
+  //    Default (no `insurance_licensed` flag) is UNLICENSED — fail-closed.
+  const insuranceResult = results.find((x) => x.classifier === 'INSURANCE');
+  const insurance = insuranceResult ? insuranceResult.confidence : 0;
+  const insuranceSignal =
+    insurance > 0 || (insuranceResult?.matched_patterns.length ?? 0) > 0;
+  const insuranceLicensed =
+    ctx.insurance_licensed === true && ctx.licensing_phase !== true;
+
   if (insurance >= RULE_THRESHOLDS.INSURANCE.alwaysBlock) {
     disclaimers.push(SAFE_HARBOR_DISCLAIMERS.insurance);
     escalate('blocked', 'insurance_always_block(>=0.8)');
+  } else if (!insuranceLicensed && insuranceSignal) {
+    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.insurance);
+    escalate(
+      'blocked',
+      'insurance_block_unlicensed_or_licensing_phase(any_signal_regardless_of_score)'
+    );
   } else if (insurance >= RULE_THRESHOLDS.INSURANCE.conditionalBlock) {
     disclaimers.push(SAFE_HARBOR_DISCLAIMERS.insurance);
-    const licensed = ctx.insurance_licensed === true && ctx.licensing_phase !== true;
-    if (licensed) {
-      escalate('review', 'insurance_review_licensed(>=0.5)');
-    } else {
-      escalate('blocked', 'insurance_block_unlicensed(>=0.5)');
-    }
+    escalate('review', 'insurance_review_licensed(>=0.5)');
   }
 
   // 5. Referral — ≥0.6 TCPA consent verification; ≥0.8 block unless explicit opt-in.

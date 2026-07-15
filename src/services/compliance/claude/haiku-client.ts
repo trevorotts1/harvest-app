@@ -12,7 +12,6 @@ import {
   ClassifierTimeoutError,
   ClaudeClassifierError,
   VERDICT_JSON_SCHEMA,
-  clamp01,
 } from './client';
 
 type FetchLike = (url: string, init: any) => Promise<{
@@ -143,9 +142,20 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
       throw new ClaudeClassifierError('Haiku verdict missing required fields.');
     }
 
+    // §5.2 fail-closed hardening: a confidence outside the [0,1] contract (NaN,
+    // ±Infinity, negative, or >1) is an out-of-contract verdict — throw so the
+    // engine HOLDS the item CLOSED rather than silently clamping a fabricated
+    // value to 0/1 and acting on it.
+    const { confidence } = payload;
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      throw new ClaudeClassifierError(
+        'Haiku verdict confidence out of contract range [0,1].'
+      );
+    }
+
     return {
       flagged: payload.flagged,
-      confidence: clamp01(payload.confidence),
+      confidence,
       rationale: typeof payload.rationale === 'string' ? payload.rationale : undefined,
     };
   }

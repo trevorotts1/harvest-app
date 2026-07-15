@@ -7,7 +7,7 @@ import {
   ClaudeClassifierError,
 } from '../../src/services/compliance/claude';
 import { InMemoryCFEAuditSink } from '../../src/services/compliance/audit/audit-sink';
-import { ClassifierVerdict, CFEInput } from '../../src/types/compliance';
+import { ClassifierVerdict, CFEInput, Classifier } from '../../src/types/compliance';
 
 /**
  * FAIL-CLOSED PROOF (master-spec §5.2, §2.3; AC §5.8-3/§5.8-5).
@@ -155,5 +155,151 @@ describe('CFE fail-closed (§5.2)', () => {
     expect(v.held).toBe(true);
     expect(v.released).toBe(false);
     expect(v.heldReason).toBe('cfe_unavailable');
+  });
+});
+
+/**
+ * LICENSING-PHASE / UNLICENSED INSURANCE HARD-BLOCK (master-spec §5.5, §2.1/§2.4
+ * "unlicensed = zero insurance product discussion"; AC §5.8-7; qc-checklist WP11
+ * named critical failure: "an unlicensed rep producing insurance-recommendation
+ * content").
+ *
+ * Insurance-recommendation content for an unlicensed / licensing-phase rep must
+ * be blocked REGARDLESS of score/confidence — NOT only at confidence ≥0.5.
+ *
+ * PRE-FIX COUNTERFACTUAL: test (a) below — INSURANCE confidence 0.3 +
+ * licensing_phase:true + unlicensed — returned band 'clear', released:true under
+ * the pre-fix code (the only insurance escalation was gated behind the ≥0.5
+ * `conditionalBlock` threshold, so a 0.3 signal fell through to a clean release).
+ * That is exactly the CRITICAL defect this suite now proves is closed: it asserts
+ * band 'blocked' / released:false, which the pre-fix engine would FAIL.
+ */
+describe('CFE licensing-phase / unlicensed insurance hard-block (§5.5, AC §5.8-7)', () => {
+  /** Returns a caller-supplied confidence per classifier (0 for the rest). */
+  class MapClient implements ClaudeClassifierClient {
+    constructor(private readonly map: Partial<Record<Classifier, number>>) {}
+    async classify(req: ClassifierRequest): Promise<ClassifierVerdict> {
+      const confidence = this.map[req.classifier] ?? 0;
+      return { flagged: confidence >= 0.5, confidence };
+    }
+  }
+
+  const engineFor = (map: Partial<Record<Classifier, number>>) =>
+    new ComplianceFilterEngine({ classifierClient: new MapClient(map) });
+
+  const evalWith = (
+    map: Partial<Record<Classifier, number>>,
+    userContext: CFEInput['userContext'],
+    content = 'You need whole life insurance for your family.'
+  ) => engineFor(map).evaluateContent({ content, channel: 'SMS', userContext });
+
+  // (a) THE REPRODUCED CRITICAL CASE: INSURANCE 0.3 + licensing_phase + unlicensed.
+  //     Pre-fix: band 'clear', released:true. Post-fix: MUST be blocked, not released.
+  it('a. INSURANCE 0.3 + licensing_phase:true + unlicensed → blocked (regardless of score)', async () => {
+    const v = await evalWith(
+      { INSURANCE: 0.3 },
+      { user_id: 'u1', role: 'REP', licensing_phase: true } // insurance_licensed unset → unlicensed
+    );
+    expect(v.band).toBe('blocked'); // pre-fix: 'clear'
+    expect(v.released).toBe(false); // pre-fix: true
+    expect(v.reason).toContain('insurance_block_unlicensed_or_licensing_phase');
+  });
+
+  // (b) Low-confidence insurance signal + unlicensed (NOT in licensing phase) → blocked.
+  it('b. INSURANCE 0.3 (low) + unlicensed (insurance_licensed !== true) → blocked', async () => {
+    const v = await evalWith(
+      { INSURANCE: 0.3 },
+      { user_id: 'u2', role: 'REP' } // no insurance_licensed, no licensing_phase → unlicensed default
+    );
+    expect(v.band).toBe('blocked');
+    expect(v.released).toBe(false);
+  });
+
+  // (c) Insurance signal + LICENSED rep → NOT force-blocked by this rule (proves no over-block).
+  it('c. INSURANCE signal + LICENSED (insurance_licensed:true, licensing_phase:false) → not force-blocked', async () => {
+    // 0.6 licensed → normal banding: review (contrast with 0.6 unlicensed → blocked).
+    const review = await evalWith(
+      { INSURANCE: 0.6 },
+      { user_id: 'u3', role: 'REP', insurance_licensed: true, licensing_phase: false }
+    );
+    expect(review.band).toBe('review');
+    expect(review.band).not.toBe('blocked');
+
+    // 0.3 licensed → clean release (a low signal from a licensed rep is not blocked).
+    const clear = await evalWith(
+      { INSURANCE: 0.3 },
+      { user_id: 'u3', role: 'REP', insurance_licensed: true, licensing_phase: false }
+    );
+    expect(clear.band).toBe('clear');
+    expect(clear.released).toBe(true);
+  });
+
+  // (d) Clean, non-insurance content + unlicensed/licensing_phase → still releases (no over-block).
+  it('d. clean non-insurance message + unlicensed/licensing_phase → released', async () => {
+    const v = await evalWith(
+      {}, // all classifiers report 0 → zero insurance signal
+      { user_id: 'u4', role: 'REP', licensing_phase: true },
+      'Thanks so much for meeting me on Saturday — great to reconnect!'
+    );
+    expect(v.band).toBe('clear');
+    expect(v.released).toBe(true);
+  });
+});
+
+/**
+ * CONFIDENCE-RANGE VALIDATION (§5.2 fail-closed hardening). A Haiku verdict whose
+ * confidence is outside the [0,1] contract (NaN/±Infinity/negative/>1) is
+ * out-of-contract: parse() must THROW (→ engine holds CLOSED), never silently
+ * clamp the fabricated value to 0/1 and act on it.
+ */
+describe('Haiku confidence-range validation (§5.2 hardening)', () => {
+  const withKey = async (fn: () => Promise<void>) => {
+    const prev = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-only-not-a-real-key';
+    try {
+      await fn();
+    } finally {
+      if (prev === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = prev;
+    }
+  };
+
+  const fetchReturning = (confidence: unknown) =>
+    jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          content: [{ type: 'text', text: JSON.stringify({ flagged: true, confidence }) }],
+        }),
+    }));
+
+  it.each([
+    ['>1', 5],
+    ['negative', -0.5],
+    ['Infinity', 1e999], // JSON.parse('1e999') === Infinity
+  ])('parse() throws ClaudeClassifierError on out-of-range confidence (%s)', async (_label, conf) => {
+    await withKey(async () => {
+      const client = new HaikuClassifierClient({ fetchImpl: fetchReturning(conf) as any });
+      await expect(
+        client.classify({ classifier: 'INSURANCE', systemPrompt: 's', content: 'x' })
+      ).rejects.toBeInstanceOf(ClaudeClassifierError);
+    });
+  });
+
+  it('an out-of-range confidence from Haiku → engine HOLDS closed (fail-closed, not released)', async () => {
+    await withKey(async () => {
+      const engine = new ComplianceFilterEngine({
+        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchReturning(9) as any }),
+      });
+      const v = await engine.evaluateContent({
+        content: 'x',
+        channel: 'SMS',
+        userContext: { user_id: 'u1', role: 'REP' },
+      });
+      expect(v.held).toBe(true);
+      expect(v.released).toBe(false);
+      expect(v.heldReason).toBe('classifier_error');
+    });
   });
 });
