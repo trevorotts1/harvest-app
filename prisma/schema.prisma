@@ -415,12 +415,33 @@ model UserDataExport {
 model UserDataDeletion {
   id                       String    @id @default(uuid())
   user_id                  String
-  status                   String    // PENDING, COMPLETED, FAILED
+  status                   String    // PENDING, COMPLETED, HELD, FAILED — HELD = blocked by an active LegalHold (§16.3)
   anonymized_fields        String[]
   retained_fields          String[]  @default([])
   deletion_certificate_url String?
   requested_at             DateTime  @default(now()) @db.Timestamptz(6)
   completed_at             DateTime? @db.Timestamptz(6)
+
+  @@index([user_id, status])
+}
+
+// T-11 (data rights, §16.3): a legal hold on a user blocks deletion processing outright — a
+// UserDataDeletion request against a user with an ACTIVE LegalHold is recorded with
+// status = "HELD" and no PII is touched until the hold is lifted. Additive/localized to the
+// data-rights area; does not alter any model owned by the concurrent CFE build (AuditEntry,
+// ComplianceException, etc.).
+model LegalHold {
+  id          String    @id @default(uuid())
+  user_id     String
+  status      String    @default("ACTIVE") // ACTIVE | LIFTED
+  reason      String    // e.g. "FINRA regulatory inquiry", "active litigation"
+  placed_by   String    // user_id of the admin/RVP who placed the hold
+  placed_at   DateTime  @default(now()) @db.Timestamptz(6)
+  lifted_by   String?
+  lifted_at   DateTime? @db.Timestamptz(6)
+  note        String?
+
+  @@index([user_id, status])
 }
 
 // ═══════════════════════════════════════════════════════════════════════
