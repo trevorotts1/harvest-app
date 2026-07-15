@@ -101,10 +101,11 @@ convention — see `scripts/verify-middleware.mjs`). This closes the T-04 CRITIC
 request got `200 OK` instead of a redirect. Typecheck/lint/unit tests cannot catch this — it only
 shows up in the compiled `.next/server/middleware-manifest.json` — so the guard runs post-build and
 exits non-zero (failing the build, and therefore CI/deploy) if the manifest's `middleware` object is
-empty or missing a `/dashboard` matcher. There is no CI workflow file in this repo yet; until one is
-added, `npm run build` itself is the gate — any pipeline invoking `npm run build` (or `vercel
-deploy`, which runs it) inherits this check automatically. Run it standalone with
-`npm run verify:middleware` (after a build) to check without rebuilding.
+empty or missing a `/dashboard` matcher. As of T-06, `.github/workflows/ci.yml` runs `npm run build`
+(and the rest of the quality gates) on every push/PR, so this check runs automatically in CI; any
+other pipeline invoking `npm run build` (or `vercel deploy`, which runs it) also inherits it. See
+`docs/CI.md` for the full CI/CD picture, including the deferred Vercel deploy workflow. Run the
+guard standalone with `npm run verify:middleware` (after a build) to check without rebuilding.
 
 ## Safety Notes
 

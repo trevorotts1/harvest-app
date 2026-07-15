@@ -1,0 +1,68 @@
+# CI — quality gates (T-06)
+#
+# Runs the full quality-gate sequence (install, prisma generate, typecheck, lint, test, build)
+# on every push to main/build/** and on every PR into main. This is the NON-deploy half of T-06;
+# the Vercel deploy workflow is a separate, deferred stub (see deploy.yml) that activates in T-02
+# once the operator provides Vercel secrets.
+#
+# No live secrets are used here. DATABASE_URL below is a placeholder connection string (not a
+# credential) required only because `prisma generate` validates the schema's datasource block and
+# fails if the env var it references is entirely unset. CONTACT_HASH_PEPPER for the test suite is
+# seeded by tests/jest.setup.ts with a committed, non-production dummy value — no env var needed
+# here. Real secrets (DATABASE_URL, NEXTAUTH_SECRET, STRIPE_*, TWILIO_*, etc.) live only in GitHub
+# Actions repo/environment secrets and Vercel project env vars, and are wired in when T-02 stands
+# up the deploy pipeline. This workflow builds and tests with the Anthropic Claude API as the only
+# AI provider referenced anywhere in the app (per master spec §0.3) — no other model provider is
+# named or used.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "build/**"
+  pull_request:
+    branches:
+      - main
+
+# Cancel superseded runs on the same ref to keep the queue fast.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Placeholder only — not a real credential. Any well-formed connection string satisfies
+  # `prisma generate`'s schema validation; no database is contacted in this job.
+  DATABASE_URL: "postgresql://user:pass@localhost:5432/db"
+
+jobs:
+  quality-gates:
+    name: Install, typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build (runs postbuild verify:middleware + verify:api-auth guards)
+        run: npm run build

@@ -1,0 +1,66 @@
+# Deploy — Vercel production promotion (DEFERRED STUB, T-06 / activates in T-02)
+#
+# This workflow is intentionally inert until the operator provisions Vercel and adds three GitHub
+# Actions repo secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (per master spec §2.2 —
+# production promotes from `main` only; every PR gets a preview deploy). Until those secrets exist,
+# the `deploy` job's `if:` guard evaluates false and GitHub Actions marks the job SKIPPED, not
+# FAILED — this workflow never breaks CI in the meantime. No secret value is ever printed; secrets
+# are referenced by name only and consumed directly by the Vercel CLI's own env vars. The Claude
+# API remains the only AI provider referenced anywhere in this app (master spec §0.3) — this
+# workflow deploys application code only and names no other model provider.
+#
+# To activate (T-02 / T-60): add the three secrets above in the repo's GitHub Settings > Secrets
+# and variables > Actions. No edit to this file is required — the guard flips on automatically once
+# all three are present.
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Vercel production deploy
+    runs-on: ubuntu-latest
+    # Gate: skipped (not failed) until all three Vercel secrets are set. Remove/relax this guard
+    # only when T-02 confirms the secrets are in place and the promotion path has been reviewed.
+    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment (production)
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build project artifacts
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
