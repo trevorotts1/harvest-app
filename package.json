@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "npm run verify:middleware",
+    "postbuild": "npm run verify:middleware && npm run verify:api-auth",
     "verify:middleware": "node scripts/verify-middleware.mjs",
+    "verify:api-auth": "node scripts/verify-api-auth.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "jest --passWithNoTests",
