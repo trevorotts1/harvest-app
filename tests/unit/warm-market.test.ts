@@ -2,6 +2,7 @@ import { ContactService, ContactInput } from '../../src/services/warm-market/con
 import { PipelineService } from '../../src/services/warm-market/pipeline.service';
 import { MemoryJoggerService } from '../../src/services/warm-market/memory-jogger.service';
 import { ContactSource, PipelineStage } from '../../src/types/warm-market';
+import { hmacForMatch } from '../../src/services/compliance/encryption/encryption';
 
 // Mock PrismaClient
 const mockContactFindMany = jest.fn();
@@ -53,8 +54,8 @@ describe('Warm Market Engine', () => {
         email: 'john@example.com',
         user_id: userId,
         source: ContactSource.MANUAL,
-        pipeline_stage: 'DISCOVERY',
-        relationship_strength: 0,
+        pipeline_stage: PipelineStage.IDENTIFIED,
+        segment_score: 0,
       });
 
       const data: ContactInput[] = [
@@ -108,6 +109,23 @@ describe('Warm Market Engine', () => {
       });
     });
 
+    test('should populate phone_hash/email_hash via the keyed HMAC function (T-03 defect 2)', async () => {
+      mockContactFindFirst.mockResolvedValue(null);
+      mockContactCreate.mockResolvedValue({ id: 'contact-3' });
+
+      const data: ContactInput[] = [
+        { userId, name: 'Jane Roe', phone: '(555) 999-1234', email: 'Jane@Example.com', source: ContactSource.MANUAL },
+      ];
+
+      await contactService.importContacts(userId, ContactSource.MANUAL, data);
+
+      const createArgs = mockContactCreate.mock.calls[0][0];
+      // Same normalization the service applies (digits-only phone, lowercased email) fed through
+      // the real keyed HMAC — proves the wiring uses hmacForMatch, not a plain/unkeyed hash.
+      expect(createArgs.data.phone_hash).toBe(hmacForMatch('5559991234'));
+      expect(createArgs.data.email_hash).toBe(hmacForMatch('jane@example.com'));
+    });
+
     test('should handle contacts without phone or email', async () => {
       mockContactFindFirst.mockResolvedValue(null);
       mockContactCreate.mockResolvedValue({
@@ -117,8 +135,8 @@ describe('Warm Market Engine', () => {
         email: null,
         user_id: userId,
         source: ContactSource.MANUAL,
-        pipeline_stage: 'DISCOVERY',
-        relationship_strength: 0,
+        pipeline_stage: PipelineStage.IDENTIFIED,
+        segment_score: 0,
       });
 
       const data: ContactInput[] = [

@@ -5,7 +5,7 @@ import {
   RelationshipStrength,
   ContactSource,
 } from '../../types/warm-market';
-import { hashForAudit } from '../compliance/encryption/encryption';
+import { hmacForMatch } from '../compliance/encryption/encryption';
 
 export interface ContactInput {
   userId: string;
@@ -43,10 +43,12 @@ export class ContactService {
             last_name,
             phone: normalized.phone,
             email: normalized.email,
-            // Deterministic hashes for global opt-out matching & cross-rep dedup (§3, §3.4);
+            // Deterministic *keyed* HMAC-SHA256 hashes for global opt-out matching & cross-rep
+            // dedup (§3, §3.4) — NOT plain SHA-256, which would be reversible for low-entropy
+            // inputs like phone numbers. Fails closed (throws) if CONTACT_HASH_PEPPER is unset.
             // phone/email themselves are expected to hold app-layer AES-256 ciphertext in production.
-            phone_hash: normalized.phone ? hashForAudit(normalized.phone) : null,
-            email_hash: normalized.email ? hashForAudit(normalized.email) : null,
+            phone_hash: normalized.phone ? hmacForMatch(normalized.phone) : null,
+            email_hash: normalized.email ? hmacForMatch(normalized.email) : null,
             industry: item.industry ?? null,
             notes: item.notes ?? null,
             source,

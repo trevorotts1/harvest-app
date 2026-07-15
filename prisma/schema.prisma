@@ -197,9 +197,12 @@ model User {
 }
 
 // The Vault record. PII fields (first_name/last_name/phone/email/notes) are expected to hold
-// application-layer AES-256-GCM ciphertext; phone_hash/email_hash are deterministic (HMAC-SHA256)
-// hashes used for opt-out matching and cross-rep dedup without exposing plaintext (§3, intro).
-// Interaction history is per-rep and never cross-rep visible (§3.4).
+// application-layer AES-256-GCM ciphertext; phone_hash/email_hash are deterministic *keyed*
+// HMAC-SHA256 hashes (see src/services/compliance/encryption/encryption.ts `hmacForMatch`, keyed
+// by the server-side `CONTACT_HASH_PEPPER` secret — never an unkeyed/plain SHA-256, which would be
+// reversible for low-entropy inputs like phone numbers) used for opt-out matching and cross-rep
+// dedup without exposing plaintext (§3, intro). Interaction history is per-rep and never
+// cross-rep visible (§3.4).
 model Contact {
   id                  String           @id @default(uuid())
   user_id             String
@@ -500,6 +503,14 @@ model CalendarLink {
 // §3.3 New entities — Billing & sponsorship (§15)
 // ═══════════════════════════════════════════════════════════════════════
 
+// INVARIANT (§15, double-provisioning guard): a user may have at most one row with
+// status = ACTIVE. Prisma's `@@unique` cannot express a conditional/partial constraint, so this
+// is enforced in Postgres via a partial unique index added by hand to the migration SQL
+// (prisma/migrations/<ts>_evolve_to_spec_v3/migration.sql):
+//   CREATE UNIQUE INDEX "subscription_one_active_per_user" ON "Subscription"("user_id")
+//     WHERE "status" = 'ACTIVE';
+// This is *not* expressible in this file — do not remove the hand-appended SQL when regenerating
+// migrations from this schema.
 model Subscription {
   id                     String              @id @default(uuid())
   user_id                String
@@ -519,6 +530,12 @@ model Subscription {
 
 // The Downline-Sponsor → member relationship. Drives free-tier provisioning and the lapse
 // cascade (§15).
+//
+// INVARIANT (§15, double-provisioning guard): a member (`member_user_id`) may have at most one
+// row with state = ACTIVE — the same partial-unique-index technique as Subscription above, hand-
+// appended to the migration SQL since Prisma `@@unique` cannot be conditional:
+//   CREATE UNIQUE INDEX "sponsorship_one_active_per_member" ON "Sponsorship"("member_user_id")
+//     WHERE "state" = 'ACTIVE';
 model Sponsorship {
   id                String           @id @default(uuid())
   sponsor_user_id   String
@@ -584,7 +601,7 @@ model CommissionConfig {
   effective_start        DateTime  @default(now()) @db.Timestamptz(6)
   effective_end          DateTime? @db.Timestamptz(6)
   created_at             DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+  updated_at             DateTime  @updatedAt @db.Timestamptz(6)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
