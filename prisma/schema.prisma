@@ -880,3 +880,51 @@ model SecurityEvent {
   @@index([user_id, created_at])
   @@index([type, created_at])
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — State insurance licensing state machine (§16.5, T-13)
+// ═══════════════════════════════════════════════════════════════════════
+
+// One row per (user, jurisdiction) pair (§16.5 "rules parameterized per state"). Absence of a
+// row for a jurisdiction means UNLICENSED there by fail-closed default
+// (src/services/compliance/licensing) — never inferred otherwise. `state` follows this file's
+// convention for entity-specific, config-shaped vocabularies (see header note): a String column
+// with the allowed values enumerated below. The four legal values and their legal transitions are
+// enforced in application code (src/services/compliance/licensing/licensing-state-machine.ts),
+// not by this column's type.
+model LicensingRecord {
+  id              String    @id @default(uuid())
+  user_id         String
+  jurisdiction    String    // two-letter US state postal code, e.g. "TX"
+  state           String    // UNLICENSED | PRE_LICENSING | LICENSED | LICENSE_EXPIRED (§16.5)
+  license_number  String?   // encrypted at rest at the application layer; IBA/POL identifier
+  issued_at       DateTime? @db.Timestamptz(6)
+  expires_at      DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@unique([user_id, jurisdiction])
+  @@index([user_id])
+  @@index([jurisdiction, state])
+}
+
+// Append-only transition history for LicensingRecord (mirrors SecurityEvent's immutability
+// posture above). The full immutable/signed audit store is T-10's build; this table is the
+// durable who/when trail for licensing specifically, written by
+// src/services/compliance/licensing/licensing-service.ts on every legal transition. A T-10 sink
+// can additionally mirror these into the signed store without this table changing shape.
+model LicensingStateEvent {
+  id           String   @id @default(uuid())
+  user_id      String
+  jurisdiction String
+  from_state   String   // the state transitioned FROM (§16.5 vocabulary)
+  to_state     String   // the state transitioned TO
+  action       String   // START_PRE_LICENSING | OBTAIN_LICENSE | EXPIRE_LICENSE | RENEW_LICENSE
+  actor_id     String   // who performed the transition (rep self, admin, or a system job)
+  actor_role   String?
+  reason       String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, created_at])
+  @@index([jurisdiction, created_at])
+}
