@@ -1,3 +1,17 @@
+## [2.0.0-build.T06] — BUILD PHASE — 2026-07-15
+### T-06 — CI quality-gate workflow + deferred Vercel deploy stub (QC earned 8.9/10, 2 QC loops)
+- .github/workflows/ci.yml: on push main/build/** + PR — npm ci, prisma generate, typecheck, lint, test, build (+postbuild verify:middleware/verify:api-auth), and actionlint over all workflows. A failure in any step fails the job.
+- .github/workflows/deploy.yml: gate job reads VERCEL_TOKEN/ORG_ID/PROJECT_ID via env and emits `deployable`; deploy job runs `needs:[gate]` + `if: needs.gate.outputs.deployable=='true'` — skipped (not errored) until T-02 supplies the three GitHub secrets. (Fixed from an invalid job-level `secrets`-in-if guard.)
+- Added .eslintrc.json (repo's first ESLint config; ~74 pre-existing violations warn-level, tracked as T-R2) + .nvmrc (20). docs/CI.md documents the workflows and the §19.4 ledgers convention.
+
+## [2.0.0-build.T04] — BUILD PHASE — 2026-07-15
+### T-04 — Auth.js (NextAuth) + five-role RBAC scaffold, MFA-capable (QC earned 8.7/10, 3 QC loops)
+- NextAuth v4 + Prisma adapter + bcryptjs; typed session carries role (REP/UPLINE/RVP/ADMIN/DUAL) + org context.
+- RBAC guard (requireRole/hasRole/roleSatisfies): DUAL = union of REP+UPLINE, ADMIN bypass (opt-out per call), fail-closed on null/invalid session.
+- Route auth: middleware at src/middleware.ts gates /dashboard (unauth -> 307 /auth); postbuild verify-middleware + verify-api-auth guards fail the build if the gate is silently unregistered or a route serves real data off a forged header.
+- MFA-capable session seams for T-12; loud production failure if NEXTAUTH_SECRET/AUTH_SECRET is unset; login timing-equalized against email enumeration.
+- Live /api/session/whoami withRole call-site; adapter tables Account/Session/VerificationToken + migration. 114/114 tests. OPENAI_API_KEY removed from .env.example.
+
 ## [2.0.0-build.T03] — BUILD PHASE — 2026-07-15
 ### T-03 — Prisma schema evolved to master-spec §3 (QC earned 8.9/10)
 - Schema evolved 18 -> 51 entities (13 enums, 38 models) incl SecurityEvent; resolved 5-role enum (REP/UPLINE/RVP/ADMIN/DUAL).

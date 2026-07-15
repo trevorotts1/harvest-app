@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './tokens.css';
 import './globals.css';
 import { THEME_INIT_SCRIPT } from './theme-init-script';
+import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'The Harvest | 2 Hour CEO',
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {THEME_INIT_SCRIPT}
         </Script>
       </head>
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

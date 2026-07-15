@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { signIn } from 'next-auth/react';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const industries = [
   'Financial services',
@@ -30,11 +32,45 @@ const franchiseTypes = [
 ];
 
 export default function AuthPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [industry, setIndustry] = useState('Financial services');
   const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
   const [organizationName, setOrganizationName] = useState('');
+
+  // Login mode (T-04): wired to Auth.js's real Credentials sign-in, replacing the demo stub. The
+  // register wizard below is unchanged — registration (WP01 territory) still POSTs to
+  // /api/auth/register (src/app/api/auth/register/route.ts) then continues to /onboarding; a
+  // successful registration does not itself start a session, so sign-in after registering still
+  // goes through this same login form.
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginPending, setLoginPending] = useState(false);
+
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoginError(null);
+    setLoginPending(true);
+    try {
+      const result = await signIn('credentials', {
+        email: loginEmail,
+        password: loginPassword,
+        redirect: false,
+      });
+      if (result?.error) {
+        // Generic message regardless of failure reason (§16.4: never reveal whether an email
+        // exists) — NextAuth's CredentialsProvider `authorize()` already returns `null` uniformly
+        // for "no such user" and "wrong password"; this mirrors that at the UI layer too.
+        setLoginError('Invalid email or password.');
+      } else if (result?.ok) {
+        router.push('/dashboard');
+      }
+    } finally {
+      setLoginPending(false);
+    }
+  };
 
   const isFranchise = industry === 'Franchise' || businessModel === 'Franchise owner';
   const isPrimerica = useMemo(
@@ -61,6 +97,43 @@ export default function AuthPage() {
             <button className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('login')}>Login</button>
           </div>
 
+          {mode === 'login' ? (
+            <form onSubmit={handleLogin}>
+              <div className="field">
+                <label htmlFor="login-email">Email</label>
+                <input
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  value={loginEmail}
+                  onChange={(event) => setLoginEmail(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="login-password">Password</label>
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  required
+                />
+              </div>
+              {loginError ? (
+                <div className="notice" role="alert">{loginError}</div>
+              ) : null}
+              <div className="actions">
+                <button className="btn btn-primary" type="submit" disabled={loginPending}>
+                  {loginPending ? 'Signing in…' : 'Sign in'}
+                </button>
+                <Link className="btn btn-secondary" href="/dashboard">Skip to dashboard</Link>
+              </div>
+            </form>
+          ) : (
           <form action="/onboarding">
             <div className="field">
               <label htmlFor="name">Name</label>
@@ -175,6 +248,7 @@ export default function AuthPage() {
               <Link className="btn btn-secondary" href="/dashboard">Skip to dashboard</Link>
             </div>
           </form>
+          )}
         </div>
       </section>
     </main>
