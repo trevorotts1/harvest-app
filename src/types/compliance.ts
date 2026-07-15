@@ -186,3 +186,131 @@ export const PRE_GENERATION_CONSTRAINTS = {
     'Collective uplift framing over individual hustle metrics',
   ],
 } as const;
+
+// ============================================================================
+// T-08 — Compliance Filter Engine (CFE) core (master-spec §5)
+// ============================================================================
+
+/**
+ * Runtime model id for the five §5.3 classifiers. Per §4.4 the CFE classifier
+ * pass runs on Haiku 4.5. Claude-only (§0.3): this id is the ONLY model the
+ * classifier path targets; degradation stays in-roster; a missing key fails
+ * CLOSED (never falls back to a non-Claude provider).
+ */
+export const HAIKU_MODEL_ID = 'claude-haiku-4-5-20251001';
+
+/** Anthropic Messages API contract (used by the real Haiku call path). */
+export const ANTHROPIC_MESSAGES_ENDPOINT = 'https://api.anthropic.com/v1/messages';
+export const ANTHROPIC_API_VERSION = '2023-06-01';
+/** Secret is referenced by NAME only, never by value (§0.4). */
+export const ANTHROPIC_API_KEY_ENV_VAR = 'ANTHROPIC_API_KEY';
+
+/** Rule/config version stamped into every audit entry (§5.6, AC §5.8-8). */
+export const CFE_RULE_CONFIG_VERSION = '1.0.0';
+
+/**
+ * §5.4 banding expressed as the gate's outward vocabulary.
+ *   clear   = 0–10  (Pass)  — the ONLY band that may release.
+ *   review  = 11–70 (Flag)  — Sonnet 5 adjudication / Approval Inbox.
+ *   blocked = 71–100 (Block)— physically prevented (API 403 to the agent).
+ */
+export type CFEBand = 'clear' | 'review' | 'blocked';
+
+/** Why an item was held CLOSED (§5.2). null when the item was not held. */
+export type HeldReason =
+  | 'classifier_error'
+  | 'classifier_timeout'
+  | 'missing_credentials'
+  | 'engine_timeout'
+  | 'engine_exception'
+  | 'cfe_unavailable'
+  | 'forbidden_vocabulary';
+
+/** Verdict a single §5.3 classifier's model client returns (Haiku boolean + confidence). */
+export interface ClassifierVerdict {
+  /** boolean signal (§5.3). */
+  flagged: boolean;
+  /** 0.0–1.0 confidence that the violation is present. */
+  confidence: number;
+  rationale?: string;
+  matched_patterns?: string[];
+}
+
+/**
+ * Immutable audit event the CFE emits for the audit trail (T-10) to persist.
+ * Mirrors the §5.6 evidence record. The CFE only EMITS; T-10 owns durable,
+ * signed, append-only persistence.
+ */
+export interface CFEAuditEvent {
+  content_id: string | null;
+  content_text: string;
+  content_hash: string;
+  channel: Channel;
+  user_id: string;
+  role: Role;
+  band: CFEBand;
+  outcome: CFEDecision;
+  risk_score: number;
+  held: boolean;
+  held_reason: HeldReason | null;
+  classifier_results: ClassifierResult[];
+  classifiers_triggered: Classifier[];
+  safe_harbor_injected: boolean;
+  safe_harbor_disclaimers: string[];
+  regulation: Regulation[];
+  rule_version: string;
+  reviewer_id?: string;
+  reviewer_action?: string;
+  timestamp: string;
+}
+
+/**
+ * The verdict returned by ComplianceFilterEngine.evaluateContent() — the gate
+ * every content-producing WP (04/05/06/07) calls before any send/publish/queue.
+ *
+ * `released` is the single, unmistakable release signal: it is true ONLY when
+ * `band === 'clear' && !held`. There is NO code path that sets `released` (or a
+ * clear band) as a result of a classifier failure, timeout, or missing key —
+ * those all resolve to `held: true` (fail-closed, §5.2).
+ */
+export interface CFEVerdict {
+  band: CFEBand;
+  score: number;
+  classifierResults: ClassifierResult[];
+  held: boolean;
+  released: boolean;
+  reason: string;
+  heldReason: HeldReason | null;
+  safeHarbor: { injected: boolean; disclaimers: string[] };
+  httpStatus: number;
+  ruleVersion: string;
+  auditEvent: CFEAuditEvent;
+}
+
+/**
+ * Declaration-merged extensions to the existing shapes. Fields are optional so
+ * every existing caller keeps compiling; the CFE reads them for the §5.3 /
+ * §5.5 context gates (licensing, signed release, TCPA opt-in, etc.).
+ */
+export interface UserContext {
+  /** Active insurance license (IBA/POL) for the recipient's state (§5.3-4, §5.5). */
+  insurance_licensed?: boolean;
+  recipient_state?: string;
+  /** Roadmap days 8–30: insurance-recommendation content is hard-blocked (§5.5). */
+  licensing_phase?: boolean;
+  /** A signed testimonial release is on file (§5.3-2). */
+  signed_testimonial_release?: boolean;
+  /** Explicit TCPA referral opt-in on file (§5.3-5). */
+  referral_opt_in?: boolean;
+  /** Recipient/rep is in a state that regulates the business opportunity (§5.3-3). */
+  regulated_state?: boolean;
+  /** Correlates the decision to a content record for the audit trail. */
+  content_id?: string;
+}
+
+export interface CFEResult {
+  /** Fail-closed hold flag (§5.2). true = not released, held for review. */
+  held: boolean;
+  /** §5.4 band mirrored onto the legacy result shape. */
+  band: CFEBand;
+}

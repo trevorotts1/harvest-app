@@ -1,151 +1,375 @@
 import {
   CFEInput,
   CFEResult,
-  Classifier,
-  ClassifierResult,
+  CFEVerdict,
+  CFEBand,
   CFEDecision,
+  CFEAuditEvent,
+  ClassifierResult,
+  Classifier,
+  Regulation,
+  HeldReason,
   AuditPayload,
+  ALL_CLASSIFIERS,
   CLASSIFIER_WEIGHTS,
   REGULATION_MULTIPLIERS,
   RISK_THRESHOLDS,
   CFE_TIMEOUT_MS,
-  CFE_RULE_VERSION,
-  Regulation,
-  ALL_CLASSIFIERS,
-  Regulation as RegulationType,
+  CFE_RULE_CONFIG_VERSION,
   PRE_GENERATION_CONSTRAINTS,
 } from '../../types/compliance';
-import { IncomeClaimClassifier } from './classifiers/income-claim.classifier';
-import { TestimonialClassifier } from './classifiers/testimonial.classifier';
-import { OpportunityClassifier } from './classifiers/opportunity.classifier';
-import { InsuranceClassifier } from './classifiers/insurance.classifier';
-import { ReferralRequestClassifier } from './classifiers/referral-request.classifier';
 import { contentHash } from './encryption/encryption';
-import { determineSafeHarborInjections } from './safe-harbor';
+import {
+  ClaudeClassifierClient,
+  HaikuClassifierClient,
+  MissingClaudeCredentialError,
+  ClassifierTimeoutError,
+  ClaudeClassifierError,
+} from './claude';
+import { BaseHaikuClassifier, buildClassifiers } from './classifiers';
+import { VocabularyClassifier } from './vocabulary';
+import {
+  evaluateClassifierRules,
+  strictestBand,
+  REVIEW_ESCALATION_FLOOR,
+} from './config/classifier-rules';
+import { CFEAuditSink, NoopCFEAuditSink } from './audit/audit-sink';
 
-// Sensitivity multiplier: ensures a single high-confidence classifier
-// with the heaviest weight (INCOME_CLAIM at 0.30) can independently
-// trigger a BLOCK outcome (100 * 0.30 * 3 = 90 >= 71)
-const SCORE_SENSITIVITY = 3;
+export interface CFEEngineDeps {
+  /**
+   * Classifier client for the five §5.3 Haiku classifiers. DEFAULTS to the real
+   * `HaikuClassifierClient` (§4.4) — so a production engine with no
+   * ANTHROPIC_API_KEY fails CLOSED. Tests inject a deterministic / throwing /
+   * timing-out client to prove fail-closed without a live key.
+   */
+  classifierClient?: ClaudeClassifierClient;
+  /** Pre-built classifiers (overrides `classifierClient`). */
+  classifiers?: BaseHaikuClassifier[];
+  auditSink?: CFEAuditSink;
+  /** Per-classifier timeout; a slow classifier holds the item (§5.2/§5.4). */
+  timeoutMs?: number;
+  vocabulary?: VocabularyClassifier;
+}
 
+const HTTP_BY_BAND: Record<CFEBand, number> = { clear: 200, review: 202, blocked: 403 };
+const DECISION_BY_BAND: Record<CFEBand, CFEDecision> = {
+  clear: 'PASS',
+  review: 'FLAG',
+  blocked: 'BLOCK',
+};
+const ACTION_BY_BAND: Record<CFEBand, string> = {
+  clear: 'auto-deploy',
+  review: 'upline-review',
+  blocked: 'block-403',
+};
+/** HTTP status for a fail-closed hold: service could not decide (distinct from a content 403). */
+const HELD_HTTP_STATUS = 503;
+
+/**
+ * The Compliance Filter Engine (master-spec §5).
+ *
+ * Position (§5.1): a SYNCHRONOUS gate between generation and any approval queue
+ * or send path. Pipeline: stage-1 deterministic vocabulary lint → stage-2 five
+ * Haiku 4.5 classifiers → stage-3 risk banding → §5.3 rule escalation.
+ *
+ * FAIL-CLOSED (§5.2, the single most important behavior): if the engine cannot
+ * obtain a confident clear result — a classifier throws, times out, the key is
+ * missing, any exception occurs, or the CFE is marked unavailable — it HOLDS the
+ * item (`held: true`, never `released`). There is exactly one release path:
+ * `band === 'clear' && !held`. No error path yields an approved/clear verdict.
+ */
 export class ComplianceFilterEngine {
-  private incomeClassifier = new IncomeClaimClassifier();
-  private testimonialClassifier = new TestimonialClassifier();
-  private opportunityClassifier = new OpportunityClassifier();
-  private insuranceClassifier = new InsuranceClassifier();
-  private referralClassifier = new ReferralRequestClassifier();
+  private readonly classifiers: BaseHaikuClassifier[];
+  private readonly auditSink: CFEAuditSink;
+  private readonly timeoutMs: number;
+  private readonly vocabulary: VocabularyClassifier;
+  private available = true;
 
-  private cfeAvailable: boolean = true;
-
-  async review(input: CFEInput): Promise<CFEResult> {
-    if (!this.cfeAvailable) {
-      return this.createBlockResult(input, 'CFE unavailable — fail-closed mode');
-    }
-
-    const classifierResults: ClassifierResult[] = [
-      this.incomeClassifier.classify(input.content),
-      this.testimonialClassifier.classify(input.content),
-      this.opportunityClassifier.classify(input.content),
-      this.insuranceClassifier.classify(input.content, input.userContext.licensed_states || []),
-      this.referralClassifier.classify(input.content),
-    ];
-
-    // Convert classifier confidence (0–1) to integer scores (0–100)
-    const classifierData: Record<Classifier, number> = {
-      INCOME_CLAIM: 0,
-      TESTIMONIAL: 0,
-      OPPORTUNITY: 0,
-      INSURANCE: 0,
-      REFERRAL: 0,
-    };
-
-    for (const result of classifierResults) {
-      classifierData[result.classifier] = Math.round(result.confidence * 100);
-    }
-
-    const baseScore = this.calculateWeightedRiskScore(classifierData, input.userContext.regulations || []);
-
-    const { disclaimers, injected } = determineSafeHarborInjections(classifierResults);
-
-    let outcome: CFEDecision;
-    let httpStatus: number;
-    let action: string;
-    let blocked: boolean;
-
-    if (baseScore >= RISK_THRESHOLDS.BLOCK.min) {
-      outcome = 'BLOCK';
-      httpStatus = 403;
-      action = 'block-403';
-      blocked = true;
-    } else if (baseScore >= RISK_THRESHOLDS.FLAG.min) {
-      outcome = 'FLAG';
-      httpStatus = 202;
-      action = 'upline-review';
-      blocked = false;
-    } else {
-      outcome = 'PASS';
-      httpStatus = 200;
-      action = 'auto-deploy';
-      blocked = false;
-    }
-
-    return {
-      outcome,
-      risk_score: baseScore,
-      classifier_data: classifierData,
-      classifier_results: classifierResults,
-      safe_harbor_injected: injected,
-      safe_harbor_disclaimers: disclaimers,
-      audit_payload: {} as any,
-      blocked,
-      http_status: httpStatus,
-      action,
-    };
+  constructor(deps: CFEEngineDeps = {}) {
+    const client = deps.classifierClient ?? new HaikuClassifierClient();
+    this.classifiers = deps.classifiers ?? buildClassifiers(client);
+    this.auditSink = deps.auditSink ?? new NoopCFEAuditSink();
+    this.timeoutMs = deps.timeoutMs ?? CFE_TIMEOUT_MS;
+    this.vocabulary = deps.vocabulary ?? new VocabularyClassifier();
   }
 
-  private calculateWeightedRiskScore(
-    classifierData: Record<Classifier, number>,
-    regulations: Regulation[]
-  ): number {
-    let rawScore = 0;
+  // ---------------------------------------------------------------------------
+  // Gate entry point — WP04/05/06/07 call THIS before any send/publish/queue.
+  // ---------------------------------------------------------------------------
+  async evaluateContent(input: CFEInput): Promise<CFEVerdict> {
+    const hash = this.hash(input.content);
 
-    for (const classifier of ALL_CLASSIFIERS) {
-      const score = classifierData[classifier]; // 0–100
-      const weight = CLASSIFIER_WEIGHTS[classifier];
-      rawScore += score * weight * SCORE_SENSITIVITY;
+    // §5.2: CFE explicitly unavailable/offline → hold within the sync path.
+    if (!this.available) {
+      return this.heldVerdict(input, hash, 'cfe_unavailable');
     }
 
-    let multiplier = 1.0;
-    if (regulations.length > 0) {
-      for (const reg of regulations) {
-        const regMultiplier = REGULATION_MULTIPLIERS[reg as RegulationType];
-        if (regMultiplier && regMultiplier > multiplier) {
-          multiplier = regMultiplier;
-        }
+    try {
+      // Stage 1: deterministic vocabulary lint (fast, local, §0.5/§5.3).
+      const vocab = this.vocabulary.scan(input.content);
+
+      // Stage 2: five Haiku 4.5 classifiers. Any throw/timeout rejects here and
+      // is caught below → held (fail-closed). No partial-clear path exists.
+      const results = await this.runClassifiers(input);
+
+      // Stage 3: aggregate risk score + band (§5.4).
+      const score = this.computeScore(results, input.userContext.regulations ?? []);
+      let band = this.bandForScore(score);
+
+      // §5.3 per-classifier hard rules (escalate upward only).
+      const rules = evaluateClassifierRules(results, input.userContext);
+      band = strictestBand(band, rules.forcedBand);
+
+      // §0.5/§5.3: forbidden doctrine vocabulary must be rewritten before the
+      // item can proceed → block (not releasable, not human-approvable as-is).
+      if (!vocab.clean) {
+        band = 'blocked';
+        rules.reasons.push(
+          `forbidden_vocabulary:${vocab.violations.map((v) => v.forbidden).join('|')}`
+        );
       }
-    }
 
-    const finalScore = Math.round(rawScore * multiplier);
-    return Math.min(finalScore, 100);
+      // §5.4 fail-toward-caution: low-confidence/ambiguous signal never releases.
+      if (band === 'clear' && this.maxConfidence(results) >= REVIEW_ESCALATION_FLOOR) {
+        band = 'review';
+        rules.reasons.push('fail_toward_caution:ambiguous_signal');
+      }
+
+      const released = band === 'clear';
+      const reason =
+        rules.reasons.length > 0
+          ? rules.reasons.join('; ')
+          : band === 'clear'
+            ? 'clean'
+            : `risk_score=${score}`;
+
+      return this.buildVerdict(input, hash, {
+        band,
+        score,
+        results,
+        held: false,
+        heldReason: null,
+        released,
+        reason,
+        disclaimers: rules.disclaimers,
+      });
+    } catch (err) {
+      // FAIL-CLOSED: any failure in the classifier pass holds the item.
+      return this.heldVerdict(input, hash, this.reasonFromError(err));
+    }
   }
 
-  private createBlockResult(input: CFEInput, reason: string): CFEResult {
+  // ---------------------------------------------------------------------------
+  // Backward-compatible facade used by already-merged WP04/WP05 code paths.
+  // ---------------------------------------------------------------------------
+  async review(input: CFEInput): Promise<CFEResult> {
+    const v = await this.evaluateContent(input);
     return {
-      outcome: 'BLOCK',
-      risk_score: 100,
-      classifier_data: {} as any,
-      classifier_results: [],
-      safe_harbor_injected: false,
-      safe_harbor_disclaimers: [],
-      audit_payload: {} as any,
-      blocked: true,
-      http_status: 403,
-      action: 'block-403',
+      outcome: v.held ? 'BLOCK' : DECISION_BY_BAND[v.band],
+      risk_score: v.score,
+      classifier_data: this.classifierData(v.classifierResults),
+      classifier_results: v.classifierResults,
+      safe_harbor_injected: v.safeHarbor.injected,
+      safe_harbor_disclaimers: v.safeHarbor.disclaimers,
+      audit_payload: this.toAuditPayload(v.auditEvent),
+      // held OR block band both mean "not released" — messaging marks CFE_BLOCKED.
+      blocked: v.held || v.band === 'blocked',
+      http_status: v.httpStatus,
+      action: v.held ? 'held-for-review' : ACTION_BY_BAND[v.band],
+      held: v.held,
+      band: v.band,
     };
   }
 
-  setAvailability(available: boolean): void { this.cfeAvailable = available; }
-  isAvailable(): boolean { return this.cfeAvailable; }
-  async reviewWithTimeout(input: CFEInput): Promise<CFEResult> { return this.review(input); }
-  getPreGenerationConstraints(wp: keyof typeof PRE_GENERATION_CONSTRAINTS): string[] { return []; }
+  /** Retained alias; timeout handling is now internal per-classifier. */
+  async reviewWithTimeout(input: CFEInput): Promise<CFEResult> {
+    return this.review(input);
+  }
+
+  // §5.2 / AC §5.8-5: force the CFE offline to prove agent output pauses & holds.
+  setAvailability(available: boolean): void {
+    this.available = available;
+  }
+  isAvailable(): boolean {
+    return this.available;
+  }
+
+  getPreGenerationConstraints(wp: keyof typeof PRE_GENERATION_CONSTRAINTS): readonly string[] {
+    return PRE_GENERATION_CONSTRAINTS[wp] ?? [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Internals
+  // ---------------------------------------------------------------------------
+  private async runClassifiers(input: CFEInput): Promise<ClassifierResult[]> {
+    // Promise.all rejects on the FIRST classifier failure/timeout → held.
+    return Promise.all(this.classifiers.map((c) => this.runOne(c, input.content)));
+  }
+
+  private runOne(classifier: BaseHaikuClassifier, content: string): Promise<ClassifierResult> {
+    const label = classifier.classifier;
+    const timeoutMs = this.timeoutMs;
+    return new Promise<ClassifierResult>((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new ClassifierTimeoutError(label, timeoutMs));
+      }, timeoutMs);
+      classifier.classify(content).then(
+        (r) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(r);
+        },
+        (e) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(e);
+        }
+      );
+    });
+  }
+
+  private computeScore(results: ClassifierResult[], regulations: Regulation[]): number {
+    // §5.4: Base Score = Σ(confidence×weight) × regulation_multiplier (cap 100).
+    // Confidence is scaled to 0–100 so weights (Σ = 1.0) map onto the 0–100 band.
+    let raw = 0;
+    for (const r of results) {
+      const weight = CLASSIFIER_WEIGHTS[r.classifier] ?? 0;
+      raw += r.confidence * 100 * weight;
+    }
+    let multiplier = 1.0;
+    for (const reg of regulations) {
+      const m = REGULATION_MULTIPLIERS[reg];
+      if (m && m > multiplier) multiplier = m;
+    }
+    return Math.min(100, Math.round(raw * multiplier));
+  }
+
+  private bandForScore(score: number): CFEBand {
+    if (score >= RISK_THRESHOLDS.BLOCK.min) return 'blocked';
+    if (score >= RISK_THRESHOLDS.FLAG.min) return 'review';
+    return 'clear';
+  }
+
+  private maxConfidence(results: ClassifierResult[]): number {
+    return results.reduce((m, r) => Math.max(m, r.confidence), 0);
+  }
+
+  private classifierData(results: ClassifierResult[]): Record<Classifier, number> {
+    const data = {} as Record<Classifier, number>;
+    for (const c of ALL_CLASSIFIERS) data[c] = 0;
+    for (const r of results) data[r.classifier] = Math.round(r.confidence * 100);
+    return data;
+  }
+
+  private hash(content: string): string {
+    try {
+      return contentHash(content);
+    } catch {
+      // Hashing must never trip fail-closed; degrade to a stable marker.
+      return `unhashed:${content.length}`;
+    }
+  }
+
+  private reasonFromError(err: unknown): HeldReason {
+    if (err instanceof MissingClaudeCredentialError) return 'missing_credentials';
+    if (err instanceof ClassifierTimeoutError) return 'classifier_timeout';
+    if (err instanceof ClaudeClassifierError) return 'classifier_error';
+    return 'engine_exception';
+  }
+
+  private heldVerdict(input: CFEInput, hash: string, heldReason: HeldReason): CFEVerdict {
+    return this.buildVerdict(input, hash, {
+      band: 'blocked',
+      score: 100,
+      results: [],
+      held: true,
+      heldReason,
+      released: false,
+      reason: `held_for_review:${heldReason}`,
+      disclaimers: [],
+    });
+  }
+
+  private buildVerdict(
+    input: CFEInput,
+    hash: string,
+    v: {
+      band: CFEBand;
+      score: number;
+      results: ClassifierResult[];
+      held: boolean;
+      heldReason: HeldReason | null;
+      released: boolean;
+      reason: string;
+      disclaimers: string[];
+    }
+  ): CFEVerdict {
+    const triggered = v.results.filter((r) => r.confidence > 0).map((r) => r.classifier);
+    const auditEvent: CFEAuditEvent = {
+      content_id: input.userContext.content_id ?? null,
+      content_text: input.content,
+      content_hash: hash,
+      channel: input.channel,
+      user_id: input.userContext.user_id,
+      role: input.userContext.role,
+      band: v.band,
+      outcome: v.held ? 'BLOCK' : DECISION_BY_BAND[v.band],
+      risk_score: v.score,
+      held: v.held,
+      held_reason: v.heldReason,
+      classifier_results: v.results,
+      classifiers_triggered: triggered,
+      safe_harbor_injected: v.disclaimers.length > 0,
+      safe_harbor_disclaimers: v.disclaimers,
+      regulation: input.userContext.regulations ?? [],
+      rule_version: CFE_RULE_CONFIG_VERSION,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Emit exactly one audit event per decision (§5.6, AC §5.8-4).
+    this.auditSink.emit(auditEvent);
+
+    return {
+      band: v.band,
+      score: v.score,
+      classifierResults: v.results,
+      held: v.held,
+      released: v.released,
+      reason: v.reason,
+      heldReason: v.heldReason,
+      safeHarbor: { injected: v.disclaimers.length > 0, disclaimers: v.disclaimers },
+      httpStatus: v.held ? HELD_HTTP_STATUS : HTTP_BY_BAND[v.band],
+      ruleVersion: CFE_RULE_CONFIG_VERSION,
+      auditEvent,
+    };
+  }
+
+  private toAuditPayload(e: CFEAuditEvent): AuditPayload {
+    const scores = {} as Record<Classifier, number>;
+    for (const c of ALL_CLASSIFIERS) scores[c] = 0;
+    for (const r of e.classifier_results) scores[r.classifier] = Math.round(r.confidence * 100);
+    return {
+      content_text: e.content_text,
+      content_hash: e.content_hash,
+      risk_score: e.risk_score,
+      outcome: e.outcome,
+      classifier_scores: scores,
+      classifier_results: e.classifier_results,
+      safe_harbor_injected: e.safe_harbor_injected,
+      safe_harbor_disclaimers: e.safe_harbor_disclaimers,
+      timestamp: e.timestamp,
+      user_id: e.user_id,
+      role: e.role,
+      channel: e.channel,
+      rule_version: e.rule_version,
+      regulation: e.regulation,
+      reviewer_id: e.reviewer_id,
+      reviewer_action: e.reviewer_action,
+    };
+  }
 }
