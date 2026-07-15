@@ -1,0 +1,1 @@
+Live build-state snapshots (ledger, session log, to-do). Committed to this repo after each build unit per harvest-SLASH-GOALS.md. The authoritative live copies live in the operator's ~/Downloads; these are synced snapshots for resumability.
