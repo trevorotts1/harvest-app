@@ -6,6 +6,17 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { prisma } from '@/lib/prisma';
 
 /**
+ * Fixed dummy bcrypt hash (cost 12, matching `BCRYPT_ROUNDS` in
+ * src/app/api/auth/register/route.ts) used only to burn a comparable amount of CPU time on the
+ * "no such user" path in `authorize()` below — it is never a real credential and nothing is ever
+ * compared against it that could succeed. Without this, a request for a non-existent email returns
+ * near-instantly while a request for a real email with a wrong password pays the full bcrypt.compare
+ * cost, letting an attacker time responses to enumerate valid emails — exactly what §16.4 "never
+ * reveal whether an email exists" forbids.
+ */
+const DUMMY_PASSWORD_HASH = '$2b$12$MEVZM7ykDz6jQqYFKMsBAOKe7pkfl/di9K.DgFws3GBt/jllkVou.';
+
+/**
  * Auth.js (NextAuth v4.24, D-2 operator-confirmed) configuration — T-04 scaffold.
  *
  * Provider choice: `next-auth@4.24.x` (the `latest` dist-tag) rather than the `next-auth@5.x` /
@@ -61,8 +72,14 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({ where: { email: credentials.email } });
 
         // Generic failure for both "no such user" and "wrong password" (§16.4 "generic
-        // auth-failure messaging (never reveal whether an email exists)").
-        if (!user) return null;
+        // auth-failure messaging (never reveal whether an email exists)"). The dummy compare on
+        // the "no such user" branch keeps this path's timing indistinguishable from the
+        // wrong-password branch below, so a timing side-channel can't leak whether the email
+        // exists (§16.4 "never reveal whether an email exists").
+        if (!user) {
+          await bcrypt.compare(credentials.password, DUMMY_PASSWORD_HASH);
+          return null;
+        }
         const passwordValid = await bcrypt.compare(credentials.password, user.password_hash);
         if (!passwordValid) return null;
 

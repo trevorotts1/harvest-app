@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "npm run verify:middleware",
+    "verify:middleware": "node scripts/verify-middleware.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "jest --passWithNoTests",

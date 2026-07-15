@@ -6,6 +6,16 @@ import { NextResponse } from 'next/server';
  * entitlement at the gateway middleware before the handler; cross-team/cross-rep access is denied
  * by default (deny-by-default authorization)").
  *
+ * IMPORTANT — this file MUST live at `src/middleware.ts`, not the repo root. This project's app
+ * code lives under `src/` (see `src/app`), and Next.js only auto-registers `middleware.ts` from
+ * the same directory as the app root it's configured with — a root-level `middleware.ts` next to a
+ * `src/` directory is silently never picked up (no build error, no lint error; the file typechecks
+ * fine and `next build` succeeds, but `.next/server/middleware-manifest.json`'s `middleware` object
+ * comes out empty). That was T-04's original CRITICAL QC finding: with the file at the repo root,
+ * an unauthenticated `GET /dashboard` returned `200 OK` instead of redirecting to `/auth` — the
+ * auth gate below never ran at all. `scripts/verify-middleware.mjs` (wired as `postbuild`) now
+ * fails the build if this regresses.
+ *
  * This middleware enforces only *authentication* (a valid session) for the matched paths.
  * Fine-grained *role* checks stay in `requireRole`/`withRole` (src/lib/auth/rbac.ts,
  * src/lib/auth/with-role.ts) at the individual route/handler level, since different routes under
