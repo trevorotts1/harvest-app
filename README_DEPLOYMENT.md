@@ -92,6 +92,20 @@ Required only when enabling live integrations:
 - [x] `/api/contacts/pipeline` responds with demo pipeline data
 - [x] Vercel deployment completed
 
+## Build Flow / CI Gate
+
+`npm run build` automatically runs `npm run verify:middleware` afterward (npm's `postbuild`
+convention — see `scripts/verify-middleware.mjs`). This closes the T-04 CRITICAL defect class where
+`middleware.ts` compiled and typechecked cleanly but silently failed to register with Next.js
+(wrong location relative to `src/`), so the `/dashboard` auth gate never ran and an unauthenticated
+request got `200 OK` instead of a redirect. Typecheck/lint/unit tests cannot catch this — it only
+shows up in the compiled `.next/server/middleware-manifest.json` — so the guard runs post-build and
+exits non-zero (failing the build, and therefore CI/deploy) if the manifest's `middleware` object is
+empty or missing a `/dashboard` matcher. There is no CI workflow file in this repo yet; until one is
+added, `npm run build` itself is the gate — any pipeline invoking `npm run build` (or `vercel
+deploy`, which runs it) inherits this check automatically. Run it standalone with
+`npm run verify:middleware` (after a build) to check without rebuilding.
+
 ## Safety Notes
 
 - Demo APIs are explicit fallback/demo routes.
