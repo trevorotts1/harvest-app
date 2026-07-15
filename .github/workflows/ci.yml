@@ -1,9 +1,15 @@
 # CI — quality gates (T-06)
 #
-# Runs the full quality-gate sequence (install, prisma generate, typecheck, lint, test, build)
-# on every push to main/build/** and on every PR into main. This is the NON-deploy half of T-06;
-# the Vercel deploy workflow is a separate, deferred stub (see deploy.yml) that activates in T-02
-# once the operator provides Vercel secrets.
+# Runs the full quality-gate sequence (install, prisma generate, typecheck, lint, test, build,
+# actionlint) on every push to main/build/** and on every PR into main. This is the NON-deploy
+# half of T-06; the Vercel deploy workflow is a separate, deferred stub (see deploy.yml) that
+# activates in T-02 once the operator provides Vercel secrets.
+#
+# The final step runs actionlint (github.com/rhysd/actionlint) against every workflow file in
+# .github/workflows/ so unsupported-context defects (e.g. `secrets` in a job-level `if:`, which
+# GitHub Actions rejects at workflow-parse time) are caught in CI instead of only at push-to-main.
+# The binary is fetched via the project's own pinned download script (checksum-verified) rather
+# than a third-party marketplace action, to keep the trust surface minimal.
 #
 # No live secrets are used here. DATABASE_URL below is a placeholder connection string (not a
 # credential) required only because `prisma generate` validates the schema's datasource block and
@@ -66,3 +72,9 @@ jobs:
 
       - name: Build (runs postbuild verify:middleware + verify:api-auth guards)
         run: npm run build
+
+      - name: Lint workflow files (actionlint)
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
