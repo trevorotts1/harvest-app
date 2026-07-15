@@ -1,3 +1,11 @@
+## [2.0.0-build.T05] — BUILD PHASE — 2026-07-15
+### T-05 — Living Field design-system token layer (QC earned 9.8/10, 4 QC loops)
+_Note: merged after T-06 due to four QC iterations (each caught a real, progressively subtler WCAG failure: opacity-on-text, viewport-dependent gradient text, dark-theme token composition). The branch was brought current with main (T-04+T-06) before merge._
+- src/app/tokens.css: 6 LFDS hue ramps (soil/leaf/harvest/clay/wheat/grove); Golden Hour (light) + Pre-Dawn (dark) semantic tokens per uiux §1.2.4; corrected values (--soil-550 #5d6a62; --harvest-500 never text-on-light; --color-harvest-on-cream pinned harvest-700 in both themes); type scale, 8pt spacing, elevation, motion tokens.
+- Pre-hydration theme switch (System / Golden Hour / Pre-Dawn) with no flash; legacy scaffold pages intentionally pinned light (dark-mode migration deferred to per-screen work).
+- Accessibility gates (a11y failure = gate failure, uiux §6.1): verify:contrast (27 pairs + negative teeth), guard:no-opacity-on-text (static, per-instance exemption keys), and verify:rendered-contrast (Playwright, 2 themes x 2 viewports x 2 surfaces = 904 nodes) — wired into postbuild, npm test, and CI.
+- /design-tokens showcase route. 117 tests. 4 pre-existing legacy AA issues (auth/onboarding pages, .side-link, .visual-root span) documented [WARN-EXEMPT] and carried to T-52.
+
 ## [2.0.0-build.T06] — BUILD PHASE — 2026-07-15
 ### T-06 — CI quality-gate workflow + deferred Vercel deploy stub (QC earned 8.9/10, 2 QC loops)
 - .github/workflows/ci.yml: on push main/build/** + PR — npm ci, prisma generate, typecheck, lint, test, build (+postbuild verify:middleware/verify:api-auth), and actionlint over all workflows. A failure in any step fails the job.
