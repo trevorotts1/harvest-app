@@ -141,15 +141,15 @@ Status: COMPLETE — two open operator decisions recorded as confirmed (each con
 ---
 
 # BUILD PHASE — harvest-app application — LIVE LEDGER (appended block)
-Last progress: 2026-07-15T11:22:59Z
+Last progress: 2026-07-15T12:10:00Z
 Status: BUILD STARTED. Reconciliation on resume: the `harvest-app` repo and a working scaffold already exist (git history reaches `v1.0.0: All 11 Work Packages Complete — 69 Tests Passing`, built to the OLD PRD). Per D-1 (Evolve) this existing repo IS the scaffold evolved toward the NEW master/uiux specs; its old "complete" claim is NOT treated as verified — every build unit T-01..T-61 is proven fresh against harvest-qc-checklist.md. Primary-source facts at start: repo trevorotts1/harvest-app live (default main); local main==origin/main @ fc734c2; existing app typecheck EXIT 0, tests 69/69 pass (11 suites); Vercel token INVALID (no VERCEL_TOKEN env) → T-02/T-60 live-deploy gated on operator auth; no ANTHROPIC/DB/Stripe/Twilio in env → live agent/DB/payment/SMS runs gated on operator secrets (referenced by name only; ~/.harvest-secrets never read).
 Working copy: /Users/erspaulding/.openclaw/workspace/prd-packages/harvest-app
 
 | id | description | owner / model | status | evidence | timestamp |
 |----|-------------|---------------|--------|----------|-----------|
-| T-01 | Create/verify harvest-app repo: main+prd branches, package docs on prd, ledgers/ path, one-merge-writer convention | [Haiku 4.5 x1] repo foundations | in_progress | repo live on remote (gh repo view: default main); main+prd+build/phase-1 branches exist on origin; establishing ledgers/ now | 2026-07-15T11:22:59Z |
+| T-01 | Create/verify harvest-app repo: main+prd branches, package docs on prd, ledgers/ path, one-merge-writer convention | [Haiku 4.5 x1] repo foundations | done | PROOF(remote): commit 4cc91f5 on origin/main (remote HEAD==4cc91f5, match=yes); ledgers/ present on origin/main; harvest-handoff.md left unstaged; prd carries package docs; repo visibility=PUBLIC (flagged to operator); branch-protection by-convention (orchestrator sole merge-writer). → verified at Wave 0 gate T-07 | 2026-07-15T11:22:59Z |
 | T-02 | Vercel project + environments (preview-per-PR + prod from main), env by name | [Sonnet 5 x1] vercel setup | pending | BLOCKED: vercel token invalid, no VERCEL_TOKEN env — needs operator auth | 2026-07-15T11:22:59Z |
-| T-03 | Postgres + Prisma schema evolved to master-spec §3 (5-role enum, kept+extended entities, ~20 new incl SecurityEvent) | [Sonnet 5 x1] prisma §3 | pending | — | 2026-07-15T11:22:59Z |
+| T-03 | Postgres + Prisma schema evolved to master-spec §3 (5-role enum, kept+extended entities, ~20 new incl SecurityEvent) | [Sonnet 5 x1] prisma §3 | verified | Builder @2489a0c (18→51 entities, all §3 incl SecurityEvent, 5-role). QC#1 [Sonnet 5 a=ac0adac] FAILED 7.0 (6 defects, incl false HMAC claim). Fixer @60fadeb: partial-unique ACTIVE Subscription/Sponsorship, keyed fail-closed HMAC (CONTACT_HASH_PEPPER), committed migration+lock, +12 tests (82/82). QC#2 [Sonnet 5 a=a258f2e, fresh] PASS **8.9/10** zero critical — proven on LIVE Postgres 16 (migration applied 0 errs, dup-ACTIVE insert rejected, zero drift, mutation-tested tests). Merge+tag rippling (v2.0.0-build.T03). | 2026-07-15T12:10:00Z |
 | T-04 | Auth.js (NextAuth) + five-role RBAC scaffold, MFA-capable sessions | [Sonnet 5 x1] auth rbac | pending | — | 2026-07-15T11:22:59Z |
 | T-05 | Living Field design-system token layer (uiux §1) | [Sonnet 5 x1] design tokens | pending | — | 2026-07-15T11:22:59Z |
 | T-06 | CI/CD: lint/typecheck/test, preview deploys, prod promo, per-unit ledgers/ commit hook | [Sonnet 5 x1] ci/cd | pending | — | 2026-07-15T11:22:59Z |
@@ -208,3 +208,4 @@ Working copy: /Users/erspaulding/.openclaw/workspace/prd-packages/harvest-app
 | T-59 | Final QC full-system pressure test (5 E2E flows, §18 edge battery, SC1-12, §0.4 sweep) | [Sonnet 5 x{5-50}] pressure | pending | — | 2026-07-15T11:22:59Z |
 | T-60 | Production deploy + ripple (promote main to Vercel prod, verify live URL, push tag, ripple docs) | [Haiku 4.5 x1] deploy | pending | BLOCKED: needs valid Vercel auth | 2026-07-15T11:22:59Z |
 | T-61 | DONE verification: every SLASH-GOALS DONE box proven from primary sources | [Sonnet 5 x1] done verify | pending | — | 2026-07-15T11:22:59Z |
+| T-R1 | §0.3 Claude-only remediation: purge OPENAI_API_KEY from .env.example; purge non-Claude model refs (deepseek/ollama/kimi) from stale harvest-handoff.md in scaffold working tree | [Haiku 4.5 x1] purge non-claude | pending | Flagged by T-03 QC — pre-existing on main/dirty tree, not introduced by T-03 | 2026-07-15T11:40:00Z |

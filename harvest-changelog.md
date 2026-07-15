@@ -1,3 +1,11 @@
+## [2.0.0-build.T03] — BUILD PHASE — 2026-07-15
+### T-03 — Prisma schema evolved to master-spec §3 (QC earned 8.9/10)
+- Schema evolved 18 -> 51 entities (13 enums, 38 models) incl SecurityEvent; resolved 5-role enum (REP/UPLINE/RVP/ADMIN/DUAL).
+- Keyed, fail-closed HMAC-SHA256 (env CONTACT_HASH_PEPPER) for contact phone/email match hashes; unkeyed SHA-256 retired for PII.
+- Postgres partial unique indexes: at most one ACTIVE Subscription and one ACTIVE Sponsorship per user.
+- First committed migration (20260715120420_evolve_to_spec_v3) + migration_lock.toml.
+- 12 new tests added (82/82 passing). Independently verified on a live Postgres 16 (zero drift; constraint enforcement + mutation-tested).
+
 # The Harvest - Changelog
 
 > Version-controlled log of all changes from project inception through PRD completion.
