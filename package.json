@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "npm run verify:contrast && npm run guard:no-opacity-on-text",
     "start": "next start",
     "lint": "next lint",
     "verify:contrast": "node scripts/verify-contrast.mjs",
+    "guard:no-opacity-on-text": "node scripts/guard-no-opacity-on-text.mjs",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "db:generate": "prisma generate",

@@ -119,7 +119,19 @@
 .pairMeta {
   font-size: var(--type-caption-size);
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
+  /* Do NOT dim this via `opacity` — opacity composites the text against
+     whatever sits behind it and silently lowers its EFFECTIVE contrast
+     below the AA target the pairing above is asserting (T-05 QC: the
+     "Secondary text" and "Action/links" captions measured ~3.76:1 and
+     ~4.18:1 at opacity 0.85, both failing 4.5:1, on the very page that
+     exists to prove AA). This class inherits `color` from the pairCard's
+     inline style, which is always one of the semantic tokens verified by
+     `npm run verify:contrast` at full (1.0) opacity — so leaving opacity
+     unset here is what keeps every caption AA-compliant. If this text
+     ever needs a visually lighter weight, use a lower-luminance
+     AA-passing color token instead (never opacity) — see
+     scripts/guard-no-opacity-on-text.mjs, which fails CI on this file if
+     opacity is reintroduced. */
 }
 
 /* ---- type scale ---- */

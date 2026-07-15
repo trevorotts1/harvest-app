@@ -47,9 +47,9 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="grid-3">
-              <div><strong>7</strong><br /><span>Queued actions</span></div>
-              <div><strong>4</strong><br /><span>Warm contacts</span></div>
-              <div><strong>1</strong><br /><span>Needs approval</span></div>
+              <div className="score-stat"><strong>7</strong><br /><span>Queued actions</span></div>
+              <div className="score-stat"><strong>4</strong><br /><span>Warm contacts</span></div>
+              <div className="score-stat"><strong>1</strong><br /><span>Needs approval</span></div>
             </div>
           </div>
         </div>
