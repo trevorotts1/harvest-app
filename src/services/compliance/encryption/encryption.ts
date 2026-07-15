@@ -150,9 +150,44 @@ export function isTLSVersionCompliant(version: string): boolean {
 
 /**
  * Hash sensitive data using SHA-256 for audit logging (one-way).
+ *
+ * NOTE: this is plain/unkeyed SHA-256. It is suitable for content-integrity hashing
+ * (see `contentHash` below) but is NOT suitable for hashing low-entropy identifiers like phone
+ * numbers or emails for cross-rep matching (opt-out registry, dedup) — an unkeyed hash of a
+ * phone number is trivially reversible by brute force over the small input space. Use
+ * `hmacForMatch` (below) for phone_hash/email_hash/identifier_hash instead.
  */
 export function hashForAudit(data: string): string {
   return crypto.createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * Name of the server-side pepper secret used to key `hmacForMatch`. Read by name only —
+ * never log or print the value (§0.4).
+ */
+export const CONTACT_HASH_PEPPER_ENV_VAR = 'CONTACT_HASH_PEPPER';
+
+/**
+ * Deterministic **keyed** HMAC-SHA256 hash for cross-rep PII matching (phone_hash/email_hash on
+ * Contact, identifier_hash on OptOutRegistry — §3, §3.4, §10.4).
+ *
+ * Unlike `hashForAudit`/plain SHA-256, this is resistant to brute-force reversal of low-entropy
+ * inputs (e.g. phone numbers) because the digest is keyed by a server-side pepper that never
+ * leaves the backend. The pepper is read from the environment by name only
+ * (`CONTACT_HASH_PEPPER`) — this function never reads or logs the pepper's value beyond passing
+ * it into `crypto.createHmac`.
+ *
+ * FAIL-CLOSED: if `CONTACT_HASH_PEPPER` is unset (or empty), this throws rather than silently
+ * falling back to an unkeyed hash. Callers must not catch-and-ignore this error path.
+ */
+export function hmacForMatch(value: string): string {
+  const pepper = process.env[CONTACT_HASH_PEPPER_ENV_VAR];
+  if (!pepper) {
+    throw new Error(
+      `${CONTACT_HASH_PEPPER_ENV_VAR} is not set — refusing to fall back to an unkeyed hash for PII matching.`
+    );
+  }
+  return crypto.createHmac('sha256', pepper).update(value).digest('hex');
 }
 
 /**

@@ -32,11 +32,11 @@ function ensureSeedData(userId: string): void {
   if (existing.length > 0) return;
 
   const seeds: Omit<DemoContact, 'id' | 'createdAt' | 'updatedAt'>[] = [
-    { userId, name: 'Sarah Johnson', phone: '555-0101', email: 'sarah@example.com', industry: 'insurance', notes: 'Met at community event', source: ContactSource.MANUAL, pipelineStage: PipelineStage.QUALIFY, relationshipStrength: 45 },
-    { userId, name: 'Marcus Chen', phone: '555-0102', email: 'marcus@example.com', industry: 'finance', notes: 'Referred by Sarah', source: ContactSource.MANUAL, pipelineStage: PipelineStage.DISCOVERY, relationshipStrength: 10 },
-    { userId, name: 'Aisha Patel', phone: '555-0103', email: null, industry: 'healthcare', notes: null, source: ContactSource.SOCIAL, pipelineStage: PipelineStage.NURTURE, relationshipStrength: 60 },
-    { userId, name: 'David Kim', phone: null, email: 'david@example.com', industry: 'real_estate', notes: 'LinkedIn connection', source: ContactSource.SYNC, pipelineStage: PipelineStage.APPOINTMENT, relationshipStrength: 75 },
-    { userId, name: 'Lisa Thompson', phone: '555-0105', email: 'lisa@example.com', industry: 'education', notes: 'Former colleague', source: ContactSource.MANUAL, pipelineStage: PipelineStage.CLIENT, relationshipStrength: 90 },
+    { userId, name: 'Sarah Johnson', phone: '555-0101', email: 'sarah@example.com', industry: 'insurance', notes: 'Met at community event', source: ContactSource.MANUAL, pipelineStage: PipelineStage.INTRODUCED, relationshipStrength: 45 },
+    { userId, name: 'Marcus Chen', phone: '555-0102', email: 'marcus@example.com', industry: 'finance', notes: 'Referred by Sarah', source: ContactSource.MANUAL, pipelineStage: PipelineStage.IDENTIFIED, relationshipStrength: 10 },
+    { userId, name: 'Aisha Patel', phone: '555-0103', email: null, industry: 'healthcare', notes: null, source: ContactSource.SOCIAL, pipelineStage: PipelineStage.RESPONDED, relationshipStrength: 60 },
+    { userId, name: 'David Kim', phone: null, email: 'david@example.com', industry: 'real_estate', notes: 'LinkedIn connection', source: ContactSource.SYNC, pipelineStage: PipelineStage.APPOINTMENT_CONFIRMED, relationshipStrength: 75 },
+    { userId, name: 'Lisa Thompson', phone: '555-0105', email: 'lisa@example.com', industry: 'education', notes: 'Former colleague', source: ContactSource.MANUAL, pipelineStage: PipelineStage.CLOSED_CLIENT, relationshipStrength: 90 },
   ];
 
   const now = new Date().toISOString();
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
       industry: c.industry || null,
       notes: c.notes || null,
       source,
-      pipelineStage: PipelineStage.DISCOVERY,
+      pipelineStage: PipelineStage.IDENTIFIED,
       relationshipStrength: 0,
       createdAt: now,
       updatedAt: now,

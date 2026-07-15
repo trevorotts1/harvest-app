@@ -18,20 +18,32 @@ export enum InteractionType {
   NOTE = 'NOTE',
 }
 
+// Mirrors prisma/schema.prisma's PipelineStage enum (master-spec §3.1) so values assigned here
+// remain valid literals for the Prisma-generated field type without a direct @prisma/client import.
 export enum PipelineStage {
-  DISCOVERY = 'DISCOVERY',
-  QUALIFY = 'QUALIFY',
-  NURTURE = 'NURTURE',
-  APPOINTMENT = 'APPOINTMENT',
-  CLIENT = 'CLIENT',
+  IDENTIFIED = 'IDENTIFIED',
+  INTRODUCED = 'INTRODUCED',
+  RESPONDED = 'RESPONDED',
+  APPOINTMENT_PROPOSED = 'APPOINTMENT_PROPOSED',
+  APPOINTMENT_CONFIRMED = 'APPOINTMENT_CONFIRMED',
+  MET = 'MET',
+  CLOSED_CLIENT = 'CLOSED_CLIENT',
+  CLOSED_RECRUIT = 'CLOSED_RECRUIT',
+  DORMANT = 'DORMANT',
+  DO_NOT_CONTACT = 'DO_NOT_CONTACT',
 }
 
 export const PIPELINE_STAGE_ORDER: PipelineStage[] = [
-  PipelineStage.DISCOVERY,
-  PipelineStage.QUALIFY,
-  PipelineStage.NURTURE,
-  PipelineStage.APPOINTMENT,
-  PipelineStage.CLIENT,
+  PipelineStage.IDENTIFIED,
+  PipelineStage.INTRODUCED,
+  PipelineStage.RESPONDED,
+  PipelineStage.APPOINTMENT_PROPOSED,
+  PipelineStage.APPOINTMENT_CONFIRMED,
+  PipelineStage.MET,
+  PipelineStage.CLOSED_CLIENT,
+  PipelineStage.CLOSED_RECRUIT,
+  PipelineStage.DORMANT,
+  PipelineStage.DO_NOT_CONTACT,
 ];
 
 export type RelationshipStrength = number;

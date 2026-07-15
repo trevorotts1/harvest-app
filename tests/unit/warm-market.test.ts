@@ -2,6 +2,7 @@ import { ContactService, ContactInput } from '../../src/services/warm-market/con
 import { PipelineService } from '../../src/services/warm-market/pipeline.service';
 import { MemoryJoggerService } from '../../src/services/warm-market/memory-jogger.service';
 import { ContactSource, PipelineStage } from '../../src/types/warm-market';
+import { hmacForMatch } from '../../src/services/compliance/encryption/encryption';
 
 // Mock PrismaClient
 const mockContactFindMany = jest.fn();
@@ -53,8 +54,8 @@ describe('Warm Market Engine', () => {
         email: 'john@example.com',
         user_id: userId,
         source: ContactSource.MANUAL,
-        pipeline_stage: 'DISCOVERY',
-        relationship_strength: 0,
+        pipeline_stage: PipelineStage.IDENTIFIED,
+        segment_score: 0,
       });
 
       const data: ContactInput[] = [
@@ -96,16 +97,33 @@ describe('Warm Market Engine', () => {
 
     test('should get pipeline contacts by stage', async () => {
       const mockContacts = [
-        { id: 'c1', name: 'Alice', pipeline_stage: PipelineStage.DISCOVERY },
-        { id: 'c2', name: 'Bob', pipeline_stage: PipelineStage.DISCOVERY },
+        { id: 'c1', name: 'Alice', pipeline_stage: PipelineStage.IDENTIFIED },
+        { id: 'c2', name: 'Bob', pipeline_stage: PipelineStage.IDENTIFIED },
       ];
       mockContactFindMany.mockResolvedValue(mockContacts);
 
-      const result = await contactService.getPipelineContacts(userId, PipelineStage.DISCOVERY);
+      const result = await contactService.getPipelineContacts(userId, PipelineStage.IDENTIFIED);
       expect(result).toHaveLength(2);
       expect(mockContactFindMany).toHaveBeenCalledWith({
-        where: { user_id: userId, pipeline_stage: PipelineStage.DISCOVERY },
+        where: { user_id: userId, pipeline_stage: PipelineStage.IDENTIFIED },
       });
+    });
+
+    test('should populate phone_hash/email_hash via the keyed HMAC function (T-03 defect 2)', async () => {
+      mockContactFindFirst.mockResolvedValue(null);
+      mockContactCreate.mockResolvedValue({ id: 'contact-3' });
+
+      const data: ContactInput[] = [
+        { userId, name: 'Jane Roe', phone: '(555) 999-1234', email: 'Jane@Example.com', source: ContactSource.MANUAL },
+      ];
+
+      await contactService.importContacts(userId, ContactSource.MANUAL, data);
+
+      const createArgs = mockContactCreate.mock.calls[0][0];
+      // Same normalization the service applies (digits-only phone, lowercased email) fed through
+      // the real keyed HMAC — proves the wiring uses hmacForMatch, not a plain/unkeyed hash.
+      expect(createArgs.data.phone_hash).toBe(hmacForMatch('5559991234'));
+      expect(createArgs.data.email_hash).toBe(hmacForMatch('jane@example.com'));
     });
 
     test('should handle contacts without phone or email', async () => {
@@ -117,8 +135,8 @@ describe('Warm Market Engine', () => {
         email: null,
         user_id: userId,
         source: ContactSource.MANUAL,
-        pipeline_stage: 'DISCOVERY',
-        relationship_strength: 0,
+        pipeline_stage: PipelineStage.IDENTIFIED,
+        segment_score: 0,
       });
 
       const data: ContactInput[] = [
@@ -142,24 +160,24 @@ describe('Warm Market Engine', () => {
       mockContactUpdate.mockResolvedValue({
         id: 'contact-1',
         name: 'Alice',
-        pipeline_stage: PipelineStage.QUALIFY,
+        pipeline_stage: PipelineStage.INTRODUCED,
       });
 
-      const updated = await pipelineService.moveContact('contact-1', PipelineStage.QUALIFY);
-      expect(updated.pipeline_stage).toBe(PipelineStage.QUALIFY);
+      const updated = await pipelineService.moveContact('contact-1', PipelineStage.INTRODUCED);
+      expect(updated.pipeline_stage).toBe(PipelineStage.INTRODUCED);
     });
 
     test('should return pipeline summary', async () => {
       mockContactFindMany.mockResolvedValue([
-        { id: 'c1', name: 'Alice', pipeline_stage: 'DISCOVERY' },
-        { id: 'c2', name: 'Bob', pipeline_stage: 'DISCOVERY' },
-        { id: 'c3', name: 'Charlie', pipeline_stage: 'NURTURE' },
+        { id: 'c1', name: 'Alice', pipeline_stage: 'IDENTIFIED' },
+        { id: 'c2', name: 'Bob', pipeline_stage: 'IDENTIFIED' },
+        { id: 'c3', name: 'Charlie', pipeline_stage: 'RESPONDED' },
       ]);
 
       const summary = await pipelineService.getPipelineSummary(userId);
-      expect(summary.DISCOVERY).toHaveLength(2);
-      expect(summary.NURTURE).toHaveLength(1);
-      expect(summary.QUALIFY).toHaveLength(0);
+      expect(summary.IDENTIFIED).toHaveLength(2);
+      expect(summary.RESPONDED).toHaveLength(1);
+      expect(summary.INTRODUCED).toHaveLength(0);
     });
   });
 
@@ -173,7 +191,7 @@ describe('Warm Market Engine', () => {
     test('should generate prompts for contact with data', async () => {
       mockContactFindUnique.mockResolvedValue({
         id: 'contact-1',
-        name: 'Sarah',
+        first_name: 'Sarah',
         industry: 'insurance',
         interactions: [{ type: 'CALL', notes: 'Discussed term life options' }],
       });

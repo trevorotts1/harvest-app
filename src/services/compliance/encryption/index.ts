@@ -1,2 +1,2 @@
-export { encrypt, decrypt, generateEncryptionKey, encryptPII, decryptPII, enforceTLS13, isTLSVersionCompliant, hashForAudit, contentHash } from './encryption';
+export { encrypt, decrypt, generateEncryptionKey, encryptPII, decryptPII, enforceTLS13, isTLSVersionCompliant, hashForAudit, contentHash, hmacForMatch, CONTACT_HASH_PEPPER_ENV_VAR } from './encryption';
 export type { EncryptionResult, DecryptionInput, EncryptedPayload } from './encryption';
