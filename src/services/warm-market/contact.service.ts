@@ -5,6 +5,7 @@ import {
   RelationshipStrength,
   ContactSource,
 } from '../../types/warm-market';
+import { hashForAudit } from '../compliance/encryption/encryption';
 
 export interface ContactInput {
   userId: string;
@@ -34,13 +35,23 @@ export class ContactService {
       });
 
       if (!existing) {
+        const { first_name, last_name } = this.splitName(item.name);
         const contact = await this.prisma.contact.create({
           data: {
-            ...normalized,
             user_id: userId,
+            first_name,
+            last_name,
+            phone: normalized.phone,
+            email: normalized.email,
+            // Deterministic hashes for global opt-out matching & cross-rep dedup (§3, §3.4);
+            // phone/email themselves are expected to hold app-layer AES-256 ciphertext in production.
+            phone_hash: normalized.phone ? hashForAudit(normalized.phone) : null,
+            email_hash: normalized.email ? hashForAudit(normalized.email) : null,
+            industry: item.industry ?? null,
+            notes: item.notes ?? null,
             source,
-            relationship_strength: 0,
-            pipeline_stage: 'DISCOVERY',
+            segment_score: 0,
+            pipeline_stage: PipelineStage.IDENTIFIED,
           },
         });
         imported.push(contact);
@@ -55,6 +66,13 @@ export class ContactService {
       phone: contact.phone?.replace(/\D/g, '') || null,
       email: contact.email?.toLowerCase().trim() || null,
     };
+  }
+
+  private splitName(fullName: string): { first_name: string; last_name: string } {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    const first_name = parts[0] || fullName;
+    const last_name = parts.slice(1).join(' ');
+    return { first_name, last_name };
   }
 
   scoreContact(contact: any): RelationshipStrength {

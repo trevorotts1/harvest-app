@@ -17,11 +17,16 @@ export class PipelineService {
     });
 
     const summary: Record<PipelineStage, any[]> = {
-      DISCOVERY: [],
-      QUALIFY: [],
-      NURTURE: [],
-      APPOINTMENT: [],
-      CLIENT: [],
+      IDENTIFIED: [],
+      INTRODUCED: [],
+      RESPONDED: [],
+      APPOINTMENT_PROPOSED: [],
+      APPOINTMENT_CONFIRMED: [],
+      MET: [],
+      CLOSED_CLIENT: [],
+      CLOSED_RECRUIT: [],
+      DORMANT: [],
+      DO_NOT_CONTACT: [],
     };
 
     contacts.forEach((c) => {

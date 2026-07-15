@@ -1,3 +1,28 @@
+// The Harvest — Prisma schema
+// Evolved per master-spec §3 (Data model): /Users/erspaulding/Downloads/harvest-master-spec.md
+//
+// Design notes (apply throughout this file):
+// - All ids are UUID v4 (`@default(uuid())`).
+// - All timestamps are TIMESTAMPTZ (`@db.Timestamptz(6)` on every DateTime field).
+// - PII-bearing string fields on Contact, WhySession, and profile records (User) are expected to
+//   hold application-layer AES-256-GCM ciphertext (see src/services/compliance/encryption); Prisma
+//   does not enforce encryption at the column level. Where a plaintext-derived lookup is required
+//   (dedup, global opt-out), a separate deterministic *_hash column is stored instead of relying on
+//   ciphertext equality (ciphertext varies by IV per encryption call).
+// - Enum types are used for the twelve cross-cutting enumerations named in spec §3.1 (plus the
+//   pre-existing CFEOutcome/OnboardingStep). Entity-specific status/type fields introduced by the
+//   ~20 new §3.3 entities follow the baseline's existing convention (see ComplianceReviewQueue.status
+//   below) of a `String` column with an inline comment enumerating the allowed values — this keeps
+//   regulatory/config-shaped vocabularies (e.g. SecurityEvent.type) editable without a migration.
+// - Most new entities reference `user_id` / `contact_id` / etc. as plain indexed scalar columns
+//   rather than full Prisma `@relation`s, to avoid a combinatorial explosion of back-reference arrays
+//   on User/Contact/Organization. Relations are declared explicitly only where existing application
+//   code already depends on them (User↔Organization, User self-relation, Contact↔ContactInteraction,
+//   User↔OnboardingSession) or where the relation is intrinsic to a new pair (MessageThread↔Message).
+// - Doctrine vocabulary (§0.5, the forbidden-terms table) is kept clean in every identifier below
+//   (only the spec-sanctioned agent name "Prospecting Agent" / its `prospecting` key, §4.2, appears).
+//   No non-Claude AI provider name appears anywhere in this file (§0.3).
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,13 +32,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// §3.1 Enumerations
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Five-role architecture (spec §3.1 baseline-contradiction resolution: there are five roles,
+/// not four; the baseline EXTERNAL value is retired — external solo users are `REP` with an
+/// external-type Organization).
 enum Role {
   REP
   UPLINE
+  RVP
   ADMIN
   DUAL
-  RVP
-  EXTERNAL
 }
 
 enum OrgType {
@@ -21,13 +52,32 @@ enum OrgType {
   EXTERNAL
 }
 
+/// Retires the baseline FREE/ESSENTIAL/PRO/ELITE enum to match the locked pricing (§0.2, §15).
 enum AccessTier {
-  FREE
-  ESSENTIAL
-  PRO
-  ELITE
+  FREE_ORG_LINKED
+  FREE_PAID_EXTERNAL
+  PAID_INDIVIDUAL
+  ENTERPRISE
 }
 
+/// Canonical Low/Medium/High labels (§3.1); the baseline casual/standard/intensive labels are
+/// retired. Also governs per-rep daily agent-action caps and Claude token budget (§4.2, §4.5).
+enum IntensitySetting {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// User.onboarding_status — distinct from the step-resumption state machine kept on
+/// OnboardingSession.current_step (below): nothing downstream of onboarding is reachable until
+/// GATED_COMPLETE (§1.4).
+enum OnboardingStatus {
+  IN_PROGRESS
+  GATED_COMPLETE
+}
+
+/// Retained from baseline for OnboardingSession.current_step (linear resumption state); §3.2
+/// notes this is superseded in part by WhySession for the Seven Whys transcript itself.
 enum OnboardingStep {
   REGISTER
   ACCOUNT_TYPE
@@ -37,29 +87,209 @@ enum OnboardingStep {
   COMPLETE
 }
 
+/// Contact.pipeline_stage. Replaces the baseline's free-text DISCOVERY/QUALIFY/NURTURE/
+/// APPOINTMENT/CLIENT progression with the ten-stage vocabulary in spec §3.1.
+enum PipelineStage {
+  IDENTIFIED
+  INTRODUCED
+  RESPONDED
+  APPOINTMENT_PROPOSED
+  APPOINTMENT_CONFIRMED
+  MET
+  CLOSED_CLIENT
+  CLOSED_RECRUIT
+  DORMANT
+  DO_NOT_CONTACT
+}
+
 enum CFEOutcome {
   PASS
   FLAG
   BLOCK
 }
 
+/// Shared across DraftMessage, MessageThread, Message, and OptOutRegistry so a single opt-out
+/// check (§3.4) can be expressed against exactly the channels agents send on.
+enum MessageChannel {
+  SMS_HANDOFF
+  SMS_PLATFORM
+  EMAIL
+  SOCIAL_DM
+  IN_APP
+}
+
+enum MessageDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum MessageSource {
+  AGENT
+  REP
+  UPLINE
+  SYSTEM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  DISPUTED
+}
+
+/// Drives the Downline-Sponsor free-tier provisioning and lapse cascade (§15).
+enum SponsorshipState {
+  ACTIVE
+  MEMBER_GRACE
+  SPONSOR_LAPSED
+  ANNIVERSARY_PENDING
+  CONVERTED
+  ENDED
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.2 Entities kept from the baseline (extended)
+// ═══════════════════════════════════════════════════════════════════════
+
+model Organization {
+  id                     String   @id @default(uuid())
+  name                   String
+  type                   OrgType
+  white_label_theme      Json?    // enterprise Phase-2 hook
+  compliance_contact_id  String?  // escalation target for flagged content (§5.3, §5.5 48h escalation)
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+  users                  User[]
+}
+
+model User {
+  id                    String            @id @default(uuid())
+  email                 String            @unique
+  password_hash         String
+  name                  String
+  phone                 String?
+  role                  Role              @default(REP)
+  org_type              OrgType           @default(EXTERNAL)
+  solution_number        String?          // nullable, encrypted, Primerica only
+  upline_id             String?
+  upline                User?             @relation("UserUpline", fields: [upline_id], references: [id])
+  downlines             User[]            @relation("UserUpline")
+  access_tier           AccessTier        @default(FREE_ORG_LINKED)
+  intensity_setting     IntensitySetting  @default(MEDIUM)
+  commitment_score      Int               @default(0)
+  rank                  String?
+  anchor_statement      String?           // encrypted; from WP01 Flow C (Seven Whys anchor)
+  finra_u4_status       String?           // VALIDATED | PENDING | SUSPENDED | NOT_APPLICABLE
+  calendar_preferences  Json?
+  calendar_connected    Boolean           @default(false)
+  gdpr_consent          Boolean           @default(false)
+  onboarding_status     OnboardingStatus  @default(IN_PROGRESS)
+  mfa_enrolled          Boolean           @default(false)
+  mfa_methods           Json?
+  organization_id       String?
+  organization          Organization?     @relation(fields: [organization_id], references: [id])
+  onboarding_sessions   OnboardingSession[]
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
+
+  @@index([upline_id])
+  @@index([organization_id])
+}
+
+// The Vault record. PII fields (first_name/last_name/phone/email/notes) are expected to hold
+// application-layer AES-256-GCM ciphertext; phone_hash/email_hash are deterministic (HMAC-SHA256)
+// hashes used for opt-out matching and cross-rep dedup without exposing plaintext (§3, intro).
+// Interaction history is per-rep and never cross-rep visible (§3.4).
+model Contact {
+  id                  String           @id @default(uuid())
+  user_id             String
+  first_name          String
+  last_name           String           @default("")
+  phone               String?
+  email               String?
+  phone_hash          String?
+  email_hash          String?
+  notes               String?
+  relationship_type   String?
+  industry            String?          // additive: feeds the Hidden Earnings industry multiplier (§8)
+  segment_score       Int              @default(0) // 0–100
+  is_recruit_target   Boolean          @default(false)
+  is_client           Boolean          @default(false)
+  is_a_list           Boolean          @default(false)
+  pipeline_stage      PipelineStage    @default(IDENTIFIED)
+  last_contact_date   DateTime?        @db.Timestamptz(6)
+  source              String           @default("MANUAL")
+  import_batch_id     String?
+  do_not_contact      Boolean          @default(false)
+  agents_paused       Boolean          @default(false)
+  household_id        String?          // nullable; household intelligence (blueprint #17)
+  is_minor_flag       Boolean          @default(false)
+  linked_user_id      String?          // set when a contact becomes a platform user
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
+  interactions        ContactInteraction[]
+
+  @@index([user_id])
+  @@index([user_id, pipeline_stage])
+  @@index([phone_hash])
+  @@index([email_hash])
+  @@index([household_id])
+}
+
+// Extended to reference Message and AgentRun (both plain scalar pointers, §3 new-entities table)
+// for the unified per-contact conversation timeline.
+model ContactInteraction {
+  id             String   @id @default(uuid())
+  contact_id     String
+  type           String   @default("NOTE")
+  notes          String   @default("")
+  message_id     String?
+  agent_run_id   String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  contact        Contact  @relation(fields: [contact_id], references: [id])
+
+  @@index([contact_id])
+  @@index([message_id])
+  @@index([agent_run_id])
+}
+
+// Retained for step-resumption state; the richer Seven Whys transcript + anchor lives on
+// WhySession (below), per §3.2.
+model OnboardingSession {
+  id             String         @id @default(uuid())
+  user_id        String
+  user           User           @relation(fields: [user_id], references: [id])
+  current_step   OnboardingStep @default(REGISTER)
+  seven_whys     Json?
+  goal_card      Json?
+  intensity_data Json?
+  completed      Boolean        @default(false)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+}
+
+// Append-only CFE decision log — the compliance evidence trail and the source of the rep-visible
+// Agent Activity Ledger (§5.6). Access-restricted and segregated so a GDPR deletion can remove
+// ordinary user data while lawfully retaining FINRA-required communications (§16.3).
 model AuditEntry {
   id              String     @id @default(uuid())
   user_id         String
-  content_text    String     // Added
+  content_id      String?
+  content_text    String
   content_hash    String
+  channel         MessageChannel?
   risk_score      Int
   outcome         CFEOutcome
   classifier_data Json
-  rule_version    String     // Added
-  regulation      String     // Added
-  reviewer_id     String?    // Added
-  reviewer_action String?    // Added
+  rule_version    String
+  regulation      String
+  reviewer_id     String?
+  reviewer_action String?
   role            Role       @default(REP)
-  created_at      DateTime   @default(now())
+  created_at      DateTime   @default(now()) @db.Timestamptz(6)
 
   @@index([created_at])
   @@index([user_id, created_at])
+  @@index([content_id])
 }
 
 model ComplianceConsent {
@@ -67,12 +297,13 @@ model ComplianceConsent {
   user_id         String
   consent_type    String
   given           Boolean
-  timestamp       DateTime @default(now())
+  timestamp       DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([timestamp])
   @@index([user_id, timestamp])
 }
 
+// Parameterized regulatory rules — a regulatory change is a config update, not a code change (§5.3).
 model ComplianceRule {
   id              String   @id @default(uuid())
   name            String
@@ -80,7 +311,7 @@ model ComplianceRule {
   version         String
   parameters      Json
   is_active       Boolean  @default(true)
-  created_at      DateTime @default(now())
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model ComplianceReviewQueue {
@@ -88,7 +319,7 @@ model ComplianceReviewQueue {
   audit_entry_id  String   @unique
   status          String   // PENDING, APPROVED, REJECTED, MODIFIED
   upline_id       String
-  created_at      DateTime @default(now())
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model ComplianceUplineReview {
@@ -97,101 +328,458 @@ model ComplianceUplineReview {
   reviewer_id     String
   action          String
   feedback        String?
-  timestamp       DateTime @default(now())
+  timestamp       DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model ComplianceException {
   id              String   @id @default(uuid())
   audit_entry_id  String
   reason          String
-  created_at      DateTime @default(now())
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model UserDataExport {
   id              String   @id @default(uuid())
   user_id         String
   status          String   // PENDING, COMPLETED, FAILED
-  expires_at      DateTime
-  created_at      DateTime @default(now())
+  expires_at      DateTime @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
 }
 
+// retained_fields + deletion_certificate_url are new (§3.2): the FINRA 2210/3110 legal-hold
+// carve-out. A deletion removes rep-owned PII and cascades opt-outs by hash across other reps'
+// copies, while retained_fields preserves what the segregated FINRA archive lawfully keeps; the
+// certificate documents exactly what was retained and why (§3.4, §16.3).
 model UserDataDeletion {
-  id              String   @id @default(uuid())
-  user_id         String
-  status          String   // PENDING, COMPLETED, FAILED
-  anonymized_fields String[]
-  requested_at    DateTime @default(now())
-  completed_at    DateTime?
+  id                       String    @id @default(uuid())
+  user_id                  String
+  status                   String    // PENDING, COMPLETED, FAILED
+  anonymized_fields        String[]
+  retained_fields          String[]  @default([])
+  deletion_certificate_url String?
+  requested_at             DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at             DateTime? @db.Timestamptz(6)
 }
 
-model Contact {
-  id                  String           @id @default(uuid())
-  user_id             String
-  name                String
-  phone               String?
-  email               String?
-  relationship_strength Int             @default(0)
-  source              String           @default("MANUAL")
-  industry            String?
-  notes               String?
-  linked_user_id      String?
-  pipeline_stage      String           @default("DISCOVERY")
-  created_at          DateTime         @default(now())
-  updated_at          DateTime         @updatedAt
-  interactions        ContactInteraction[]
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Agent layer (§4)
+// ═══════════════════════════════════════════════════════════════════════
+
+model AgentDefinition {
+  id                  String   @id @default(uuid())
+  key                 String   @unique // e.g. "prospecting"
+  display_name        String
+  default_model       String   // haiku_4_5 | sonnet_5 | opus_4_8 (Claude-only, §0.3/§4.4)
+  mode                String   // parallel | sequential
+  enabled             Boolean  @default(true)
+  prompt_template_ref  String?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+}
+
+// One execution of an agent job; feeds the Activity Ledger and the per-rep cost model (§4.5).
+model AgentRun {
+  id             String    @id @default(uuid())
+  agent_key      String
+  user_id        String
+  trigger        String
+  model_used     String    // haiku_4_5 | sonnet_5 | opus_4_8
+  input_summary  String?
+  output_ref     String?
+  token_input    Int       @default(0)
+  token_output   Int       @default(0)
+  cost_cents     Int       @default(0)
+  batched        Boolean   @default(false)
+  status         String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED | HELD
+  reasoning_log  String?   // plain-language, rep-visible (§4.1 #5)
+  started_at     DateTime? @db.Timestamptz(6)
+  finished_at    DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, created_at])
+  @@index([agent_key])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Messaging (§5, §10)
+// ═══════════════════════════════════════════════════════════════════════
+
+// An agent- or rep-drafted outbound item awaiting CFE + approval (§5.5, §18.1: any edit after
+// approval must re-enter the CFE before send — enforced at the application layer via
+// edited_after_approval).
+model DraftMessage {
+  id                    String          @id @default(uuid())
+  user_id               String
+  contact_id            String
+  channel               MessageChannel
+  body                  String
+  cfe_outcome           CFEOutcome?
+  cfe_risk_score        Int?
+  cfe_classifier_data   Json?
+  approval_state        String          @default("PENDING") // PENDING | APPROVED | DECLINED | HELD
+  approved_by           String?
+  approved_at           DateTime?       @db.Timestamptz(6)
+  edited_after_approval Boolean         @default(false)
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime        @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
-  @@index([user_id, pipeline_stage])
-}
-
-model ContactInteraction {
-  id          String   @id @default(uuid())
-  contact_id  String
-  type        String   @default("NOTE")
-  notes       String   @default("")
-  created_at  DateTime @default(now())
-  contact     Contact  @relation(fields: [contact_id], references: [id])
-
   @@index([contact_id])
 }
 
-model Organization {
+model MessageThread {
+  id               String          @id @default(uuid())
+  user_id          String
+  contact_id       String
+  channel          MessageChannel
+  state            String          @default("ACTIVE") // ACTIVE | REACTIVATED | CLOSED
+  last_activity_at DateTime        @default(now()) @db.Timestamptz(6)
+  messages         Message[]
+
+  @@index([user_id, contact_id])
+}
+
+model Message {
+  id                 String            @id @default(uuid())
+  thread_id          String
+  thread             MessageThread     @relation(fields: [thread_id], references: [id])
+  direction          MessageDirection
+  source             MessageSource
+  channel            MessageChannel
+  body               String            // encrypted at rest
+  cfe_audit_id       String?           // link to AuditEntry.id
+  sent_from          String?           // rep_number | platform_number | email_domain
+  delivery_status    String            @default("PENDING")
+  handoff_confirmed  Boolean           @default(false) // composer handoff confirmation (§10)
+  created_at         DateTime          @default(now()) @db.Timestamptz(6)
+
+  @@index([thread_id, created_at])
+  @@index([cfe_audit_id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Calendar & appointments (§14)
+// ═══════════════════════════════════════════════════════════════════════
+
+// slot_lock_id carries a unique constraint: this is the schema-level expression of "two agents
+// cannot book the same trainer slot" (§3.4, §18.4) — an atomic confirm is a unique-key insert/
+// update, not an application-level race.
+model Appointment {
+  id                 String    @id @default(uuid())
+  rep_id             String
+  trainer_id         String?
+  contact_id         String
+  proposed_windows   Json?
+  confirmed_start    DateTime? @db.Timestamptz(6)
+  confirmed_end      DateTime? @db.Timestamptz(6)
+  governing_timezone String?   // the contact's timezone governs, per spec
+  status             String    @default("PROPOSED") // PROPOSED|CONFIRMED|RESCHEDULED|DECLINED|HELD|NO_SHOW
+  slot_lock_id       String?   @unique
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([rep_id])
+  @@index([contact_id])
+  @@index([trainer_id])
+}
+
+model CalendarLink {
   id         String   @id @default(uuid())
-  name       String
-  type       OrgType
-  created_at DateTime @default(now())
-  users      User[]
+  user_id    String
+  provider   String   // google | caldav_ios
+  status     String   @default("CONNECTED") // CONNECTED | EXPIRED | REVOKED
+  scope      String?
+  token_ref  String?  // pointer to the secret store — never a token value (§0.4)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
 }
 
-model User {
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Billing & sponsorship (§15)
+// ═══════════════════════════════════════════════════════════════════════
+
+model Subscription {
+  id                     String              @id @default(uuid())
+  user_id                String
+  stripe_subscription_id String?             @unique
+  plan_tier              String              // free | individual | enterprise
+  billing_cycle          String              // monthly | annual
+  status                 SubscriptionStatus
+  current_period_start   DateTime?           @db.Timestamptz(6)
+  current_period_end     DateTime?           @db.Timestamptz(6)
+  org_sponsored          Boolean             @default(false)
+  sponsor_user_id        String?
+  created_at             DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime            @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+// The Downline-Sponsor → member relationship. Drives free-tier provisioning and the lapse
+// cascade (§15).
+model Sponsorship {
+  id                String           @id @default(uuid())
+  sponsor_user_id   String
+  member_user_id    String
+  organization_id   String
+  state             SponsorshipState
+  term_start        DateTime?        @db.Timestamptz(6)
+  term_end          DateTime?        @db.Timestamptz(6)
+  grace_until       DateTime?        @db.Timestamptz(6)
+  created_at        DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime         @updatedAt @db.Timestamptz(6)
+
+  @@index([sponsor_user_id])
+  @@index([member_user_id])
+}
+
+model Invoice {
+  id                String    @id @default(uuid())
+  user_id           String
+  subscription_id   String?
+  stripe_invoice_id String?   @unique
+  amount_cents      Int
+  currency          String    @default("usd")
+  status            String    @default("OPEN") // OPEN | PAID | VOID | UNCOLLECTIBLE
+  issued_at         DateTime? @db.Timestamptz(6)
+  paid_at           DateTime? @db.Timestamptz(6)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+// Stored Stripe payment-method ids only — no PANs ever touch this table (§0.4, §2.5).
+model PaymentMethod {
+  id                        String   @id @default(uuid())
+  user_id                   String
+  stripe_payment_method_id  String   @unique
+  brand                     String?
+  last4                     String?
+  is_default                Boolean  @default(false)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+// Webhook dedup keys and agent-send dispatch dedup keys share this table (§3.4 idempotency rule):
+// every Stripe webhook handler and every agent-send dispatch checks `key` before acting.
+model IdempotencyLog {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  source       String   // e.g. stripe_webhook | agent_dispatch
+  processed_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([source])
+}
+
+// Sponsor → downline revenue-share config (§15).
+model CommissionConfig {
+  id                     String    @id @default(uuid())
+  organization_id        String?
+  sponsor_user_id        String?
+  revenue_share_percent  Float     @default(0)
+  effective_start        DateTime  @default(now()) @db.Timestamptz(6)
+  effective_end          DateTime? @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Org tree & upline invites (§6.6, §13)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Recruiter → recruit edges for the org tree; Rules-of-Building computed fields are maintained by
+// the application layer, not generated columns, so the "what-if" simulator (P2, §1.6) can recompute
+// without a migration.
+model OrgTreeEdge {
+  id                    String   @id @default(uuid())
+  sponsor_id            String
+  recruit_id            String
+  edge_type             String   // upline_sponsor | crossline | downline_rep
+  is_recruit_confirmed  Boolean  @default(false)
+  leg_depth             Int      @default(0)
+  is_leg                Boolean  @default(false)
+  has_own_recruit       Boolean  @default(false)
+  health_index          Json?    // { grow, engage, wealth }
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([sponsor_id, recruit_id])
+  @@index([sponsor_id])
+  @@index([recruit_id])
+}
+
+// The invite state machine (§6.6); resend_count max of 3 is an application-level invariant.
+model UplineInvite {
   id              String    @id @default(uuid())
-  email           String    @unique
-  password_hash   String
-  name            String
-  phone           String?
-  role            Role      @default(REP)
-  org_type        OrgType   @default(EXTERNAL)
-  solution_number String?
-  upline_id       String?
-  upline          User?     @relation("UserUpline", fields: [upline_id], references: [id])
-  downlines       User[]    @relation("UserUpline")
-  access_tier     AccessTier @default(FREE)
-  commitment_score Int      @default(0)
-  organization_id String?
-  organization    Organization? @relation(fields: [organization_id], references: [id])
-  onboarding_sessions OnboardingSession[]
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  sponsor_id      String
+  recipient_email String
+  status          String    @default("SENT") // SENT | PENDING | ACCEPTED | REJECTED | EXPIRED
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  responded_at    DateTime? @db.Timestamptz(6)
+  resend_count    Int       @default(0) // application layer enforces max 3 (§6.6)
+
+  @@index([sponsor_id])
 }
 
-model OnboardingSession {
-  id            String   @id @default(uuid())
-  user_id       String
-  user          User     @relation(fields: [user_id], references: [id])
-  current_step  OnboardingStep @default(REGISTER)
-  seven_whys    Json?
-  goal_card     Json?
-  intensity_data Json?
-  completed     Boolean  @default(false)
-  created_at    DateTime @default(now())
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Gamification (§12)
+// ═══════════════════════════════════════════════════════════════════════
+
+model MomentumEvent {
+  id         String   @id @default(uuid())
+  user_id    String
+  event_type String
+  points     Int
+  law        String   // grow | engage | wealth | cross
+  source_ref String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, created_at])
+}
+
+model Milestone {
+  id                  String   @id @default(uuid())
+  user_id             String
+  milestone_key       String
+  achieved_at         DateTime @default(now()) @db.Timestamptz(6)
+  celebrated          Boolean  @default(false)
+  shareable_asset_ref String?
+
+  @@unique([user_id, milestone_key])
+  @@index([user_id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Opt-out, Seven Whys, warm market, course (§6, §8, §10, §12)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Global, cross-rep opt-out (§10). Queried before every send (§3.4 opt-out precedence): a match on
+// (identifier_hash, channel) hard-blocks the send regardless of any other state. The unique
+// constraint is the schema-level guarantee that there is exactly one authoritative row per
+// identifier+channel to check against.
+model OptOutRegistry {
+  id              String   @id @default(uuid())
+  identifier_hash String   // phone or email hash
+  channel         MessageChannel
+  reason          String   // stop_reply | manual | wrong_person | minor
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([identifier_hash, channel])
+  @@index([identifier_hash])
+}
+
+// The Seven Whys transcript + anchor (§6). The rep's anchor statement and why-photo are the most
+// intimate data in the product; use_in_outreach_consent gates whether the prompt-assembly layer
+// (§4.3) may ever insert them into outbound content — default false, opt-in only.
+model WhySession {
+  id                        String   @id @default(uuid())
+  user_id                   String
+  transcript                Json     // encrypted
+  resonance_score           Int      @default(0) // 0–100
+  anchor_statement          String?  // encrypted
+  why_photo_ref             String?  // encrypted pointer
+  use_in_outreach_consent   Boolean  @default(false)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+// The three-layer method state (§8): Blank Canvas → Qualities Flip → Background Matching.
+model WarmMarketExercise {
+  id                             String   @id @default(uuid())
+  user_id                        String
+  blank_canvas_names             Json?
+  qualities                      Json?
+  background_context             Json?   // per contact
+  highlights                     Json?
+  match_results                  Json?
+  readiness_scores               Json?
+  mode                           String   @default("UNIVERSAL") // universal | primerica
+  blank_canvas_completed         Boolean  @default(false)
+  qualities_completed            Boolean  @default(false)
+  background_matching_completed  Boolean  @default(false)
+  created_at                     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                     DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+// Scaffolds the Phase-2 certification track (§1.6); v1 ships module-progress tracking only.
+model CourseProgress {
+  id           String    @id @default(uuid())
+  user_id      String
+  module_key   String
+  status       String    @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | COMPLETED
+  completed_at DateTime? @db.Timestamptz(6)
+
+  @@unique([user_id, module_key])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Team calendar (§14)
+// ═══════════════════════════════════════════════════════════════════════
+
+model TeamEvent {
+  id              String   @id @default(uuid())
+  organization_id String
+  owner_id        String   // RVP
+  type            String   // opportunity_night | training | team_call | big_event
+  starts_at       DateTime @db.Timestamptz(6)
+  rsvp_enabled    Boolean  @default(true)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  attendance      Attendance[]
+
+  @@index([organization_id])
+  @@index([owner_id])
+}
+
+model Attendance {
+  id         String    @id @default(uuid())
+  event_id   String
+  event      TeamEvent @relation(fields: [event_id], references: [id])
+  user_id    String
+  state      String    // rsvp_yes | rsvp_no | attended | missed
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@unique([event_id, user_id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Quotes (§12)
+// ═══════════════════════════════════════════════════════════════════════
+
+model QuoteLibrary {
+  id           String   @id @default(uuid())
+  text         String
+  attribution  String?
+  org_scope    String   @default("ALL") // all | primerica
+  cfe_cleared  Boolean  @default(false)
+  tags         String[]
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Account security & incident telemetry (§16.4, §16.7)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Append-only; no update path is exposed by design (mirrors AuditEntry's immutability posture).
+model SecurityEvent {
+  id                        String   @id @default(uuid())
+  user_id                   String?  // nullable for platform-level events
+  type                      String   // login_success|login_failure|mfa_challenge|password_reset|session_revoked|rate_limited|suspected_takeover|breach_incident
+  ip_hash                   String?
+  device_fingerprint_hash   String?
+  severity                  String   @default("INFO") // INFO | WARNING | CRITICAL
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, created_at])
+  @@index([type, created_at])
 }

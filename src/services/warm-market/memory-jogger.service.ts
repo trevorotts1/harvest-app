@@ -11,8 +11,8 @@ export class MemoryJoggerService {
 
     if (!contact) return [];
     return [
-      `How is ${contact.name} doing? Did you talk about ${contact.industry || 'work'} lately?`,
-      `Recall the last time you met ${contact.name}. What did you learn?`,
+      `How is ${contact.first_name} doing? Did you talk about ${contact.industry || 'work'} lately?`,
+      `Recall the last time you met ${contact.first_name}. What did you learn?`,
     ];
   }
 

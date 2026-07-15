@@ -96,15 +96,15 @@ describe('Warm Market Engine', () => {
 
     test('should get pipeline contacts by stage', async () => {
       const mockContacts = [
-        { id: 'c1', name: 'Alice', pipeline_stage: PipelineStage.DISCOVERY },
-        { id: 'c2', name: 'Bob', pipeline_stage: PipelineStage.DISCOVERY },
+        { id: 'c1', name: 'Alice', pipeline_stage: PipelineStage.IDENTIFIED },
+        { id: 'c2', name: 'Bob', pipeline_stage: PipelineStage.IDENTIFIED },
       ];
       mockContactFindMany.mockResolvedValue(mockContacts);
 
-      const result = await contactService.getPipelineContacts(userId, PipelineStage.DISCOVERY);
+      const result = await contactService.getPipelineContacts(userId, PipelineStage.IDENTIFIED);
       expect(result).toHaveLength(2);
       expect(mockContactFindMany).toHaveBeenCalledWith({
-        where: { user_id: userId, pipeline_stage: PipelineStage.DISCOVERY },
+        where: { user_id: userId, pipeline_stage: PipelineStage.IDENTIFIED },
       });
     });
 
@@ -142,24 +142,24 @@ describe('Warm Market Engine', () => {
       mockContactUpdate.mockResolvedValue({
         id: 'contact-1',
         name: 'Alice',
-        pipeline_stage: PipelineStage.QUALIFY,
+        pipeline_stage: PipelineStage.INTRODUCED,
       });
 
-      const updated = await pipelineService.moveContact('contact-1', PipelineStage.QUALIFY);
-      expect(updated.pipeline_stage).toBe(PipelineStage.QUALIFY);
+      const updated = await pipelineService.moveContact('contact-1', PipelineStage.INTRODUCED);
+      expect(updated.pipeline_stage).toBe(PipelineStage.INTRODUCED);
     });
 
     test('should return pipeline summary', async () => {
       mockContactFindMany.mockResolvedValue([
-        { id: 'c1', name: 'Alice', pipeline_stage: 'DISCOVERY' },
-        { id: 'c2', name: 'Bob', pipeline_stage: 'DISCOVERY' },
-        { id: 'c3', name: 'Charlie', pipeline_stage: 'NURTURE' },
+        { id: 'c1', name: 'Alice', pipeline_stage: 'IDENTIFIED' },
+        { id: 'c2', name: 'Bob', pipeline_stage: 'IDENTIFIED' },
+        { id: 'c3', name: 'Charlie', pipeline_stage: 'RESPONDED' },
       ]);
 
       const summary = await pipelineService.getPipelineSummary(userId);
-      expect(summary.DISCOVERY).toHaveLength(2);
-      expect(summary.NURTURE).toHaveLength(1);
-      expect(summary.QUALIFY).toHaveLength(0);
+      expect(summary.IDENTIFIED).toHaveLength(2);
+      expect(summary.RESPONDED).toHaveLength(1);
+      expect(summary.INTRODUCED).toHaveLength(0);
     });
   });
 
@@ -173,7 +173,7 @@ describe('Warm Market Engine', () => {
     test('should generate prompts for contact with data', async () => {
       mockContactFindUnique.mockResolvedValue({
         id: 'contact-1',
-        name: 'Sarah',
+        first_name: 'Sarah',
         industry: 'insurance',
         interactions: [{ type: 'CALL', notes: 'Discussed term life options' }],
       });
