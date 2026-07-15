@@ -1,19 +1,51 @@
+/*
+ * Legacy scaffold variable names, now aliased onto the Living Field Design
+ * System RAMP tokens (./tokens.css, imported by layout.tsx before this
+ * file — see T-05). This file's pre-existing rules below are unchanged
+ * (D-1: evolve the seeds, don't rewrite every consumer) and every value
+ * here is pixel-identical to the original scaffold, with one deliberate
+ * exception:
+ *
+ *   --muted used to be the raw #66736b (4.48:1 on --bg — FAILS AA for body
+ *   text, spec §1.2.4). It now resolves to --soil-550, the AA-corrected
+ *   ramp step (5.1:1). Every existing rule using var(--muted) for body
+ *   copy (`.lede`, `.metric span`, `.feature p`, `.panel p`, `th`, …) is
+ *   therefore now AA-compliant — a pure, safe accessibility improvement;
+ *   the color shift is barely perceptible (#66736b -> #5d6a62).
+ *
+ * These aliases intentionally point at fixed RAMP steps, not the
+ * theme-reactive SEMANTIC tokens (--surface-canvas, --text-primary, …)
+ * defined in tokens.css. Ramps are theme-invariant by design (§1.2.1) —
+ * and, practically, this legacy scaffold's rules below pair --ink/--bg
+ * with several hardcoded light (`white`, `rgba(255,255,255,…)`) fills
+ * (`.btn-primary`, `.field input`, `.nav-links a:hover`) that were never
+ * built with a dark counterpart. Wiring --ink/--bg straight to the
+ * auto-switching semantic tokens would silently invert only HALF of
+ * those pairings under `prefers-color-scheme: dark` (e.g. light text on
+ * a light input) — a real regression this build must not introduce.
+ * Real, working light/dark theming lives in the tokens demo surface
+ * (`/design-tokens`, src/app/design-tokens/page.tsx) and any new code,
+ * which consume the semantic tokens directly. Migrating each existing
+ * screen to the semantic tokens (so it participates in theming) is
+ * follow-on work per screen, not part of this token-layer build unit.
+ */
 :root {
-  --bg: #f7f3ea;
-  --bg-deep: #13251d;
-  --panel: #fffaf0;
-  --panel-strong: #ffffff;
-  --ink: #152019;
-  --muted: #66736b;
-  --line: #e5dbc8;
-  --harvest: #c8852c;
-  --harvest-dark: #7a4c1d;
-  --leaf: #2f6b4f;
-  --leaf-soft: #e5efe7;
-  --cream: #fff7e7;
-  --danger: #9a3f32;
+  --bg: var(--soil-100);
+  --bg-deep: var(--grove-950);
+  --panel: var(--soil-50);
+  --panel-strong: var(--soil-0);
+  --ink: var(--soil-900);
+  --muted: var(--soil-550);
+  --line: var(--soil-300);
+  --harvest: var(--harvest-500);
+  --harvest-dark: var(--harvest-700);
+  --leaf: var(--leaf-600);
+  --leaf-soft: var(--leaf-100);
+  --danger: var(--clay-500);
+  /* fixed literal, NOT var(--elevation-3) — that token doubles its alpha
+     in dark theme (§1.5) by design; this legacy alias must stay pinned */
   --shadow: 0 24px 80px rgba(34, 43, 34, 0.12);
-  --radius: 24px;
+  --radius: var(--radius-card);
 }
 
 * { box-sizing: border-box; }
@@ -23,8 +55,8 @@ body {
   color: var(--ink);
   background:
     radial-gradient(circle at top left, rgba(200, 133, 44, 0.18), transparent 32rem),
-    linear-gradient(135deg, #fffaf0 0%, var(--bg) 48%, #ecf2e8 100%);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    linear-gradient(135deg, var(--panel) 0%, var(--bg) 48%, #ecf2e8 100%);
+  font-family: var(--font-operational);
   min-height: 100vh;
 }
 
@@ -144,3 +176,27 @@ tr:last-child td { border-bottom: 0; }
   .nav-links { display: none; }
   .main { padding: 18px; }
 }
+
+/*
+ * New component (T-05) — built directly against the LFDS SEMANTIC tokens,
+ * not the legacy fixed aliases above, so it genuinely themes light/dark.
+ * See src/app/theme-toggle.tsx.
+ */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--type-caption-size);
+  font-family: var(--font-operational);
+  cursor: pointer;
+  transition: transform var(--dur-tick) var(--ease-organic), background var(--dur-grow) var(--ease-organic);
+}
+.theme-toggle:hover { transform: translateY(-1px); }
+.theme-toggle:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }

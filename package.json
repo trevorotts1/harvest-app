@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "verify:contrast": "node scripts/verify-contrast.mjs",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "db:generate": "prisma generate",

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ThemeToggle } from './theme-toggle';
 
 export default function LandingPage() {
   return (
@@ -11,8 +12,10 @@ export default function LandingPage() {
         <div className="nav-links">
           <a href="#method">Method</a>
           <a href="#mission-control">Mission Control</a>
+          <Link href="/design-tokens">Design tokens</Link>
           <Link href="/auth">Start demo</Link>
         </div>
+        <ThemeToggle />
       </nav>
 
       <section className="shell hero">

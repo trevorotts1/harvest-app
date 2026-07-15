@@ -1,0 +1,167 @@
+/*
+ * Styles for the LFDS token reference page (T-05). Scoped via CSS
+ * Modules so it cannot leak into or be affected by the legacy scaffold
+ * rules in ../globals.css — but it reads the same global custom
+ * properties (custom properties are not module-scoped), so this page is
+ * a real, live consumer of the token layer, not a static mockup.
+ */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  transition: background-color var(--dur-grow) var(--ease-organic), color var(--dur-grow) var(--ease-organic);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+@media (min-width: 860px) {
+  .page { padding: var(--space-7) var(--gutter-desktop) var(--space-8); }
+}
+
+.shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-7);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.eyebrow {
+  color: var(--color-harvest-text);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--type-caption-size);
+  margin: 0 0 var(--space-2);
+}
+
+.title {
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0 0 var(--space-2);
+}
+
+.lede {
+  color: var(--text-secondary);
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+  max-width: 62ch;
+  margin: 0;
+}
+
+.section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  letter-spacing: var(--type-title-tracking);
+  margin: 0;
+}
+
+.sectionNote {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  margin: 0;
+  max-width: 72ch;
+}
+
+/* ---- ramps ---- */
+.rampGroup { display: grid; gap: var(--space-2); }
+.rampName { font-weight: 700; font-size: var(--type-caption-size); text-transform: uppercase; letter-spacing: 0.08em; }
+.rampRow { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.swatch {
+  display: grid;
+  gap: var(--space-1);
+  width: 96px;
+}
+.swatchFill {
+  height: 56px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+}
+.swatchLabel {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* ---- semantic pairs ---- */
+.pairGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+.pairCard {
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--line);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  box-shadow: var(--elevation-1);
+}
+.pairSample {
+  font-weight: 700;
+  font-size: var(--type-body-lg-size);
+}
+.pairMeta {
+  font-size: var(--type-caption-size);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+/* ---- type scale ---- */
+.typeRow { display: grid; gap: var(--space-1); border-bottom: 1px solid var(--line); padding-bottom: var(--space-3); }
+.typeRow:last-child { border-bottom: 0; }
+.typeMeta { font-size: var(--type-caption-size); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* ---- spacing ---- */
+.spaceRow { display: flex; align-items: center; gap: var(--space-3); }
+.spaceBar { height: 16px; background: var(--color-action); border-radius: var(--radius-control); }
+.spaceMeta { font-size: var(--type-caption-size); color: var(--text-secondary); font-variant-numeric: tabular-nums; width: 120px; }
+
+/* ---- elevation ---- */
+.elevationGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-5); }
+.elevationCard {
+  height: 96px;
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: var(--type-caption-size);
+}
+
+/* ---- motion ---- */
+.motionRow { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.motionCard {
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  transform-origin: bottom center;
+  animation: unfurl var(--dur-grow) var(--ease-organic);
+}
+
+@keyframes unfurl {
+  from { transform: scale(var(--enter-scale-from)); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionCard { animation-duration: 1ms; }
+  .page { transition: none; }
+}
