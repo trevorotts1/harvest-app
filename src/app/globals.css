@@ -1,19 +1,51 @@
+/*
+ * Legacy scaffold variable names, now aliased onto the Living Field Design
+ * System RAMP tokens (./tokens.css, imported by layout.tsx before this
+ * file — see T-05). This file's pre-existing rules below are unchanged
+ * (D-1: evolve the seeds, don't rewrite every consumer) and every value
+ * here is pixel-identical to the original scaffold, with one deliberate
+ * exception:
+ *
+ *   --muted used to be the raw #66736b (4.48:1 on --bg — FAILS AA for body
+ *   text, spec §1.2.4). It now resolves to --soil-550, the AA-corrected
+ *   ramp step (5.1:1). Every existing rule using var(--muted) for body
+ *   copy (`.lede`, `.metric span`, `.feature p`, `.panel p`, `th`, …) is
+ *   therefore now AA-compliant — a pure, safe accessibility improvement;
+ *   the color shift is barely perceptible (#66736b -> #5d6a62).
+ *
+ * These aliases intentionally point at fixed RAMP steps, not the
+ * theme-reactive SEMANTIC tokens (--surface-canvas, --text-primary, …)
+ * defined in tokens.css. Ramps are theme-invariant by design (§1.2.1) —
+ * and, practically, this legacy scaffold's rules below pair --ink/--bg
+ * with several hardcoded light (`white`, `rgba(255,255,255,…)`) fills
+ * (`.btn-primary`, `.field input`, `.nav-links a:hover`) that were never
+ * built with a dark counterpart. Wiring --ink/--bg straight to the
+ * auto-switching semantic tokens would silently invert only HALF of
+ * those pairings under `prefers-color-scheme: dark` (e.g. light text on
+ * a light input) — a real regression this build must not introduce.
+ * Real, working light/dark theming lives in the tokens demo surface
+ * (`/design-tokens`, src/app/design-tokens/page.tsx) and any new code,
+ * which consume the semantic tokens directly. Migrating each existing
+ * screen to the semantic tokens (so it participates in theming) is
+ * follow-on work per screen, not part of this token-layer build unit.
+ */
 :root {
-  --bg: #f7f3ea;
-  --bg-deep: #13251d;
-  --panel: #fffaf0;
-  --panel-strong: #ffffff;
-  --ink: #152019;
-  --muted: #66736b;
-  --line: #e5dbc8;
-  --harvest: #c8852c;
-  --harvest-dark: #7a4c1d;
-  --leaf: #2f6b4f;
-  --leaf-soft: #e5efe7;
-  --cream: #fff7e7;
-  --danger: #9a3f32;
+  --bg: var(--soil-100);
+  --bg-deep: var(--grove-950);
+  --panel: var(--soil-50);
+  --panel-strong: var(--soil-0);
+  --ink: var(--soil-900);
+  --muted: var(--soil-550);
+  --line: var(--soil-300);
+  --harvest: var(--harvest-500);
+  --harvest-dark: var(--harvest-700);
+  --leaf: var(--leaf-600);
+  --leaf-soft: var(--leaf-100);
+  --danger: var(--clay-500);
+  /* fixed literal, NOT var(--elevation-3) — that token doubles its alpha
+     in dark theme (§1.5) by design; this legacy alias must stay pinned */
   --shadow: 0 24px 80px rgba(34, 43, 34, 0.12);
-  --radius: 24px;
+  --radius: var(--radius-card);
 }
 
 * { box-sizing: border-box; }
@@ -23,8 +55,8 @@ body {
   color: var(--ink);
   background:
     radial-gradient(circle at top left, rgba(200, 133, 44, 0.18), transparent 32rem),
-    linear-gradient(135deg, #fffaf0 0%, var(--bg) 48%, #ecf2e8 100%);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    linear-gradient(135deg, var(--panel) 0%, var(--bg) 48%, #ecf2e8 100%);
+  font-family: var(--font-operational);
   min-height: 100vh;
 }
 
@@ -75,6 +107,47 @@ h3 { margin: 0 0 8px; letter-spacing: -0.025em; }
   color: white; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; position: relative;
 }
 .score-ring:after { content: ""; position: absolute; width: 260px; height: 260px; border-radius: 50%; border: 42px solid rgba(255,255,255,0.12); right: -80px; top: -70px; }
+/* T-05 QC fix: the stat row sits at the bottom of the card, which is the
+   --harvest-500 end of the gradient above (160deg travels from the dark
+   greens toward amber). White text measured as low as ~3.07:1 against
+   that #c8852c end — below the 4.5:1 AA target for normal text (16px
+   bold does not qualify as "large text"; 14pt bold ≈ 18.66px is the
+   floor). Flat dark ink isn't a fix either: it measures ~1.2–1.8:1
+   against the gradient's dark-green start, so no single flat text color
+   is AA-safe against every point of this gradient. Instead, give each
+   stat a fully OPAQUE backing surface (--grove-950) so its effective
+   background is that solid color regardless of what the gradient is
+   doing underneath — white text on opaque --grove-950 is ~15.6:1,
+   independent of card height, viewport, or any future gradient edit.
+   Do not make this background translucent — see design-tokens.module.css
+   .pairMeta for why compositing text/surfaces via alpha is the recurring
+   failure mode this fix is closing. */
+.score-ring .grid-3 { gap: 10px; }
+.score-ring .score-stat { background: var(--grove-950); border-radius: 14px; padding: 10px 12px; }
+/* T-05 QC fix (3rd recurrence of this exact defect class — see the
+   .score-stat comment above for the first instance): the supporting
+   paragraph under the headline used to be
+   `<p style={{ color: 'rgba(255,255,255,0.78)' }}>` sitting directly on
+   the raw gradient. Measured render (Playwright + real composited pixel
+   sampling, scripts/verify-rendered-contrast.mjs) showed this passes at
+   narrow/mobile widths (~5.0:1, card is short and the text never reaches
+   the amber end) but FAILS at wide/desktop widths (~4.27:1 at 1440px,
+   worse at wider still) once the card's aspect ratio pushes the second
+   text line further down the 160deg gradient toward #c8852c. That
+   viewport-dependence is exactly why per-breakpoint spot-checking missed
+   it twice before: a fix that "looks fine" in one browser width is not
+   evidence it holds at another. Per the .score-stat precedent, the only
+   viewport-independent fix is the same one: a fully OPAQUE backing
+   surface (--grove-950) instead of any translucent or flat color sitting
+   directly on the gradient. This card's OTHER two text nodes do not need
+   this treatment and are intentionally left alone: the "Mission Control
+   preview" badge already paints its own opaque --leaf-100 fill (`.badge`,
+   above) before the gradient is ever visible, and the "Today's harvest
+   score: 82" heading is large text (>=32px bold, thresholds at 3:1, not
+   4.5:1) which the render check confirms clears >=7:1 at every sampled
+   point of the gradient at every viewport checked — both were verified
+   by the same render check, not assumed. */
+.score-ring .score-copy { background: var(--grove-950); border-radius: 14px; padding: 12px 14px; margin: 14px 0 0; color: white; line-height: 1.6; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
 .metric { padding: 16px; background: rgba(255,255,255,0.68); border: 1px solid var(--line); border-radius: 18px; }
 .metric strong { display: block; font-size: 1.8rem; letter-spacing: -0.05em; }
@@ -144,3 +217,27 @@ tr:last-child td { border-bottom: 0; }
   .nav-links { display: none; }
   .main { padding: 18px; }
 }
+
+/*
+ * New component (T-05) — built directly against the LFDS SEMANTIC tokens,
+ * not the legacy fixed aliases above, so it genuinely themes light/dark.
+ * See src/app/theme-toggle.tsx.
+ */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--type-caption-size);
+  font-family: var(--font-operational);
+  cursor: pointer;
+  transition: transform var(--dur-tick) var(--ease-organic), background var(--dur-grow) var(--ease-organic);
+}
+.theme-toggle:hover { transform: translateY(-1px); }
+.theme-toggle:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ThemeToggle } from './theme-toggle';
 
 export default function LandingPage() {
   return (
@@ -11,8 +12,10 @@ export default function LandingPage() {
         <div className="nav-links">
           <a href="#method">Method</a>
           <a href="#mission-control">Mission Control</a>
+          <Link href="/design-tokens">Design tokens</Link>
           <Link href="/auth">Start demo</Link>
         </div>
+        <ThemeToggle />
       </nav>
 
       <section className="shell hero">
@@ -39,14 +42,14 @@ export default function LandingPage() {
             <div>
               <span className="badge">Mission Control preview</span>
               <h2 style={{ marginTop: 22 }}>Today’s harvest score: 82</h2>
-              <p style={{ color: 'rgba(255,255,255,0.78)', lineHeight: 1.6 }}>
+              <p className="score-copy">
                 Three high-trust contacts, two nurture moments, one appointment window. Nothing noisy.
               </p>
             </div>
             <div className="grid-3">
-              <div><strong>7</strong><br /><span>Queued actions</span></div>
-              <div><strong>4</strong><br /><span>Warm contacts</span></div>
-              <div><strong>1</strong><br /><span>Needs approval</span></div>
+              <div className="score-stat"><strong>7</strong><br /><span>Queued actions</span></div>
+              <div className="score-stat"><strong>4</strong><br /><span>Warm contacts</span></div>
+              <div className="score-stat"><strong>1</strong><br /><span>Needs approval</span></div>
             </div>
           </div>
         </div>
