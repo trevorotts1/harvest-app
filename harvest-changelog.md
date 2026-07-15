@@ -1,3 +1,10 @@
+## [2.0.0-build.T13] — BUILD PHASE — 2026-07-16
+### T-13 — State insurance licensing state machine (WP11, QC earned 9.2/10)
+- FSM: UNLICENSED → PRE_LICENSING → LICENSED → LICENSE_EXPIRED (+ RENEW_LICENSE loop), guarded transitions reject illegal jumps with no state mutation or audit emission.
+- Fail-closed capability gate: canPerformLicensedActivity/isLicensed true only for LICENSED; missing record or empty jurisdiction set = UNLICENSED (never inferred licensed). Content-gate levels per §16.5.
+- Per-US-state jurisdiction; strictest state governs a multi-state rep; feeds CFE UserContext.licensed_states (WP01/WP03/WP08 consume the gate).
+- Additive schema: LicensingRecord + LicensingStateEvent (+ migration). Audit sink for T-10. 34 new tests (151 total).
+
 ## [2.0.0-build.T05] — BUILD PHASE — 2026-07-15
 ### T-05 — Living Field design-system token layer (QC earned 9.8/10, 4 QC loops)
 _Note: merged after T-06 due to four QC iterations (each caught a real, progressively subtler WCAG failure: opacity-on-text, viewport-dependent gradient text, dark-theme token composition). The branch was brought current with main (T-04+T-06) before merge._
