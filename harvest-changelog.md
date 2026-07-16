@@ -1,3 +1,11 @@
+## [2.0.0-build.T08] — BUILD PHASE — 2026-07-16
+### T-08 — Compliance Filter Engine core, fail-closed (WP11 critical path, QC earned 9.1/10, 1 QC loop)
+- 5 Haiku-4.5 classifiers (Income/Testimonial/Opportunity/Insurance/Referral) + vocabulary classifier (§0.5 forbidden terms force BLOCKED), DI-mockable (tests run with no API key).
+- §5.4 risk banding (weights + regulation multipliers + thresholds verbatim from spec); removed a non-spec score-inflation hack.
+- FAIL-CLOSED short-circuit: the ONLY release path is band=clear & not held; any classifier error/timeout/missing-credential/unavailable → held ("held for review"), zero send, HTTP 503 — no approve-on-error path (mutation-proven: flipping to fail-open breaks 6 tests).
+- §5.5 licensing-phase hard-block: unlicensed / licensing-phase rep + ANY insurance-recommendation signal → blocked regardless of score (keyed on signal, not mere unlicensed status, so clean content is not over-blocked).
+- Claude-only: missing ANTHROPIC_API_KEY throws with no network call and no fallback; out-of-[0,1] classifier confidence throws → held. evaluateContent() gate + backward-compat review() shim for WP04/05. Audit events emitted for T-10. 178 tests.
+
 ## [2.0.0-build.T13] — BUILD PHASE — 2026-07-16
 ### T-13 — State insurance licensing state machine (WP11, QC earned 9.2/10)
 - FSM: UNLICENSED → PRE_LICENSING → LICENSED → LICENSE_EXPIRED (+ RENEW_LICENSE loop), guarded transitions reject illegal jumps with no state mutation or audit emission.
