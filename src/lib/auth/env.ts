@@ -46,3 +46,27 @@ export function assertAuthSecretConfigured(): void {
   console.error(message);
   throw new Error(message);
 }
+
+/**
+ * Name of the server-side key used to encrypt TOTP secrets at rest on `User.mfa_methods` (T-12,
+ * §16.4 "MFA secret never plaintext"). Read by name only (§0.4) — never logged or returned.
+ */
+export const MFA_ENCRYPTION_KEY_ENV_VAR = 'MFA_ENCRYPTION_KEY';
+
+/**
+ * Fail-closed accessor for the MFA-secret encryption key, mirroring the same posture as
+ * `hmacForMatch`'s `CONTACT_HASH_PEPPER` guard (src/services/compliance/encryption/encryption.ts):
+ * if the key is unset, this throws rather than silently falling back to storing a TOTP secret in
+ * plaintext. Must be a base64-encoded 32-byte (AES-256) key — generate with `openssl rand -base64
+ * 32`. See `tests/jest.setup.ts` for the deterministic test-only key this suite runs against.
+ */
+export function getMfaEncryptionKey(): string {
+  const key = process.env[MFA_ENCRYPTION_KEY_ENV_VAR];
+  if (!key) {
+    throw new Error(
+      `${MFA_ENCRYPTION_KEY_ENV_VAR} is not set — refusing to store an MFA/TOTP secret without ` +
+        'application-layer encryption at rest (§16.4). Generate with: openssl rand -base64 32.'
+    );
+  }
+  return key;
+}

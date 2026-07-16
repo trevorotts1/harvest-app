@@ -23,11 +23,23 @@ declare module 'next-auth' {
       /** `User.mfa_enrolled` (§3.2) — whether the account has any second factor enrolled. */
       mfaEnrolled: boolean;
       /**
-       * MFA-capable session hook point (§16.4, T-12): null until a step-up challenge clears this
-       * session. Always null in T-04 — no TOTP/passkey/SMS verification flow exists yet. See
-       * src/lib/auth/mfa.ts.
+       * MFA step-up state (§16.4, T-12): ISO timestamp of the last cleared step-up challenge, or
+       * null if none has cleared yet this session. Checked against
+       * `session-security.ts`'s `STEP_UP_REVALIDATION_WINDOW_MS` by `requireStepUp` (mfa.ts).
        */
       mfaVerifiedAt: string | null;
+      /**
+       * Session-hijack binding (§16.4/§18.10, T-12): the device-fingerprint hash captured at
+       * sign-in (`computeDeviceFingerprint`, session-security.ts) and the `User.security_version`
+       * snapshot taken at the same time. `withSessionSecurity` (with-role.ts) recomputes the
+       * current fingerprint and re-reads the live `security_version` on each check and compares.
+       */
+      deviceFingerprintHash: string;
+      securityVersionAtIssue: number;
+      /** Sign-in time (ms epoch), immutable for the JWT's life — the absolute-expiry input and the
+       *  activity-bucket key (`session-security.ts` `sessionActivityKey`). Idle-timeout's
+       *  "last activity" is tracked externally (`SessionActivityStore`), not in the token. */
+      boundAt: number;
     } & DefaultSession['user'];
   }
 
@@ -37,6 +49,8 @@ declare module 'next-auth' {
     organizationId: string | null;
     accessTier: AccessTier;
     mfaEnrolled: boolean;
+    deviceFingerprintHash: string;
+    securityVersionAtIssue: number;
   }
 }
 
@@ -48,5 +62,8 @@ declare module 'next-auth/jwt' {
     accessTier: AccessTier;
     mfaEnrolled: boolean;
     mfaVerifiedAt: string | null;
+    deviceFingerprintHash: string;
+    securityVersionAtIssue: number;
+    boundAt: number;
   }
 }

@@ -3,6 +3,7 @@ import { OrgType } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
+import { getBreachedPasswordChecker } from '@/services/security/credential-stuffing';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -34,6 +35,17 @@ export async function POST(request: NextRequest) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
+    }
+
+    // §18.10 "set/reset screens screen against known-breached passwords" — registration is the
+    // "set" screen this bullet names (password-reset's confirm step is the "reset" screen; see
+    // src/app/api/auth/password-reset/confirm/route.ts).
+    const isBreached = await getBreachedPasswordChecker().isBreached(password);
+    if (isBreached) {
+      return NextResponse.json(
+        { error: 'That password appears in known data breaches. Please choose a different one.' },
+        { status: 400 }
+      );
     }
 
     const resolvedOrgType: OrgType = orgType === 'PRIMERICA' ? OrgType.PRIMERICA : OrgType.EXTERNAL;

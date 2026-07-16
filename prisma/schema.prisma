@@ -190,6 +190,20 @@ model User {
   onboarding_status     OnboardingStatus  @default(IN_PROGRESS)
   mfa_enrolled          Boolean           @default(false)
   mfa_methods           Json?
+  // T-12 (§16.4 session security): bumped on "sign out everywhere" and on a privilege/role
+  // rotation event. Snapshotted into the JWT at sign-in (`securityVersionAtIssue`); a session
+  // whose snapshot no longer matches the live value here is treated as revoked (src/lib/auth/
+  // session-security.ts `evaluateSessionSecurity`), which is how a stateless JWT session supports
+  // server-side revocation without a live session-token table.
+  security_version      Int               @default(0)
+  // T-12 CRITICAL fix (§16.4 step-up MFA): a short-lived, SINGLE-USE server proof that a real
+  // TOTP/recovery challenge just succeeded. POST /api/auth/mfa/step-up stamps this (server clock)
+  // ONLY after `verifyMfaCode` passes; the jwt `update` callback (src/lib/auth/options.ts) is the
+  // sole reader — it consumes (clears) this and stamps the session's `mfaVerifiedAt` from it, so a
+  // client `useSession().update()` payload can no longer self-certify step-up freshness (the
+  // freshness signal now originates only from a server-verified challenge). Null when no
+  // unconsumed proof is outstanding, which is the normal resting state.
+  mfa_stepped_up_at     DateTime?         @db.Timestamptz(6)
   organization_id       String?
   organization          Organization?     @relation(fields: [organization_id], references: [id])
   onboarding_sessions   OnboardingSession[]

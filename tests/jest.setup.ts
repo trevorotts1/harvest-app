@@ -4,3 +4,12 @@
 // is unset, so this must be present before any test that imports contact.service.ts runs.
 process.env.CONTACT_HASH_PEPPER =
   process.env.CONTACT_HASH_PEPPER || 'test-only-dummy-pepper-do-not-use-in-prod';
+
+// Test-only AES-256 key (T-12) — a fixed, committed, non-production literal so the suite has a
+// deterministic 32-byte base64 key to encrypt/decrypt TOTP secrets against. getMfaEncryptionKey()
+// (src/lib/auth/env.ts) fails closed (throws) if MFA_ENCRYPTION_KEY is unset, so this must be
+// present before any test that enrolls/verifies MFA runs. Generated once via
+// `openssl rand -base64 32`-equivalent (node crypto.randomBytes(32).toString('base64')) — it is
+// not a real secret and grants no access to anything; it only needs to be a valid-length key.
+process.env.MFA_ENCRYPTION_KEY =
+  process.env.MFA_ENCRYPTION_KEY || 'FBNitMs5Dih2gQFcdEl7aNbttiyOLAH1yODMjwFXlSw=';

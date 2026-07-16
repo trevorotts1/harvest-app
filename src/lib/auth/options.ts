@@ -4,6 +4,23 @@ import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 import { prisma } from '@/lib/prisma';
+import { hmacForMatch } from '@/services/compliance/encryption/encryption';
+import {
+  getLoginHistoryStore,
+  scoreLoginAttempt,
+} from '@/services/security/credential-stuffing';
+import { getLoginRateLimiter } from '@/services/security/rate-limiter';
+import { emitSecurityEvent } from '@/services/security/security-event';
+
+import {
+  ABSOLUTE_SESSION_LIFETIME_MS,
+  computeDeviceFingerprint,
+  extractClientIp,
+  extractHeader,
+  hashIp,
+  type HeaderSource,
+} from './session-security';
+import { consumeStepUpProof } from './step-up-proof';
 
 /**
  * Fixed dummy bcrypt hash (cost 12, matching `BCRYPT_ROUNDS` in
@@ -17,7 +34,9 @@ import { prisma } from '@/lib/prisma';
 const DUMMY_PASSWORD_HASH = '$2b$12$MEVZM7ykDz6jQqYFKMsBAOKe7pkfl/di9K.DgFws3GBt/jllkVou.';
 
 /**
- * Auth.js (NextAuth v4.24, D-2 operator-confirmed) configuration — T-04 scaffold.
+ * Auth.js (NextAuth v4.24, D-2 operator-confirmed) configuration — T-04 scaffold, completed by
+ * T-12 (master-spec §16.4/§18.10: rate limiting, credential-stuffing defense, session-hijack
+ * binding, MFA state carried on the session).
  *
  * Provider choice: `next-auth@4.24.x` (the `latest` dist-tag) rather than the `next-auth@5.x` /
  * `@auth/core` rewrite, which is still in beta (5.0.0-beta.31 at build time) — "choose a
@@ -44,10 +63,16 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: 'jwt',
-    // §16.4 "idle timeout (30 min) and absolute session lifetime" — this scaffold enforces a flat
-    // 30-minute JWT lifetime as a stand-in for that pair; T-12/T-15 split it into true idle-vs-
-    // absolute tracking plus the rotating-refresh-token mechanics §16.4 also calls for.
-    maxAge: 30 * 60,
+    // §16.4 "idle timeout (30 min) and absolute session lifetime" — T-04 enforced a flat
+    // 30-minute JWT lifetime as a stand-in for that pair; T-12 splits it for real: the JWT's own
+    // hard ceiling is now the ABSOLUTE lifetime (defense in depth even if every app-level check
+    // below were bypassed), while the 30-minute IDLE timeout is enforced separately, at the API
+    // layer, against `SessionActivityStore` (session-security.ts `evaluateSessionSecurity`,
+    // `with-role.ts` `withSessionSecurity`) — NextAuth's own JWT expiry can't express two
+    // different timeouts, and re-stamping "now" into the token on every silent decode (which is
+    // all NextAuth's `jwt` callback can see) would make an idle timeout unreachable if it lived
+    // in the token itself.
+    maxAge: ABSOLUTE_SESSION_LIFETIME_MS / 1000,
   },
 
   // Auth.js v4 reads `NEXTAUTH_SECRET` by default; `AUTH_SECRET` is accepted too (the v5/Auth.js-
@@ -66,8 +91,45 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        const headers = req?.headers as HeaderSource;
+        const ip = extractClientIp(headers);
+        const ipHash = hashIp(ip);
+        const fingerprintHash = computeDeviceFingerprint({
+          userAgent: extractHeader(headers, 'user-agent'),
+          ip,
+          acceptLanguage: extractHeader(headers, 'accept-language'),
+        });
+
+        // §16.4 "per-IP and per-account rate limits on auth endpoints (login...)". Keyed by the
+        // *submitted* email (hashed, never plaintext-logged) rather than "does this account
+        // exist" so a non-existent email gets rate-limited identically to a real one — otherwise
+        // a distinguishable lockout-vs-not response would itself be an enumeration side-channel
+        // (§16.4 "never reveal whether an email exists"). Checked, and FAILS CLOSED, before any
+        // DB lookup or password compare.
+        const loginRateLimiter = getLoginRateLimiter();
+        const emailKey = `login:account:${hmacForMatch(credentials.email.toLowerCase())}`;
+        const ipKey = `login:ip:${ipHash}`;
+        const [accountLimit, ipLimit] = await Promise.all([
+          loginRateLimiter.check(emailKey),
+          loginRateLimiter.check(ipKey),
+        ]);
+
+        if (!accountLimit.allowed || !ipLimit.allowed) {
+          await emitSecurityEvent({
+            type: 'rate_limited',
+            ipHash,
+            deviceFingerprintHash: fingerprintHash,
+            severity: 'WARNING',
+          });
+          // Same generic null return as every other failure branch below — NextAuth's
+          // CredentialsProvider funnels every authorize() failure (null or thrown) into the same
+          // opaque "CredentialsSignin" client error regardless of cause, which is what makes the
+          // non-enumerating posture hold across rate-limited / wrong-password / no-such-user.
+          return null;
+        }
 
         const user = await prisma.user.findUnique({ where: { email: credentials.email } });
 
@@ -78,18 +140,87 @@ export const authOptions: NextAuthOptions = {
         // exists (§16.4 "never reveal whether an email exists").
         if (!user) {
           await bcrypt.compare(credentials.password, DUMMY_PASSWORD_HASH);
+          await emitSecurityEvent({
+            type: 'login_failure',
+            ipHash,
+            deviceFingerprintHash: fingerprintHash,
+          });
+          // Timing equalization (§16.4 "never reveal whether an email exists"): the wrong-password
+          // branch below does an extra `LoginHistoryStore.record` the dummy bcrypt.compare above
+          // doesn't account for — so the "no such user" path must pay the same write, or the delta
+          // between the two failure branches becomes an enumeration side-channel. Keyed by a stable
+          // hashed sentinel (`no-such-user:<hmac(email)>`, never a real UUID user id, never a
+          // plaintext email) so it equalizes cost without colliding with any real user's history —
+          // and, as a bonus, still tracks velocity of probing against non-existent accounts.
+          await getLoginHistoryStore().record(`no-such-user:${hmacForMatch(credentials.email.toLowerCase())}`, {
+            deviceFingerprintHash: fingerprintHash,
+            ipHash,
+            at: Date.now(),
+            outcome: 'failure',
+          });
           return null;
         }
-        const passwordValid = await bcrypt.compare(credentials.password, user.password_hash);
-        if (!passwordValid) return null;
 
-        // HOOK POINT (T-12, §16.4): MFA is required for UPLINE/RVP/ADMIN/DUAL and offered to REP
-        // (src/lib/auth/mfa.ts `isMfaRequiredForRole`). Once T-12 implements the real TOTP/
-        // passkey/SMS-fallback challenge, this is where a password-valid-but-not-yet-stepped-up
-        // sign-in gets redirected into that challenge instead of completing here — e.g. by
-        // returning a sentinel user shape the `jwt` callback below recognizes as "pending step-up"
-        // until the second factor clears. Not implemented in T-04; `authorize()` always completes
-        // sign-in on a valid password today, same as before this unit.
+        const passwordValid = await bcrypt.compare(credentials.password, user.password_hash);
+        if (!passwordValid) {
+          await emitSecurityEvent({
+            userId: user.id,
+            type: 'login_failure',
+            ipHash,
+            deviceFingerprintHash: fingerprintHash,
+          });
+          await getLoginHistoryStore().record(user.id, {
+            deviceFingerprintHash: fingerprintHash,
+            ipHash,
+            at: Date.now(),
+            outcome: 'failure',
+          });
+          return null;
+        }
+
+        // Credentials valid past this point — clear the failure counters (a legitimate sign-in
+        // resets progressive backoff) and score the login for credential-stuffing / takeover
+        // anomaly signals (§16.4 "anomaly scoring on login (new device/geo/velocity...)").
+        await Promise.all([loginRateLimiter.reset(emailKey), loginRateLimiter.reset(ipKey)]);
+
+        const anomaly = await scoreLoginAttempt({
+          userId: user.id,
+          deviceFingerprintHash: fingerprintHash,
+          ipHash,
+        });
+        await getLoginHistoryStore().record(user.id, {
+          deviceFingerprintHash: fingerprintHash,
+          ipHash,
+          at: Date.now(),
+          outcome: 'success',
+        });
+
+        await emitSecurityEvent({
+          userId: user.id,
+          type: 'login_success',
+          ipHash,
+          deviceFingerprintHash: fingerprintHash,
+          severity: anomaly.requiresChallenge ? 'WARNING' : 'INFO',
+        });
+
+        if (anomaly.requiresChallenge) {
+          // §16.4/§18.10 "anomalous logins (new device/geo/velocity) trigger step-up MFA or a
+          // challenge" + "a suspected-takeover event escalates to the incident-response lifecycle
+          // (§16.7)". This build has no separate pre-session challenge screen to redirect through
+          // (no CAPTCHA/challenge UI exists yet in this backend-only unit), so an anomalous-but-
+          // password-valid login still completes rather than dead-ending the user with no
+          // recovery surface; the safety net is that `mfaVerifiedAt` starts null on every fresh
+          // session regardless (jwt callback below), so any §16.4 sensitive action still demands
+          // a fresh step-up (src/lib/auth/mfa.ts `requireStepUp`). The `SecurityEvent` below is
+          // what feeds T-15's incident-response triage for this signal.
+          await emitSecurityEvent({
+            userId: user.id,
+            type: 'suspected_takeover',
+            ipHash,
+            deviceFingerprintHash: fingerprintHash,
+            severity: 'WARNING',
+          });
+        }
 
         return {
           id: user.id,
@@ -100,13 +231,15 @@ export const authOptions: NextAuthOptions = {
           organizationId: user.organization_id,
           accessTier: user.access_tier,
           mfaEnrolled: user.mfa_enrolled,
+          deviceFingerprintHash: fingerprintHash,
+          securityVersionAtIssue: user.security_version,
         };
       },
     }),
   ],
 
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       // `user` is only defined on the initial sign-in call; subsequent calls just carry `token`
       // forward, so the five-role/org context set here persists for the life of the JWT.
       if (user) {
@@ -115,10 +248,36 @@ export const authOptions: NextAuthOptions = {
         token.organizationId = user.organizationId;
         token.accessTier = user.accessTier;
         token.mfaEnrolled = user.mfaEnrolled;
-        // HOOK POINT (T-12): initialize as null on every fresh sign-in. T-12 sets this once a
-        // step-up challenge clears for this session, and re-nulls it on re-authentication or a
-        // detected anomaly (§16.4 "anomaly scoring on login ... step-up MFA or challenge").
+        // Re-nulled on every fresh sign-in (§16.4 "anomaly scoring on login ... step-up MFA or
+        // challenge") — a brand-new session never inherits a previous session's cleared step-up.
         token.mfaVerifiedAt = null;
+        // Session-hijack binding (§16.4/§18.10, T-12): fixed at sign-in, never mutated again for
+        // this token's life — `withSessionSecurity` (with-role.ts) compares these against a
+        // freshly computed fingerprint / freshly read `security_version` on each check.
+        token.deviceFingerprintHash = user.deviceFingerprintHash;
+        token.securityVersionAtIssue = user.securityVersionAtIssue;
+        token.boundAt = Date.now();
+      } else if (trigger === 'update' && session) {
+        // T-12 CRITICAL FIX (§16.4). A client-driven `useSession().update({ mfaVerifiedAt })` used
+        // to write its OWN timestamp straight into the token here — which let any authenticated (or
+        // stolen) session self-certify a fresh step-up for a §16.4 sensitive action
+        // (billing/export/delete/RBAC/org-switch) WITHOUT ever entering a TOTP/recovery code. The
+        // client payload (`session.mfaVerifiedAt`) is now DELIBERATELY IGNORED as a freshness
+        // source. The ONLY thing that can promote this session to "freshly stepped up" is a
+        // server-side, single-use proof (`User.mfa_stepped_up_at`) that POST /api/auth/mfa/step-up
+        // wrote after it verified a real code. `consumeStepUpProof` reads that proof, atomically
+        // clears it (single-use — a replay or a second session can't consume it twice), and returns
+        // the SERVER-clock timestamp only if it is still fresh. No valid unconsumed proof →
+        // `mfaVerifiedAt` is left untouched (stays null on a fresh session), so `requireStepUp`
+        // (mfa.ts) still throws. `mfaVerifiedAt` remains the ONLY step-up field an update touches —
+        // role/org/security-version/fingerprint are never client-settable.
+        const userId = typeof token.sub === 'string' ? token.sub : null;
+        if (userId) {
+          const serverProof = await consumeStepUpProof(userId);
+          if (serverProof) {
+            token.mfaVerifiedAt = serverProof;
+          }
+        }
       }
       return token;
     },
@@ -132,6 +291,9 @@ export const authOptions: NextAuthOptions = {
         session.user.accessTier = token.accessTier;
         session.user.mfaEnrolled = token.mfaEnrolled;
         session.user.mfaVerifiedAt = token.mfaVerifiedAt;
+        session.user.deviceFingerprintHash = token.deviceFingerprintHash;
+        session.user.securityVersionAtIssue = token.securityVersionAtIssue;
+        session.user.boundAt = token.boundAt;
       }
       return session;
     },
