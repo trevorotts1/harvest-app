@@ -4,14 +4,16 @@
 
 // ─── Role Architecture ─────────────────────────────────────────────────
 
-export enum Role {
-  REP = 'REP',
-  UPLINE = 'UPLINE',
-  RVP = 'RVP',
-  EXTERNAL = 'EXTERNAL',
-  DUAL = 'DUAL',
-  ADMIN = 'ADMIN',
-}
+// T-R3 (Wave-0 gate + T-14 QC carry-forward): the local six-value `Role` enum — which still carried
+// the stale `EXTERNAL` value — is RETIRED in favor of the canonical five-role Prisma enum
+// (REP | UPLINE | RVP | ADMIN | DUAL, §3.1). `EXTERNAL` was never a real role: per §3.1 "the
+// baseline `EXTERNAL` value is retired; external solo users are `rep` with an external org." This is
+// now the SAME `Role` the auth layer (src/lib/auth/rbac.ts, rbac-matrix.ts) and the compliance layer
+// (src/types/compliance.ts) already use, so there is exactly one Role definition in the codebase and
+// nothing downstream can key a step-map / visibility row off a role that does not exist.
+import { Role } from '@prisma/client';
+
+export { Role };
 
 // ─── Organization Gate ────────────────────────────────────────────────
 
@@ -154,15 +156,6 @@ export const ROLE_STEP_MAP: Record<Role, OnboardingStep[]> = {
     OnboardingStep.CALENDAR_CONNECTION,
     OnboardingStep.CONSENT_CAPTURE,
   ],
-  [Role.EXTERNAL]: [
-    OnboardingStep.REGISTER,
-    OnboardingStep.ACCOUNT_TYPE,
-    OnboardingStep.ROLE_ORG_CONTEXT,
-    OnboardingStep.SEVEN_WHYS,
-    OnboardingStep.GOAL_CARD,
-    OnboardingStep.INTENSITY,
-    OnboardingStep.CONSENT_CAPTURE,
-  ],
   [Role.DUAL]: [
     OnboardingStep.REGISTER,
     OnboardingStep.ACCOUNT_TYPE,
@@ -223,16 +216,6 @@ export const ROLE_VISIBILITY: Record<Role, VisibilityBoundary> = {
     canSkipSponsorMatching: true,
     requiresFinraDisclosure: true,
     canViewOrgHierarchy: true,
-  },
-  [Role.EXTERNAL]: {
-    canViewDownline: false,
-    canManageTeam: false,
-    canAccessFinancials: false,
-    canCrossOrgAnalytics: false,
-    canConfigureSponsor: false,
-    canSkipSponsorMatching: false,
-    requiresFinraDisclosure: false,
-    canViewOrgHierarchy: false,
   },
   [Role.DUAL]: {
     canViewDownline: true,
