@@ -1,3 +1,11 @@
+## [2.0.0-build.T15] — BUILD PHASE — 2026-07-16
+### T-15 — Breach notification & incident response, GDPR 72h (WP11, QC earned 9.1/10) — FINAL WP11 unit
+- SecurityEvent correlation: weighted 60-min sliding-window classifier declares an incident at threshold; a lone breach_incident declares alone. Deterministic.
+- GDPR Art.33 72-hour clock: starts for every breach class except (human-triaged) NOT_PERSONAL_DATA (fail-toward-caution); missing start reports maximally urgent (never "no clock"); freezes at notification; late notification recorded as late. Un-triaged breach can never be silently dropped.
+- Incident runbook state machine (DETECTED→TRIAGED→CONTAINED→NOTIFIED→RESOLVED) with a hard "notify before resolve" guard for clock-applicable breaches. RBAC: incident_response is RVP/ADMIN only via the §16.6 matrix.
+- Append-only IncidentEvent ledger (current state = read-time projection, no mutable status column), mirrored into T-10's hash-chained audit store. SecurityEvent bridge is a pure decorator (T-12's security-event.ts byte-unchanged). Additive schema (IncidentEvent) + migration. 423 tests.
+- Completes WP11 (compliance) — all 7 units (CFE, audit, data-rights, account-security, licensing, RBAC, incident-response) now in trunk.
+
 ## [2.0.0-build.T12] — BUILD PHASE — 2026-07-16
 ### T-12 — Account security: MFA/TOTP, rate limiting, credential-stuffing, session-hijack defense (WP11, QC earned 9.25/10, 1 QC loop)
 - Real RFC 6238 TOTP (otplib), secret AES-256-GCM at rest, fail-closed without MFA_ENCRYPTION_KEY; single-use bcrypt-hashed recovery codes.
