@@ -1,3 +1,10 @@
+## [2.0.0-build.T14] — BUILD PHASE — 2026-07-16
+### T-14 — Authoritative §16.6 RBAC matrix enforcement (WP11, QC earned 9.35/10)
+- src/lib/auth/rbac-matrix.ts encodes all 9 §16.6 rows as resource×action×role data; can(role,resource,action) is fail-closed (unknown resource/action/role all deny, ADMIN included — no implicit bypass).
+- Downline raw-PII / conversation content is audited-only: the grant table is empty for everyone incl ADMIN; the sole path is canAccessDownlinePIIAudited(role, auditContext). Cross-org access for RVP is gated behind admin approval.
+- requireCapability/withCapability extend T-04's requireRole/withRole. The older compliance ROLE_PERMISSIONS is now DERIVED from the matrix (one source of truth); data_rights:manage remains ADMIN+RVP only.
+- Retired the stale 6-value compliance Role type (removed the spec-retired EXTERNAL) in favor of the Prisma Role enum. 218 tests.
+
 ## [2.0.0-build.T08] — BUILD PHASE — 2026-07-16
 ### T-08 — Compliance Filter Engine core, fail-closed (WP11 critical path, QC earned 9.1/10, 1 QC loop)
 - 5 Haiku-4.5 classifiers (Income/Testimonial/Opportunity/Insurance/Referral) + vocabulary classifier (§0.5 forbidden terms force BLOCKED), DI-mockable (tests run with no API key).
