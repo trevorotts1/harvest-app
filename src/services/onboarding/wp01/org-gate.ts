@@ -84,6 +84,26 @@ export const PRIMERICA_GATED_TERMS: readonly string[] = [
  * Recursively serialize any payload to its string content and return every Primerica-gated term it
  * contains. Keys AND values are scanned (a leak can hide in either — e.g. a `solutionNumber` field
  * name is itself a leak for a universal user). Returns [] for a clean payload.
+ *
+ * TWO independent representations of the haystack are matched, and a hit in EITHER is a leak
+ * (T-17 fix — closes an alternating-case bypass, e.g. `'PrImErIcA'`):
+ *
+ *   1. RAW: the joined haystack, lower-cased ONLY — no camel/snake/kebab normalization. This is
+ *      deliberately computed from the ORIGINAL (not-yet-normalized) text, so normalization can never
+ *      remove a match that exists in the raw text. This is what catches a literal gated term however
+ *      internally cased (`'PrImErIcA'`, `'PRIMERICA'`, `'pRiMeRiCa'`) — lower-casing alone never
+ *      fragments a contiguous word the way the old camelCase-boundary-then-lowercase pipeline did (that
+ *      pipeline inserted a space at every lower->UPPER boundary BEFORE lower-casing, so an
+ *      alternating-case word like `PrImErIcA` had spaces spliced into it at every boundary — `r|I`,
+ *      `m|E`, `r|I`, `c|A` — fragmenting it into "pr im er ic a" and destroying the contiguous
+ *      substring the scanner was looking for).
+ *   2. NORMALIZED: camelCase boundary -> space, `_`/`-` runs -> space, collapsed + lower-cased. This is
+ *      what catches a leak hidden in a genuine camelCase/snake_case/kebab-case FIELD NAME:
+ *      `solutionNumber`, `solution_number`, `solution-number` all normalize to `solution number` and
+ *      match the gated term `"solution number"` (which the raw view alone would miss, since raw has no
+ *      space between "solution" and "Number").
+ *
+ * Both views are also checked dot-free, so `A.L. Williams` / `AL Williams` trip the same term.
  */
 export function scanForPrimericaTerms(payload: unknown): string[] {
   const haystackParts: string[] = [];
@@ -105,20 +125,31 @@ export function scanForPrimericaTerms(payload: unknown): string[] {
   };
   walk(payload);
 
-  // Normalize so a leak hidden in a camelCase / snake_case / kebab-case FIELD NAME is still caught:
-  // `solutionNumber`, `solution_number`, and `solution-number` all normalize to `solution number`
-  // and match the gated term. camelCase boundary -> space; `_`/`-` runs -> space; collapse space.
-  const haystack = haystackParts
-    .join(' ')
+  const joined = haystackParts.join(' ');
+
+  // (1) RAW view: lower-case only, no case-boundary normalization. A literal occurrence of a gated
+  // term — HOWEVER internally cased — survives here because lower-casing cannot fragment a word.
+  const rawHaystack = joined.toLowerCase().replace(/\s+/g, ' ');
+  const rawDotless = rawHaystack.replace(/\./g, '');
+
+  // (2) NORMALIZED view: camelCase / snake_case / kebab-case FIELD NAMES still collapse to their
+  // space-separated form so `solutionNumber` etc. is still caught.
+  const normalizedHaystack = joined
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .toLowerCase()
     .replace(/\s+/g, ' ');
-  // Also match against a dot-free view so `A.L. Williams` and `AL Williams` both trip the same term.
-  const dotless = haystack.replace(/\./g, '');
-  return PRIMERICA_GATED_TERMS.filter(
-    (term) => haystack.includes(term) || dotless.includes(term.replace(/\./g, ''))
-  );
+  const normalizedDotless = normalizedHaystack.replace(/\./g, '');
+
+  return PRIMERICA_GATED_TERMS.filter((term) => {
+    const dotlessTerm = term.replace(/\./g, '');
+    return (
+      rawHaystack.includes(term) ||
+      rawDotless.includes(dotlessTerm) ||
+      normalizedHaystack.includes(term) ||
+      normalizedDotless.includes(dotlessTerm)
+    );
+  });
 }
 
 /**

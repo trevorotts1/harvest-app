@@ -9,11 +9,16 @@ import {
   ROLE_STEP_MAP,
   SEVEN_WHYS_MIN_SCORE,
   MIN_COMMITMENT_SCORE,
-  SOLUTION_NUMBER_PATTERN,
   ROLE_VISIBILITY,
   ValidationResult,
   findForbiddenTerms,
 } from '../../types/onboarding';
+// T-17 QC fix: `validateSolutionNumberFormat` used to check against this file's OWN
+// `SOLUTION_NUMBER_PATTERN` (`/^\d{6,8}$/`, 6-8 digits) — a second, weaker, mismatched source of truth
+// alongside the authoritative §6.3 7-digit rule below. Delegating directly to the wp01 module's own
+// format check means there is exactly one place a solution number's format is decided; no route
+// reachable through `OnboardingService` can accept a 6-digit or 8-digit value ever again.
+import { checkSolutionNumberFormat } from './wp01/solution-number';
 
 export class OnboardingService {
   getStepsForRole(role: Role): OnboardingStep[] {
@@ -29,8 +34,9 @@ export class OnboardingService {
   }
 
   validateSolutionNumberFormat(solutionNumber: string | null | undefined): ValidationResult {
-    if (!solutionNumber || !SOLUTION_NUMBER_PATTERN.test(solutionNumber)) {
-      return { valid: false, error: 'Solution number must be 6-8 digits' };
+    const { formatValid } = checkSolutionNumberFormat(solutionNumber);
+    if (!formatValid) {
+      return { valid: false, error: 'Solution number must be 7 digits (§6.3)' };
     }
     return { valid: true };
   }
@@ -72,7 +78,7 @@ export class OnboardingService {
 
   seedAccessTier(role: Role, orgType: OrgType): AccessTier {
     if (role === Role.RVP || role === Role.UPLINE) return AccessTier.ENTERPRISE;
-    return orgType === OrgType.PRIMERICA ? AccessTier.ORG_LINKED_FREE : AccessTier.PAID_EXTERNAL;
+    return orgType === OrgType.PRIMERICA ? AccessTier.FREE_ORG_LINKED : AccessTier.FREE_PAID_EXTERNAL;
   }
 
   canProgressTo(step: OnboardingStep, data: any): ValidationResult {
@@ -95,7 +101,7 @@ export class OnboardingService {
   determineAccessTier(commitmentScore: number, orgType: OrgType): AccessTier {
     if (commitmentScore >= 9) return AccessTier.ENTERPRISE;
     if (commitmentScore >= 7) return AccessTier.PAID_INDIVIDUAL;
-    return orgType === OrgType.PRIMERICA ? AccessTier.ORG_LINKED_FREE : AccessTier.PAID_EXTERNAL;
+    return orgType === OrgType.PRIMERICA ? AccessTier.FREE_ORG_LINKED : AccessTier.FREE_PAID_EXTERNAL;
   }
 
   meetsCommitmentThreshold(score: number): boolean {

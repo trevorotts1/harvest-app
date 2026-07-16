@@ -49,6 +49,51 @@ describe('WP01 org gate — §17.1 branch lock (§6.3)', () => {
       expect(() => assertNoPrimericaLeak(leaky, OrgType.EXTERNAL)).toThrow(OrgBranchViolation);
     });
 
+    // T-17 QC fix: the old pipeline ran the camelCase-boundary regex `/([a-z0-9])([A-Z])/g` BEFORE
+    // lower-casing. On a word with internal case-ALTERNATION (not just a single camelCase hump) that
+    // regex fires at every lower->UPPER boundary and fragments the word — e.g. 'PrImErIcA' has
+    // boundaries at r|I, m|E, r|I, c|A, so it became "Pr Im Er Ic A" -> lower-cased "pr im er ic a",
+    // and the contiguous substring "primerica" was gone: a real scanner bypass. The fix matches BOTH a
+    // raw lower-cased (no normalization) view AND the normalized view; a hit in EITHER is a leak, so no
+    // normalization step can ever remove a match that exists in the raw text.
+    describe('alternating/mixed-case Primerica bypass is caught (T-17)', () => {
+      test.each([
+        ['PrImErIcA', 'PrImErIcA'],
+        ['PRIMERICA', 'PRIMERICA'],
+        ['primerica', 'primerica'],
+        ['pRiMeRiCa', 'pRiMeRiCa'],
+      ])('%s is caught by scanForPrimericaTerms and trips assertNoPrimericaLeak', (_label, value) => {
+        const payload = { note: `Welcome to ${value}!` };
+        expect(scanForPrimericaTerms(payload)).toContain('primerica');
+        expect(() => assertNoPrimericaLeak(payload, OrgType.EXTERNAL)).toThrow(OrgBranchViolation);
+      });
+
+      // Field-name case (camelCase normalization path) still works for nested objects AND arrays —
+      // proving the raw-view fix didn't regress the normalized-view field-name detection.
+      test('solutionNumber field name is caught nested inside an object', () => {
+        const payload = { profile: { solutionNumber: '1234567' } };
+        expect(scanForPrimericaTerms(payload)).toContain('solution number');
+        expect(() => assertNoPrimericaLeak(payload, OrgType.EXTERNAL)).toThrow(OrgBranchViolation);
+      });
+
+      test('solutionNumber field name is caught inside an array of objects', () => {
+        const payload = { items: [{ id: 1 }, { solutionNumber: '1234567' }] };
+        expect(scanForPrimericaTerms(payload)).toContain('solution number');
+        expect(() => assertNoPrimericaLeak(payload, OrgType.EXTERNAL)).toThrow(OrgBranchViolation);
+      });
+
+      // A clean universal payload (no gated terms in any representation) still passes cleanly — the
+      // dual-view fix does not turn the scanner into a false-positive machine.
+      test('a clean universal payload with no gated terms passes both views', () => {
+        const clean = {
+          profile: { firstName: 'Alex', lastName: 'Rivera', accountNumber: '9988776' },
+          items: [{ id: 1, label: 'Orchard planning' }, { id: 2, label: 'Weekly review' }],
+        };
+        expect(scanForPrimericaTerms(clean)).toEqual([]);
+        expect(() => assertNoPrimericaLeak(clean, OrgType.EXTERNAL)).not.toThrow();
+      });
+    });
+
     test('assertNoPrimericaLeak is a no-op for a Primerica user (they are entitled to it)', () => {
       const primericaPayload = { headline: 'Your Primerica orchard' };
       expect(() => assertNoPrimericaLeak(primericaPayload, OrgType.PRIMERICA)).not.toThrow();
