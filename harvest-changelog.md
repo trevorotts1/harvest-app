@@ -1,3 +1,9 @@
+## [2.0.0-build.T11] — BUILD PHASE — 2026-07-16
+### T-11 — Data-rights: complete PII deletion sweep (WP11, QC earned 9.1/10, 3 QC loops)
+- Right-to-erasure now scrubs ALL 12 user-owned PII models (User incl password_hash/image, Contact, ContactInteraction, OnboardingSession, WhySession, WarmMarketExercise, Message, DraftMessage incl cfe_classifier_data, UplineInvite recipient_email (direct + cross-user), LicensingRecord.license_number, AgentRun narrative fields, Milestone.shareable_asset_ref) — verified by an independent full-schema audit (no PII model missed).
+- FINRA-tagged AuditEntry rows are never deleted (regulatory carve-out); an active LegalHold blocks all scrubbing (deletion held, nothing touched); deletion certificate honestly lists only models actually scrubbed.
+- Retention schedules per §16.3 category; RBAC-gated legal-hold place/lift (ADMIN+RVP); CSV formula-injection guard on export. Integrated with the T-14 §16.6 Role. 211 tests.
+
 ## [2.0.0-build.T14] — BUILD PHASE — 2026-07-16
 ### T-14 — Authoritative §16.6 RBAC matrix enforcement (WP11, QC earned 9.35/10)
 - src/lib/auth/rbac-matrix.ts encodes all 9 §16.6 rows as resource×action×role data; can(role,resource,action) is fail-closed (unknown resource/action/role all deny, ADMIN included — no implicit bypass).
