@@ -136,10 +136,14 @@ export interface DeletionCertificate {
   completed_at: string | null;
   status: DeletionStatus;
   /**
-   * Ordinary PII fields deleted/anonymized across every user-owned model — User, Contact,
-   * WhySession, OnboardingSession, ContactInteraction, Message, DraftMessage, and
-   * WarmMarketExercise (§16.3). None of these are FINRA-retained; the carve-out below is
-   * AuditEntry only.
+   * Ordinary PII fields deleted/anonymized across every user-owned model — User (incl.
+   * password_hash/image), Contact, WhySession, OnboardingSession, ContactInteraction, Message,
+   * DraftMessage (incl. cfe_classifier_data), WarmMarketExercise, UplineInvite.recipient_email
+   * (both as sponsor and as the deleted user's own address on someone else's invite),
+   * LicensingRecord.license_number, AgentRun (input_summary/output_ref/reasoning_log), and
+   * Milestone.shareable_asset_ref (§16.3). None of these are FINRA-retained; the carve-out below
+   * is AuditEntry only (see src/services/compliance/data-rights/data-rights.ts's processDeletion
+   * for the full A/B/C classification of every model in prisma/schema.prisma).
    */
   deleted_fields: string[];
   /** The FINRA legal-hold carve-out set: what was retained, and why. Empty when the deletion is HELD (nothing was processed). */

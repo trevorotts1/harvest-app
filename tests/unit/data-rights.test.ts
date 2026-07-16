@@ -27,6 +27,11 @@ function makeMockPrisma(seed: {
   messages?: Row[];
   draftMessages?: Row[];
   warmMarketExercises?: Row[];
+  // T-11 QC-2 full-sweep fix: mock state for the second round of newly-scrubbed models.
+  uplineInvites?: Row[];
+  licensingRecords?: Row[];
+  agentRuns?: Row[];
+  milestones?: Row[];
 }): any {
   const users = new Map<string, Row>();
   if (seed.user) users.set(seed.user.id as string, { ...seed.user });
@@ -56,6 +61,11 @@ function makeMockPrisma(seed: {
   let warmMarketExercises: Row[] = seed.warmMarketExercises
     ? seed.warmMarketExercises.map((w) => ({ ...w }))
     : [];
+  // T-11 QC-2 full-sweep fix: mock state for the second round of newly-scrubbed models.
+  let uplineInvites: Row[] = seed.uplineInvites ? seed.uplineInvites.map((i) => ({ ...i })) : [];
+  let licensingRecords: Row[] = seed.licensingRecords ? seed.licensingRecords.map((l) => ({ ...l })) : [];
+  let agentRuns: Row[] = seed.agentRuns ? seed.agentRuns.map((r) => ({ ...r })) : [];
+  let milestones: Row[] = seed.milestones ? seed.milestones.map((m) => ({ ...m })) : [];
 
   const userUpdate = jest.fn(async ({ where, data }: any) => {
     const existing = users.get(where.id) ?? {};
@@ -154,6 +164,62 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
+  // T-11 QC-2 full-sweep fix: mock updateMany for the second round of newly-scrubbed models.
+  // uplineInviteUpdateMany matches on EITHER `where.sponsor_id` (the direct case) OR
+  // `where.recipient_email` (the cross-user case) — the real service calls it once with each
+  // shape, never both keys at once, but a mock that only understood one shape would silently pass
+  // a test seeded with only that shape while missing a regression in the other.
+  const uplineInviteUpdateMany = jest.fn(async ({ where, data }: any) => {
+    let count = 0;
+    uplineInvites = uplineInvites.map((inv) => {
+      const matchesSponsor = where.sponsor_id !== undefined && inv.sponsor_id === where.sponsor_id;
+      const matchesRecipient =
+        where.recipient_email !== undefined && inv.recipient_email === where.recipient_email;
+      if (matchesSponsor || matchesRecipient) {
+        count++;
+        return { ...inv, ...data };
+      }
+      return inv;
+    });
+    return { count };
+  });
+
+  const licensingRecordUpdateMany = jest.fn(async ({ where, data }: any) => {
+    let count = 0;
+    licensingRecords = licensingRecords.map((l) => {
+      if (l.user_id === where.user_id) {
+        count++;
+        return { ...l, ...data };
+      }
+      return l;
+    });
+    return { count };
+  });
+
+  const agentRunUpdateMany = jest.fn(async ({ where, data }: any) => {
+    let count = 0;
+    agentRuns = agentRuns.map((r) => {
+      if (r.user_id === where.user_id) {
+        count++;
+        return { ...r, ...data };
+      }
+      return r;
+    });
+    return { count };
+  });
+
+  const milestoneUpdateMany = jest.fn(async ({ where, data }: any) => {
+    let count = 0;
+    milestones = milestones.map((m) => {
+      if (m.user_id === where.user_id) {
+        count++;
+        return { ...m, ...data };
+      }
+      return m;
+    });
+    return { count };
+  });
+
   const auditEntryDelete = jest.fn();
   const auditEntryDeleteMany = jest.fn();
 
@@ -206,6 +272,19 @@ function makeMockPrisma(seed: {
     warmMarketExercise: {
       updateMany: warmMarketExerciseUpdateMany,
     },
+    // T-11 QC-2 full-sweep fix.
+    uplineInvite: {
+      updateMany: uplineInviteUpdateMany,
+    },
+    licensingRecord: {
+      updateMany: licensingRecordUpdateMany,
+    },
+    agentRun: {
+      updateMany: agentRunUpdateMany,
+    },
+    milestone: {
+      updateMany: milestoneUpdateMany,
+    },
     // Exposed purely for test assertions ("teeth") — reads back the mock's persisted state after
     // a call, proving a mutation was actually applied rather than merely that a jest.fn was
     // invoked with the "right" arguments. Not part of the real DataRightsPrismaClient contract.
@@ -216,6 +295,10 @@ function makeMockPrisma(seed: {
       getMessages: () => messages,
       getDraftMessages: () => draftMessages,
       getWarmMarketExercises: () => warmMarketExercises,
+      getUplineInvites: () => uplineInvites,
+      getLicensingRecords: () => licensingRecords,
+      getAgentRuns: () => agentRuns,
+      getMilestones: () => milestones,
     },
     auditEntry: {
       findMany: jest.fn(async ({ where }: any) =>
@@ -250,6 +333,9 @@ const BASE_USER: Row = {
   email: 'real.rep@example.com',
   name: 'Real Rep Name',
   phone: '+15555550100',
+  // T-11 QC-2 full-sweep fix (defect #4): password_hash/image must be scrubbed too.
+  password_hash: '$2b$12$reAlBcryptHashOfTheirRealPasswordAbCdEfGhIjKlMnOpQrSt',
+  image: 'https://cdn.harvest.app/avatars/user-1-real-photo.jpg',
   solution_number: 'SN-12345',
   anchor_statement: 'My anchor statement, verbatim.',
   calendar_preferences: { tz: 'America/New_York' },
@@ -352,6 +438,70 @@ const BASE_WARM_MARKET_EXERCISES: Row[] = [
   },
 ];
 
+// ── T-11 QC-2 full-sweep fix: seed rows for the second round of newly-scrubbed models (§16.3).
+
+const BASE_UPLINE_INVITES: Row[] = [
+  {
+    id: 'invite-1',
+    sponsor_id: 'user-1',
+    recipient_email: 'prospect.recruit@example.com',
+    status: 'SENT',
+    resend_count: 0,
+  },
+];
+
+// The cross-user case: a DIFFERENT sponsor (user-2) invited the *deleted* user's own email address
+// before user-1 ever had an account. sponsor_id here is 'user-2', not 'user-1' — the direct-case
+// scrub (`where: { sponsor_id: user_id }`) would never touch this row.
+const CROSS_USER_UPLINE_INVITE: Row = {
+  id: 'invite-2',
+  sponsor_id: 'user-2',
+  recipient_email: 'real.rep@example.com', // === BASE_USER.email
+  status: 'ACCEPTED',
+  resend_count: 1,
+};
+
+const BASE_LICENSING_RECORDS: Row[] = [
+  {
+    id: 'lic-1',
+    user_id: 'user-1',
+    jurisdiction: 'TX',
+    state: 'LICENSED',
+    license_number: 'TX-IBA-99887766',
+    issued_at: new Date('2024-01-01T00:00:00Z'),
+    expires_at: new Date('2027-01-01T00:00:00Z'),
+  },
+];
+
+const BASE_AGENT_RUNS: Row[] = [
+  {
+    id: 'run-1',
+    agent_key: 'prospecting',
+    user_id: 'user-1',
+    trigger: 'manual',
+    model_used: 'sonnet_5',
+    input_summary: 'Summarize outreach plan for Jane Doe re: her upcoming policy renewal.',
+    output_ref: 'draft-1',
+    token_input: 500,
+    token_output: 250,
+    cost_cents: 12,
+    batched: false,
+    status: 'COMPLETED',
+    reasoning_log: 'Drafted a warm follow-up to Jane Doe referencing her recent promotion at work.',
+  },
+];
+
+const BASE_MILESTONES: Row[] = [
+  {
+    id: 'milestone-1',
+    user_id: 'user-1',
+    milestone_key: 'first_client',
+    achieved_at: new Date('2026-05-01T00:00:00Z'),
+    celebrated: true,
+    shareable_asset_ref: 's3://harvest-milestones/user-1/first-client-card.png',
+  },
+];
+
 describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
   let legalHoldRepo: InMemoryLegalHoldRepository;
   let auditSink: InMemoryDataRightsAuditSink;
@@ -381,6 +531,10 @@ describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
     expect(userUpdateData.phone).toBeNull();
     expect(userUpdateData.solution_number).toBeNull();
     expect(userUpdateData.anchor_statement).toBeNull();
+    // T-11 QC-2 full-sweep fix (defect #4): password_hash/image scrubbed too.
+    expect(userUpdateData.password_hash).not.toBe(BASE_USER.password_hash);
+    expect(userUpdateData.password_hash).toMatch(/^\$2b\$/); // still syntactically a bcrypt hash, but unusable
+    expect(userUpdateData.image).toBeNull();
 
     // Contact PII scrubbed
     expect(prisma.contact.updateMany).toHaveBeenCalledTimes(1);
@@ -391,6 +545,8 @@ describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
     expect(contactUpdateData.notes).toBeNull();
 
     expect(certificate.deleted_fields).toContain('User.email');
+    expect(certificate.deleted_fields).toContain('User.password_hash');
+    expect(certificate.deleted_fields).toContain('User.image');
     expect(certificate.deleted_fields).toContain('Contact.first_name');
     expect(certificate.status).toBe('COMPLETED');
 
@@ -459,6 +615,12 @@ describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
       messages: BASE_MESSAGES,
       draftMessages: BASE_DRAFT_MESSAGES,
       warmMarketExercises: BASE_WARM_MARKET_EXERCISES,
+      // T-11 QC-2 full-sweep fix: seeded here too, so "nothing touched" stays a meaningful claim
+      // for the second round of newly-scrubbed models as well.
+      uplineInvites: [...BASE_UPLINE_INVITES, CROSS_USER_UPLINE_INVITE],
+      licensingRecords: BASE_LICENSING_RECORDS,
+      agentRuns: BASE_AGENT_RUNS,
+      milestones: BASE_MILESTONES,
     });
     const service = new DataRightsService(prisma, legalHold, auditSink);
 
@@ -487,6 +649,12 @@ describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
     expect(prisma.draftMessage.updateMany).not.toHaveBeenCalled();
     expect(prisma.warmMarketExercise.updateMany).not.toHaveBeenCalled();
 
+    // T-11 QC-2 full-sweep fix: same proof for the second round of newly-scrubbed models.
+    expect(prisma.uplineInvite.updateMany).not.toHaveBeenCalled();
+    expect(prisma.licensingRecord.updateMany).not.toHaveBeenCalled();
+    expect(prisma.agentRun.updateMany).not.toHaveBeenCalled();
+    expect(prisma.milestone.updateMany).not.toHaveBeenCalled();
+
     // And the mock's underlying persisted state is byte-for-byte unchanged.
     expect(prisma.__state.getWhySessions()[0]).toEqual(BASE_WHY_SESSION);
     expect(prisma.__state.getOnboardingSessions()[0]).toEqual(BASE_ONBOARDING_SESSION);
@@ -494,6 +662,10 @@ describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
     expect(prisma.__state.getMessages()[0]).toEqual(BASE_MESSAGES[0]);
     expect(prisma.__state.getDraftMessages()[0]).toEqual(BASE_DRAFT_MESSAGES[0]);
     expect(prisma.__state.getWarmMarketExercises()[0]).toEqual(BASE_WARM_MARKET_EXERCISES[0]);
+    expect(prisma.__state.getUplineInvites()).toEqual([...BASE_UPLINE_INVITES, CROSS_USER_UPLINE_INVITE]);
+    expect(prisma.__state.getLicensingRecords()[0]).toEqual(BASE_LICENSING_RECORDS[0]);
+    expect(prisma.__state.getAgentRuns()[0]).toEqual(BASE_AGENT_RUNS[0]);
+    expect(prisma.__state.getMilestones()[0]).toEqual(BASE_MILESTONES[0]);
 
     expect(auditSink.ofType('deletion.held')).toHaveLength(1);
   });
@@ -714,12 +886,15 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
     expect(stored.find((m: Row) => m.id === 'msg-2').body).toBe(otherUsersMessage.body);
   });
 
-  test('DraftMessage: body text is scrubbed', async () => {
+  test('DraftMessage: body text AND cfe_classifier_data are scrubbed', async () => {
+    const seededDrafts: Row[] = [
+      { ...BASE_DRAFT_MESSAGES[0], cfe_classifier_data: { excerpt: 'kitchen table reminder', score: 12 } },
+    ];
     const prisma = makeMockPrisma({
       user: BASE_USER,
       contacts: BASE_CONTACTS,
       deletion: PENDING_DELETION,
-      draftMessages: BASE_DRAFT_MESSAGES,
+      draftMessages: seededDrafts,
     });
     const service = new DataRightsService(prisma, legalHold, auditSink);
 
@@ -728,14 +903,16 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
     expect(prisma.draftMessage.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.draftMessage.updateMany).toHaveBeenCalledWith({
       where: { user_id: 'user-1' },
-      data: { body: '' },
+      data: { body: '', cfe_classifier_data: null },
     });
 
     const stored = prisma.__state.getDraftMessages()[0];
     expect(stored.body).toBe('');
+    expect(stored.cfe_classifier_data).toBeNull();
     expect(JSON.stringify(stored)).not.toMatch(/kitchen table/);
 
     expect(certificate.deleted_fields).toContain('DraftMessage.body');
+    expect(certificate.deleted_fields).toContain('DraftMessage.cfe_classifier_data');
   });
 
   test('WarmMarketExercise: blank_canvas_names, background_context, highlights, and related Json fields are scrubbed', async () => {
@@ -783,6 +960,171 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
     );
   });
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // T-11 QC-2 (full schema sweep): a SECOND Opus QC pass found MORE user-owned PII surviving a
+  // COMPLETED deletion — CRITICAL: UplineInvite.recipient_email (a third party's plaintext email,
+  // both as sponsor and cross-user); [Resolve]: LicensingRecord.license_number. The sweep also
+  // flagged DraftMessage.cfe_classifier_data (covered above) and AgentRun for scrutiny. Same
+  // proof style as the QC-1 tests above: teeth via `__state` + certificate honesty.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  test('UplineInvite: recipient_email is scrubbed for invites the deleted user SENT as sponsor', async () => {
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      uplineInvites: BASE_UPLINE_INVITES,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(prisma.uplineInvite.updateMany).toHaveBeenCalledWith({
+      where: { sponsor_id: 'user-1' },
+      data: { recipient_email: '' },
+    });
+
+    const stored = prisma.__state.getUplineInvites()[0];
+    expect(stored.recipient_email).toBe('');
+    expect(JSON.stringify(stored)).not.toMatch(/prospect\.recruit@example\.com/);
+
+    expect(certificate.deleted_fields).toContain('UplineInvite.recipient_email');
+  });
+
+  test('UplineInvite cross-user case: the deleted user\'s OWN email is scrubbed off an invite a DIFFERENT sponsor sent', async () => {
+    // CRITICAL defect, cross-user half: user-1's own email sits as the *recipient* on an invite
+    // sent by user-2 (a different sponsor) — sponsor_id there is 'user-2', so the direct-case
+    // scrub above never reaches this row. This must be caught via the recipient_email match using
+    // the deleted user's ORIGINAL email (captured before the User.update anonymized it).
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      uplineInvites: [CROSS_USER_UPLINE_INVITE],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(prisma.uplineInvite.updateMany).toHaveBeenCalledWith({
+      where: { recipient_email: 'real.rep@example.com' },
+      data: { recipient_email: '' },
+    });
+
+    const stored = prisma.__state.getUplineInvites().find((i: Row) => i.id === 'invite-2');
+    expect(stored?.recipient_email).toBe('');
+    // sponsor_id (a different user, user-2) is untouched — only the PII field is scrubbed.
+    expect(stored?.sponsor_id).toBe('user-2');
+    expect(JSON.stringify(stored)).not.toMatch(/real\.rep@example\.com/);
+
+    expect(certificate.deleted_fields).toContain('UplineInvite.recipient_email');
+  });
+
+  test('UplineInvite: both the sent-as-sponsor and received-as-cross-user cases are scrubbed together, without double-counting the certificate field', async () => {
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      uplineInvites: [...BASE_UPLINE_INVITES, CROSS_USER_UPLINE_INVITE],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    const stored = prisma.__state.getUplineInvites();
+    expect(stored.find((i: Row) => i.id === 'invite-1')?.recipient_email).toBe('');
+    expect(stored.find((i: Row) => i.id === 'invite-2')?.recipient_email).toBe('');
+    // The certificate lists the field once, not twice, even though two separate updateMany calls
+    // touched it.
+    expect(certificate.deleted_fields.filter((f) => f === 'UplineInvite.recipient_email')).toHaveLength(1);
+  });
+
+  test('LicensingRecord: license_number is scrubbed; jurisdiction/state/dates are retained as non-PII licensing-status metadata', async () => {
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      licensingRecords: BASE_LICENSING_RECORDS,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(prisma.licensingRecord.updateMany).toHaveBeenCalledWith({
+      where: { user_id: 'user-1' },
+      data: { license_number: null },
+    });
+
+    const stored = prisma.__state.getLicensingRecords()[0];
+    expect(stored.license_number).toBeNull();
+    // The QC-2 decision: SCRUB the identifying credential, but jurisdiction/state history is
+    // non-PII structural data and is deliberately NOT wiped alongside it.
+    expect(stored.jurisdiction).toBe('TX');
+    expect(stored.state).toBe('LICENSED');
+    expect(JSON.stringify(stored)).not.toMatch(/TX-IBA-99887766/);
+
+    expect(certificate.deleted_fields).toContain('LicensingRecord.license_number');
+  });
+
+  test('AgentRun: input_summary, output_ref, and reasoning_log are scrubbed; cost/token/status metadata is retained', async () => {
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      agentRuns: BASE_AGENT_RUNS,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(prisma.agentRun.updateMany).toHaveBeenCalledWith({
+      where: { user_id: 'user-1' },
+      data: { input_summary: null, output_ref: null, reasoning_log: null },
+    });
+
+    const stored = prisma.__state.getAgentRuns()[0];
+    expect(stored.input_summary).toBeNull();
+    expect(stored.output_ref).toBeNull();
+    expect(stored.reasoning_log).toBeNull();
+    expect(JSON.stringify(stored)).not.toMatch(/Jane Doe|policy renewal|promoted at work/);
+    // Non-PII operational/billing metadata is NOT wiped — it feeds the per-rep cost model (§4.5).
+    expect(stored.token_input).toBe(500);
+    expect(stored.token_output).toBe(250);
+    expect(stored.cost_cents).toBe(12);
+    expect(stored.status).toBe('COMPLETED');
+    expect(stored.model_used).toBe('sonnet_5');
+
+    expect(certificate.deleted_fields).toEqual(
+      expect.arrayContaining(['AgentRun.input_summary', 'AgentRun.output_ref', 'AgentRun.reasoning_log'])
+    );
+  });
+
+  test('Milestone: shareable_asset_ref is scrubbed; milestone_key/achieved_at/celebrated are retained', async () => {
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      milestones: BASE_MILESTONES,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(prisma.milestone.updateMany).toHaveBeenCalledWith({
+      where: { user_id: 'user-1' },
+      data: { shareable_asset_ref: null },
+    });
+
+    const stored = prisma.__state.getMilestones()[0];
+    expect(stored.shareable_asset_ref).toBeNull();
+    expect(JSON.stringify(stored)).not.toMatch(/first-client-card/);
+    // Non-PII gamification status is retained.
+    expect(stored.milestone_key).toBe('first_client');
+    expect(stored.celebrated).toBe(true);
+
+    expect(certificate.deleted_fields).toContain('Milestone.shareable_asset_ref');
+  });
+
   test('a user with none of these rows still completes the deletion, and the certificate does not claim fields that were never touched', async () => {
     const prisma = makeMockPrisma({ user: BASE_USER, contacts: BASE_CONTACTS, deletion: PENDING_DELETION });
     const service = new DataRightsService(prisma, legalHold, auditSink);
@@ -791,7 +1133,15 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
 
     expect(record.status).toBe('COMPLETED');
     expect(certificate.deleted_fields).not.toEqual(
-      expect.arrayContaining(['WhySession.transcript', 'Message.body', 'DraftMessage.body'])
+      expect.arrayContaining([
+        'WhySession.transcript',
+        'Message.body',
+        'DraftMessage.body',
+        'UplineInvite.recipient_email',
+        'LicensingRecord.license_number',
+        'AgentRun.input_summary',
+        'Milestone.shareable_asset_ref',
+      ])
     );
     // But the delegates were still called (scoped to a user with zero matching rows) — the
     // absence of scrubbed fields on the certificate reflects zero matching rows, not a skipped
@@ -800,9 +1150,15 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
     expect(prisma.onboardingSession.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.draftMessage.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.warmMarketExercise.updateMany).toHaveBeenCalledTimes(1);
+    // T-11 QC-2 full-sweep fix: same proof for the second round — called twice for UplineInvite
+    // (sponsor_id case + recipient_email case), once each for the rest.
+    expect(prisma.uplineInvite.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.licensingRecord.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.agentRun.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.milestone.updateMany).toHaveBeenCalledTimes(1);
   });
 
-  test('all seven newly-scrubbed models together in a single deletion run, end to end', async () => {
+  test('every newly-scrubbed model (QC-1 + QC-2, eleven models) together in a single deletion run, end to end', async () => {
     const prisma = makeMockPrisma({
       user: BASE_USER,
       contacts: BASE_CONTACTS,
@@ -814,6 +1170,10 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
       messages: BASE_MESSAGES,
       draftMessages: BASE_DRAFT_MESSAGES,
       warmMarketExercises: BASE_WARM_MARKET_EXERCISES,
+      uplineInvites: [...BASE_UPLINE_INVITES, CROSS_USER_UPLINE_INVITE],
+      licensingRecords: BASE_LICENSING_RECORDS,
+      agentRuns: BASE_AGENT_RUNS,
+      milestones: BASE_MILESTONES,
     });
     const service = new DataRightsService(prisma, legalHold, auditSink);
 
@@ -823,6 +1183,8 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
 
     const allExpectedFields = [
       'User.email',
+      'User.password_hash',
+      'User.image',
       'Contact.first_name',
       'WhySession.transcript',
       'WhySession.anchor_statement',
@@ -833,12 +1195,19 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
       'ContactInteraction.notes',
       'Message.body',
       'DraftMessage.body',
+      'DraftMessage.cfe_classifier_data',
       'WarmMarketExercise.blank_canvas_names',
       'WarmMarketExercise.qualities',
       'WarmMarketExercise.background_context',
       'WarmMarketExercise.highlights',
       'WarmMarketExercise.match_results',
       'WarmMarketExercise.readiness_scores',
+      'UplineInvite.recipient_email',
+      'LicensingRecord.license_number',
+      'AgentRun.input_summary',
+      'AgentRun.output_ref',
+      'AgentRun.reasoning_log',
+      'Milestone.shareable_asset_ref',
     ];
     expect(certificate.deleted_fields).toEqual(expect.arrayContaining(allExpectedFields));
 
@@ -851,9 +1220,13 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
       messages: prisma.__state.getMessages(),
       draftMessages: prisma.__state.getDraftMessages(),
       warmMarketExercises: prisma.__state.getWarmMarketExercises(),
+      uplineInvites: prisma.__state.getUplineInvites(),
+      licensingRecords: prisma.__state.getLicensingRecords(),
+      agentRuns: prisma.__state.getAgentRuns(),
+      milestones: prisma.__state.getMilestones(),
     });
     expect(allStoredJson).not.toMatch(
-      /daughter deserves|family is watching|why-photos\/user-1|diabetic|kitchen table|family plan|Uncle Bob|church picnic|promoted at work/
+      /daughter deserves|family is watching|why-photos\/user-1|diabetic|kitchen table|family plan|Uncle Bob|church picnic|promoted at work|prospect\.recruit@example\.com|real\.rep@example\.com|TX-IBA-99887766|Jane Doe|policy renewal|first-client-card/
     );
 
     // The FINRA carve-out (proof b) is unaffected by any of this — still zero AuditEntry writes.
@@ -908,6 +1281,55 @@ describe('T-11 Data Rights — export', () => {
     const unquoted = rawField.slice(1, -1).replace(/""/g, '"');
     expect(() => JSON.parse(unquoted)).not.toThrow();
     expect(JSON.parse(unquoted)[0].first_name).toBe('Jane');
+  });
+
+  // ── T-11 QC-2 (Minor defect #3): CSV/spreadsheet-formula-injection guard. csvField() in
+  // data-rights.ts already implements the leading-quote guard per its own doc comment; this test
+  // has teeth — it was previously undertested (no test asserted the guard's actual output).
+  //
+  // Exercised on User fields, not Contact fields: `toCsv`'s `walk()` only flattens plain OBJECTS
+  // into their own individual dot-notation CSV cell (e.g. `user.name`) — an ARRAY like `contacts`
+  // is JSON.stringify'd wholesale into a single cell that always starts with `[`, so the guard
+  // (which only fires on `flat[prefix]`, i.e. the whole cell's leading character) never has
+  // anything to do there regardless of what a contact's individual fields contain. A top-level
+  // User field is where an attacker-controlled leading character actually reaches its own cell.
+  test('CSV export guards against formula injection: a value starting with =, +, -, or @ is emitted with a leading single quote', async () => {
+    const maliciousUser: Row = {
+      ...BASE_USER,
+      name: '=1+1', // classic leading-'=' formula-injection payload as a display name
+      phone: '+15555550100', // a REAL, everyday example: intl. phone numbers legitimately start with '+'
+      rank: '-1+cmd|calc',
+      anchor_statement: '@example.com is not an email — it is a formula-injection payload',
+    };
+    const prisma = makeMockPrisma({
+      user: maliciousUser,
+      contacts: BASE_CONTACTS,
+      export: { id: 'exp-3', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
+    });
+    const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
+    const service = new DataRightsService(prisma, legalHold);
+
+    const { payload } = await service.processExport('exp-3', 'csv');
+    const lines = payload.trim().split('\n');
+    const fieldsOf = (line: string) => line.match(/"(?:[^"]|"")*"/g) ?? [];
+    const headerFields = fieldsOf(lines[0]);
+    const rowFields = fieldsOf(lines[1]);
+
+    const valueFor = (columnName: string): string => {
+      const idx = headerFields.findIndex((f) => f === `"${columnName}"`);
+      expect(idx).toBeGreaterThanOrEqual(0);
+      return rowFields[idx].slice(1, -1).replace(/""/g, '"');
+    };
+
+    expect(valueFor('user.name')).toBe("'=1+1");
+    expect(valueFor('user.phone')).toBe("'+15555550100");
+    expect(valueFor('user.rank')).toBe("'-1+cmd|calc");
+    expect(valueFor('user.anchor_statement')).toBe(
+      "'@example.com is not an email — it is a formula-injection payload"
+    );
+
+    // A value that does NOT start with a formula-trigger character is NOT prefixed.
+    expect(valueFor('user.email')).toBe('real.rep@example.com');
   });
 });
 
