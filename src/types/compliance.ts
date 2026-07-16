@@ -1,5 +1,14 @@
 // WP11 Compliance Types — Full Implementation
 
+// T-14 hand-forward (Wave 0 gate): the stale local `Role` union below —
+// `'REP' | 'UPLINE' | 'ADMIN' | 'DUAL' | 'RVP' | 'EXTERNAL'` — is retired. `EXTERNAL` was never a
+// real role (§3.1: "the baseline `EXTERNAL` value is retired; external solo users are `rep` with an
+// external org"); the canonical five-role enum is Prisma's `Role` (REP | UPLINE | RVP | ADMIN |
+// DUAL), the same one `src/lib/auth/rbac.ts` (T-04) and `src/lib/auth/rbac-matrix.ts` (T-14) use.
+// `UserContext.role`/`AuditPayload.role` below now reference that enum directly instead of a
+// second, drifting definition.
+import type { Role } from '@prisma/client';
+
 export type Classifier =
   | 'INCOME_CLAIM'
   | 'TESTIMONIAL'
@@ -43,8 +52,6 @@ export const CLASSIFIER_WEIGHTS: Record<Classifier, number> = {
 };
 
 export type Channel = 'SMS' | 'EMAIL' | 'SOCIAL' | 'PHONE';
-
-export type Role = 'REP' | 'UPLINE' | 'ADMIN' | 'DUAL' | 'RVP' | 'EXTERNAL';
 
 export interface UserContext {
   user_id: string;

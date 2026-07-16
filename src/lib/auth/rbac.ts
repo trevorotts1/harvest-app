@@ -1,19 +1,29 @@
 import { Role } from '@prisma/client';
 import type { Session } from 'next-auth';
 
+import { can, type Action, type Resource } from './rbac-matrix';
+
 /**
- * RBAC scaffold (T-04). Master spec §16.6 is the *authoritative* per-resource capability matrix
- * (rep/upline/rvp/admin/dual × contacts/billing/compliance-review/etc.) and is layered on by T-14
- * as middleware every WP consumes. This module is the primitive that matrix is built on: a
- * reusable, framework-agnostic "does this session's role satisfy this allow-list" check, plus a
- * throwing guard for route handlers / server actions / server components.
+ * RBAC scaffold (T-04) + the §16.6 capability layer (T-14).
  *
- * It deliberately does NOT attempt to encode §16.6's full resource-by-resource matrix — that is
- * T-14's job. What it does encode correctly, because getting it wrong here would make every later
- * capability check wrong too, is the DUAL role's union semantics (§6.2): a DUAL user is a rep and
- * an upline *at once*, "union permissions" — see the parallel encoding in
- * src/services/compliance/rbac/rbac-service.ts, whose DUAL row is already the union of its REP and
- * UPLINE rows for the resource-action matrix that module owns.
+ * `roleSatisfies`/`hasRole`/`requireRole` are the original T-04 primitive: a reusable,
+ * framework-agnostic "does this session's role satisfy this caller-supplied allow-list" check,
+ * plus a throwing guard for route handlers / server actions / server components. They deliberately
+ * do NOT encode §16.6's full resource-by-resource matrix — the allow-list is whatever the call-site
+ * passes in, and (by default) ADMIN bypasses it.
+ *
+ * `hasCapability`/`requireCapability` (T-14) are the matrix-backed counterparts: instead of a
+ * caller-supplied allow-list, they check `can(role, resource, action)` against the authoritative
+ * §16.6 matrix in `./rbac-matrix.ts` — so the allow-list can't drift from the spec, and there is no
+ * default ADMIN bypass (the matrix itself decides, row by row, exactly like §16.6's table). Prefer
+ * these over `requireRole` wherever a call-site's authorization question is "can this role do X to
+ * resource Y" rather than "is this role generically privileged enough to be here."
+ *
+ * What every one of these functions encodes correctly, because getting it wrong here would make
+ * every later capability check wrong too, is the DUAL role's union semantics (§6.2): a DUAL user is
+ * a rep and an upline *at once*, "union permissions" — see the parallel encoding in
+ * `./rbac-matrix.ts`'s `can()` and in `src/services/compliance/rbac/rbac-service.ts`, which derives
+ * its permissions from the same matrix.
  */
 
 export type SessionUser = NonNullable<Session['user']>;
@@ -105,6 +115,48 @@ export function requireRole(
       'FORBIDDEN',
       `Role '${session.user.role}' is not permitted here (allowed: ${allowedRoles.join(', ')}).`,
       allowedRoles,
+      session.user.role
+    );
+  }
+}
+
+/**
+ * Non-throwing §16.6 capability check for conditional rendering / branching. Unlike `hasRole`,
+ * there is no allow-list to pass in — `resource`/`action` are looked up against the authoritative
+ * matrix (`./rbac-matrix.ts`), which is the single source of truth for who is allowed to do what.
+ */
+export function hasCapability(
+  session: Session | null | undefined,
+  resource: Resource,
+  action: Action
+): boolean {
+  const role = session?.user?.role;
+  if (!role) return false;
+  return can(role, resource, action);
+}
+
+/**
+ * The §16.6 matrix-backed guard: throws `RBACError` if there is no session (`UNAUTHENTICATED`) or
+ * the session's role is not granted `action` on `resource` per the authoritative matrix
+ * (`FORBIDDEN`). This is "deny-by-default authorization" (§16.4/§16.8-6) expressed directly against
+ * §16.6 rather than a hand-written allow-list — prefer this over `requireRole` for any check that
+ * maps onto a §16.6 resource/action pair. See `src/lib/auth/with-role.ts`'s `withCapability` for the
+ * App-Router route-handler wrapper built on top of this.
+ */
+export function requireCapability(
+  session: Session | null | undefined,
+  resource: Resource,
+  action: Action
+): asserts session is Session & { user: SessionUser } {
+  if (!session?.user) {
+    throw new RBACError('UNAUTHENTICATED', 'No session — sign-in required.');
+  }
+
+  if (!can(session.user.role, resource, action)) {
+    throw new RBACError(
+      'FORBIDDEN',
+      `Role '${session.user.role}' is not permitted to '${action}' on '${resource}' (§16.6).`,
+      undefined,
       session.user.role
     );
   }
