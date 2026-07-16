@@ -4,21 +4,30 @@
 
 // ─── Role Architecture ─────────────────────────────────────────────────
 
-export enum Role {
-  REP = 'REP',
-  UPLINE = 'UPLINE',
-  RVP = 'RVP',
-  EXTERNAL = 'EXTERNAL',
-  DUAL = 'DUAL',
-  ADMIN = 'ADMIN',
-}
+// T-R3 (Wave-0 gate + T-14 QC carry-forward): the local six-value `Role` enum — which still carried
+// the stale `EXTERNAL` value — is RETIRED in favor of the canonical five-role Prisma enum
+// (REP | UPLINE | RVP | ADMIN | DUAL, §3.1). `EXTERNAL` was never a real role: per §3.1 "the
+// baseline `EXTERNAL` value is retired; external solo users are `rep` with an external org." This is
+// now the SAME `Role` the auth layer (src/lib/auth/rbac.ts, rbac-matrix.ts) and the compliance layer
+// (src/types/compliance.ts) already use, so there is exactly one Role definition in the codebase and
+// nothing downstream can key a step-map / visibility row off a role that does not exist.
+import { Role } from '@prisma/client';
+
+export { Role };
 
 // ─── Organization Gate ────────────────────────────────────────────────
 
-export enum OrgType {
-  PRIMERICA = 'PRIMERICA',
-  NON_PRIMERICA = 'NON_PRIMERICA',
-}
+// T-17 QC fix (dual-source-of-truth defect): the local `OrgType` enum here used to carry its OWN
+// two-value shape (`PRIMERICA` / `NON_PRIMERICA`) that did not match the canonical Prisma `OrgType`
+// (`PRIMERICA` / `EXTERNAL`, see prisma/schema.prisma). That mismatch meant `service.ts` — which
+// imports `OrgType` from THIS file — branched on a value (`NON_PRIMERICA`) that the rest of the
+// platform (the wp01 org-gate, the wp01 solution-number check, `identity-gate.ts`, `next-auth.d.ts`,
+// the register route) never produces or checks for, since they all correctly use the Prisma enum.
+// Retired in favor of the canonical Prisma enum, the SAME retirement already done for `Role` above:
+// there is now exactly one `OrgType` definition in the codebase.
+import { OrgType } from '@prisma/client';
+
+export { OrgType };
 
 // ─── Onboarding Steps (Full State Machine) ─────────────────────────────
 
@@ -38,12 +47,14 @@ export enum OnboardingStep {
 
 // ─── Access Tier ──────────────────────────────────────────────────────
 
-export enum AccessTier {
-  ORG_LINKED_FREE = 'ORG_LINKED_FREE',
-  PAID_EXTERNAL = 'PAID_EXTERNAL',
-  PAID_INDIVIDUAL = 'PAID_INDIVIDUAL',
-  ENTERPRISE = 'ENTERPRISE',
-}
+// T-17 QC fix: same dual-source-of-truth defect as `OrgType` above — the local `AccessTier` enum used
+// its own member names (`ORG_LINKED_FREE` / `PAID_EXTERNAL`) that did not match the canonical Prisma
+// `AccessTier` (`FREE_ORG_LINKED` / `FREE_PAID_EXTERNAL` / `PAID_INDIVIDUAL` / `ENTERPRISE`, see
+// prisma/schema.prisma), which `identity-gate.ts` and `next-auth.d.ts` already correctly use. Retired
+// in favor of the canonical Prisma enum.
+import { AccessTier } from '@prisma/client';
+
+export { AccessTier };
 
 // ─── Onboarding Status ────────────────────────────────────────────────
 
@@ -112,8 +123,18 @@ export const INVITE_EXPIRY_DAYS = 7;
 /** Maximum invite resends allowed */
 export const MAX_INVITE_RESENDS = 3;
 
-/** Solution number format: 6-8 digits only (format validation, no external API) */
-export const SOLUTION_NUMBER_PATTERN = /^\d{6,8}$/;
+/**
+ * @deprecated T-17 QC fix: this used to be its OWN weaker pattern (`/^\d{6,8}$/`, 6-8 digits) — a
+ * second, mismatched source of truth alongside the authoritative §6.3 7-digit rule in
+ * `src/services/onboarding/wp01/solution-number.ts` (`SOLUTION_NUMBER_FORMAT = /^\d{7}$/`). A route
+ * validating against THIS pattern would accept a 6-digit or 8-digit "solution number" that the
+ * authoritative wp01 rule rejects. Corrected here to the same 7-digit format so no path reachable via
+ * this constant can diverge from the spec; `OnboardingService.validateSolutionNumberFormat` no longer
+ * reads this constant at all — it delegates directly to the wp01 module. Kept only in case an external
+ * caller still imports it; new code should import `SOLUTION_NUMBER_FORMAT` from
+ * `services/onboarding/wp01/solution-number` directly.
+ */
+export const SOLUTION_NUMBER_PATTERN = /^\d{7}$/;
 
 /** Ordered list of all steps (legacy linear flow for backward compat) */
 export const STEP_ORDER: OnboardingStep[] = [
@@ -152,15 +173,6 @@ export const ROLE_STEP_MAP: Record<Role, OnboardingStep[]> = {
     OnboardingStep.ROLE_ORG_CONTEXT,
     OnboardingStep.FINRA_DISCLOSURE,
     OnboardingStep.CALENDAR_CONNECTION,
-    OnboardingStep.CONSENT_CAPTURE,
-  ],
-  [Role.EXTERNAL]: [
-    OnboardingStep.REGISTER,
-    OnboardingStep.ACCOUNT_TYPE,
-    OnboardingStep.ROLE_ORG_CONTEXT,
-    OnboardingStep.SEVEN_WHYS,
-    OnboardingStep.GOAL_CARD,
-    OnboardingStep.INTENSITY,
     OnboardingStep.CONSENT_CAPTURE,
   ],
   [Role.DUAL]: [
@@ -223,16 +235,6 @@ export const ROLE_VISIBILITY: Record<Role, VisibilityBoundary> = {
     canSkipSponsorMatching: true,
     requiresFinraDisclosure: true,
     canViewOrgHierarchy: true,
-  },
-  [Role.EXTERNAL]: {
-    canViewDownline: false,
-    canManageTeam: false,
-    canAccessFinancials: false,
-    canCrossOrgAnalytics: false,
-    canConfigureSponsor: false,
-    canSkipSponsorMatching: false,
-    requiresFinraDisclosure: false,
-    canViewOrgHierarchy: false,
   },
   [Role.DUAL]: {
     canViewDownline: true,
