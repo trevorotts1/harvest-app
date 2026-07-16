@@ -300,3 +300,36 @@ describe('stale compliance.ts Role type retirement', () => {
     expect(Object.keys(Role)).toHaveLength(5);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// T-15 extension resource: "incident_response" (§16.7 breach notification & incident response —
+// ADMIN/RVP only; see rbac-matrix.ts's comment on this resource for the rationale).
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe('incident_response — T-15 extension resource (ADMIN/RVP only)', () => {
+  test('REP is denied read and manage', () => {
+    expect(can(Role.REP, 'incident_response', 'read')).toBe(false);
+    expect(can(Role.REP, 'incident_response', 'manage')).toBe(false);
+  });
+
+  test('UPLINE is denied read and manage (deliberately stricter than compliance_audit)', () => {
+    expect(can(Role.UPLINE, 'incident_response', 'read')).toBe(false);
+    expect(can(Role.UPLINE, 'incident_response', 'manage')).toBe(false);
+  });
+
+  test('DUAL is denied (REP ∪ UPLINE union has nothing to grant here)', () => {
+    expect(can(Role.DUAL, 'incident_response', 'read')).toBe(false);
+    expect(can(Role.DUAL, 'incident_response', 'manage')).toBe(false);
+  });
+
+  test('RVP and ADMIN are granted both read and manage', () => {
+    expect(can(Role.RVP, 'incident_response', 'read')).toBe(true);
+    expect(can(Role.RVP, 'incident_response', 'manage')).toBe(true);
+    expect(can(Role.ADMIN, 'incident_response', 'read')).toBe(true);
+    expect(can(Role.ADMIN, 'incident_response', 'manage')).toBe(true);
+  });
+
+  test('an unlisted action (e.g. export) is denied for every role — fail-closed even for ADMIN', () => {
+    expect(can(Role.ADMIN, 'incident_response', 'export')).toBe(false);
+    expect(can(Role.RVP, 'incident_response', 'export')).toBe(false);
+  });
+});
