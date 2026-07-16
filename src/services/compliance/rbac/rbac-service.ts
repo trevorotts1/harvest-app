@@ -1,111 +1,71 @@
-import { Role } from '@/types/compliance';
+import { Role } from '@prisma/client';
+
+import { MATRIX, can, type Action, type Resource } from '@/lib/auth/rbac-matrix';
 
 /**
  * RBAC Enforcement Service for WP11.
  *
- * Implements role-based access control with a permissions matrix.
- * Used by compliance and data-rights paths to enforce
- * who can access what resources with which actions.
+ * Implements role-based access control with a permissions matrix. Used by compliance and
+ * data-rights paths to enforce who can access what resources with which actions — most notably
+ * `LegalHoldService` (T-11), which calls `assertPermission(role, 'data_rights', 'manage')` to gate
+ * placing/lifting a legal hold to ADMIN + RVP only.
+ *
+ * T-14 reconciliation: this module previously hand-maintained its own `ROLE_PERMISSIONS` table,
+ * keyed by a *different, stale* `Role` type (`src/types/compliance.ts`'s six-value union including
+ * the retired `EXTERNAL`) that had drifted from master-spec §16.6 in several places — e.g. `UPLINE`
+ * and `RVP` were missing `write`/`export`/`delete` on `data_rights` even though §16.6 row 8 grants
+ * "Data-rights (own export/delete)" to all five roles, and there was no `billing_own` /
+ * `downline_visibility` / `downline_pii` / `org_seat_config` / `cross_org` resource at all despite
+ * §16.6 naming them explicitly.
+ *
+ * `src/lib/auth/rbac-matrix.ts`'s `MATRIX` is now the single authoritative §16.6 permission table
+ * (keyed by Prisma's five-role `Role` enum, matching T-04). `ROLE_PERMISSIONS` below is *derived*
+ * from it — there is exactly one place the resource × role × action grants are spelled out. The
+ * public contract of this file (the `Resource`/`Action`/`Permission` shapes, `RBACService` and its
+ * four methods) is unchanged so existing/forthcoming callers — T-11's `LegalHoldService` included —
+ * do not need to change how they call it.
  */
 
-export type Resource =
-  | 'contacts'
-  | 'calendar'
-  | 'agent_logs'
-  | 'compliance_audit'
-  | 'data_rights'
-  | 'messaging'
-  | 'social'
-  | 'payment'
-  | 'user_profile'
-  | 'onboarding'
-  | 'team_metrics'
-  | 'billing';
-
-export type Action = 'read' | 'write' | 'delete' | 'export' | 'approve' | 'manage';
+export type { Resource, Action };
 
 export interface Permission {
   resource: Resource;
   actions: Action[];
 }
 
+/** Every resource key `MATRIX` defines — iterated once to derive each role's Permission[] below. */
+const ALL_RESOURCES = Object.keys(MATRIX) as Resource[];
+
 /**
- * Permission matrix per role.
- * Based on WP11 RBAC requirements and WP01 role model.
+ * Derives a role's `Permission[]` from the authoritative `MATRIX` (including the DUAL = REP ∪
+ * UPLINE union, via the same `can()` §16.6 enforcement used everywhere else) rather than
+ * hand-listing each role's grants a second time.
+ */
+function permissionsForRole(role: Role): Permission[] {
+  const permissions: Permission[] = [];
+
+  for (const resource of ALL_RESOURCES) {
+    const actions = (Object.keys(MATRIX[resource]) as Action[]).filter((action) =>
+      can(role, resource, action)
+    );
+    if (actions.length > 0) {
+      permissions.push({ resource, actions });
+    }
+  }
+
+  return permissions;
+}
+
+/**
+ * Permission matrix per role, derived from `src/lib/auth/rbac-matrix.ts`'s authoritative §16.6
+ * `MATRIX` — see the reconciliation note above. Do not hand-edit; edit `MATRIX` instead.
  */
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
-  REP: [
-    { resource: 'contacts', actions: ['read', 'write', 'delete', 'export'] },
-    { resource: 'calendar', actions: ['read', 'write'] },
-    { resource: 'agent_logs', actions: ['read'] },
-    { resource: 'compliance_audit', actions: ['read'] },
-    { resource: 'data_rights', actions: ['read', 'write', 'export'] },
-    { resource: 'messaging', actions: ['read', 'write'] },
-    { resource: 'social', actions: ['read', 'write'] },
-    { resource: 'user_profile', actions: ['read', 'write'] },
-    { resource: 'onboarding', actions: ['read', 'write'] },
-  ],
-  UPLINE: [
-    { resource: 'contacts', actions: ['read'] },
-    { resource: 'calendar', actions: ['read'] },
-    { resource: 'agent_logs', actions: ['read'] },
-    { resource: 'compliance_audit', actions: ['read', 'approve'] },
-    { resource: 'data_rights', actions: ['read'] },
-    { resource: 'messaging', actions: ['read', 'approve'] },
-    { resource: 'social', actions: ['read', 'approve'] },
-    { resource: 'team_metrics', actions: ['read'] },
-    { resource: 'user_profile', actions: ['read'] },
-    { resource: 'onboarding', actions: ['read'] },
-  ],
-  DUAL: [
-    // Dual role gets both REP and UPLINE permissions
-    { resource: 'contacts', actions: ['read', 'write', 'delete', 'export'] },
-    { resource: 'calendar', actions: ['read', 'write'] },
-    { resource: 'agent_logs', actions: ['read'] },
-    { resource: 'compliance_audit', actions: ['read', 'approve'] },
-    { resource: 'data_rights', actions: ['read', 'write', 'export'] },
-    { resource: 'messaging', actions: ['read', 'write', 'approve'] },
-    { resource: 'social', actions: ['read', 'write', 'approve'] },
-    { resource: 'team_metrics', actions: ['read'] },
-    { resource: 'user_profile', actions: ['read', 'write'] },
-    { resource: 'onboarding', actions: ['read', 'write'] },
-  ],
-  RVP: [
-    // RVP = org leader: broader visibility
-    { resource: 'contacts', actions: ['read'] },
-    { resource: 'calendar', actions: ['read'] },
-    { resource: 'agent_logs', actions: ['read'] },
-    { resource: 'compliance_audit', actions: ['read', 'approve', 'manage'] },
-    { resource: 'data_rights', actions: ['read', 'manage'] },
-    { resource: 'messaging', actions: ['read', 'approve', 'manage'] },
-    { resource: 'social', actions: ['read', 'approve', 'manage'] },
-    { resource: 'team_metrics', actions: ['read', 'manage'] },
-    { resource: 'payment', actions: ['read'] },
-    { resource: 'billing', actions: ['read', 'manage'] },
-    { resource: 'user_profile', actions: ['read'] },
-    { resource: 'onboarding', actions: ['read', 'manage'] },
-  ],
-  ADMIN: [
-    // Admin: full access
-    { resource: 'contacts', actions: ['read', 'write', 'delete', 'export', 'manage'] },
-    { resource: 'calendar', actions: ['read', 'write', 'manage'] },
-    { resource: 'agent_logs', actions: ['read', 'manage'] },
-    { resource: 'compliance_audit', actions: ['read', 'approve', 'manage'] },
-    { resource: 'data_rights', actions: ['read', 'write', 'delete', 'export', 'manage'] },
-    { resource: 'messaging', actions: ['read', 'write', 'approve', 'manage'] },
-    { resource: 'social', actions: ['read', 'write', 'approve', 'manage'] },
-    { resource: 'team_metrics', actions: ['read', 'manage'] },
-    { resource: 'payment', actions: ['read', 'manage'] },
-    { resource: 'billing', actions: ['read', 'manage'] },
-    { resource: 'user_profile', actions: ['read', 'write', 'manage'] },
-    { resource: 'onboarding', actions: ['read', 'write', 'manage'] },
-  ],
-  EXTERNAL: [
-    // External: minimal read-only
-    { resource: 'user_profile', actions: ['read', 'write'] },
-    { resource: 'data_rights', actions: ['read', 'write', 'export'] },
-    { resource: 'onboarding', actions: ['read'] },
-  ],
+  [Role.REP]: permissionsForRole(Role.REP),
+  [Role.UPLINE]: permissionsForRole(Role.UPLINE),
+  [Role.RVP]: permissionsForRole(Role.RVP),
+  [Role.ADMIN]: permissionsForRole(Role.ADMIN),
+  [Role.DUAL]: permissionsForRole(Role.DUAL),
 };
 
 export class RBACService {
@@ -116,7 +76,9 @@ export class RBACService {
   }
 
   /**
-   * Check if a role has a specific permission on a resource.
+   * Check if a role has a specific permission on a resource. Fail-closed: an unrecognized
+   * resource, an unrecognized action, or a resource/action this role's permission list doesn't
+   * name all return `false` — there is no default-allow path.
    */
   checkPermission(role: Role, resource: Resource, action: Action): boolean {
     const rolePerms = this.permissions[role] ?? [];

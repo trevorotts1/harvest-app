@@ -4,7 +4,14 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 import { getCurrentSession } from './session';
-import { RBACError, requireRole, type RoleCheckOptions, type SessionUser } from './rbac';
+import {
+  RBACError,
+  requireCapability,
+  requireRole,
+  type RoleCheckOptions,
+  type SessionUser,
+} from './rbac';
+import type { Action, Resource } from './rbac-matrix';
 
 type AuthedRouteHandler<Ctx> = (
   req: NextRequest,
@@ -48,6 +55,41 @@ export function withRole<Ctx = unknown>(
 
     try {
       requireRole(session, allowedRoles, options);
+    } catch (error) {
+      if (error instanceof RBACError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+
+    return handler(req, ctx, session);
+  };
+}
+
+/**
+ * App-Router route-handler wrapper around `requireCapability` (T-14) — the §16.6 matrix-backed
+ * counterpart to `withRole` above. Instead of a hand-written allow-list, the handler is gated by
+ * a `(resource, action)` pair looked up against the authoritative matrix in `./rbac-matrix.ts`.
+ *
+ * Usage:
+ *   export const POST = withCapability('data_rights', 'export', async (req, ctx, session) => {
+ *     return NextResponse.json({ ok: true });
+ *   });
+ *
+ * Same deferred call-site wiring caveat as `withRole` applies (see the note above): wiring this
+ * into an existing `x-user-id`-header route is out of scope here — T-14 owns the matrix and the
+ * enforcement primitive, not migrating every pre-existing route to use it.
+ */
+export function withCapability<Ctx = unknown>(
+  resource: Resource,
+  action: Action,
+  handler: AuthedRouteHandler<Ctx>
+) {
+  return async (req: NextRequest, ctx: Ctx): Promise<NextResponse> => {
+    const session = await getCurrentSession();
+
+    try {
+      requireCapability(session, resource, action);
     } catch (error) {
       if (error instanceof RBACError) {
         return NextResponse.json({ error: error.message }, { status: error.status });

@@ -1,8 +1,8 @@
+import { Role } from '@prisma/client';
 import {
   AuditPayload,
   Classifier,
   CFEDecision,
-  Role,
   Channel,
   Regulation,
   CFE_RULE_VERSION,
