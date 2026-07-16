@@ -20,6 +20,7 @@ import {
   hashIp,
   type HeaderSource,
 } from './session-security';
+import { consumeStepUpProof } from './step-up-proof';
 
 /**
  * Fixed dummy bcrypt hash (cost 12, matching `BCRYPT_ROUNDS` in
@@ -144,6 +145,19 @@ export const authOptions: NextAuthOptions = {
             ipHash,
             deviceFingerprintHash: fingerprintHash,
           });
+          // Timing equalization (§16.4 "never reveal whether an email exists"): the wrong-password
+          // branch below does an extra `LoginHistoryStore.record` the dummy bcrypt.compare above
+          // doesn't account for — so the "no such user" path must pay the same write, or the delta
+          // between the two failure branches becomes an enumeration side-channel. Keyed by a stable
+          // hashed sentinel (`no-such-user:<hmac(email)>`, never a real UUID user id, never a
+          // plaintext email) so it equalizes cost without colliding with any real user's history —
+          // and, as a bonus, still tracks velocity of probing against non-existent accounts.
+          await getLoginHistoryStore().record(`no-such-user:${hmacForMatch(credentials.email.toLowerCase())}`, {
+            deviceFingerprintHash: fingerprintHash,
+            ipHash,
+            at: Date.now(),
+            outcome: 'failure',
+          });
           return null;
         }
 
@@ -243,13 +257,27 @@ export const authOptions: NextAuthOptions = {
         token.deviceFingerprintHash = user.deviceFingerprintHash;
         token.securityVersionAtIssue = user.securityVersionAtIssue;
         token.boundAt = Date.now();
-      } else if (trigger === 'update' && session && typeof session.mfaVerifiedAt === 'string') {
-        // Client-driven update after a step-up challenge clears: the caller verifies a TOTP/
-        // recovery code via POST /api/auth/mfa/step-up, then calls the client-side
-        // `useSession().update({ mfaVerifiedAt })`, which NextAuth threads through here as
-        // `trigger === 'update'` (v4.24+). `mfaVerifiedAt` is the ONLY field a client-triggered
-        // update may set — role/org/security-version/fingerprint are never client-settable.
-        token.mfaVerifiedAt = session.mfaVerifiedAt;
+      } else if (trigger === 'update' && session) {
+        // T-12 CRITICAL FIX (§16.4). A client-driven `useSession().update({ mfaVerifiedAt })` used
+        // to write its OWN timestamp straight into the token here — which let any authenticated (or
+        // stolen) session self-certify a fresh step-up for a §16.4 sensitive action
+        // (billing/export/delete/RBAC/org-switch) WITHOUT ever entering a TOTP/recovery code. The
+        // client payload (`session.mfaVerifiedAt`) is now DELIBERATELY IGNORED as a freshness
+        // source. The ONLY thing that can promote this session to "freshly stepped up" is a
+        // server-side, single-use proof (`User.mfa_stepped_up_at`) that POST /api/auth/mfa/step-up
+        // wrote after it verified a real code. `consumeStepUpProof` reads that proof, atomically
+        // clears it (single-use — a replay or a second session can't consume it twice), and returns
+        // the SERVER-clock timestamp only if it is still fresh. No valid unconsumed proof →
+        // `mfaVerifiedAt` is left untouched (stays null on a fresh session), so `requireStepUp`
+        // (mfa.ts) still throws. `mfaVerifiedAt` remains the ONLY step-up field an update touches —
+        // role/org/security-version/fingerprint are never client-settable.
+        const userId = typeof token.sub === 'string' ? token.sub : null;
+        if (userId) {
+          const serverProof = await consumeStepUpProof(userId);
+          if (serverProof) {
+            token.mfaVerifiedAt = serverProof;
+          }
+        }
       }
       return token;
     },
