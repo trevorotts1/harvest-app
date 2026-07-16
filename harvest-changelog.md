@@ -1,3 +1,10 @@
+## [2.0.0-build.T12] — BUILD PHASE — 2026-07-16
+### T-12 — Account security: MFA/TOTP, rate limiting, credential-stuffing, session-hijack defense (WP11, QC earned 9.25/10, 1 QC loop)
+- Real RFC 6238 TOTP (otplib), secret AES-256-GCM at rest, fail-closed without MFA_ENCRYPTION_KEY; single-use bcrypt-hashed recovery codes.
+- Step-up MFA freshness is bound to a SERVER-side single-use proof (User.mfa_stepped_up_at, atomic compare-and-swap consume) — the jwt callback ignores any client-supplied timestamp, closing a self-certification bypass. All /api/auth/mfa/* and /api/auth/session/* routes wrapped in withSessionSecurity; re-enrolling a second factor requires fresh step-up.
+- Rate limiting (per account+IP, sliding window, exponential backoff) FAILS CLOSED on store error; credential-stuffing defenses (offline breached-password screen, success-only anomaly scoring, non-enumerating hashed keys, timing-equalized login).
+- Session-hijack defense: device-fingerprint binding, 30-min idle + 12h absolute lifetime, security_version "sign out everywhere" revocation. SecurityEvent emitted at every decision point. Additive schema (User.security_version, User.mfa_stepped_up_at) + migrations. 364 tests. NOTE: in-memory rate/session stores must be swapped for a shared store (Redis) before multi-instance deploy — tracked T-R5.
+
 ## [2.0.0-build.T10] — BUILD PHASE — 2026-07-16
 ### T-10 — Immutable append-only audit store, hash-chained (WP11, QC earned 9.2/10)
 - Append-only AuditRepository/AuditService — NO update/delete API on audit rows (verified codebase-wide); InMemory rows frozen; duplicate-id append rejected.
