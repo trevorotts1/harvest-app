@@ -1,3 +1,10 @@
+## [2.0.0-build.T10] — BUILD PHASE — 2026-07-16
+### T-10 — Immutable append-only audit store, hash-chained (WP11, QC earned 9.2/10)
+- Append-only AuditRepository/AuditService — NO update/delete API on audit rows (verified codebase-wide); InMemory rows frozen; duplicate-id append rejected.
+- SHA-256 hash chain + monotonic sequence: verifyChain detects any in-chain mutation (hash mismatch) or deletion (sequence gap / broken prev_hash). Tail-truncation resistance left to a future external anchoring checkpoint (getChainHead/Tail hooks provided) — documented.
+- Durable sinks funnel CFE / licensing / data-rights events via their UNCHANGED interfaces (no edits to engine/licensing/data-rights). FINRA regulation tag preserved with priority so T-11's legal-hold carve-out query still matches.
+- Rep-visible Activity Ledger, RBAC-scoped via the T-14 §16.6 matrix (own-scope always; cross-user via can(compliance_audit,read); downline resolver fail-closed). Additive schema (sequence/prev_hash/entry_hash + CFEOutcome.RECORDED) + migration. 273 tests.
+
 ## [2.0.0-build.T11] — BUILD PHASE — 2026-07-16
 ### T-11 — Data-rights: complete PII deletion sweep (WP11, QC earned 9.1/10, 3 QC loops)
 - Right-to-erasure now scrubs ALL 12 user-owned PII models (User incl password_hash/image, Contact, ContactInteraction, OnboardingSession, WhySession, WarmMarketExercise, Message, DraftMessage incl cfe_classifier_data, UplineInvite recipient_email (direct + cross-user), LicensingRecord.license_number, AgentRun narrative fields, Milestone.shareable_asset_ref) — verified by an independent full-schema audit (no PII model missed).

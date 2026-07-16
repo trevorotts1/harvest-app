@@ -106,6 +106,10 @@ enum CFEOutcome {
   PASS
   FLAG
   BLOCK
+  /// T-10 (audit store, §5.6/§5.7/§17.8): a non-CFE audit event funneled into the unified store
+  /// from licensing (T-13), data-rights (T-11), or account-security (T-12) — informational
+  /// evidence, not a CFE risk-band adjudication, so it is never conflated with PASS/FLAG/BLOCK.
+  RECORDED
 }
 
 /// Shared across DraftMessage, MessageThread, Message, and OptOutRegistry so a single opt-out
@@ -338,8 +342,21 @@ model OnboardingSession {
 // Append-only CFE decision log — the compliance evidence trail and the source of the rep-visible
 // Agent Activity Ledger (§5.6). Access-restricted and segregated so a GDPR deletion can remove
 // ordinary user data while lawfully retaining FINRA-required communications (§16.3).
+//
+// T-10 (audit store, §5.6/§16.1 "immutability (append-only, signed audit)"): `sequence`/
+// `prev_hash`/`entry_hash` are additive hash-chain tamper-evidence columns — no existing column
+// was changed or dropped. `sequence` is a monotonic autoincrement independent of `created_at`
+// (TIMESTAMPTZ can collide under concurrent writers; a dedicated sequence cannot), giving the hash
+// chain a stable, gapless append order to verify. `entry_hash` is SHA-256 over the row's own
+// content + `prev_hash` (`src/services/compliance/audit/hash-chain.ts`); `prev_hash` is `null`
+// only for the very first row ever appended. There is deliberately no update/delete path anywhere
+// in the application layer for this model (`src/services/compliance/audit/audit-service.ts`'s
+// `AuditRepository` interface declares only `append`/`query`/`getById`/`getChainTail`) — mutability
+// here is the WP11 QC checklist's named critical-failure condition ("a mutable or unsigned audit
+// trail").
 model AuditEntry {
   id              String     @id @default(uuid())
+  sequence        Int        @unique @default(autoincrement())
   user_id         String
   content_id      String?
   content_text    String
@@ -353,6 +370,8 @@ model AuditEntry {
   reviewer_id     String?
   reviewer_action String?
   role            Role       @default(REP)
+  prev_hash       String?
+  entry_hash      String     @default("")
   created_at      DateTime   @default(now()) @db.Timestamptz(6)
 
   @@index([created_at])
