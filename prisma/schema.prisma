@@ -961,3 +961,40 @@ model LicensingStateEvent {
   @@index([user_id, created_at])
   @@index([jurisdiction, created_at])
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Breach notification & incident response (§16.7, T-15)
+// ═══════════════════════════════════════════════════════════════════════
+
+// The dedicated append-only incident log (T-15, build-brief item 4). One row per lifecycle
+// event (DECLARED | TRIAGED | CONTAINED | NOTIFIED | RESOLVED, §16.7's detected -> triaged ->
+// contained -> notified -> resolved runbook) — there is deliberately no separate "Incident" header
+// row with a mutable `status`/`severity` column: current state (severity, lifecycle position,
+// breach classification, the GDPR Art. 33 72-hour clock, notification detail) is always a
+// *projection* folded from this ordered log at read time
+// (src/services/security/incident/incident-projection.ts), never a value that gets UPDATEd in
+// place. `kind` follows this file's convention for entity-specific, config-shaped vocabularies
+// (see the header note above): a String column with the allowed values enumerated here rather than
+// a Prisma enum, so the vocabulary can grow without a migration. `payload` carries every
+// kind-specific detail (declare-time classification + evidence event ids; triage notes/breach-class
+// decision; containment actions; notification parties/data-categories/method; resolution root
+// cause) — see src/types/incident.ts for the full per-kind payload shapes. Every row here is also
+// mirrored into T-10's hash-chained AuditEntry store (domain: 'account_security') via
+// src/services/security/incident/incident-audit-sink.ts for a second, cryptographically
+// tamper-evident copy of the same evidence.
+model IncidentEvent {
+  id          String   @id @default(uuid())
+  incident_id String
+  /// Monotonic per-incident append order (1 = the DECLARED row). Assigned by IncidentService,
+  /// never by the caller — mirrors AuditEntry.sequence's role in the T-10 store.
+  sequence    Int
+  kind        String   // DECLARED | TRIAGED | CONTAINED | NOTIFIED | RESOLVED
+  actor_id    String?  // null on a system-declared (SecurityEvent-correlation) DECLARED row
+  actor_role  Role?
+  payload     Json
+  occurred_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([incident_id, sequence])
+  @@index([incident_id, occurred_at])
+  @@index([kind, occurred_at])
+}

@@ -72,7 +72,8 @@ export type Resource =
   | 'team_metrics'
   | 'payment'
   | 'user_profile'
-  | 'onboarding';
+  | 'onboarding'
+  | 'incident_response'; // T-15, §16.7 breach notification & incident-response lifecycle
 
 export type Action = 'read' | 'write' | 'delete' | 'export' | 'approve' | 'manage';
 
@@ -158,6 +159,20 @@ export const MATRIX: Record<Resource, Grant> = {
   },
 
   // ── Extension resources (not literal §16.6 rows) ───────────────────────────────────────────
+  // "incident_response" (T-15, §16.7 "Breach notification & incident response" — an IR lifecycle
+  // "owned by the operator with an on-call rotation"). Not a literal §16.6 row, so — like the
+  // other extension resources below — this is the one place its allow-list is spelled out. Scoped
+  // to RVP/ADMIN only: incident records surface other users' account-security evidence (SecurityEvent
+  // clusters, breach classification, notification detail) that is materially more sensitive than
+  // the row-4 "Flagged-content review" UPLINE already sees team-scoped, so UPLINE is deliberately
+  // NOT listed here (unlike compliance_audit's `read`/`approve`) — REP/UPLINE/DUAL are all denied;
+  // only RVP/ADMIN can read or manage an incident record. DUAL is never hand-listed (rule 2 above)
+  // and REP/UPLINE are absent from every action here, so DUAL's REP∪UPLINE union correctly resolves
+  // to "denied" too.
+  incident_response: {
+    read: [Role.RVP, Role.ADMIN],
+    manage: [Role.RVP, Role.ADMIN],
+  },
   calendar: {
     read: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
     write: [Role.REP, Role.ADMIN],
