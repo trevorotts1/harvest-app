@@ -2,12 +2,7 @@ import { Role } from '@prisma/client';
 import type { Session } from 'next-auth';
 
 import { hasRole, RBACError, requireRole, roleSatisfies } from '../../src/lib/auth/rbac';
-import {
-  isMfaRequiredForRole,
-  MFA_REQUIRED_ROLES,
-  requireStepUp,
-  StepUpRequiredError,
-} from '../../src/lib/auth/mfa';
+import { isMfaRequiredForRole, MFA_REQUIRED_ROLES } from '../../src/lib/auth/mfa';
 
 function fakeSession(role: Role): Session {
   return {
@@ -19,6 +14,9 @@ function fakeSession(role: Role): Session {
       accessTier: 'FREE_ORG_LINKED',
       mfaEnrolled: false,
       mfaVerifiedAt: null,
+      deviceFingerprintHash: 'test-fingerprint',
+      securityVersionAtIssue: 0,
+      boundAt: Date.now(),
     },
     expires: new Date(Date.now() + 60_000).toISOString(),
   } as Session;
@@ -140,7 +138,7 @@ describe('requireRole (throwing guard)', () => {
   });
 });
 
-describe('MFA-capable hook points (T-04 scaffold; enforcement lands in T-12)', () => {
+describe('MFA role requirements (§16.4)', () => {
   test('MFA is required for UPLINE, RVP, ADMIN, and DUAL (§16.4)', () => {
     expect(isMfaRequiredForRole(Role.UPLINE)).toBe(true);
     expect(isMfaRequiredForRole(Role.RVP)).toBe(true);
@@ -153,18 +151,7 @@ describe('MFA-capable hook points (T-04 scaffold; enforcement lands in T-12)', (
     expect(MFA_REQUIRED_ROLES).not.toContain(Role.REP);
   });
 
-  test('requireStepUp is a documented no-op in T-04 (T-12 implements real enforcement)', () => {
-    expect(() =>
-      requireStepUp({ mfaEnrolled: false, mfaVerifiedAt: null }, 'billing_change')
-    ).not.toThrow();
-    expect(() =>
-      requireStepUp({ mfaEnrolled: true, mfaVerifiedAt: null }, 'data_delete')
-    ).not.toThrow();
-  });
-
-  test('StepUpRequiredError carries the action name for T-12 to use', () => {
-    const error = new StepUpRequiredError('rbac_change');
-    expect(error.action).toBe('rbac_change');
-    expect(error.message).toContain('rbac_change');
-  });
+  // requireStepUp's real enforcement (T-12: enrollment-required vs. stale-step-up vs. fresh-and-
+  // allowed) is proven in tests/unit/mfa-step-up.test.ts, alongside StepUpRequiredError /
+  // MfaEnrollmentRequiredError.
 });

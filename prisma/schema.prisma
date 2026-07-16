@@ -186,6 +186,12 @@ model User {
   onboarding_status     OnboardingStatus  @default(IN_PROGRESS)
   mfa_enrolled          Boolean           @default(false)
   mfa_methods           Json?
+  // T-12 (§16.4 session security): bumped on "sign out everywhere" and on a privilege/role
+  // rotation event. Snapshotted into the JWT at sign-in (`securityVersionAtIssue`); a session
+  // whose snapshot no longer matches the live value here is treated as revoked (src/lib/auth/
+  // session-security.ts `evaluateSessionSecurity`), which is how a stateless JWT session supports
+  // server-side revocation without a live session-token table.
+  security_version      Int               @default(0)
   organization_id       String?
   organization          Organization?     @relation(fields: [organization_id], references: [id])
   onboarding_sessions   OnboardingSession[]
