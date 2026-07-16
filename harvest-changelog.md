@@ -1,3 +1,12 @@
+## [2.0.0-build.T17] — BUILD PHASE — 2026-07-17
+### T-17 — WP01 onboarding core: identity gate, 5 roles, org gate, solution-number, tracks A/B/D (QC earned 9.0/10, 1 QC loop) — first Wave 2 unit
+- Fail-closed master identity gate (401/403, no coercion); only GATED_COMPLETE onboarding status unlocks downstream.
+- Five roles + DUAL: canInPersona decomposes DUAL to the active persona's base role (no REP∪UPLINE bleed); PersonaScopedStore partitions rep- vs upline-persona data; §17.2 self-review escalation.
+- Org gate locks the §17.1 branch (PRIMERICA vs universal); data-layer Primerica-leak tripwire matches raw + normalized text (catches mixed-case + camelCase field names); universal users are Primerica-free by construction.
+- Solution-number: 7-digit format-check only, verified=false, masked, encrypted at rest, never logged/echoed/trusted-as-auth; a valid number cannot buy the Primerica branch (only org_type does). Legacy 6-8-digit validator retired (delegates to the authoritative 7-digit check); legacy OrgType/AccessTier enums retired to the Prisma enums.
+- Tracks A/B/D state-machine shells with the T-13 licensing hard-block (only LICENSED clears; unlicensed/pre/expired route to compliance advisory). 486 tests.
+- NOTE: end-to-end route-level gate enforcement (wiring these modules into WP02-WP10 routes + /api/auth/register solution-number encryption) is contracted to T-20.
+
 ## [2.0.0-build.T15] — BUILD PHASE — 2026-07-16
 ### T-15 — Breach notification & incident response, GDPR 72h (WP11, QC earned 9.1/10) — FINAL WP11 unit
 - SecurityEvent correlation: weighted 60-min sliding-window classifier declares an incident at threshold; a lone breach_incident declares alone. Deterministic.
