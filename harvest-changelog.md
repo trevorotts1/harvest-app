@@ -1,3 +1,8 @@
+## [2.0.0-build.T19] — BUILD PHASE — 2026-07-17
+### T-19 — Sponsor matching, invites, access-tier assignment, downstream contracts (WP01, QC 9.0, 1 QC loop)
+- Sponsor matching never dead-ends (no eligible sponsor → waitlist, not an error); invite state machine (7-day expiry, resend cap ≤3 / 24h cooldown); 9 typed §6.9 downstream contracts (projectToWP02..WP10).
+- Access tier derives ONLY from §6.7 signals (auth source + sponsor/org), NEVER a commitment score — closes a payment bug where a sponsored user could be assigned a PAID tier. Live /api/onboarding/complete + /api/auth/register + the legacy determineAccessTier all route through assignAccessTierFromSignals. Tiers: FREE_ORG_LINKED/$0, FREE_PAID_EXTERNAL/$0, PAID_INDIVIDUAL/$297, ENTERPRISE/$25,000 (no $49/$199). RBAC: invite own-only for reps, tier admin-only. 571 tests.
+
 ## [2.0.0-build.T18] — BUILD PHASE — 2026-07-17
 ### T-18 — Seven Whys engine: Sonnet runtime, invisible >70 resonance gate as care, consent-off (WP01, QC 8.8)
 - Sonnet-5 guided conversation (one question per turn, DI-mockable; missing ANTHROPIC_API_KEY throws with no non-Claude fallback).
