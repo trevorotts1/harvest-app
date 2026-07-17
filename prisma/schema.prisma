@@ -102,6 +102,17 @@ enum PipelineStage {
   DO_NOT_CONTACT
 }
 
+/// T-22 (§7.1, §18.5): lifecycle of a Vault contact-import batch. Deliberately two states only —
+/// `IN_PROGRESS` covers both "still running" and "crashed/partially failed but resumable" (there is
+/// no separate FAILED state: a hard stop mid-batch is not a terminal failure, it is exactly the
+/// resumable checkpoint `cursor` describes) — and `COMPLETED`, which also doubles as the
+/// idempotency short-circuit: a retry against a `COMPLETED` batch (same user + idempotency_key)
+/// replays the stored result instead of reprocessing any row.
+enum ImportBatchStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
 enum CFEOutcome {
   PASS
   FLAG
@@ -800,6 +811,43 @@ model OptOutRegistry {
 
   @@unique([identifier_hash, channel])
   @@index([identifier_hash])
+}
+
+// T-22 (§7.1 "four ingestion modalities", §18.5 "interrupted import (resumable, idempotent)") — the
+// Vault's import-job checkpoint. One row per import attempt. `idempotency_key` is caller-supplied
+// (the client mints one per logical import attempt, e.g. a hash of the CSV file or a UUID minted
+// once and reused across retries) and is what makes re-running the same import a no-op rather than
+// a duplicate: a retry with the SAME (user_id, idempotency_key) finds this row and either replays
+// the cached result (already COMPLETED) or resumes from `cursor` (still IN_PROGRESS) instead of
+// reprocessing rows 0..cursor. `cursor` is the zero-based index, into the caller's own row list, of
+// the next row that has NOT yet been durably committed — so a crash mid-batch (partial failure)
+// leaves exactly enough state to resume without corruption, data loss, or reprocessing. `error_rows`
+// is the downloadable-error-rows contract (§7.6 "malformed/exotic CSV → mapping preview +
+// downloadable error rows"): terminal per-row validation failures (never infra failures — those stop
+// the cursor instead, see VaultService.importBatch) recorded as `[{ index, reason }]`.
+//
+// Referenced only loosely by `Contact.import_batch_id` (a plain scalar column, not a `@relation`),
+// matching this schema's established convention (see the file-level design notes above) of avoiding
+// a back-reference array on Contact for every new import-adjacent entity.
+model ImportBatch {
+  id                    String            @id @default(uuid())
+  user_id               String
+  source                String            // ContactSource value (CSV | IOS_NATIVE | ANDROID_NATIVE | GOOGLE_OAUTH)
+  idempotency_key       String
+  status                ImportBatchStatus @default(IN_PROGRESS)
+  total_rows            Int               @default(0)
+  cursor                Int               @default(0) // next unprocessed row index — the resume point
+  imported_count        Int               @default(0)
+  merged_count          Int               @default(0)
+  minor_flagged_count   Int               @default(0)
+  error_rows            Json?             // [{ index, reason }]
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
+  completed_at          DateTime?         @db.Timestamptz(6)
+
+  @@unique([user_id, idempotency_key])
+  @@index([user_id])
+  @@index([user_id, status])
 }
 
 // The Seven Whys transcript + anchor (§6). The rep's anchor statement and why-photo are the most

@@ -6,6 +6,15 @@ import {
   ContactSource,
 } from '../../types/warm-market';
 import { hmacForMatch } from '../compliance/encryption/encryption';
+// T-22 (The Vault, §7.1 "AES-256 encryption before persistence"; QC WP02 critical failure
+// "unencrypted PII"): this file predates the WP11 encryption service being wired in — `importContacts`
+// used to persist `normalized.phone`/`.email`/first_name/last_name as plaintext. It now encrypts
+// every PII-bearing field before the `.create()` call, via the same Vault encryption module the
+// richer batch/idempotency orchestration in `./vault/vault.service.ts` uses, so there is exactly one
+// implementation of "how Contact PII is encrypted at rest" in this codebase. `phone_hash`/`email_hash`
+// (already correct here since T-03) remain the ONLY queryable/dedup-able representation of phone/email
+// — ciphertext varies by IV per call and can never be used for equality lookups.
+import { encryptOptionalField, encryptRequiredField } from './vault/vault-encryption';
 
 export interface ContactInput {
   userId: string;
@@ -39,18 +48,20 @@ export class ContactService {
         const contact = await this.prisma.contact.create({
           data: {
             user_id: userId,
-            first_name,
-            last_name,
-            phone: normalized.phone,
-            email: normalized.email,
+            // T-22: encrypted at rest (AES-256-GCM, WP11 service) — never plaintext (§7.1, §16.4).
+            first_name: encryptRequiredField(first_name),
+            last_name: encryptRequiredField(last_name),
+            phone: encryptOptionalField(normalized.phone),
+            email: encryptOptionalField(normalized.email),
             // Deterministic *keyed* HMAC-SHA256 hashes for global opt-out matching & cross-rep
             // dedup (§3, §3.4) — NOT plain SHA-256, which would be reversible for low-entropy
             // inputs like phone numbers. Fails closed (throws) if CONTACT_HASH_PEPPER is unset.
-            // phone/email themselves are expected to hold app-layer AES-256 ciphertext in production.
+            // These are computed from the PLAINTEXT normalized value (never from the ciphertext
+            // above, which varies by IV per call and could never match on lookup).
             phone_hash: normalized.phone ? hmacForMatch(normalized.phone) : null,
             email_hash: normalized.email ? hmacForMatch(normalized.email) : null,
             industry: item.industry ?? null,
-            notes: item.notes ?? null,
+            notes: encryptOptionalField(item.notes ?? null),
             source,
             segment_score: 0,
             pipeline_stage: PipelineStage.IDENTIFIED,
