@@ -1,3 +1,8 @@
+## [2.0.0-build.T20] — BUILD PHASE — 2026-07-17
+### T-20 — Onboarding UI (O-1..O-9) + end-to-end §6.10-1 gate enforcement + encrypted solution-number on register (WP01, QC 9.1, 2 QC loops)
+- O-1..O-9 onboarding screens + dense upline/RVP track, consuming the merged WP01 engines (identity/org-gate, Seven Whys invisible-score contract, sponsor matching/waitlist, tracks + §16.5 licensing hard-block), on the Living Field design tokens (no raw hex). Includes O-5 outreach-consent toggle (default off), O-2 photo capture (+initials fallback), DUAL persona switcher, Hidden Earnings Reveal (safe-harbor + zero-data growth path + no-share + single SR utterance).
+- §6.10-1 hard gate now enforced end-to-end: middleware redirects non-GATED_COMPLETE users off all WP02–WP10 page subtrees; withOnboardingGate wraps all downstream data API routes (deny-by-default, live-DB status wins over a stale token). /api/auth/register now 7-digit-checks + AES-256-GCM-encrypts the solution number (no plaintext). Legacy onboarding service path retired. 653 tests.
+
 ## [2.0.0-build.T19] — BUILD PHASE — 2026-07-17
 ### T-19 — Sponsor matching, invites, access-tier assignment, downstream contracts (WP01, QC 9.0, 1 QC loop)
 - Sponsor matching never dead-ends (no eligible sponsor → waitlist, not an error); invite state machine (7-day expiry, resend cap ≤3 / 24h cooldown); 9 typed §6.9 downstream contracts (projectToWP02..WP10).
