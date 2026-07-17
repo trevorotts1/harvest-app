@@ -140,6 +140,45 @@ describe('(b) Hidden Earnings Reveal (§4.13 / §18.5 / AC-5.1-8)', () => {
     expect(html).not.toMatch(/share/i); // no share affordance exists on this screen
   });
 
+  // T-24 TEETH: master-spec §18.5 says "Hidden Earnings with 3 or 0 contacts -> renders the growth
+  // path... safe harbor ALWAYS" — the growth path is explicitly NOT exempt from the disclaimer. This
+  // fails if the safe-harbor paragraph were ever removed from (or never added to) the zero-data
+  // branch, which is exactly the state this component was in before T-24.
+  test('TEETH (§18.5 "safe harbor always"): the zero-data growth path ALSO carries the exact safe-harbor line, in the same one-utterance SR announcement', () => {
+    const html = render(
+      createElement(HiddenEarningsReveal, {
+        contactCount: 2,
+        monthlyValueUsd: 0,
+        estimatedAppointments: 0,
+        estimatedClients: 0,
+      })
+    );
+    expect(html).toContain(SAFE_HARBOR_LINE);
+    // The SR utterance for the growth path must ALSO be a single element carrying growth copy +
+    // disclaimer together, never two separate announcements.
+    const srMatch = html.match(/id="reveal-zero-sr"[^>]*>([^<]*)</);
+    expect(srMatch).not.toBeNull();
+    expect(srMatch![1]).toMatch(/field/i);
+    expect(srMatch![1]).toMatch(/potential, not a promise/i);
+  });
+
+  // T-24 TEETH: a count strictly above 3 (10) whose UPSTREAM-COMPUTED value is <=0 (the engine's own
+  // "never $0" fallback, hidden-earnings.ts) must still render the growth path here, not a literal
+  // "$0" figure — proving the component's zero-data decision is not merely `contactCount <= 3`.
+  test('TEETH: contactCount=10 with monthlyValueUsd=0 (the engine\'s own growth-path fallback for a count above 3) still renders the growth path, never a literal $0', () => {
+    const html = render(
+      createElement(HiddenEarningsReveal, {
+        contactCount: 10,
+        monthlyValueUsd: 0,
+        estimatedAppointments: 2,
+        estimatedClients: 0,
+      })
+    );
+    expect(html).not.toMatch(/\$0\b/);
+    expect(textOf(html)).toMatch(/field|add people|grows/i);
+    expect(html).toContain(SAFE_HARBOR_LINE);
+  });
+
   test('with real data: safe harbor is present, inseparable, and NO share control exists', () => {
     const html = render(
       createElement(HiddenEarningsReveal, {
