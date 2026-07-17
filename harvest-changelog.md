@@ -1,3 +1,8 @@
+## [2.0.0-build.T-R7] — BUILD PHASE — 2026-07-18
+### T-R7 — DSAR export decrypts Contact PII before serialize (WP11 remediation, QC 8.9)
+- processExport decrypts every Contact's PII before serializing the GDPR/CCPA export (JSON+CSV); per-field safe degradation on decrypt failure (marked-unavailable, no crash/no ciphertext leak). Deletion/FINRA carve-out/legal-hold unchanged. 725 tests.
+- Follow-up (T-R9): decrypt User.solution_number in the export + exclude password_hash/MFA material.
+
 ## [2.0.0-build.T22] — BUILD PHASE — 2026-07-17
 ### T-22 — The Vault: contact ingestion + encrypted PII + idempotent import (WP02, QC 8.6) — first Wave 3 unit
 - Four ingestion modalities (CSV, iOS native, Android native, Google Contacts) converge on one encrypting upsert. Contact PII (first/last name, phone, email, notes) is AES-256-GCM encrypted at rest (CONTACT_ENCRYPTION_KEY, fail-closed); dedup/match via keyed HMAC (phone_hash/email_hash), never plaintext. Fixes a pre-existing plaintext-PII bug in contact.service.ts.
