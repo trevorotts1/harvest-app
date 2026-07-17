@@ -1,3 +1,10 @@
+## [2.0.0-build.T18] — BUILD PHASE — 2026-07-17
+### T-18 — Seven Whys engine: Sonnet runtime, invisible >70 resonance gate as care, consent-off (WP01, QC 8.8)
+- Sonnet-5 guided conversation (one question per turn, DI-mockable; missing ANTHROPIC_API_KEY throws with no non-Claude fallback).
+- Hidden 0–100 resonance score gates progression at >70 but is INVISIBLE by construction (rendered-turn type has no score field; verified by key+JSON scan and mutation test). A ≤70 turn triggers a caring re-prompt, never a failure/score message.
+- Anchor statement composed, doctrine-vocabulary-guarded, AES-256-GCM encrypted at rest (WHY_SESSION_ENCRYPTION_KEY, fail-closed). use_in_outreach_consent defaults false at schema/create/update; only an explicit setter flips it.
+- Any anchor routed toward outreach passes through the CFE (fail-closed; consent-false short-circuits; only a released verdict allows). 508 tests.
+
 ## [2.0.0-build.T17] — BUILD PHASE — 2026-07-17
 ### T-17 — WP01 onboarding core: identity gate, 5 roles, org gate, solution-number, tracks A/B/D (QC earned 9.0/10, 1 QC loop) — first Wave 2 unit
 - Fail-closed master identity gate (401/403, no coercion); only GATED_COMPLETE onboarding status unlocks downstream.
