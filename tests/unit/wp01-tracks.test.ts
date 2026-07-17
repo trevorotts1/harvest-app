@@ -49,6 +49,25 @@ describe('WP01 onboarding tracks A/B/D (§6.3)', () => {
       expect(trackRequiresLicensure(Role.RVP)).toBe(true);
       expect(trackRequiresLicensure(Role.DUAL)).toBe(true);
     });
+
+    // T-21R (§6.10-10, WP01 gate QC checkpoint #15): before this fix, ONLY `ADMIN_STEPS` carried a
+    // `consent_capture` step — Flow A/B/D (REP/UPLINE/RVP, and therefore DUAL's union) had no GDPR
+    // consent step at all, so no onboarding screen for those roles could even be discovered from the
+    // authoritative track spine. Every role's track now ends in it.
+    test('every role track carries a "consent_capture" step, labeled "GDPR consent capture", as its FINAL step', () => {
+      for (const role of [Role.REP, Role.UPLINE, Role.RVP, Role.DUAL, Role.ADMIN]) {
+        const steps = stepsForRole(role);
+        const last = steps[steps.length - 1];
+        expect(last?.key).toBe('consent_capture');
+        expect(last?.label).toBe('GDPR consent capture');
+        expect(last?.requiresLicensure).toBeFalsy(); // never itself licensure-gated
+      }
+    });
+
+    test('DUAL still dedupes consent_capture (present in both Flow A and Flow B) — appears exactly once', () => {
+      const dualSteps = stepsForRole(Role.DUAL).map((s) => s.key);
+      expect(dualSteps.filter((k) => k === 'consent_capture')).toHaveLength(1);
+    });
   });
 
   describe('the licensure hard-block — synchronous, over a known §16.5 state', () => {

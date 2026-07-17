@@ -17,6 +17,10 @@ import { OrgType } from '@/types/onboarding';
 // is the single §6.7-correct decision function (src/services/onboarding/wp01/access-tier.ts) —
 // wiring it in here is what makes it reachable from the live app at all.
 import { assignAccessTierFromSignals } from '@/services/onboarding/wp01/access-tier';
+// T-21R (§6.10-10): the pure GDPR-consent completion precondition — see its module comment for why
+// this is a SEPARATE function from the §6.10-1 downstream gate (`evaluateOnboardingGate`,
+// identity-gate.ts), which this route/fix does not touch.
+import { evaluateConsentCompletionGate } from '@/services/onboarding/wp01/consent-gate';
 // T-19 QC fix: the in-memory session/user store lives in its own module (not declared or exported
 // here) so tests can seed it directly without adding a non-route export to this file — see
 // ./store.ts for why.
@@ -46,8 +50,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check that we're at the INTENSITY step (last before complete)
-    if (session.current_step !== 'INTENSITY' && session.current_step !== 'COMPLETE') {
+    // Check that we're at the INTENSITY or CONSENT_CAPTURE step (last before complete) — T-21R adds
+    // CONSENT_CAPTURE (§6.10-10) as the true final step for every role's ROLE_STEP_MAP
+    // (types/onboarding.ts), which this check previously didn't know about at all.
+    if (
+      session.current_step !== 'INTENSITY' &&
+      session.current_step !== 'CONSENT_CAPTURE' &&
+      session.current_step !== 'COMPLETE'
+    ) {
       return NextResponse.json(
         { error: 'Cannot complete onboarding before reaching INTENSITY step' },
         { status: 400 }
@@ -68,6 +78,23 @@ export async function POST(request: NextRequest) {
     if (commitmentScore < 5) {
       return NextResponse.json(
         { error: 'Commitment score must be at least 5/10 to complete onboarding' },
+        { status: 400 }
+      );
+    }
+
+    // T-21R (§6.10-10) — GDPR CONSENT COMPLETION PRECONDITION: a user must never reach
+    // GATED_COMPLETE without a recorded, affirmative GDPR consent event. Fail-closed — anything other
+    // than an explicit `true` on the session's `gdpr_consent` field blocks completion outright, same
+    // as the commitment-score check just above. Distinct from (and does NOT alter) the §6.10-1
+    // downstream gate (`withOnboardingGate`/`evaluateOnboardingGate`) — this is the completion-time
+    // check only.
+    const consentOutcome = evaluateConsentCompletionGate(session.gdpr_consent);
+    if (!consentOutcome.allowed) {
+      return NextResponse.json(
+        {
+          error: 'GDPR consent is required to complete onboarding (§6.10-10)',
+          code: consentOutcome.reason,
+        },
         { status: 400 }
       );
     }

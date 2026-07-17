@@ -12,7 +12,7 @@ import { Role } from '@prisma/client';
 
 import { stepsForRole, trackForRole, type OnboardingTrack } from '@/services/onboarding/wp01/tracks';
 
-/** The nine rep-track screens (uiux §5.1 O-1..O-9), in order. */
+/** The rep-track screens (uiux §5.1 O-1..O-9, plus the T-21R GDPR consent micro-step), in order. */
 export type OnboardingScreen =
   | 'vision' // O-1
   | 'identity' // O-2
@@ -22,6 +22,7 @@ export type OnboardingScreen =
   | 'sponsor' // O-6
   | 'contacts' // O-7
   | 'reveal' // O-8
+  | 'consent' // O-8.5 — GDPR consent capture (T-21R, §6.10-10); the final gate before handoff
   | 'first48'; // O-9
 
 export const REP_SCREENS: readonly OnboardingScreen[] = [
@@ -33,6 +34,7 @@ export const REP_SCREENS: readonly OnboardingScreen[] = [
   'sponsor',
   'contacts',
   'reveal',
+  'consent',
   'first48',
 ];
 
@@ -46,6 +48,7 @@ export const SCREEN_LABELS: Record<OnboardingScreen, string> = {
   sponsor: 'Your sponsor',
   contacts: 'Your community',
   reveal: "Your field's potential",
+  consent: 'Your consent',
   first48: 'Your first 48',
 };
 
@@ -63,6 +66,8 @@ const TRACK_KEY_TO_SCREEN: Record<string, OnboardingScreen> = {
   goals_intensity: 'goals_intensity',
   seven_whys: 'seven_whys',
   sponsor_matching: 'sponsor',
+  // T-21R: the wp01 `tracks.ts` GDPR-consent step key ↔ this O-screen (§6.10-10).
+  consent_capture: 'consent',
 };
 
 export function resumeScreen(lastIncompleteStep: string | null | undefined): OnboardingScreen {
