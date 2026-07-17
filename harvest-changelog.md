@@ -1,3 +1,9 @@
+## [2.0.0-build.T22] — BUILD PHASE — 2026-07-17
+### T-22 — The Vault: contact ingestion + encrypted PII + idempotent import (WP02, QC 8.6) — first Wave 3 unit
+- Four ingestion modalities (CSV, iOS native, Android native, Google Contacts) converge on one encrypting upsert. Contact PII (first/last name, phone, email, notes) is AES-256-GCM encrypted at rest (CONTACT_ENCRYPTION_KEY, fail-closed); dedup/match via keyed HMAC (phone_hash/email_hash), never plaintext. Fixes a pre-existing plaintext-PII bug in contact.service.ts.
+- Idempotent + resumable import via a new ImportBatch model (replay a completed key = no-op; infra failure resumes at the row without advancing the cursor; cross-key HMAC dedupe). Minors (under-18, fail-toward-caution) set do_not_contact + DO_NOT_CONTACT + OptOutRegistry(reason:minor) — unreachable for outreach. /api/contacts/import is session-gated (withOnboardingGate), never trusts a forged header. 724 tests.
+- NOTE: Contact PII columns are now ciphertext — downstream consumers must decrypt via decryptContactPII (tracked: T-23 memory-jogger/pipeline; T-R7 data-rights DSAR export [compliance, do early]; T-R8 legacy dedup).
+
 ## [2.0.0-build.T21R] — BUILD PHASE — 2026-07-17
 ### T-21R — GDPR consent capture (WP01 §6.10-10 remediation, QC 8.7)
 - Dedicated O-8.5 consent micro-step (explicit affirmative, default-off, Continue disabled until acted) → POST /api/onboarding/consent (session-authed) calls WP11 ConsentManager, writes a versioned+timestamped ComplianceConsent('gdpr', given:true) row and sets User.gdpr_consent=true.
