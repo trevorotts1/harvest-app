@@ -1,0 +1,428 @@
+/* ==========================================================================
+   Onboarding — "The Opening" (uiux §5.1, O-1..O-9 + upline/RVP track)  [T-20]
+
+   Consumes SEMANTIC tokens only (tokens.css §1.2.2) — no raw hex, no opacity
+   on text, no translucent `color:` (the guard-no-opacity-on-text gate scans
+   this file). Background/shadow rgba is fine (the guard flags only `color:`
+   and `opacity:`); text always resolves to an AA-validated token.
+   ========================================================================== */
+
+.onboarding {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas-wash);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+/* Full-screen step shell (tab bar hidden during onboarding, §2.2). */
+.step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-7) var(--gutter-mobile);
+  gap: var(--space-5);
+  text-align: center;
+}
+
+.stepInner {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  text-align: left;
+}
+
+/* ---- O-1 Vision splash: Pre-Dawn canvas, vision voice ---- */
+.predawn {
+  /* Always the dark Pre-Dawn canvas (theme-invariant — this splash is cinematic dark in both
+     themes), so it uses the fixed dark grove ramp tokens directly rather than the theme-flipping
+     `--canvas-wash`. No raw hex: both stops are §1.2 semantic tokens; the harvest-glow overlay is a
+     background rgba (not a `color:`/`opacity:`, so guard-clean). */
+  background:
+    radial-gradient(circle at top left, rgba(200, 133, 44, 0.14), transparent 30rem),
+    linear-gradient(160deg, var(--grove-950) 0%, var(--grove-900) 100%);
+  color: var(--ink-inverse);
+}
+.visionTitle {
+  font-family: var(--font-vision);
+  font-size: var(--type-hero-size);
+  line-height: var(--type-hero-line);
+  letter-spacing: var(--type-hero-tracking);
+  font-weight: 500;
+  color: var(--ink-inverse);
+  max-width: 620px;
+  margin: 0 auto;
+  text-align: center;
+}
+.visionSeed {
+  width: 72px;
+  height: 72px;
+  margin: var(--space-6) auto 0;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-mark);
+  box-shadow: var(--elevation-2);
+}
+
+/* ---- Headings ---- */
+.headline {
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  font-weight: 800;
+  margin: 0;
+}
+.lede {
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+  color: var(--text-secondary);
+  margin: 0;
+}
+.caption {
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+
+/* ---- Card / panel ---- */
+.card {
+  background: var(--surface-1-solid-fallback);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ---- Fields ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.label {
+  font-weight: 800;
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+.input {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-3);
+  font-size: var(--type-body-size);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+.input:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* ---- Buttons ---- */
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+.btn {
+  min-height: 46px;
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-5);
+  font-weight: 800;
+  font-size: var(--type-body-size);
+  font-family: inherit;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.btnPrimary {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+}
+.btnHarvest {
+  background: var(--color-harvest-fill);
+  color: var(--on-harvest-fill);
+  border-color: var(--color-harvest-fill);
+}
+.btnSecondary {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--line);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+/* ---- Seven-seed progress stepper (§4.10) ---- */
+.seedRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+.seed {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--line);
+  background: var(--surface-3);
+}
+.seedFilled {
+  background: var(--color-harvest-fill);
+  border-color: var(--color-harvest-fill);
+}
+.seedPulse {
+  border-color: var(--color-harvest-fill-strong);
+  animation: seedPulse 1.2s var(--ease-organic) infinite;
+}
+@keyframes seedPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(200, 133, 44, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(200, 133, 44, 0);
+  }
+}
+
+/* ---- Seven Whys chat (§5.1 O-5) ---- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.bubbleAgent {
+  align-self: flex-start;
+  max-width: 88%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+}
+.ack {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+}
+.typing {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+.typingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-growth);
+}
+
+/* ---- Org gate / solution number (§5.1 O-3) ---- */
+.notVerified {
+  font-size: var(--type-caption-size);
+  color: var(--color-caution-text);
+  background: var(--color-caution-bg);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-3);
+}
+.orgGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr 1fr;
+}
+.orgCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+.orgCardSelected {
+  border-color: var(--color-action);
+  box-shadow: var(--elevation-1);
+}
+
+/* ---- Intensity dial (§4.9) ---- */
+.dial {
+  display: flex;
+  gap: var(--space-3);
+}
+.dialPos {
+  flex: 1;
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 800;
+  cursor: pointer;
+}
+.dialPosSelected {
+  border-color: var(--color-action);
+  background: var(--leaf-100);
+  color: var(--leaf-800);
+}
+.consequence {
+  background: var(--surface-3);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+}
+
+/* ---- Sponsor (§5.1 O-6) ---- */
+.sponsorCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: var(--cream);
+  color: var(--text-primary);
+}
+.sponsorCovers {
+  color: var(--color-harvest-on-cream);
+  font-weight: 800;
+}
+
+/* ---- Hidden Earnings Reveal (§5.1 O-8) ---- */
+.reveal {
+  background: var(--gradient-reveal);
+  color: var(--ink-inverse);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-7) var(--gutter-mobile);
+  text-align: center;
+}
+.revealEyebrow {
+  font-size: var(--type-caption-size);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-inverse);
+}
+.revealFigure {
+  font-family: var(--font-vision);
+  font-size: var(--type-hero-xl-size);
+  line-height: var(--type-hero-xl-line);
+  letter-spacing: var(--type-hero-xl-tracking);
+  font-weight: 600;
+  color: var(--harvest-300);
+  text-shadow: 0 2px 18px rgba(19, 37, 29, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.revealStat {
+  font-size: var(--type-body-lg-size);
+  color: var(--ink-inverse);
+  font-variant-numeric: tabular-nums;
+}
+.safeHarbor {
+  font-family: var(--font-vision);
+  font-style: italic;
+  font-size: var(--type-body-lg-size);
+  line-height: 1.4;
+  color: var(--ink-inverse);
+  max-width: 520px;
+}
+.revealZero {
+  font-size: var(--type-body-lg-size);
+  color: var(--ink-inverse);
+  max-width: 480px;
+}
+
+/* ---- First 48 (§5.1 O-9) ---- */
+.mound {
+  width: 120px;
+  height: 60px;
+  margin: var(--space-4) auto;
+  border-radius: 60px 60px 0 0;
+  background: var(--surface-3);
+  position: relative;
+}
+.mound::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-harvest-fill);
+}
+
+/* ---- Dense upline/RVP track (§5.1 Flow B/D) ---- */
+.denseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.denseStep {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+}
+.statusPass {
+  color: var(--color-growth);
+  font-weight: 800;
+}
+.statusBlocked {
+  color: var(--on-blocked);
+  background: var(--color-blocked-fill);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-3);
+  font-weight: 800;
+}
+.statusPending {
+  color: var(--color-caution-text);
+  background: var(--color-caution-bg);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-3);
+  font-weight: 800;
+}
+.blockHelp {
+  color: var(--color-danger-form-text);
+  background: var(--color-danger-form-bg);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+}
+
+/* screen-reader-only utterance (single-announce for the Reveal, §6.1) */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (min-width: 860px) {
+  .orgGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

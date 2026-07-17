@@ -5,6 +5,11 @@ module.exports = {
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
   moduleNameMapper: {
+    // T-20: CSS-module imports in the O-1..O-9 onboarding components resolve to a class-name proxy
+    // stub under Jest (there is no CSS pipeline in the node test env). `styles.foo` returns the
+    // string `'foo'`, so class names stay visible in `renderToStaticMarkup` output for the
+    // score-never-rendered / reveal / org-gate assertions. Must precede the `@/` mapper.
+    '\\.(css|scss|sass)$': '<rootDir>/tests/styleMock.js',
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   // Seeds a dummy CONTACT_HASH_PEPPER (T-03 QC fix, defect 3) so hmacForMatch() has a pepper to
@@ -25,7 +30,13 @@ module.exports = {
   // ESM mode just for one dependency.
   transformIgnorePatterns: ['node_modules/(?!(otplib|@otplib|@scure|@noble)/)'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {}],
+    // T-20: override only `jsx` (to the automatic runtime) for the test compile, so the O-1..O-9
+    // onboarding components (`src/app/onboarding/**/*.tsx`) can be server-rendered with
+    // `react-dom/server`'s `renderToStaticMarkup` and their output scanned (the Seven Whys
+    // "never renders a score" test, the Reveal safe-harbor/no-share test, the org-gate no-leak test).
+    // The app itself is built by Next.js's own SWC pipeline (tsconfig's `jsx: preserve`) — this
+    // override affects the Jest compile ONLY, and only files that actually contain JSX.
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }],
     '^.+\\.jsx?$': ['ts-jest', {}],
   },
 };

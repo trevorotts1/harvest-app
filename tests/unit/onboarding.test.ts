@@ -38,24 +38,30 @@ describe('OnboardingService', () => {
     });
   });
 
-  describe('Access Tier seeding', () => {
-    test('should seed ENTERPRISE for RVP/UPLINE', () => {
-      expect(service.seedAccessTier(Role.RVP, OrgType.EXTERNAL)).toBe(AccessTier.ENTERPRISE);
-      expect(service.seedAccessTier(Role.UPLINE, OrgType.PRIMERICA)).toBe(AccessTier.ENTERPRISE);
+  // T-20 §6.10-1 / §6.7 legacy retirement: `seedAccessTier` (ENTERPRISE-by-role) and
+  // `validateSevenWhysScore` (a numeric averaged gate) were REMOVED — the first is a §6.7-violating
+  // duplicate of `assignAccessTier` (ENTERPRISE is admin-provisioning only, never a role default),
+  // the second CONTRADICTS the T-18 invisible-resonance contract (§6.4, uiux AC-5.1-4: the score is
+  // never a number the rep — or any caller — sees). These tests, which encoded exactly those
+  // spec-violating behaviors, are corrected (not preserved), the same way the T-17/T-19 QC passes
+  // corrected the solution-number-format and commitment-score-tier tests below.
+  describe('Retired legacy methods (T-20) — no reachable weaker/duplicate logic remains', () => {
+    test('seedAccessTier no longer exists on the service (ENTERPRISE-by-role was a §6.7 violation)', () => {
+      expect((service as unknown as Record<string, unknown>).seedAccessTier).toBeUndefined();
     });
 
-    test('should seed correct free tier based on OrgType', () => {
-      expect(service.seedAccessTier(Role.REP, OrgType.PRIMERICA)).toBe(AccessTier.FREE_ORG_LINKED);
-      expect(service.seedAccessTier(Role.REP, OrgType.EXTERNAL)).toBe(AccessTier.FREE_PAID_EXTERNAL);
+    test('validateSevenWhysScore no longer exists (numeric gate contradicted the T-18 invisible-resonance contract)', () => {
+      expect((service as unknown as Record<string, unknown>).validateSevenWhysScore).toBeUndefined();
     });
-  });
 
-  describe('Seven Whys hard gate', () => {
-    test('should validate Seven Whys score threshold', () => {
-      const responsesPass = [{ score: 80 }, { score: 90 }];
-      const responsesFail = [{ score: 50 }, { score: 60 }];
-      expect(service.validateSevenWhysScore(responsesPass).valid).toBe(true);
-      expect(service.validateSevenWhysScore(responsesFail).valid).toBe(false);
+    test('validateStep no longer numeric-gates the SEVEN_WHYS step — the T-18 engine owns that gate', () => {
+      const session = { role: Role.REP, org_type: OrgType.EXTERNAL, current_step: OnboardingStep.SEVEN_WHYS } as any;
+      // A "low-scoring" seven_whys payload that the retired numeric gate would have REJECTED now
+      // passes this legacy validator untouched (the real gate is the invisible T-18 resonance).
+      const result = service.validateStep(session, OnboardingStep.SEVEN_WHYS, {
+        seven_whys: [{ score: 10 }, { score: 20 }],
+      });
+      expect(result.valid).toBe(true);
     });
   });
 

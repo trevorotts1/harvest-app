@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   ContactData,
   ContactSource,
@@ -6,6 +6,8 @@ import {
   PIPELINE_STAGE_ORDER,
   SAFE_HARBOR_EARNINGS_DISCLAIMER,
 } from '@/types/warm-market';
+// T-20 §6.10-1: downstream (WP02) route, now behind the real onboarding gate (see briefing/route.ts).
+import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 
 const demoContacts = (userId: string): ContactData[] => {
   const now = new Date();
@@ -73,8 +75,12 @@ const demoContacts = (userId: string): ContactData[] => {
   ];
 };
 
-export async function GET(request: NextRequest) {
-  const userId = request.headers.get('x-user-id') || 'demo-user';
+// Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
+// statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
+export const dynamic = 'force-dynamic';
+
+export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
+  const userId = identity.userId;
   const contacts = demoContacts(userId);
   const summary = PIPELINE_STAGE_ORDER.map((stage) => ({
     stage,
@@ -99,4 +105,4 @@ export async function GET(request: NextRequest) {
       hint: 'Pipeline data is demo fallback until database-backed contact state is connected.',
     },
   });
-}
+});

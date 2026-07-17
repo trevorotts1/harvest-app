@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   createIdentity,
   getIdentity,
@@ -10,11 +10,19 @@ import {
   submitForCfeReview,
 } from '@/services/social-content/content.service';
 import { SocialPlatform } from '@/types/social-content';
+// T-20 §6.10-1: downstream (WP08 social content) surface, now behind the real onboarding gate — a
+// caller who is not GATED_COMPLETE cannot reach launch-kit / content generation (see
+// onboarding-gate.ts). The per-request `repId`/`identityId` addressing is unchanged.
+import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 
 // POST /api/social — identity/create or generate
 // GET  /api/social — identity or launch-kit
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
+// Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
+// statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
+export const dynamic = 'force-dynamic';
+
+export const GET = withOnboardingGate(async (req, _ctx, _session, _identity) => {
+  const { searchParams } = new URL(req.url);
   const action = searchParams.get('action');
 
   if (action === 'identity') {
@@ -48,10 +56,10 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ error: 'Unknown action. Use action=identity or action=launch-kit' }, { status: 400 });
-}
+});
 
-export async function POST(request: NextRequest) {
-  const body = await request.json();
+export const POST = withOnboardingGate(async (req, _ctx, _session, _identity) => {
+  const body = await req.json();
   const { action } = body;
 
   if (action === 'identity/create') {
@@ -125,4 +133,4 @@ export async function POST(request: NextRequest) {
     { error: 'Unknown action. Use identity/create, generate, or cfe-review' },
     { status: 400 },
   );
-}
+});
