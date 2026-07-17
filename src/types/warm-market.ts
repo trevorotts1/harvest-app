@@ -1,11 +1,51 @@
 // WP02: Warm Market & Contact Engine — Types
 
+// T-22 (§7.1 "Ingestion (four modalities)"): the master spec names exactly four ingestion paths —
+// CSV upload, iOS native (CNContactStore), Android native (Contacts Provider), and Google Contacts
+// (OAuth, People API). `IOS_NATIVE`/`ANDROID_NATIVE`/`GOOGLE_OAUTH` are additive members (CSV already
+// existed); `MANUAL`/`MOBILE`/`SOCIAL`/`SYNC` are retained as pre-existing values other build units
+// (demo seed data, T-23/T-24) already reference — nothing here is removed or renumbered. `Contact
+// .source` is a plain `String` column (see prisma/schema.prisma design notes), so adding members is
+// a TS-only change with no migration.
 export enum ContactSource {
   CSV = 'CSV',
   MANUAL = 'MANUAL',
   MOBILE = 'MOBILE',
   SOCIAL = 'SOCIAL',
   SYNC = 'SYNC',
+  IOS_NATIVE = 'IOS_NATIVE',
+  ANDROID_NATIVE = 'ANDROID_NATIVE',
+  GOOGLE_OAUTH = 'GOOGLE_OAUTH',
+}
+
+/**
+ * §7.1 "Web gets CSV + Google Contacts (native import is native-only)": the two modalities that may
+ * ONLY be invoked from the native app shell (Capacitor-class wrapper), never from the web PWA. The
+ * Vault's ingestion route (`VaultService.assertModalityAllowed`) refuses these sources unless the
+ * caller-declared `clientPlatform` matches.
+ */
+export const NATIVE_SHELL_ONLY_SOURCES: readonly ContactSource[] = [
+  ContactSource.IOS_NATIVE,
+  ContactSource.ANDROID_NATIVE,
+];
+
+/** The client runtime declaring itself on an import request (§7.1, §17.3 mobile/web parity). */
+export type ClientPlatform = 'web' | 'ios' | 'android';
+
+/**
+ * A single not-yet-persisted contact row as fetched by any of the four ingestion modalities, prior
+ * to normalization/encryption. `birthdate`/`isMinor` feed the §18.5/§7.6 "minors unreachable" gate —
+ * `isMinor` covers an explicitly flagged/detectable minor (e.g. a mapped CSV column), `birthdate`
+ * (ISO 8601 date) covers an age-derived minor from a native/Google contact's birthday field.
+ */
+export interface RawContactImportRow {
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  industry?: string | null;
+  birthdate?: string | null;
+  isMinor?: boolean;
 }
 
 export enum InteractionType {

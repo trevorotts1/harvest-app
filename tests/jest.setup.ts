@@ -21,3 +21,12 @@ process.env.MFA_ENCRYPTION_KEY =
 // way as MFA_ENCRYPTION_KEY above — not a real secret, grants no access to anything.
 process.env.WHY_SESSION_ENCRYPTION_KEY =
   process.env.WHY_SESSION_ENCRYPTION_KEY || 'lQXnLFZxlfUdACHf6z1lP+cUH49yYYW50Bgw0zG1jjk=';
+
+// Test-only AES-256 key (T-22, The Vault, §7.1/§16.4 "contact PII encrypted at rest") — a fixed,
+// committed, non-production literal so the suite has a deterministic 32-byte base64 key to
+// encrypt/decrypt Contact PII (names/phone/email/notes) against. getContactEncryptionKey()
+// (src/services/warm-market/vault/vault-encryption.ts) fails closed (throws) if
+// CONTACT_ENCRYPTION_KEY is unset. Generated the same way as the keys above — not a real secret,
+// grants no access to anything.
+process.env.CONTACT_ENCRYPTION_KEY =
+  process.env.CONTACT_ENCRYPTION_KEY || 'G/eANyAndECpZB2O/RauSFnr4XupUIZjlzIAeNJjg+Q=';

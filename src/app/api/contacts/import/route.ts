@@ -1,157 +1,169 @@
 import { NextResponse } from 'next/server';
-import {
-  ContactSource,
-  PipelineStage,
-  SAFE_HARBOR_EARNINGS_DISCLAIMER,
-  ImportContactInput,
-} from '@/types/warm-market';
-// T-20 §6.10-1: downstream (WP02) route, now behind the real onboarding gate. The manual
-// `x-user-id` presence check is retired — `withOnboardingGate` resolves the identity from the
-// verified session and refuses any caller who is not GATED_COMPLETE (see onboarding-gate.ts).
+import type { NextRequest } from 'next/server';
+
+import { prisma } from '@/lib/prisma';
+import { ContactSource, type ClientPlatform, type RawContactImportRow } from '@/types/warm-market';
+// T-20 §6.10-1: downstream (WP02) route, behind the real onboarding gate. `withOnboardingGate`
+// resolves the caller's identity from the VERIFIED Auth.js session (never a client-forged header) —
+// this file never reads `x-user-id` or any `x-user-*`/`x-auth-*`/`x-identity-*` header, so
+// `scripts/verify-api-auth.mjs`'s forged-identity-header guard is moot here by construction.
 import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
+import {
+  ImportLimitExceededError,
+} from '@/services/warm-market/vault/csv-parser';
+import { decryptContactPII } from '@/services/warm-market/vault/vault-encryption';
+import {
+  ModalityNotAllowedError,
+  VaultService,
+  type VaultPrismaClient,
+} from '@/services/warm-market/vault/vault.service';
 
-// ── In-memory demo contact store (per user) ─────────────────────
-// Keyed by `${userId}:${contactId}` so multi-user demos don't bleed.
-interface DemoContact {
-  id: string;
-  userId: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  industry: string | null;
-  notes: string | null;
-  source: ContactSource;
-  pipelineStage: PipelineStage;
-  relationshipStrength: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const demoContactStore = new Map<string, DemoContact>();
-
-// Pre-seed a few demo contacts so pipeline isn't empty
-function ensureSeedData(userId: string): void {
-  const prefix = `${userId}:`;
-  const existing = [...demoContactStore.keys()].filter((k) => k.startsWith(prefix));
-  if (existing.length > 0) return;
-
-  const seeds: Omit<DemoContact, 'id' | 'createdAt' | 'updatedAt'>[] = [
-    { userId, name: 'Sarah Johnson', phone: '555-0101', email: 'sarah@example.com', industry: 'insurance', notes: 'Met at community event', source: ContactSource.MANUAL, pipelineStage: PipelineStage.INTRODUCED, relationshipStrength: 45 },
-    { userId, name: 'Marcus Chen', phone: '555-0102', email: 'marcus@example.com', industry: 'finance', notes: 'Referred by Sarah', source: ContactSource.MANUAL, pipelineStage: PipelineStage.IDENTIFIED, relationshipStrength: 10 },
-    { userId, name: 'Aisha Patel', phone: '555-0103', email: null, industry: 'healthcare', notes: null, source: ContactSource.SOCIAL, pipelineStage: PipelineStage.RESPONDED, relationshipStrength: 60 },
-    { userId, name: 'David Kim', phone: null, email: 'david@example.com', industry: 'real_estate', notes: 'LinkedIn connection', source: ContactSource.SYNC, pipelineStage: PipelineStage.APPOINTMENT_CONFIRMED, relationshipStrength: 75 },
-    { userId, name: 'Lisa Thompson', phone: '555-0105', email: 'lisa@example.com', industry: 'education', notes: 'Former colleague', source: ContactSource.MANUAL, pipelineStage: PipelineStage.CLOSED_CLIENT, relationshipStrength: 90 },
-  ];
-
-  const now = new Date().toISOString();
-  for (const s of seeds) {
-    const id = `demo-contact-${seeds.indexOf(s) + 1}`;
-    demoContactStore.set(`${userId}:${id}`, { ...s, id, createdAt: now, updatedAt: now });
-  }
-}
-
-function normalize(input: ImportContactInput): { phone: string | null; email: string | null } {
-  return {
-    phone: input.phone?.replace(/\D/g, '') || null,
-    email: input.email?.toLowerCase().trim() || null,
-  };
-}
-
-// ── POST /api/contacts/import ────────────────────────────────────
-// Accepts an array of contacts and imports them (dedup by phone/email).
-// No real outbound side effects — this is demo-only.
 // Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
 // statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
 export const dynamic = 'force-dynamic';
 
+const VALID_SOURCES = new Set<string>(Object.values(ContactSource));
+
+function resolveClientPlatform(req: NextRequest, body: { clientPlatform?: unknown }): ClientPlatform | undefined {
+  const header = req.headers.get('x-harvest-platform');
+  const candidate = (typeof body.clientPlatform === 'string' ? body.clientPlatform : header) ?? undefined;
+  if (candidate === 'web' || candidate === 'ios' || candidate === 'android') return candidate;
+  return undefined;
+}
+
+interface ImportRequestBody {
+  source?: string;
+  contacts?: RawContactImportRow[];
+  csvText?: string;
+  idempotencyKey?: string;
+  clientPlatform?: string;
+}
+
+// ── POST /api/contacts/import ────────────────────────────────────
+// The Vault's real ingestion endpoint (T-22, §7.1) for all four modalities: CSV (`csvText`), iOS
+// native / Android native / Google OAuth (`contacts`, an already-fetched+normalized row array —
+// see src/services/warm-market/vault/google-contacts-adapter.ts for the Google mapping step).
+// Real Prisma persistence, AES-256-GCM-encrypted PII at rest, HMAC-deduped, resumable + idempotent
+// (§18.5) via VaultService. This supersedes the earlier in-memory demo store.
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   const userId = identity.userId;
 
-  ensureSeedData(userId);
-
-  let body: { source?: ContactSource; contacts?: ImportContactInput[] };
+  let body: ImportRequestBody;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const source = body.source || ContactSource.MANUAL;
-  const contacts = body.contacts || [];
-
-  if (!Array.isArray(contacts)) {
-    return NextResponse.json({ error: 'contacts must be an array' }, { status: 400 });
+  const source = body.source;
+  if (!source || !VALID_SOURCES.has(source)) {
+    return NextResponse.json(
+      { error: `"source" must be one of: ${[...VALID_SOURCES].join(', ')}` },
+      { status: 400 }
+    );
   }
 
-  const imported: DemoContact[] = [];
-  const skipped: { name: string; reason: string }[] = [];
-
-  for (const c of contacts) {
-    if (!c.name) {
-      skipped.push({ name: '(unnamed)', reason: 'Missing name' });
-      continue;
-    }
-
-    const norm = normalize(c);
-    // Dedup check
-    let duplicate = false;
-    for (const [, existing] of demoContactStore) {
-      if (existing.userId !== userId) continue;
-      if (norm.email && existing.email === norm.email) { duplicate = true; break; }
-      if (norm.phone && existing.phone === norm.phone) { duplicate = true; break; }
-    }
-    if (duplicate) {
-      skipped.push({ name: c.name, reason: 'Duplicate phone or email' });
-      continue;
-    }
-
-    const id = `demo-contact-${Date.now()}-${imported.length}`;
-    const now = new Date().toISOString();
-    const contact: DemoContact = {
-      id,
-      userId,
-      name: c.name,
-      phone: norm.phone,
-      email: norm.email,
-      industry: c.industry || null,
-      notes: c.notes || null,
-      source,
-      pipelineStage: PipelineStage.IDENTIFIED,
-      relationshipStrength: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
-    demoContactStore.set(`${userId}:${id}`, contact);
-    imported.push(contact);
+  if (!body.idempotencyKey || typeof body.idempotencyKey !== 'string') {
+    return NextResponse.json(
+      {
+        error:
+          '"idempotencyKey" is required — mint one per logical import attempt and reuse it on retry ' +
+          'so a resumed/repeated import is idempotent (§18.5).',
+      },
+      { status: 400 }
+    );
   }
 
-  return NextResponse.json(
-    {
-      imported: imported.length,
-      skipped: skipped.length,
-      importedContacts: imported,
-      skippedContacts: skipped,
-      safeHarbor: SAFE_HARBOR_EARNINGS_DISCLAIMER,
-      _meta: { demo: true, hint: 'In-memory demo store. No real database writes.' },
-    },
-    { status: 201 },
-  );
+  const clientPlatform = resolveClientPlatform(req, body);
+  const vaultService = new VaultService(prisma as unknown as VaultPrismaClient);
+
+  try {
+    const result = await vaultService.importBatch(userId, source as ContactSource, body.contacts, {
+      idempotencyKey: body.idempotencyKey,
+      clientPlatform,
+      csvText: body.csvText,
+    });
+
+    return NextResponse.json(
+      {
+        batchId: result.batchId,
+        source: result.source,
+        status: result.status,
+        totalRows: result.totalRows,
+        processed: result.cursor,
+        importedCount: result.importedCount,
+        mergedCount: result.mergedCount,
+        minorFlaggedCount: result.minorFlaggedCount,
+        errorRows: result.errorRows,
+        resumable: result.resumable,
+        idempotentReplay: result.idempotentReplay,
+      },
+      { status: result.status === 'COMPLETED' ? 201 : 202 }
+    );
+  } catch (err) {
+    if (err instanceof ModalityNotAllowedError) {
+      return NextResponse.json({ error: err.message, code: 'MODALITY_NOT_ALLOWED' }, { status: 400 });
+    }
+    if (err instanceof ImportLimitExceededError) {
+      return NextResponse.json({ error: err.message, code: 'IMPORT_LIMIT_EXCEEDED' }, { status: 413 });
+    }
+    throw err;
+  }
 });
 
 // ── GET /api/contacts/import ────────────────────────────────────
-// Returns the current demo contact list for the user.
-export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
+// Without `?batchId=`: the caller's own Vault contact list, decrypted for display (the owner is the
+// authorized reader of their own PII — encryption-at-rest protects the DB/backup surface, not the
+// owner's own authenticated read). With `?batchId=`: the resumability status of one import batch
+// (§18.5) — lets a client poll/resume an interrupted import.
+export const GET = withOnboardingGate(async (req, _ctx, _session, identity) => {
   const userId = identity.userId;
+  const batchId = req.nextUrl.searchParams.get('batchId');
 
-  ensureSeedData(userId);
+  if (batchId) {
+    const batch = await prisma.importBatch.findFirst({ where: { id: batchId, user_id: userId } });
+    if (!batch) {
+      return NextResponse.json({ error: 'Import batch not found' }, { status: 404 });
+    }
+    return NextResponse.json({
+      batchId: batch.id,
+      source: batch.source,
+      status: batch.status,
+      totalRows: batch.total_rows,
+      processed: batch.cursor,
+      importedCount: batch.imported_count,
+      mergedCount: batch.merged_count,
+      minorFlaggedCount: batch.minor_flagged_count,
+      errorRows: batch.error_rows ?? [],
+      resumable: batch.status === 'IN_PROGRESS',
+    });
+  }
 
-  const userContacts = [...demoContactStore.values()].filter(
-    (c) => c.userId === userId,
-  );
-
-  return NextResponse.json({
-    count: userContacts.length,
-    contacts: userContacts,
-    _meta: { demo: true },
+  const contacts = await prisma.contact.findMany({ where: { user_id: userId } });
+  const decrypted = contacts.map((c) => {
+    const pii = decryptContactPII({
+      first_name: c.first_name,
+      last_name: c.last_name,
+      phone: c.phone,
+      email: c.email,
+      notes: c.notes,
+    });
+    return {
+      id: c.id,
+      firstName: pii.first_name,
+      lastName: pii.last_name,
+      phone: pii.phone,
+      email: pii.email,
+      notes: pii.notes,
+      industry: c.industry,
+      source: c.source,
+      pipelineStage: c.pipeline_stage,
+      segmentScore: c.segment_score,
+      isMinor: c.is_minor_flag,
+      doNotContact: c.do_not_contact,
+      createdAt: c.created_at,
+    };
   });
+
+  return NextResponse.json({ count: decrypted.length, contacts: decrypted });
 });
