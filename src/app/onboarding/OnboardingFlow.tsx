@@ -14,6 +14,8 @@ import { useMemo, useState } from 'react';
 
 import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
+import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
+import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/warm-market/hidden-earnings';
 import type { LicensingState } from '@/services/compliance/licensing';
 
 import ContactImportStep, { type ImportBeat } from './components/ContactImportStep';
@@ -101,6 +103,24 @@ export default function OnboardingFlow({
   const sponsorOutcome: SponsorMatchOutcome = useMemo(
     () => matchSponsor({ orgType: orgType ?? OrgType.EXTERNAL, candidates: [] }),
     [orgType]
+  );
+
+  // T-24 (§7.3/§8.4) — the O-8 Reveal's figure, computed by the ONE Hidden Earnings engine rather
+  // than inline arithmetic (the pre-T-24 code here computed `contactCount * 5200` etc., which was
+  // neither the spec's universal formula nor org-gated for Primerica — both fixed by routing through
+  // `computeHiddenEarnings`). `hasValidSolutionNumber` mirrors the same live format check `OrgStep`
+  // already renders (§6.3: 7-digit, format-checked) — the Primerica branch only calibrates once a
+  // confirmed, format-valid number is on file; a Primerica user who hasn't entered one yet still
+  // gets the universal formula (§8.4's own "replacing... when a valid solution number is present").
+  const hiddenEarnings: HiddenEarningsResult = useMemo(
+    () =>
+      computeHiddenEarnings({
+        contactCount,
+        orgType: orgType ?? OrgType.EXTERNAL,
+        hasValidSolutionNumber:
+          solutionConfirmed && checkSolutionNumberForOrg(orgType ?? OrgType.EXTERNAL, solutionNumber).formatValid,
+      }),
+    [contactCount, orgType, solutionConfirmed, solutionNumber]
   );
 
   // The current Seven Whys turn, built from the engine's rendered-turn shape (no score field).
@@ -266,9 +286,9 @@ export default function OnboardingFlow({
       {screen === 'reveal' && (
         <HiddenEarningsReveal
           contactCount={contactCount}
-          monthlyValueUsd={contactCount * 5200}
-          estimatedAppointments={Math.round(contactCount * 0.35)}
-          estimatedClients={Math.round(contactCount * 0.12)}
+          monthlyValueUsd={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedMonthlyValueUsd : 0}
+          estimatedAppointments={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedAppointments : 0}
+          estimatedClients={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedClients : 0}
           onContinue={advance}
           onAddContacts={() => setScreen('contacts')}
         />
