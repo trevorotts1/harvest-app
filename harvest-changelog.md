@@ -1,3 +1,10 @@
+## [2.0.0-build.T21R] — BUILD PHASE — 2026-07-17
+### T-21R — GDPR consent capture (WP01 §6.10-10 remediation, QC 8.7)
+- Dedicated O-8.5 consent micro-step (explicit affirmative, default-off, Continue disabled until acted) → POST /api/onboarding/consent (session-authed) calls WP11 ConsentManager, writes a versioned+timestamped ComplianceConsent('gdpr', given:true) row and sets User.gdpr_consent=true.
+- Completion precondition (role-agnostic, fail-closed): /api/onboarding/complete rejects with 400 GDPR_CONSENT_REQUIRED unless gdpr_consent===true — no role can reach GATED_COMPLETE without a recorded consent (proven across all 5 roles).
+- Revoke path (DELETE /api/onboarding/consent) writes a given:false record and clears the flag. The §6.10-1 downstream route gate is untouched. 694 tests.
+- Closes the WP01 wave-gate GDPR gap. Follow-up (tracked in T-20): wire the dense UPLINE/RVP/DUAL onboarding UI to the consent route + have the durable completion writer read User.gdpr_consent.
+
 ## [2.0.0-build.T20] — BUILD PHASE — 2026-07-17
 ### T-20 — Onboarding UI (O-1..O-9) + end-to-end §6.10-1 gate enforcement + encrypted solution-number on register (WP01, QC 9.1, 2 QC loops)
 - O-1..O-9 onboarding screens + dense upline/RVP track, consuming the merged WP01 engines (identity/org-gate, Seven Whys invisible-score contract, sponsor matching/waitlist, tracks + §16.5 licensing hard-block), on the Living Field design tokens (no raw hex). Includes O-5 outreach-consent toggle (default off), O-2 photo capture (+initials fallback), DUAL persona switcher, Hidden Earnings Reveal (safe-harbor + zero-data growth path + no-share + single SR utterance).
