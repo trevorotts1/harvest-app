@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   AgentType,
   AgentStatus,
@@ -9,7 +9,11 @@ import {
   WeeklyGoal,
   ThreeLawsViolation,
 } from '@/types/agent-layer';
-import { SAFE_HARBOR_DISCLAIMERS } from '@/types/compliance';
+// T-20 §6.10-1: this downstream (WP04) route is now gated on onboarding completion AND real
+// authentication. It previously trusted a client-forged `x-user-id` header; it now runs behind
+// `withOnboardingGate`, which resolves the identity from the live Auth.js session and refuses any
+// caller who is not GATED_COMPLETE — the §6.10-1 hard gate, enforced at the API layer.
+import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 
 // ── Demo fallback data ────────────────────────────────────────
 // When no real DB state exists for a user, these static values
@@ -104,27 +108,21 @@ function buildDemoBriefing(): DailyBriefing {
 }
 
 // ── Route handler ──────────────────────────────────────────────
-export async function GET(request: NextRequest) {
-  const userId = request.headers.get('x-user-id');
+// Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
+// statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
+export const dynamic = 'force-dynamic';
 
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Missing x-user-id header', safeHarbor: SAFE_HARBOR_DISCLAIMERS.income },
-      { status: 401 },
-    );
-  }
-
-  // In production this would query the DB for real state.
-  // For demo / no-DB mode we always return rich fallback data
-  // so the frontend has something useful to render.
+export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
+  // The caller is authenticated AND GATED_COMPLETE (enforced by withOnboardingGate) — the identity
+  // comes from the verified session, never a forged header.
   const briefing = buildDemoBriefing();
 
   return NextResponse.json({
-    userId,
+    userId: identity.userId,
     briefing,
     _meta: {
       demo: true,
       hint: 'Data is demo fallback. Connect a database for live state.',
     },
   });
-}
+});

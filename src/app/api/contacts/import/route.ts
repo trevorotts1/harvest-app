@@ -1,10 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   ContactSource,
   PipelineStage,
   SAFE_HARBOR_EARNINGS_DISCLAIMER,
   ImportContactInput,
 } from '@/types/warm-market';
+// T-20 §6.10-1: downstream (WP02) route, now behind the real onboarding gate. The manual
+// `x-user-id` presence check is retired — `withOnboardingGate` resolves the identity from the
+// verified session and refuses any caller who is not GATED_COMPLETE (see onboarding-gate.ts).
+import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 
 // ── In-memory demo contact store (per user) ─────────────────────
 // Keyed by `${userId}:${contactId}` so multi-user demos don't bleed.
@@ -56,17 +60,18 @@ function normalize(input: ImportContactInput): { phone: string | null; email: st
 // ── POST /api/contacts/import ────────────────────────────────────
 // Accepts an array of contacts and imports them (dedup by phone/email).
 // No real outbound side effects — this is demo-only.
-export async function POST(request: NextRequest) {
-  const userId = request.headers.get('x-user-id');
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing x-user-id header' }, { status: 401 });
-  }
+// Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
+// statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
+export const dynamic = 'force-dynamic';
+
+export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
+  const userId = identity.userId;
 
   ensureSeedData(userId);
 
   let body: { source?: ContactSource; contacts?: ImportContactInput[] };
   try {
-    body = await request.json();
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -131,15 +136,12 @@ export async function POST(request: NextRequest) {
     },
     { status: 201 },
   );
-}
+});
 
 // ── GET /api/contacts/import ────────────────────────────────────
 // Returns the current demo contact list for the user.
-export async function GET(request: NextRequest) {
-  const userId = request.headers.get('x-user-id');
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing x-user-id header' }, { status: 401 });
-  }
+export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
+  const userId = identity.userId;
 
   ensureSeedData(userId);
 
@@ -152,4 +154,4 @@ export async function GET(request: NextRequest) {
     contacts: userContacts,
     _meta: { demo: true },
   });
-}
+});

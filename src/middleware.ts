@@ -1,6 +1,12 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 
+// Edge-safe import ONLY (no Prisma / Auth.js server chain) — see onboarding-gate-edge.ts.
+import {
+  ONBOARDING_RESUME_REDIRECT,
+  shouldRedirectToOnboarding,
+} from '@/lib/auth/onboarding-gate-edge';
+
 /**
  * Gateway-level authentication check (T-04; §16.4 "RBAC enforcement: every gated API checks role +
  * entitlement at the gateway middleware before the handler; cross-team/cross-rep access is denied
@@ -22,15 +28,31 @@ import { NextResponse } from 'next/server';
  * `/dashboard` need different allow-lists that a single path-matcher can't express — §16.6's full
  * per-resource capability matrix is layered on top of this in T-14.
  *
- * Scope is deliberately minimal in this scaffold: only `/dashboard`, the authenticated-only
- * surface, is gated. `/onboarding` is NOT gated here — per §6.1/§6.3, identity capture
- * (registration/sign-in) is itself a *step inside* the onboarding flow, so a session cannot be a
- * precondition for reaching it. `/api/*` demo routes from other build units are left ungated for
- * now to avoid breaking their still-in-progress, session-less demo wiring; each WP opts its own
- * gated surfaces into this matcher (or its own `withRole`-wrapped handlers) as it adopts real auth.
+ * `/onboarding` is NOT gated here — per §6.1/§6.3, identity capture (registration/sign-in) is
+ * itself a *step inside* the onboarding flow, so a session cannot be a precondition for reaching it,
+ * and the onboarding/resume surface is exactly where a not-complete user must be able to land.
+ * `/api/*` demo routes from other build units are left ungated at this layer (their onboarding
+ * gate, where wired, is the DB-backed `withOnboardingGate` route wrapper — onboarding-gate.ts).
+ *
+ * T-20 (§6.10-1): this middleware now enforces TWO things for the matched downstream PAGE routes:
+ *   1. AUTHENTICATION — a valid session (unchanged; `authorized` callback below).
+ *   2. THE HARD ONBOARDING GATE — an authenticated user whose JWT `onboardingStatus` claim is not
+ *      GATED_COMPLETE is redirected to `/onboarding/resume` before the page renders (the pure
+ *      decision lives in `shouldRedirectToOnboarding`, onboarding-gate.ts). This is the page-level
+ *      half of the §6.10-1 gate; the API-level half is `withOnboardingGate`. Fine-grained *role*
+ *      checks stay in `requireRole`/`withRole` at the route/handler level.
  */
 export default withAuth(
-  function middleware() {
+  function middleware(req) {
+    const { token } = req.nextauth;
+    // `authorized` (below) has already guaranteed a token here. Redirect a not-yet-complete user
+    // off any gated downstream page into the resume flow (§6.10-1 / uiux AC-2-5).
+    if (shouldRedirectToOnboarding(req.nextUrl.pathname, token?.onboardingStatus)) {
+      const url = req.nextUrl.clone();
+      url.pathname = ONBOARDING_RESUME_REDIRECT;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
     return NextResponse.next();
   },
   {
@@ -44,6 +66,20 @@ export default withAuth(
   }
 );
 
+// `/dashboard` stays first so verify-middleware.mjs (the T-04 manifest guard) keeps passing. The
+// added prefixes are the WP02–WP10 destinations (uiux §2.4 route map) the §6.10-1 gate protects;
+// each matches its subtree. Kept in sync with `GATED_DOWNSTREAM_PAGE_PREFIXES` (onboarding-gate.ts).
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/today/:path*',
+    '/shift/:path*',
+    '/inbox/:path*',
+    '/community/:path*',
+    '/grow/:path*',
+    '/learn/:path*',
+    '/me/:path*',
+    '/team/:path*',
+    '/ritual/:path*',
+  ],
 };

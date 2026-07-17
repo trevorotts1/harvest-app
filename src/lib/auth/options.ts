@@ -230,6 +230,7 @@ export const authOptions: NextAuthOptions = {
           orgType: user.org_type,
           organizationId: user.organization_id,
           accessTier: user.access_tier,
+          onboardingStatus: user.onboarding_status,
           mfaEnrolled: user.mfa_enrolled,
           deviceFingerprintHash: fingerprintHash,
           securityVersionAtIssue: user.security_version,
@@ -247,6 +248,7 @@ export const authOptions: NextAuthOptions = {
         token.orgType = user.orgType;
         token.organizationId = user.organizationId;
         token.accessTier = user.accessTier;
+        token.onboardingStatus = user.onboardingStatus;
         token.mfaEnrolled = user.mfaEnrolled;
         // Re-nulled on every fresh sign-in (§16.4 "anomaly scoring on login ... step-up MFA or
         // challenge") — a brand-new session never inherits a previous session's cleared step-up.
@@ -277,6 +279,19 @@ export const authOptions: NextAuthOptions = {
           if (serverProof) {
             token.mfaVerifiedAt = serverProof;
           }
+          // T-20 §6.10-1: refresh the onboarding-gate claim from the DB on an explicit
+          // `useSession().update()`. This is what lets a rep who just reached GATED_COMPLETE (O-9)
+          // clear the middleware page-gate without re-authenticating — the claim is server-sourced,
+          // never client-settable (the client cannot forge completion, exactly like role/org/
+          // security-version above), and any DB read failure leaves the prior (fail-closed) claim
+          // in place rather than promoting the token.
+          const fresh = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { onboarding_status: true },
+          });
+          if (fresh) {
+            token.onboardingStatus = fresh.onboarding_status;
+          }
         }
       }
       return token;
@@ -289,6 +304,7 @@ export const authOptions: NextAuthOptions = {
         session.user.orgType = token.orgType;
         session.user.organizationId = token.organizationId;
         session.user.accessTier = token.accessTier;
+        session.user.onboardingStatus = token.onboardingStatus;
         session.user.mfaEnrolled = token.mfaEnrolled;
         session.user.mfaVerifiedAt = token.mfaVerifiedAt;
         session.user.deviceFingerprintHash = token.deviceFingerprintHash;

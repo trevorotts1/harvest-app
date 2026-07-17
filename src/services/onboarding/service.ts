@@ -7,7 +7,6 @@ import {
   IntensitySetting,
   IntensityData,
   ROLE_STEP_MAP,
-  SEVEN_WHYS_MIN_SCORE,
   MIN_COMMITMENT_SCORE,
   ROLE_VISIBILITY,
   ValidationResult,
@@ -26,6 +25,20 @@ import { checkSolutionNumberFormat } from './wp01/solution-number';
 // get a commitment-score-derived tier ever again, mirroring the `checkSolutionNumberFormat`
 // delegation immediately above.
 import { assignAccessTierFromSignals } from './wp01/access-tier';
+
+// T-20 §6.10-1 / §6.7 — legacy retirement (finishing the T-17/T-19 delegation job). Two remaining
+// weaker/contradicting methods were REMOVED from this legacy service so no reachable path can run
+// them alongside the authoritative wp01 modules:
+//   • `validateSevenWhysScore` — averaged a per-response numeric score against a threshold. This
+//     directly CONTRADICTS the T-18 Seven Whys engine's invisible-resonance contract (§6.4, uiux
+//     AC-5.1-4): the authoritative gate is `submitSevenWhysAnswer`'s hidden >70 resonance, rendered
+//     only as a caring re-prompt and NEVER as a number. A second numeric gate here was a duplicate
+//     source of truth AND a place the score could leak; the SEVEN_WHYS step no longer runs any
+//     numeric gate in this service — the T-18 engine owns it end to end.
+//   • `seedAccessTier` — assigned ENTERPRISE ($25,000/yr) purely by role (RVP/UPLINE), a tier path
+//     §6.7 never describes (tier is "auth source + org context"; ENTERPRISE is admin-provisioning
+//     only). It was dead code (no live caller) but a reachable weaker duplicate of
+//     `assignAccessTier`; removing it leaves `assignAccessTierFromSignals` as the single tier source.
 
 export class OnboardingService {
   getStepsForRole(role: Role): OnboardingStep[] {
@@ -48,14 +61,6 @@ export class OnboardingService {
     return { valid: true };
   }
 
-  validateSevenWhysScore(responses: any[]): ValidationResult {
-    const total = responses.reduce((sum, r) => sum + (r.score || 0), 0) / (responses.length || 1);
-    if (total <= SEVEN_WHYS_MIN_SCORE) {
-      return { valid: false, error: `Score ${total} below gate threshold of ${SEVEN_WHYS_MIN_SCORE}` };
-    }
-    return { valid: true };
-  }
-
   validateStep(
     session: OnboardingSession,
     step: OnboardingStep,
@@ -70,9 +75,9 @@ export class OnboardingService {
       return this.validateSolutionNumberFormat(data.solution_number);
     }
 
-    if (step === OnboardingStep.SEVEN_WHYS) {
-      return this.validateSevenWhysScore(data.seven_whys || []);
-    }
+    // SEVEN_WHYS is DELIBERATELY not gated here anymore (T-20): the authoritative gate is the T-18
+    // engine's invisible >70 resonance (§6.4), which never surfaces a number. No numeric score gate
+    // lives in this legacy service — see the retirement note at the top of the file.
 
     if (step === OnboardingStep.INTENSITY) {
       if (!data.intensity_data || data.intensity_data.commitmentScore < MIN_COMMITMENT_SCORE) {
@@ -81,11 +86,6 @@ export class OnboardingService {
     }
 
     return { valid: true };
-  }
-
-  seedAccessTier(role: Role, orgType: OrgType): AccessTier {
-    if (role === Role.RVP || role === Role.UPLINE) return AccessTier.ENTERPRISE;
-    return orgType === OrgType.PRIMERICA ? AccessTier.FREE_ORG_LINKED : AccessTier.FREE_PAID_EXTERNAL;
   }
 
   canProgressTo(step: OnboardingStep, data: any): ValidationResult {

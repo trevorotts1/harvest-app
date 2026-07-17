@@ -10,6 +10,19 @@ import { getBreachedPasswordChecker } from '@/services/security/credential-stuff
 // function (already the live tier source for `/api/onboarding/complete`); reusing it here keeps
 // there being exactly one place a tier is ever decided.
 import { assignAccessTierFromSignals } from '@/services/onboarding/wp01/access-tier';
+// T-20 §6.3 / §6.10-4 / §3.2 — the authoritative solution-number handling. The pre-T-20 route
+// stored `solution_number` in PLAINTEXT after only a presence check (`!solutionNumber`), which the
+// T-17 QC flagged as a solution-number-security CRITICAL failure: the number is user-declared PII
+// that §3.2 requires "encrypted, Primerica only" and §6.10-4 requires be 7-digit format-checked and
+// never persisted or logged in the clear. Both authoritative functions now run here:
+//   • `checkSolutionNumberForOrg` — org-gated 7-digit format check (a non-Primerica submission is
+//     refused fail-closed; a 6/8-digit value is rejected, closing the old presence-only hole).
+//   • `encryptSolutionNumberForStorage` — encrypts with the server-side at-rest key and returns the
+//     JSON envelope actually written to the column; the raw digits never touch persistence or logs.
+import {
+  checkSolutionNumberForOrg,
+  encryptSolutionNumberForStorage,
+} from '@/services/onboarding/wp01/solution-number';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -56,13 +69,25 @@ export async function POST(request: NextRequest) {
 
     const resolvedOrgType: OrgType = orgType === 'PRIMERICA' ? OrgType.PRIMERICA : OrgType.EXTERNAL;
 
-    // Primerica org gate (§6.3): solution number is required, user-declared, and — per spec —
-    // explicitly never verified against an external system.
-    if (resolvedOrgType === OrgType.PRIMERICA && !solutionNumber) {
-      return NextResponse.json(
-        { error: 'Solution number is required for Primerica representatives' },
-        { status: 400 }
-      );
+    // Primerica org gate (§6.3 / §6.10-4): the solution number is user-declared, 7-digit,
+    // format-checked (NOT verified against Primerica — there is no such integration), and required
+    // for a Primerica registrant. Delegated to the org-gated `checkSolutionNumberForOrg` so there is
+    // exactly one place a solution number's format is decided (T-17). A missing OR mis-formatted
+    // value is rejected here — the old presence-only `!solutionNumber` check let a 6/8-digit or
+    // otherwise malformed value through. `refused` (out-of-branch) can't occur here since we only
+    // check when the org IS Primerica. The raw value is never echoed back in the error.
+    let encryptedSolutionNumber: string | null = null;
+    if (resolvedOrgType === OrgType.PRIMERICA) {
+      const check = checkSolutionNumberForOrg(resolvedOrgType, solutionNumber);
+      if (!check.formatValid) {
+        return NextResponse.json(
+          { error: 'Solution number must be 7 digits.' },
+          { status: 400 }
+        );
+      }
+      // §3.2 "encrypted, Primerica only": encrypt with the server-side at-rest key and store the
+      // JSON envelope — never the plaintext digits, never a log line carrying them.
+      encryptedSolutionNumber = encryptSolutionNumberForStorage(solutionNumber);
     }
 
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -88,7 +113,8 @@ export async function POST(request: NextRequest) {
         name,
         phone: phone || null,
         org_type: resolvedOrgType,
-        solution_number: resolvedOrgType === OrgType.PRIMERICA ? solutionNumber : null,
+        // Encrypted-at-rest JSON envelope (Primerica only), never the raw digits (§3.2, §6.10-4).
+        solution_number: encryptedSolutionNumber,
         organization_id: organizationId || null,
         access_tier: accessTier,
         // `role` defaults to REP at the schema level; admin-provisioned/post-subscription-upgrade

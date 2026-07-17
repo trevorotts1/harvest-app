@@ -108,3 +108,40 @@ export function encryptSolutionNumber(
 ): EncryptedPayload & { key?: string } {
   return encryptPII(raw, key);
 }
+
+/**
+ * Name of the server-side AES-256 key the solution number is encrypted at rest with (§3.2, §16.3).
+ * Read by NAME only (§0.4) — never the value — and fail-closed, mirroring
+ * `WHY_SESSION_ENCRYPTION_KEY` (seven-whys/persistence.ts) and `MFA_ENCRYPTION_KEY` (lib/auth/env.ts):
+ * a caller that would persist a solution number without an at-rest key is refused rather than
+ * silently storing recoverable plaintext or a payload keyed by an ephemeral generated key that is
+ * then thrown away (which would make the ciphertext undecryptable and, worse, tempt a plaintext
+ * fallback). The register route (src/app/api/auth/register/route.ts) is the one live caller.
+ */
+export const SOLUTION_NUMBER_ENCRYPTION_KEY_ENV_VAR = 'SOLUTION_NUMBER_ENCRYPTION_KEY';
+
+export function getSolutionNumberEncryptionKey(): string {
+  const key = process.env[SOLUTION_NUMBER_ENCRYPTION_KEY_ENV_VAR];
+  if (!key) {
+    throw new Error(
+      `${SOLUTION_NUMBER_ENCRYPTION_KEY_ENV_VAR} is not set — refusing to store a Primerica solution ` +
+        'number without application-layer encryption at rest (§3.2, §16.3). Generate with: ' +
+        'openssl rand -base64 32.'
+    );
+  }
+  return key;
+}
+
+/**
+ * The at-rest wire form of an encrypted solution number: the JSON-serialized `EncryptedPayload`
+ * envelope stored in the (String-typed) `User.solution_number` column. `encryptSolutionNumberForStorage`
+ * is the ONE function the register/onboarding write path calls — it format-checks nothing (the caller
+ * has already run `checkSolutionNumberForOrg`), encrypts with the server key, and returns a string
+ * that is safe to persist and provably not the raw digits. The raw value is never returned, never
+ * logged, and (because a real server key is always used) the returned envelope never carries a
+ * throwaway `key`.
+ */
+export function encryptSolutionNumberForStorage(raw: string, key = getSolutionNumberEncryptionKey()): string {
+  const { ciphertext, iv, authTag, algorithm } = encryptSolutionNumber(raw, key);
+  return JSON.stringify({ ciphertext, iv, authTag, algorithm });
+}

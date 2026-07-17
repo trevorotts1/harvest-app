@@ -7,7 +7,7 @@
 // tsconfig's `**/*.ts` include and lives in a module-augmentation position (a top-level `declare
 // module` file, not imported anywhere).
 
-import type { AccessTier, OrgType, Role } from '@prisma/client';
+import type { AccessTier, OnboardingStatus, OrgType, Role } from '@prisma/client';
 import type { DefaultSession, DefaultUser } from 'next-auth';
 import type { DefaultJWT } from 'next-auth/jwt';
 
@@ -20,6 +20,13 @@ declare module 'next-auth' {
       orgType: OrgType;
       organizationId: string | null;
       accessTier: AccessTier;
+      /**
+       * `User.onboarding_status` (§1.4/§6.10-1) — the §6.10-1 hard-gate claim. Stamped at sign-in and
+       * refreshed on a client `useSession().update()` (jwt callback, options.ts), so `src/middleware.ts`
+       * can gate downstream PAGE routes off it on the Edge runtime without a DB read. The DB is still
+       * the authoritative source for the API-layer `withOnboardingGate` (onboarding-gate.ts).
+       */
+      onboardingStatus: OnboardingStatus;
       /** `User.mfa_enrolled` (§3.2) — whether the account has any second factor enrolled. */
       mfaEnrolled: boolean;
       /**
@@ -48,6 +55,7 @@ declare module 'next-auth' {
     orgType: OrgType;
     organizationId: string | null;
     accessTier: AccessTier;
+    onboardingStatus: OnboardingStatus;
     mfaEnrolled: boolean;
     deviceFingerprintHash: string;
     securityVersionAtIssue: number;
@@ -60,6 +68,7 @@ declare module 'next-auth/jwt' {
     orgType: OrgType;
     organizationId: string | null;
     accessTier: AccessTier;
+    onboardingStatus: OnboardingStatus;
     mfaEnrolled: boolean;
     mfaVerifiedAt: string | null;
     deviceFingerprintHash: string;
