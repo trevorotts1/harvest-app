@@ -9,6 +9,11 @@ import {
 } from '../../../types/data-rights';
 import { LegalHoldService } from './legal-hold';
 import { DataRightsAuditSink, buildDataRightsAuditEvent } from './audit-emit';
+import {
+  decryptOptionalField,
+  decryptRequiredField,
+  getContactEncryptionKey,
+} from '../../warm-market/vault/vault-encryption';
 
 /**
  * Data Rights service for T-11 (master-spec §16.3).
@@ -237,6 +242,61 @@ const FINRA_REGULATION_TAG = 'FINRA';
 // the email swap below already makes the row unreachable via the Credentials provider's
 // email-lookup, but no credential material should survive the account regardless.
 const ANONYMIZED_PASSWORD_HASH = '$2b$12$MEVZM7ykDz6jQqYFKMsBAOKe7pkfl/di9K.DgFws3GBt/jllkVou.';
+
+// ── T-R7 (§16.3 "the export must contain the data subject's actual data") ──────────────────────
+// T-22 (The Vault) encrypts Contact.first_name/last_name/phone/email/notes as AES-256-GCM
+// ciphertext envelopes at rest (src/services/warm-market/vault/vault-encryption.ts). A DSAR export
+// exists to hand the data subject their OWN readable data, so `processExport` below decrypts each
+// Contact's PII fields before serializing — never the raw ciphertext envelope, which would be
+// unintelligible to the person receiving it and would defeat the entire purpose of the export.
+
+/**
+ * Placeholder substituted for a single Contact PII field (first_name/last_name/phone/email/
+ * notes) in a DSAR export when that field's stored ciphertext envelope cannot be decrypted
+ * (corrupt/malformed envelope, tampered authTag, wrong/rotated key, etc.). A decrypt failure on
+ * one field must never (a) crash the rest of the export — the data subject is still owed every
+ * other field, of this contact and every other contact, within the SLA — or (b) surface the raw
+ * ciphertext envelope as if it were the value, which is not the subject's data and would mislead
+ * rather than merely fail to inform.
+ */
+export const DSAR_FIELD_DECRYPTION_UNAVAILABLE = '[unavailable — could not be decrypted]';
+
+/** Decrypt a required Contact PII field for a DSAR export; degrades safely on failure. */
+function decryptExportRequiredField(stored: string, key: string): string {
+  try {
+    return decryptRequiredField(stored, key);
+  } catch {
+    return DSAR_FIELD_DECRYPTION_UNAVAILABLE;
+  }
+}
+
+/** Decrypt an optional Contact PII field for a DSAR export; degrades safely on failure. */
+function decryptExportOptionalField(stored: string | null | undefined, key: string): string | null {
+  if (stored === null || stored === undefined) return null;
+  try {
+    return decryptOptionalField(stored, key);
+  } catch {
+    return DSAR_FIELD_DECRYPTION_UNAVAILABLE;
+  }
+}
+
+/**
+ * Decrypts one Contact row's PII fields for inclusion in a DSAR export. Each field is decrypted
+ * INDEPENDENTLY — not via a single all-or-nothing call — so one corrupt/undecryptable field
+ * (e.g. a malformed envelope) degrades only that field to `DSAR_FIELD_DECRYPTION_UNAVAILABLE`
+ * without blocking any other field of this contact or any other contact in the same export.
+ * Non-PII columns (id, user_id, phone_hash, email_hash, etc.) pass through untouched.
+ */
+function decryptContactForExport(contact: ContactRow, key: string): ContactRow {
+  return {
+    ...contact,
+    first_name: decryptExportRequiredField(contact.first_name, key),
+    last_name: decryptExportRequiredField(contact.last_name, key),
+    phone: decryptExportOptionalField(contact.phone, key),
+    email: decryptExportOptionalField(contact.email, key),
+    notes: decryptExportOptionalField(contact.notes, key),
+  };
+}
 
 function isoOf(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
@@ -738,8 +798,14 @@ export class DataRightsService {
       throw new Error(`User ${existing.user_id} not found`);
     }
     const contacts = await this.prisma.contact.findMany({ where: { user_id: existing.user_id } });
+    // §16.3: the data subject must receive their actual readable data, not the AES-256-GCM
+    // ciphertext T-22 persists at rest — decrypt every Contact's PII before serializing.
+    const contactEncryptionKey = getContactEncryptionKey();
+    const decryptedContacts = contacts.map((contact) =>
+      decryptContactForExport(contact, contactEncryptionKey)
+    );
 
-    const exportObject = { user, contacts };
+    const exportObject = { user, contacts: decryptedContacts };
     const payload =
       format === 'json' ? JSON.stringify(exportObject, null, 2) : toCsv(exportObject);
 

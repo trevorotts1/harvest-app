@@ -1,9 +1,17 @@
-import { DataRightsService } from '../../src/services/compliance/data-rights/data-rights';
+import { DataRightsService, DSAR_FIELD_DECRYPTION_UNAVAILABLE } from '../../src/services/compliance/data-rights/data-rights';
 import { LegalHoldService, InMemoryLegalHoldRepository } from '../../src/services/compliance/data-rights/legal-hold';
 import { InMemoryDataRightsAuditSink } from '../../src/services/compliance/data-rights/audit-emit';
 import { RetentionService } from '../../src/services/compliance/data-rights/retention';
 import { enforceMinimization, isMinimized, allowlistFor } from '../../src/services/compliance/data-rights/minimization';
 import { RETENTION_SCHEDULE } from '../../src/types/data-rights';
+// T-R7 (§16.3): the export tests below store Contact PII the same way T-22 (The Vault) actually
+// persists it — an AES-256-GCM ciphertext envelope — via the SAME encrypt helper vault-encryption.ts
+// itself uses, so `processExport`'s decrypt-before-serialize behavior is exercised for real rather
+// than assumed. See tests/unit/vault.test.ts for the identical encrypt-helper-import pattern.
+import {
+  encryptOptionalField,
+  encryptRequiredField,
+} from '../../src/services/warm-market/vault/vault-encryption';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mock Prisma delegate (T-11 uses the same constructor-injection pattern as
@@ -355,6 +363,22 @@ const BASE_CONTACTS: Row[] = [
     email_hash: 'hash-email-1',
   },
 ];
+
+// T-R7 (§16.3): the export tests below must exercise the TRUE encrypt→export→decrypt round trip,
+// not assert against plaintext that was never actually encrypted. This is BASE_CONTACTS' exact
+// PII values run through the real T-22 encrypt helper (encryptRequiredField/encryptOptionalField,
+// the same functions vault-encryption.ts's own encrypt path uses), so `stored.first_name` etc. are
+// real AES-256-GCM ciphertext envelopes, exactly like a real Contact row post-T-22. Deliberately a
+// SEPARATE fixture from BASE_CONTACTS (used unchanged by every deletion test above/below) — only
+// the export lane's contacts need to be at-rest-shaped; deletion behavior is out of scope for T-R7.
+const ENCRYPTED_BASE_CONTACTS: Row[] = BASE_CONTACTS.map((c) => ({
+  ...c,
+  first_name: encryptRequiredField(c.first_name as string),
+  last_name: encryptRequiredField(c.last_name as string),
+  phone: encryptOptionalField(c.phone as string | null | undefined),
+  email: encryptOptionalField(c.email as string | null | undefined),
+  notes: encryptOptionalField(c.notes as string | null | undefined),
+}));
 
 const PENDING_DELETION: Row = {
   id: 'del-1',
@@ -1236,10 +1260,26 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
 });
 
 describe('T-11 Data Rights — export', () => {
-  test('processExport produces valid JSON within the 5-minute SLA', async () => {
+  // T-R7 (§16.3 "the export must contain the data subject's actual data"): this test previously
+  // seeded `contacts: BASE_CONTACTS` — PLAINTEXT strings that were never actually encrypted — so
+  // `expect(parsed.contacts[0].first_name).toBe('Jane')` passed trivially whether or not
+  // `processExport` decrypted anything at all. Falsely green: production `contact.first_name` is
+  // an AES-256-GCM ciphertext envelope post-T-22, and pre-fix `processExport` serialized it RAW.
+  // Seeding `ENCRYPTED_BASE_CONTACTS` (real ciphertext, built via the same encrypt helper T-22's
+  // own write path uses) makes this a genuine encrypt→export→decrypt round-trip: this assertion
+  // is only true if `processExport` actually decrypts. Against the pre-fix code (which returned
+  // `contact.first_name` unchanged), `parsed.contacts[0].first_name` would be the
+  // JSON-stringified `{ciphertext, iv, authTag, algorithm}` envelope string, not `'Jane'` — i.e.
+  // this test FAILS against the pre-fix implementation.
+  test('processExport decrypts Contact PII into readable data (round-trips T-22 encrypt → export → decrypt)', async () => {
+    // Sanity check on the fixture itself: what's stored is real ciphertext, not plaintext — proves
+    // the assertions below exercise a genuine decrypt, not merely an echo of already-plaintext input.
+    expect(String(ENCRYPTED_BASE_CONTACTS[0].first_name)).not.toContain('Jane');
+    expect(String(ENCRYPTED_BASE_CONTACTS[0].notes)).not.toContain('church picnic');
+
     const prisma = makeMockPrisma({
       user: BASE_USER,
-      contacts: BASE_CONTACTS,
+      contacts: ENCRYPTED_BASE_CONTACTS,
       export: { id: 'exp-1', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
     });
     const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
@@ -1251,12 +1291,20 @@ describe('T-11 Data Rights — export', () => {
     const parsed = JSON.parse(payload);
     expect(parsed.user.id).toBe('user-1');
     expect(new Date(sla_deadline).getTime()).toBeGreaterThan(Date.now() - 1000);
+
+    // THE PROOF: every Contact PII field is the data subject's actual readable value — decrypted
+    // from ciphertext, not the ciphertext itself.
+    expect(parsed.contacts[0].first_name).toBe('Jane');
+    expect(parsed.contacts[0].last_name).toBe('Doe');
+    expect(parsed.contacts[0].phone).toBe('+15555550101');
+    expect(parsed.contacts[0].email).toBe('jane.doe@example.com');
+    expect(parsed.contacts[0].notes).toBe('Met at church picnic.');
   });
 
   test('processExport produces valid CSV', async () => {
     const prisma = makeMockPrisma({
       user: BASE_USER,
-      contacts: BASE_CONTACTS,
+      contacts: ENCRYPTED_BASE_CONTACTS,
       export: { id: 'exp-2', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
     });
     const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
@@ -1280,7 +1328,57 @@ describe('T-11 Data Rights — export', () => {
     const rawField = rowFields[contactsColumnIndex];
     const unquoted = rawField.slice(1, -1).replace(/""/g, '"');
     expect(() => JSON.parse(unquoted)).not.toThrow();
+    // Seeded from ENCRYPTED_BASE_CONTACTS (real ciphertext) — fails against pre-fix code, which
+    // would have emitted the ciphertext envelope string here instead of 'Jane'.
     expect(JSON.parse(unquoted)[0].first_name).toBe('Jane');
+    expect(JSON.parse(unquoted)[0].notes).toBe('Met at church picnic.');
+  });
+
+  // T-R7 (§16.3): a single corrupt/undecryptable Contact PII field (tampered ciphertext, wrong
+  // key, malformed envelope, etc.) must never crash the whole export — the data subject is still
+  // owed every other field, of this contact and every other contact — and must never surface the
+  // raw ciphertext envelope as if it were their real data.
+  test('processExport degrades a single undecryptable Contact PII field to a clearly-marked placeholder instead of crashing the export or leaking raw ciphertext', async () => {
+    const [goodContact] = ENCRYPTED_BASE_CONTACTS;
+
+    // Simulate on-disk corruption / a tampered ciphertext: flip bytes in a REAL envelope's
+    // ciphertext so AES-256-GCM's auth tag check fails at decrypt time (a genuine "unable to
+    // authenticate data" failure, not a contrived error).
+    const tamperedEmailEnvelope = {
+      ...(JSON.parse(goodContact.email as string) as Record<string, string>),
+    };
+    tamperedEmailEnvelope.ciphertext = `${tamperedEmailEnvelope.ciphertext.slice(0, -4)}XXXX`;
+    const corruptContact: Row = {
+      ...goodContact,
+      id: 'contact-2',
+      email: JSON.stringify(tamperedEmailEnvelope),
+    };
+
+    const prisma = makeMockPrisma({
+      user: BASE_USER,
+      contacts: [goodContact, corruptContact],
+      export: { id: 'exp-4', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
+    });
+    const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
+    const service = new DataRightsService(prisma, legalHold);
+
+    // Must not throw — one corrupt field must never crash the whole export.
+    const { payload } = await service.processExport('exp-4', 'json');
+    const parsed = JSON.parse(payload);
+
+    // The unaffected contact still fully decrypts.
+    expect(parsed.contacts[0].first_name).toBe('Jane');
+    expect(parsed.contacts[0].email).toBe('jane.doe@example.com');
+
+    // The corrupt contact's OTHER fields still decrypt fine — degradation is per-FIELD, not
+    // all-or-nothing per contact.
+    expect(parsed.contacts[1].first_name).toBe('Jane');
+    expect(parsed.contacts[1].last_name).toBe('Doe');
+    expect(parsed.contacts[1].notes).toBe('Met at church picnic.');
+    // ...but the undecryptable field degrades to the clearly-marked placeholder, never the raw
+    // ciphertext (which is not the subject's data and would mislead if presented as such).
+    expect(parsed.contacts[1].email).toBe(DSAR_FIELD_DECRYPTION_UNAVAILABLE);
+    expect(String(parsed.contacts[1].email)).not.toContain(tamperedEmailEnvelope.ciphertext);
   });
 
   // ── T-11 QC-2 (Minor defect #3): CSV/spreadsheet-formula-injection guard. csvField() in
@@ -1303,7 +1401,7 @@ describe('T-11 Data Rights — export', () => {
     };
     const prisma = makeMockPrisma({
       user: maliciousUser,
-      contacts: BASE_CONTACTS,
+      contacts: ENCRYPTED_BASE_CONTACTS,
       export: { id: 'exp-3', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
     });
     const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
