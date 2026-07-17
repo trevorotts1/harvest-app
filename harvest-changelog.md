@@ -1,3 +1,8 @@
+## [2.0.0-build.T24] — BUILD PHASE — 2026-07-17
+### T-24 — Hidden Earnings engine: FTC-safe formula, org-gated Primerica calibration, safe-harbor on every render, 0-3 growth path (WP02, QC 9.8)
+- FTC-safe potential-earnings formula (framed potential/illustrative, never a guarantee). Primerica calibration triple-gated behind the org gate — a non-Primerica user never receives Primerica-specific numbers (branch check + assertPrimericaGate + payload leak-scan at the wire).
+- The safe-harbor line is emitted on EVERY figure-bearing path (render, screen-reader, outreach) via assertSafeHarborPresent (throws if missing/altered). 0–3 contacts — and any non-positive computed value — render a growth path, never $0/NaN/Infinity (hostile inputs sanitized). Outreach text is CFE-gated (released-only). /api/contacts/hidden-earnings is session-gated, org/count read server-side. 769 tests.
+
 ## [2.0.0-build.T-R7] — BUILD PHASE — 2026-07-18
 ### T-R7 — DSAR export decrypts Contact PII before serialize (WP11 remediation, QC 8.9)
 - processExport decrypts every Contact's PII before serializing the GDPR/CCPA export (JSON+CSV); per-field safe degradation on decrypt failure (marked-unavailable, no crash/no ciphertext leak). Deletion/FINRA carve-out/legal-hold unchanged. 725 tests.
