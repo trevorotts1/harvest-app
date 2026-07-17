@@ -316,6 +316,7 @@ model Contact {
   household_id        String?          // nullable; household intelligence (blueprint #17)
   is_minor_flag       Boolean          @default(false)
   linked_user_id      String?          // set when a contact becomes a platform user
+  memory_jogger_skip_count Int         @default(0) // T-23 (§7.4): a jogger that surfaces an already-Vaulted contact increments this and skips, instead of re-adding a duplicate
   created_at          DateTime         @default(now()) @db.Timestamptz(6)
   updated_at          DateTime         @updatedAt @db.Timestamptz(6)
   interactions        ContactInteraction[]

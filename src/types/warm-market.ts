@@ -88,6 +88,55 @@ export const PIPELINE_STAGE_ORDER: PipelineStage[] = [
 
 export type RelationshipStrength = number;
 
+// T-23 (§7.2 "relationship-type inference (family, friend, work, church, neighbor, coach,
+// former_colleague, other) via Haiku 4.5"). Mirrors `Contact.relationship_type` (a plain `String?`
+// column, same convention as `ContactSource`/`PipelineStage` above — additive, no migration).
+export enum RelationshipType {
+  FAMILY = 'FAMILY',
+  FRIEND = 'FRIEND',
+  WORK = 'WORK',
+  CHURCH = 'CHURCH',
+  NEIGHBOR = 'NEIGHBOR',
+  COACH = 'COACH',
+  FORMER_COLLEAGUE = 'FORMER_COLLEAGUE',
+  OTHER = 'OTHER',
+}
+
+// T-23 (§7.5 "Contact pipeline to agents"): the typed contract `GET /api/v1/contacts/agent-queue`
+// returns to WP04's agent layer. PII fields are DECRYPTED (§7.2/§16.4 — the agent layer must act on
+// a real name/phone/email, not the AES-256-GCM ciphertext Contact's own columns hold at rest).
+export interface AgentQueueContact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  email: string | null;
+  relationshipType: RelationshipType | null;
+  segmentScore: number;
+  isAList: boolean;
+  isRecruitTarget: boolean;
+  isClient: boolean;
+  pipelineStage: PipelineStage;
+  lastContactDate: Date | null;
+  doNotContact: boolean;
+}
+
+export type AgentQueueStatus = 'ready';
+
+export interface AgentQueueResult {
+  status: AgentQueueStatus;
+  limit: number;
+  count: number;
+  contacts: AgentQueueContact[];
+}
+
+// T-23 (§7.5 "after outreach it updates last_contact_date and pipeline_stage").
+export interface RecordOutreachInput {
+  contactId: string;
+  toStage: PipelineStage;
+  contactedAt?: Date;
+}
+
 export interface HiddenEarningsEstimate {
   contactId: string;
   estimatedAnnualEarnings: number;
