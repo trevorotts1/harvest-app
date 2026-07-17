@@ -13,3 +13,11 @@ process.env.CONTACT_HASH_PEPPER =
 // not a real secret and grants no access to anything; it only needs to be a valid-length key.
 process.env.MFA_ENCRYPTION_KEY =
   process.env.MFA_ENCRYPTION_KEY || 'FBNitMs5Dih2gQFcdEl7aNbttiyOLAH1yODMjwFXlSw=';
+
+// Test-only AES-256 key (T-18, §6.4/§16.3) — a fixed, committed, non-production literal so the suite
+// has a deterministic 32-byte base64 key to encrypt/decrypt the Seven Whys transcript and anchor
+// statement against. getWhySessionEncryptionKey() (src/services/onboarding/wp01/seven-whys/
+// persistence.ts) fails closed (throws) if WHY_SESSION_ENCRYPTION_KEY is unset. Generated the same
+// way as MFA_ENCRYPTION_KEY above — not a real secret, grants no access to anything.
+process.env.WHY_SESSION_ENCRYPTION_KEY =
+  process.env.WHY_SESSION_ENCRYPTION_KEY || 'lQXnLFZxlfUdACHf6z1lP+cUH49yYYW50Bgw0zG1jjk=';

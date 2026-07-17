@@ -11,6 +11,9 @@
 //                                       assertNoPrimericaLeak, buildOrgContext)
 //   §6.3  Solution-number check ....... ./solution-number (checkSolutionNumberForOrg, mask, encrypt)
 //   §6.3  Tracks A/B/D shells ......... ./tracks         (stepsForRole, evaluateTrackCompletion*)
+//   §6.4  Seven Whys (T-18) ........... ./seven-whys     (startSevenWhys / submitSevenWhysAnswer —
+//                                       the Sonnet-5 conversation engine, the invisible >70
+//                                       resonance gate, anchor composition, the outreach CFE gate)
 
 export * from './identity-gate';
 // The Auth.js server binding for the identity gate (pulls next-auth; server call-sites only).
@@ -19,3 +22,4 @@ export * from './roles';
 export * from './org-gate';
 export * from './solution-number';
 export * from './tracks';
+export * from './seven-whys';
