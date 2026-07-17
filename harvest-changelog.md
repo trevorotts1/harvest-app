@@ -1,3 +1,9 @@
+## [2.0.0-build.T23] — BUILD PHASE — 2026-07-17
+### T-23 — Segmentation + Memory Jogger + agent pipeline; Contact-PII decrypt reads (WP02, QC 8.75)
+- Haiku-4.5 contact segmentation (DI-mockable, fail-closed on missing key, no non-Claude fallback; deterministic 0–100 score, A-list ≥70). Memory Jogger surfaces DECRYPTED contact PII (via T-22's decryptContactPII) with dedup + skip-count. Agent pipeline (contact→agent typed contract) + new session-gated /api/contacts/agent-queue route (ownership-checked, forged-header-inert).
+- Fixes the T-22 ciphertext-read consequence: memory-jogger + pipeline now decrypt Contact PII; replaced 2 falsely-green plaintext-mock tests with a real encrypt→store→decrypt round-trip. Additive schema Contact.memory_jogger_skip_count + migration. 748 tests.
+- Advisory to WP04 (T-30): inject HaikuSegmentationClient/HaikuMemoryJoggerCategoryClient — services default to the local heuristic; forgetting = silent regex instead of Haiku.
+
 ## [2.0.0-build.T24] — BUILD PHASE — 2026-07-17
 ### T-24 — Hidden Earnings engine: FTC-safe formula, org-gated Primerica calibration, safe-harbor on every render, 0-3 growth path (WP02, QC 9.8)
 - FTC-safe potential-earnings formula (framed potential/illustrative, never a guarantee). Primerica calibration triple-gated behind the org gate — a non-Primerica user never receives Primerica-specific numbers (branch check + assertPrimericaGate + payload leak-scan at the wire).
