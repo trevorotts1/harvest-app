@@ -1,5 +1,17 @@
+import { NextRequest } from 'next/server';
+
 import { OnboardingService } from '../../src/services/onboarding/service';
 import { OnboardingStep, Role, OrgType, AccessTier, ROLE_VISIBILITY } from '../../src/types/onboarding';
+// T-19 QC CRITICAL fix regression tests: exercise the ACTUAL live route handler (not just the
+// service function it used to call), since the defect was in the route's wiring, not only in
+// `OnboardingService.determineAccessTier` — see the `POST /api/onboarding/complete` describe block
+// at the bottom of this file. `sessions`/`users` are imported from the route's dedicated store
+// module (not the route module itself — see src/app/api/onboarding/complete/store.ts for why).
+import { POST as completeOnboarding } from '../../src/app/api/onboarding/complete/route';
+import {
+  sessions as completeSessions,
+  users as completeUsers,
+} from '../../src/app/api/onboarding/complete/store';
 
 describe('OnboardingService', () => {
   const service = new OnboardingService();
@@ -122,24 +134,151 @@ describe('OnboardingService', () => {
     });
   });
 
-  // T-17 QC fix: closes the enum-mismatch defect — `determineAccessTier` used to branch on/return the
-  // legacy local `OrgType`/`AccessTier` (`NON_PRIMERICA`, `ORG_LINKED_FREE`, `PAID_EXTERNAL`) which do
-  // not exist on the canonical Prisma enums. It now returns REAL Prisma `AccessTier` values and
-  // branches on the REAL Prisma `OrgType`, for its caller `/api/onboarding/complete/route.ts`.
-  describe('determineAccessTier returns real Prisma AccessTier values (T-17)', () => {
-    test('low commitment score: FREE_ORG_LINKED for Primerica, FREE_PAID_EXTERNAL for external', () => {
-      expect(service.determineAccessTier(3, OrgType.PRIMERICA)).toBe(AccessTier.FREE_ORG_LINKED);
-      expect(service.determineAccessTier(3, OrgType.EXTERNAL)).toBe(AccessTier.FREE_PAID_EXTERNAL);
+  // T-19 QC CRITICAL fix: this describe block used to assert `determineAccessTier` branches ON
+  // COMMITMENT SCORE (`7-8` -> PAID_INDIVIDUAL, `>=9` -> ENTERPRISE) "regardless of org type" — that
+  // was ITSELF the payment-sensitive dual-source-of-truth defect the T-19 QC pass flagged as
+  // CRITICAL: §6.7 assigns access tier "from auth source + org context", NEVER a self-reported
+  // commitment slider, so a SPONSORED user (should be FREE_ORG_LINKED / $0) who rated their own
+  // commitment >=9 was silently promoted to a $25,000/yr ENTERPRISE tier by this exact function. A
+  // legacy test encoding a spec violation is corrected here (not preserved): `determineAccessTier`
+  // now IGNORES `commitmentScore` entirely and delegates to the §6.7 `assignAccessTierFromSignals`
+  // (src/services/onboarding/wp01/access-tier.ts), branching only on `orgType` (Primerica implies
+  // sponsor/org-linked; external implies no-sponsor email/password). These tests now assert the
+  // §6.7-correct behavior: NO commitment score, however high, can ever push a caller of this
+  // function onto a PAID/ENTERPRISE tier.
+  describe('determineAccessTier returns real Prisma AccessTier values, NEVER from commitment score (§6.7, T-19 CRITICAL fix)', () => {
+    test('commitment score has NO effect on the returned tier — same orgType, wildly different scores, same tier', () => {
+      for (const score of [0, 3, 5, 6, 7, 8, 9, 10, 999]) {
+        expect(service.determineAccessTier(score, OrgType.PRIMERICA)).toBe(AccessTier.FREE_ORG_LINKED);
+        expect(service.determineAccessTier(score, OrgType.EXTERNAL)).toBe(AccessTier.FREE_PAID_EXTERNAL);
+      }
     });
 
-    test('mid commitment score (7-8): PAID_INDIVIDUAL regardless of org type', () => {
-      expect(service.determineAccessTier(7, OrgType.PRIMERICA)).toBe(AccessTier.PAID_INDIVIDUAL);
-      expect(service.determineAccessTier(8, OrgType.EXTERNAL)).toBe(AccessTier.PAID_INDIVIDUAL);
+    test('a sponsored-context (Primerica) user with commitment score >=9 is FREE_ORG_LINKED, never ENTERPRISE — this is the exact scenario the pre-fix code got wrong ($25,000/yr for a $0 sponsored user)', () => {
+      expect(service.determineAccessTier(9, OrgType.PRIMERICA)).toBe(AccessTier.FREE_ORG_LINKED);
+      expect(service.determineAccessTier(10, OrgType.PRIMERICA)).not.toBe(AccessTier.ENTERPRISE);
+      expect(service.determineAccessTier(10, OrgType.PRIMERICA)).not.toBe(AccessTier.PAID_INDIVIDUAL);
     });
 
-    test('high commitment score (>=9): ENTERPRISE regardless of org type', () => {
-      expect(service.determineAccessTier(9, OrgType.PRIMERICA)).toBe(AccessTier.ENTERPRISE);
-      expect(service.determineAccessTier(10, OrgType.EXTERNAL)).toBe(AccessTier.ENTERPRISE);
+    test('an external (no-sponsor) user with mid commitment score (7-8) is FREE_PAID_EXTERNAL, never PAID_INDIVIDUAL', () => {
+      expect(service.determineAccessTier(7, OrgType.EXTERNAL)).toBe(AccessTier.FREE_PAID_EXTERNAL);
+      expect(service.determineAccessTier(8, OrgType.EXTERNAL)).toBe(AccessTier.FREE_PAID_EXTERNAL);
     });
+
+    // Fail-closed sweep: no combination of (score, orgType) this function accepts can ever return
+    // PAID_INDIVIDUAL or ENTERPRISE — those two tiers are §6.7-reachable ONLY via
+    // `assignAccessTierFromSignals`'s `admin_provisioning`/`post_subscription_upgrade` paths
+    // (see tests/unit/wp01-access-tier.test.ts), never via this commitment-score-shaped call site.
+    test('no score/orgType combination through this function ever returns PAID_INDIVIDUAL or ENTERPRISE', () => {
+      for (const score of [-1, 0, 1, 5, 6, 7, 8, 9, 10, 100]) {
+        for (const orgType of [OrgType.PRIMERICA, OrgType.EXTERNAL]) {
+          const tier = service.determineAccessTier(score, orgType);
+          expect(tier).not.toBe(AccessTier.PAID_INDIVIDUAL);
+          expect(tier).not.toBe(AccessTier.ENTERPRISE);
+        }
+      }
+    });
+  });
+});
+
+// T-19 QC CRITICAL fix — the actual reported defect: `POST /api/onboarding/complete` (the LIVE
+// route, not just the service function it called) used to derive `access_tier` from
+// `commitmentScore` via `onboardingService.determineAccessTier(commitmentScore, session.org_type)`.
+// A SPONSORED user (should be FREE_ORG_LINKED / $0) who self-reported commitmentScore >= 9 was
+// silently promoted to a $25,000/yr ENTERPRISE tier. These tests call the EXPORTED route handler
+// directly (same pattern as tests/unit/session-whoami.test.ts) so the assertion is against the real
+// HTTP-shaped entry point, not a proxy for it.
+describe('POST /api/onboarding/complete — LIVE route sources access_tier from §6.7 signals, never commitment score (T-19 CRITICAL fix)', () => {
+  afterEach(() => {
+    completeSessions.length = 0;
+    completeUsers.length = 0;
+  });
+
+  function seedSession(userId: string, overrides: Record<string, unknown> = {}) {
+    completeSessions.push({
+      user_id: userId,
+      current_step: 'INTENSITY',
+      completed: false,
+      intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+      ...overrides,
+    });
+    completeUsers.push({ id: userId });
+  }
+
+  async function complete(userId: string) {
+    const request = new NextRequest('http://localhost/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'x-user-id': userId },
+    });
+    const response = await completeOnboarding(request);
+    const body = await response.json();
+    return { response, body };
+  }
+
+  // THE mandatory regression test: this exact scenario (sponsored, EXTERNAL org, commitmentScore
+  // 9) would FAIL against the pre-fix code. Pre-fix, the route called
+  // `onboardingService.determineAccessTier(9, OrgType.EXTERNAL)`, whose legacy body was
+  // `if (commitmentScore >= 9) return AccessTier.ENTERPRISE;` — it never even looked at
+  // `sponsor_id`, so it returned ENTERPRISE ($25,000/yr) regardless of sponsorship. Against the
+  // pre-fix route, `expect(body.accessTier).toBe(AccessTier.FREE_ORG_LINKED)` below would have
+  // failed with `Expected: "FREE_ORG_LINKED", Received: "ENTERPRISE"`.
+  test('a SPONSORED user (sponsor_id set) with commitment score >=9 resolves to FREE_ORG_LINKED, NOT ENTERPRISE — FAILS against the pre-fix code', async () => {
+    seedSession('user-sponsored-high-commitment', {
+      org_type: OrgType.EXTERNAL,
+      sponsor_id: 'sponsor-abc-123',
+      intensity_data: { commitmentScore: 9, weeklyHours: 20, riskTolerance: 'HIGH', supportNeeds: [] },
+    });
+
+    const { response, body } = await complete('user-sponsored-high-commitment');
+
+    expect(response.status).toBe(200);
+    expect(body.accessTier).toBe(AccessTier.FREE_ORG_LINKED);
+    expect(body.accessTier).not.toBe(AccessTier.ENTERPRISE);
+    expect(body.accessTier).not.toBe(AccessTier.PAID_INDIVIDUAL);
+    const user = completeUsers.find((u) => u.id === 'user-sponsored-high-commitment');
+    expect(user.access_tier).toBe(AccessTier.FREE_ORG_LINKED);
+  });
+
+  test('a no-sponsor EXTERNAL user resolves to FREE_PAID_EXTERNAL', async () => {
+    seedSession('user-no-sponsor-external', {
+      org_type: OrgType.EXTERNAL,
+      sponsor_id: null,
+      intensity_data: { commitmentScore: 5, weeklyHours: 5, riskTolerance: 'LOW', supportNeeds: [] },
+    });
+
+    const { response, body } = await complete('user-no-sponsor-external');
+
+    expect(response.status).toBe(200);
+    expect(body.accessTier).toBe(AccessTier.FREE_PAID_EXTERNAL);
+  });
+
+  test('a Primerica-org-context user with no explicit sponsor_id still resolves to FREE_ORG_LINKED (org context implies sponsorship)', async () => {
+    seedSession('user-primerica-implicit-sponsor', {
+      org_type: OrgType.PRIMERICA,
+      sponsor_id: null,
+      intensity_data: { commitmentScore: 6, weeklyHours: 8, riskTolerance: 'MEDIUM', supportNeeds: [] },
+    });
+
+    const { response, body } = await complete('user-primerica-implicit-sponsor');
+
+    expect(response.status).toBe(200);
+    expect(body.accessTier).toBe(AccessTier.FREE_ORG_LINKED);
+  });
+
+  test('commitment score sweep (5..10) has ZERO effect on the live route tier for an identical sponsored session', async () => {
+    for (const score of [5, 6, 7, 8, 9, 10]) {
+      const userId = `user-sweep-${score}`;
+      seedSession(userId, {
+        org_type: OrgType.EXTERNAL,
+        sponsor_id: 'sponsor-xyz',
+        intensity_data: { commitmentScore: score, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+      });
+
+      const { response, body } = await complete(userId);
+
+      expect(response.status).toBe(200);
+      expect(body.accessTier).toBe(AccessTier.FREE_ORG_LINKED);
+      expect(body.commitmentScore).toBe(score); // still recorded, just no longer tier-determinative
+    }
   });
 });

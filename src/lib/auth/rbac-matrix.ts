@@ -220,7 +220,8 @@ export const MATRIX: Record<Resource, Grant> = {
   // resource answers "does this ROLE have the sponsor_invite capability at all" — it does NOT
   // encode the row-level "is this invite actually THIS caller's own" ownership check (rule 3 above);
   // that ownership gate lives in the service layer (see
-  // src/services/onboarding/wp01/sponsor-invite.service.ts `assertInviteOwnership`).
+  // src/services/onboarding/wp01/invite-state-machine.ts `assertInviteActionAuthorized`, called
+  // from sponsor-invite.service.ts).
   sponsor_invite: {
     write: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
     manage: [Role.RVP, Role.ADMIN],
