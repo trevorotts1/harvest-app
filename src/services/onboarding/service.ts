@@ -19,6 +19,13 @@ import {
 // format check means there is exactly one place a solution number's format is decided; no route
 // reachable through `OnboardingService` can accept a 6-digit or 8-digit value ever again.
 import { checkSolutionNumberFormat } from './wp01/solution-number';
+// T-19 QC CRITICAL fix: `determineAccessTier` below used to assign tier BY COMMITMENT SCORE — a
+// second, spec-violating source of truth alongside the authoritative §6.7 rule in
+// `wp01/access-tier.ts`. Delegating directly to that module's own assignment function means there
+// is exactly one place a tier is ever decided; no caller reachable through `OnboardingService` can
+// get a commitment-score-derived tier ever again, mirroring the `checkSolutionNumberFormat`
+// delegation immediately above.
+import { assignAccessTierFromSignals } from './wp01/access-tier';
 
 export class OnboardingService {
   getStepsForRole(role: Role): OnboardingStep[] {
@@ -98,10 +105,24 @@ export class OnboardingService {
     return idx !== -1 && idx < steps.length - 1 ? steps[idx + 1] : null;
   }
 
-  determineAccessTier(commitmentScore: number, orgType: OrgType): AccessTier {
-    if (commitmentScore >= 9) return AccessTier.ENTERPRISE;
-    if (commitmentScore >= 7) return AccessTier.PAID_INDIVIDUAL;
-    return orgType === OrgType.PRIMERICA ? AccessTier.FREE_ORG_LINKED : AccessTier.FREE_PAID_EXTERNAL;
+  // T-19 QC CRITICAL fix (§6.7): this used to assign the returned tier BY COMMITMENT SCORE
+  // (`>=9` -> ENTERPRISE $25,000/yr, `>=7` -> PAID_INDIVIDUAL $297/mo, else an org-based free tier)
+  // — a payment-sensitive dual-source-of-truth defect §6.7 never describes: tier is assigned "from
+  // auth source + org context", NEVER a self-reported commitment slider. A SPONSORED user (should
+  // be FREE_ORG_LINKED / $0) who rated their own commitment >=9 was silently promoted to a
+  // $25,000/yr ENTERPRISE tier by this function alone. `commitmentScore` is now IGNORED for tier
+  // purposes — kept only as a parameter so this legacy entry point's call-site shape doesn't change
+  // for `finalizeOnboarding` below — and this delegates to the SAME §6.7 `assignAccessTierFromSignals`
+  // the live route (`/api/onboarding/complete/route.ts`) now calls directly. No caller of this
+  // function, old or new, can ever get a commitment-score-derived tier again. `orgType ===
+  // PRIMERICA` is treated as the "sponsor/org-linked" signal (this call site has no separate
+  // sponsor-invite flag); `orgType === EXTERNAL` resolves to the "email_password, no sponsor" path
+  // — the exact split `seedAccessTier` below already uses for its own free-tier branch.
+  determineAccessTier(_commitmentScore: number, orgType: OrgType): AccessTier {
+    return assignAccessTierFromSignals({
+      authMethod: 'email_password',
+      sponsorLinked: orgType === OrgType.PRIMERICA,
+    });
   }
 
   meetsCommitmentThreshold(score: number): boolean {

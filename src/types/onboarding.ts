@@ -58,10 +58,16 @@ export { AccessTier };
 
 // ─── Onboarding Status ────────────────────────────────────────────────
 
-export enum OnboardingStatus {
-  IN_PROGRESS = 'IN_PROGRESS',
-  GATED_COMPLETE = 'GATED_COMPLETE',
-}
+// T-19 fix: same dual-source-of-truth defect the T-17 QC pass already fixed for `Role`/`OrgType`/
+// `AccessTier` above — this file's own local `OnboardingStatus` TS `enum` had the SAME string
+// values as the canonical Prisma `OnboardingStatus` (`IN_PROGRESS`/`GATED_COMPLETE`) but, being a
+// nominally-typed real `enum`, was NOT assignable from the Prisma enum's value even where the
+// underlying string matched — and `src/services/onboarding/wp01/identity-gate.ts` (T-17) already
+// correctly imports `OnboardingStatus` straight from `@prisma/client`. Retired in favor of the same
+// canonical Prisma enum, closing the second source.
+import { OnboardingStatus } from '@prisma/client';
+
+export { OnboardingStatus };
 
 // ─── FINRA U4 Status ──────────────────────────────────────────────────
 
@@ -74,11 +80,19 @@ export enum FinraU4Status {
 
 // ─── Intensity Settings ───────────────────────────────────────────────
 
-export enum IntensitySetting {
-  CASUAL = 'CASUAL',
-  STANDARD = 'STANDARD',
-  INTENSIVE = 'INTENSIVE',
-}
+// T-19 fix: this file's own local `IntensitySetting` enum used its OWN member names
+// (`CASUAL`/`STANDARD`/`INTENSIVE` — the RETIRED baseline labels §3.1 explicitly voids: "the
+// baseline casual/standard/intensive map 1:1 and are retired in favor of the roadmap's
+// Low/Medium/High") instead of the canonical Prisma `IntensitySetting` (`LOW`/`MEDIUM`/`HIGH`) —
+// the same dual-source-of-truth defect already fixed for `Role`/`OrgType`/`AccessTier`/
+// `OnboardingStatus` in this file (this one had gone unnoticed because nothing exercised it: the
+// import was unused dead weight in `service.ts`, and this file's OWN `IntensityData.riskTolerance`
+// field already used the correct `'LOW' | 'MEDIUM' | 'HIGH'` labels a few lines below, so the two
+// intensity vocabularies in this single file didn't even agree with each other). Retired in favor
+// of the canonical Prisma enum.
+import { IntensitySetting } from '@prisma/client';
+
+export { IntensitySetting };
 
 // ─── Invite Status (Upline Invitation State Machine) ──────────────────
 
@@ -348,11 +362,19 @@ export interface WP02WarmMarketContract {
   sponsor_id: string | null;
 }
 
-/** WP03: Harvest Method / Lead Pipeline contract */
+/**
+ * WP03: Harvest Method / Lead Pipeline contract.
+ * T-19 fix (§6.9): this was missing `solution_number` — the spec's per-WP list is explicit that
+ * "WP03 reads `intensity_setting` (calibrates lead volume) + `solution_number`". Nullable because a
+ * non-Primerica (universal) user never has one (§17.1 org-gate) — WP03's Primerica overlay branch
+ * is the only consumer of it, exactly like `buildOrgContext` (org-gate.ts) omits Primerica fields
+ * for a universal user rather than leaking a null-with-a-Primerica-shaped-key.
+ */
 export interface WP03HarvestMethodContract {
   user_id: string;
   intensity_setting: IntensitySetting;
   onboarding_status: OnboardingStatus;
+  solution_number: string | null;
 }
 
 /** WP04: AI Agent Layer & Mission Control contract */
@@ -363,11 +385,53 @@ export interface WP04AgentLayerContract {
   role: Role;
 }
 
-/** WP05: Messaging Engine contract */
+/**
+ * WP05: Messaging Engine contract.
+ * T-19 fix (§6.9): this was missing `mobile_phone` — the spec's per-WP list is explicit that "WP05
+ * uses `first_name`/`organization`/`mobile_phone`". Nullable: a rep may not have supplied a phone
+ * number yet (`User.phone` is optional, see prisma/schema.prisma), and WP05's own edge-case
+ * doctrine (§10.8) already handles a missing/landline number gracefully rather than assuming one
+ * always exists.
+ */
 export interface WP05MessagingContract {
   user_id: string;
   first_name: string;
   organization: string[];
+  mobile_phone: string | null;
+  role: Role;
+}
+
+/**
+ * WP06: Social, Content & Launch Kit contract (§6.9: "WP06 uses `anchor_statement` + org
+ * (launch-kit library)"). Not previously modeled here — T-19 adds it as part of completing the
+ * full §6.9 per-WP contract set.
+ */
+export interface WP06ContentContract {
+  user_id: string;
+  anchor_statement: string;
+  organization: string[];
+}
+
+/**
+ * WP07: Accountability, Gamification & Motivation contract (§6.9: "WP07 uses `anchor_statement` +
+ * `intensity` (quotes, milestones, thresholds)"). Not previously modeled here — T-19 addition.
+ */
+export interface WP07GamificationContract {
+  user_id: string;
+  anchor_statement: string;
+  intensity_setting: IntensitySetting;
+}
+
+/**
+ * WP08: Taprooting / org-tree contract (§6.9: "WP08 reads the sponsor→downline graph + `access_tier`
+ * + `role`"). `sponsor_id` carries the sponsor→downline graph seed (the org tree itself is built
+ * from `OrgTreeEdge` rows — see `sponsor-matching.ts`/`invite-state-machine.ts` — this is the
+ * pointer WP08 starts from). Not previously modeled here — T-19 addition.
+ */
+export interface WP08TaprootingContract {
+  user_id: string;
+  sponsor_id: string | null;
+  access_tier: AccessTier;
   role: Role;
 }
 

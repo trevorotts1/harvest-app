@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { getBreachedPasswordChecker } from '@/services/security/credential-stuffing';
+// T-19 QC minor fix (§6.7): see the `access_tier` comment on `prisma.user.create` below —
+// this route used to rely on the schema's bare `@default(FREE_ORG_LINKED)`, which mislabeled every
+// unsponsored EXTERNAL registrant. `assignAccessTierFromSignals` is the single §6.7 decision
+// function (already the live tier source for `/api/onboarding/complete`); reusing it here keeps
+// there being exactly one place a tier is ever decided.
+import { assignAccessTierFromSignals } from '@/services/onboarding/wp01/access-tier';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -61,6 +67,20 @@ export async function POST(request: NextRequest) {
 
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
+    // T-19 QC minor fix (§6.7): this used to rely on the schema's bare `@default(FREE_ORG_LINKED)`
+    // for EVERY registrant, including an unsponsored EXTERNAL rep — §6.7 says "email/password no
+    // sponsor -> free_paid_external". No pricing harm either way (both tiers are $0 at
+    // registration, see `ACCESS_TIER_PRICE_CENTS`), but the label was wrong. This route accepts no
+    // sponsor-invite token of its own (that's the WP01 sponsor-matching/invite flow — §6.5/§6.6,
+    // T-19's `/api/onboarding/complete` route), so `sponsorLinked` here is approximated the same
+    // way `OnboardingService.determineAccessTier`/`seedAccessTier` already do: a Primerica org
+    // context implies the rep onboards under their existing upline/org; an EXTERNAL registrant with
+    // no sponsor-invite field on this endpoint is the "no sponsor" §6.7 path.
+    const accessTier = assignAccessTierFromSignals({
+      authMethod: 'email_password',
+      sponsorLinked: resolvedOrgType === OrgType.PRIMERICA,
+    });
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -70,9 +90,10 @@ export async function POST(request: NextRequest) {
         org_type: resolvedOrgType,
         solution_number: resolvedOrgType === OrgType.PRIMERICA ? solutionNumber : null,
         organization_id: organizationId || null,
-        // `role` defaults to REP and `access_tier` to FREE_ORG_LINKED at the schema level; the
-        // full §6.7 access-tier assignment (sponsor-invite vs. no-sponsor vs. admin-provisioned)
-        // is WP01/WP10 territory and is not decided here.
+        access_tier: accessTier,
+        // `role` defaults to REP at the schema level; admin-provisioned/post-subscription-upgrade
+        // tier transitions (the other two §6.7 paths) are WP01/WP10 territory and are not decided
+        // here.
       },
     });
 

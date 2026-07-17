@@ -73,7 +73,11 @@ export type Resource =
   | 'payment'
   | 'user_profile'
   | 'onboarding'
-  | 'incident_response'; // T-15, §16.7 breach notification & incident-response lifecycle
+  | 'incident_response' // T-15, §16.7 breach notification & incident-response lifecycle
+  | 'sponsor_invite' // T-19, §6.5/§6.6: sending/managing an UplineInvite (the sponsor-matching invite)
+  | 'access_tier_assignment'; // T-19, §6.7: the MANUAL admin-provisioning branch only — every other
+  // tier outcome (free_org_linked/free_paid_external/paid_individual) is a system-computed result of
+  // the registration path, not a role "acting", so it has no capability row of its own here.
 
 export type Action = 'read' | 'write' | 'delete' | 'export' | 'approve' | 'manage';
 
@@ -204,6 +208,31 @@ export const MATRIX: Record<Resource, Grant> = {
   onboarding: {
     read: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
     write: [Role.REP, Role.ADMIN],
+    manage: [Role.ADMIN],
+  },
+
+  // T-19 (§6.5/§6.6): "the RVP/leader/rep who underwrites a new member's free tier" (§15.3/§1.6
+  // glossary "Downline Sponsor") — any existing account can sponsor/invite a new downline member,
+  // so `write` (send/resend an invite) is granted to every non-system-only role; DUAL derives REP∪
+  // UPLINE as everywhere else. `manage` (oversight of invites sent by OTHERS — force-expire, audit,
+  // org-wide visibility into pending invites) is scoped like row 4's "team"/"org-wide" review
+  // capability: RVP (org-wide) + ADMIN (full) only, never a flat rep/upline grant. NOTE: this
+  // resource answers "does this ROLE have the sponsor_invite capability at all" — it does NOT
+  // encode the row-level "is this invite actually THIS caller's own" ownership check (rule 3 above);
+  // that ownership gate lives in the service layer (see
+  // src/services/onboarding/wp01/invite-state-machine.ts `assertInviteActionAuthorized`, called
+  // from sponsor-invite.service.ts).
+  sponsor_invite: {
+    write: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
+    manage: [Role.RVP, Role.ADMIN],
+  },
+
+  // T-19 (§6.7): "admin provisioning → enterprise" is the ONE manual, role-gated tier action in the
+  // whole §6.7 assignment rule — every other outcome is computed automatically from the
+  // registration path (auth source + sponsor-linked or not), never a role "performing an action" a
+  // capability row would gate. Restricted to ADMIN only — not even RVP, unlike most other rows here
+  // — because §6.7 names exactly "admin provisioning", no RVP-level exception.
+  access_tier_assignment: {
     manage: [Role.ADMIN],
   },
 };
