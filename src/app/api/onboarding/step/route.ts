@@ -89,6 +89,15 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+    // T-21R (§6.10-10): `validateStep` above already rejected this request if `data.gdpr_consent`
+    // wasn't explicitly `true` — reaching here means an explicit affirmative consent act occurred, so
+    // this demo session's `gdpr_consent` field can be set true. (The REAL, durable, versioned
+    // `ComplianceConsent` row + `User.gdpr_consent` write happens via WP11's `ConsentManager` at
+    // `POST /api/onboarding/consent` — this route stays the same in-memory demo session store it
+    // always was; see the module comment on why it never imports `@/lib/prisma`.)
+    if (step === OnboardingStep.CONSENT_CAPTURE) {
+      session.gdpr_consent = data.gdpr_consent === true;
+    }
 
     // Advance step
     const nextStep = onboardingService.getNextStep(session as OnboardingSession);

@@ -85,6 +85,18 @@ export class OnboardingService {
       }
     }
 
+    // T-21R (§6.10-10): the GDPR consent step gate. `CONSENT_CAPTURE` is the LAST step in every
+    // role's `ROLE_STEP_MAP` (types/onboarding.ts) — an explicit `gdpr_consent: true` in the
+    // submitted payload is required to clear it; anything else (missing, false, truthy-but-not-`true`)
+    // fails closed. This is the legacy `/api/onboarding/step` route's half of the completion
+    // precondition — `evaluateConsentCompletionGate` (wp01/consent-gate.ts) is the pure decision this
+    // mirrors, and `/api/onboarding/complete` enforces the same rule independently.
+    if (step === OnboardingStep.CONSENT_CAPTURE) {
+      if (data?.gdpr_consent !== true) {
+        return { valid: false, error: 'GDPR consent is required to complete onboarding (§6.10-10)' };
+      }
+    }
+
     return { valid: true };
   }
 

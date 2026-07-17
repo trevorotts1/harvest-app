@@ -23,6 +23,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 
+import GdprConsentStep, { GDPR_CONSENT_LABEL } from '@/app/onboarding/components/GdprConsentStep';
 import HiddenEarningsReveal, {
   SAFE_HARBOR_LINE,
 } from '@/app/onboarding/components/HiddenEarningsReveal';
@@ -423,6 +424,69 @@ describe('T-20 gap (3): DUAL persona-switcher (§4.10 segmented control; roles.t
     const html = render(createElement(UplineTrack, { role: Role.RVP, licensingState: 'LICENSED' }));
     expect(textOf(html)).toMatch(/finra u4/i); // RVP's own track, unchanged
     expect(html).not.toMatch(/my rep setup|my team setup/i);
+  });
+});
+
+// ─── T-21R gap fix: GDPR consent capture — explicit affirmative, never pre-checked (§6.10-10) ─────
+// BEFORE this fix: no O-screen captured GDPR consent at all — `GdprConsentStep` did not exist, so
+// every assertion below would fail on the import alone (module not found).
+describe('T-21R gap: O-8.5 GdprConsentStep — explicit affirmative act, default NOT-consented (§6.10-10)', () => {
+  // PROOF (d): the affordance is explicit affirmative, default NOT-consented.
+  test('defaults to NOT consented (aria-checked="false") and Continue is DISABLED — never pre-checked', () => {
+    const html = render(createElement(GdprConsentStep, { consented: false }));
+    expect(html).toContain('role="switch"');
+    expect(html).toContain('aria-checked="false"');
+    expect(textOf(html)).toContain(GDPR_CONSENT_LABEL);
+    // TEETH: the Continue button carries the `disabled` attribute while not consented — a rep cannot
+    // advance past this screen without the explicit act.
+    const continueButtonHtml = html.match(/<button[^>]*>\s*Continue\s*<\/button>/)?.[0] ?? '';
+    expect(continueButtonHtml).toMatch(/disabled/);
+  });
+
+  test('once consented (toggle ON), Continue is ENABLED — the explicit act unlocks progression', () => {
+    const html = render(createElement(GdprConsentStep, { consented: true }));
+    expect(html).toContain('aria-checked="true"');
+    const continueButtonHtml = html.match(/<button[^>]*>\s*Continue\s*<\/button>/)?.[0] ?? '';
+    expect(continueButtonHtml).not.toMatch(/disabled/);
+  });
+
+  test('the caption is explicit that this is not pre-selected and is revocable', () => {
+    const html = render(createElement(GdprConsentStep, { consented: false }));
+    expect(textOf(html)).toMatch(/not pre-selected/i);
+    expect(textOf(html)).toMatch(/revocable/i);
+  });
+
+  test('while submitting, Continue stays disabled even if consented (prevents a double-submit)', () => {
+    const html = render(createElement(GdprConsentStep, { consented: true, submitting: true }));
+    const continueButtonHtml = html.match(/<button[^>]*>\s*Continue\s*<\/button>/)?.[0] ?? '';
+    expect(continueButtonHtml).toMatch(/disabled/);
+  });
+
+  test('a server-side grant failure is surfaced as an alert — Continue never silently "succeeds" only in the UI', () => {
+    const html = render(
+      createElement(GdprConsentStep, { consented: true, error: 'Could not record your consent — please try again.' })
+    );
+    expect(html).toContain('role="alert"');
+    expect(textOf(html)).toMatch(/could not record your consent/i);
+  });
+});
+
+// ─── T-21R: the O-8.5 GDPR consent screen is reachable in the flow model + resume-exact ───────────
+describe('T-21R: flow-model wiring for the new "consent" O-screen', () => {
+  test('"consent" is a real OnboardingScreen, positioned between "reveal" (O-8) and "first48" (O-9)', () => {
+    // Imported lazily here to avoid a second top-level import block purely for this constant.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { REP_SCREENS } = require('@/app/onboarding/flow-model');
+    const revealIdx = REP_SCREENS.indexOf('reveal');
+    const consentIdx = REP_SCREENS.indexOf('consent');
+    const first48Idx = REP_SCREENS.indexOf('first48');
+    expect(consentIdx).toBe(revealIdx + 1);
+    expect(first48Idx).toBe(consentIdx + 1);
+  });
+
+  test('resume-exact: the wp01 "consent_capture" track-step key resumes onto the "consent" O-screen', () => {
+    expect(resumeScreen('consent_capture')).toBe('consent');
+    expect(resumeScreen('consent')).toBe('consent');
   });
 });
 

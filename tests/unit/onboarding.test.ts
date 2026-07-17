@@ -81,6 +81,45 @@ describe('OnboardingService', () => {
       const mockSession = { role: Role.REP, current_step: OnboardingStep.REGISTER } as any;
       expect(service.getNextStep(mockSession)).toBe(OnboardingStep.ACCOUNT_TYPE);
     });
+
+    // T-21R (§6.10-10): CONSENT_CAPTURE is the LAST step in every role's ROLE_STEP_MAP — proves the
+    // legacy step-machine's own ordering already treats it as the final gate before completion.
+    test('CONSENT_CAPTURE is the final step for every role (ROLE_STEP_MAP)', () => {
+      for (const role of [Role.REP, Role.UPLINE, Role.RVP, Role.DUAL, Role.ADMIN]) {
+        const steps = service.getStepsForRole(role);
+        expect(steps[steps.length - 1]).toBe(OnboardingStep.CONSENT_CAPTURE);
+        const mockSession = { role, current_step: OnboardingStep.CONSENT_CAPTURE } as any;
+        expect(service.getNextStep(mockSession)).toBeNull(); // nothing comes after it
+      }
+    });
+  });
+
+  // T-21R (§6.10-10) — WP01 gate QC checkpoint #15: the GDPR consent step gate on the legacy
+  // `/api/onboarding/step` route's validator. TEETH: every "false"/"missing" assertion below would
+  // pass (wrongly) against the pre-fix `validateStep`, which had NO branch for CONSENT_CAPTURE at all
+  // — any payload, consented or not, was accepted.
+  describe('validateStep gates OnboardingStep.CONSENT_CAPTURE on explicit gdpr_consent (T-21R)', () => {
+    const baseSession = { role: Role.REP, org_type: OrgType.EXTERNAL, current_step: OnboardingStep.CONSENT_CAPTURE } as any;
+
+    test('gdpr_consent: true is ACCEPTED', () => {
+      const result = service.validateStep(baseSession, OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: true });
+      expect(result.valid).toBe(true);
+    });
+
+    test('gdpr_consent: false is REJECTED', () => {
+      const result = service.validateStep(baseSession, OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: false });
+      expect(result.valid).toBe(false);
+    });
+
+    test('missing gdpr_consent entirely is REJECTED (fail-closed, not "consent implied by silence")', () => {
+      const result = service.validateStep(baseSession, OnboardingStep.CONSENT_CAPTURE, {});
+      expect(result.valid).toBe(false);
+    });
+
+    test('a truthy-but-not-boolean-true gdpr_consent ("yes", 1) is REJECTED — must be the real boolean act', () => {
+      expect(service.validateStep(baseSession, OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: 'yes' }).valid).toBe(false);
+      expect(service.validateStep(baseSession, OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: 1 }).valid).toBe(false);
+    });
   });
 
   // T-17 QC fix: closes the dual-source-of-truth defect — a live route (`/api/onboarding/step`)
@@ -206,6 +245,11 @@ describe('POST /api/onboarding/complete — LIVE route sources access_tier from 
       current_step: 'INTENSITY',
       completed: false,
       intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+      // T-21R (§6.10-10): every test in this describe block is about access-tier sourcing, not
+      // consent — default the session to already-consented so those assertions are unaffected by the
+      // new completion precondition below. The precondition itself is proven separately with
+      // `gdpr_consent` explicitly overridden to `false`/absent.
+      gdpr_consent: true,
       ...overrides,
     });
     completeUsers.push({ id: userId });
@@ -286,5 +330,96 @@ describe('POST /api/onboarding/complete — LIVE route sources access_tier from 
       expect(body.accessTier).toBe(AccessTier.FREE_ORG_LINKED);
       expect(body.commitmentScore).toBe(score); // still recorded, just no longer tier-determinative
     }
+  });
+});
+
+// T-21R (§6.10-10) — WP01 gate QC checkpoint #15 fix: `POST /api/onboarding/complete` must refuse to
+// mark a user complete without a recorded, affirmative GDPR consent event. THE MANDATORY REGRESSION
+// PROOF: every test in this block would FAIL against the pre-fix route, which never looked at
+// `session.gdpr_consent` at all — an otherwise-fully-qualified (high commitment score, sponsored)
+// session reached `completed: true` / 200 with no consent recorded whatsoever.
+describe('POST /api/onboarding/complete — GDPR consent completion precondition (T-21R, §6.10-10)', () => {
+  afterEach(() => {
+    completeSessions.length = 0;
+    completeUsers.length = 0;
+  });
+
+  function seedSessionNoDefaultConsent(userId: string, overrides: Record<string, unknown> = {}) {
+    completeSessions.push({
+      user_id: userId,
+      current_step: 'CONSENT_CAPTURE',
+      completed: false,
+      intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+      ...overrides,
+    });
+    completeUsers.push({ id: userId });
+  }
+
+  async function complete(userId: string) {
+    const request = new NextRequest('http://localhost/api/onboarding/complete', {
+      method: 'POST',
+      headers: { 'x-user-id': userId },
+    });
+    const response = await completeOnboarding(request);
+    const body = await response.json();
+    return { response, body };
+  }
+
+  // TEETH: this is the exact scenario the QC gate flagged — a fully-qualified session (high
+  // commitment, current_step at the final pre-complete step) that simply never granted GDPR consent.
+  // Against the pre-fix route (no `evaluateConsentCompletionGate` call at all) this would return 200
+  // with `completed: true` — the live bypass this fix closes.
+  test('a session with gdpr_consent OMITTED (never consented) is REJECTED — cannot reach GATED_COMPLETE', async () => {
+    seedSessionNoDefaultConsent('user-never-consented');
+
+    const { response, body } = await complete('user-never-consented');
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('GDPR_CONSENT_REQUIRED');
+    const session = completeSessions.find((s) => s.user_id === 'user-never-consented');
+    expect(session.completed).toBe(false); // never flipped to complete
+  });
+
+  test('a session with gdpr_consent EXPLICITLY false is REJECTED', async () => {
+    seedSessionNoDefaultConsent('user-explicit-false-consent', { gdpr_consent: false });
+
+    const { response, body } = await complete('user-explicit-false-consent');
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('GDPR_CONSENT_REQUIRED');
+  });
+
+  test('a garbage (non-boolean-true) gdpr_consent value is REJECTED — fail-closed, not just falsy-checked', async () => {
+    seedSessionNoDefaultConsent('user-garbage-consent', { gdpr_consent: 'yes' as unknown as boolean });
+
+    const { response, body } = await complete('user-garbage-consent');
+
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('GDPR_CONSENT_REQUIRED');
+  });
+
+  test('a session with gdpr_consent: true DOES reach GATED_COMPLETE (the precondition is satisfiable, not a permanent block)', async () => {
+    seedSessionNoDefaultConsent('user-consented', { gdpr_consent: true });
+
+    const { response, body } = await complete('user-consented');
+
+    expect(response.status).toBe(200);
+    expect(body.completed).toBe(true);
+    const session = completeSessions.find((s) => s.user_id === 'user-consented');
+    expect(session.completed).toBe(true);
+  });
+
+  test('current_step CONSENT_CAPTURE (the real last step for every role) is now an accepted pre-complete step', async () => {
+    // Before T-21R this route only accepted current_step === 'INTENSITY' — CONSENT_CAPTURE (the
+    // actual last step in ROLE_STEP_MAP for every role) would have been rejected with "Cannot
+    // complete onboarding before reaching INTENSITY step" regardless of consent.
+    seedSessionNoDefaultConsent('user-at-consent-step', {
+      current_step: 'CONSENT_CAPTURE',
+      gdpr_consent: true,
+    });
+
+    const { response } = await complete('user-at-consent-step');
+
+    expect(response.status).toBe(200);
   });
 });

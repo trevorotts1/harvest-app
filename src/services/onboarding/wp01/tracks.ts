@@ -57,6 +57,12 @@ const FINRA_LICENSURE_STEP: TrackStep = {
   requiresLicensure: true,
 };
 
+// T-21R (§6.10-10): the GDPR consent-capture step, shared by every track (ADMIN already carried it —
+// see `ADMIN_STEPS` below — this closes the gap for Flow A/B/D). A single shared constant means the
+// label can never drift between tracks, and `stepsForRole`'s DUAL union dedupes it by key exactly like
+// `identity_capture` (see `tests/unit/wp01-tracks.test.ts`'s dedup assertion).
+const CONSENT_CAPTURE_STEP: TrackStep = { key: 'consent_capture', label: 'GDPR consent capture' };
+
 // ─── Flow A — Rep (cinematic) ───────────────────────────────────────────────────────────────────
 const FLOW_A_STEPS: readonly TrackStep[] = [
   { key: 'vision_splash', label: 'Vision splash' },
@@ -65,6 +71,7 @@ const FLOW_A_STEPS: readonly TrackStep[] = [
   { key: 'goals_intensity', label: 'Goals & intensity dial' },
   { key: 'seven_whys', label: 'Seven Whys (Flow C)' },
   { key: 'sponsor_matching', label: 'Downline Sponsor matching' },
+  CONSENT_CAPTURE_STEP,
 ];
 
 // ─── Flow B — Upline (dense) ────────────────────────────────────────────────────────────────────
@@ -75,6 +82,7 @@ const FLOW_B_STEPS: readonly TrackStep[] = [
   { key: 'calendar_defaults', label: 'Calendar connect + closing preferences + team defaults' },
   { key: 'finra_disclosure', label: 'FINRA disclosure (must clear to complete)' },
   { key: 'sponsor_upline_setup', label: 'Sponsor / upline setup' },
+  CONSENT_CAPTURE_STEP,
 ];
 
 // ─── Flow D — RVP (dense, adds supervisory + org-sponsorship) ───────────────────────────────────
@@ -86,11 +94,12 @@ const FLOW_D_STEPS: readonly TrackStep[] = [
   { key: 'multi_team_setup', label: 'Multi-team management setup' },
   { key: 'supervisory_finra_disclosure', label: 'Supervisory-responsibility FINRA disclosures' },
   { key: 'calendar_defaults', label: 'Calendar connect + team defaults' },
+  CONSENT_CAPTURE_STEP,
 ];
 
 const ADMIN_STEPS: readonly TrackStep[] = [
   { key: 'identity_capture', label: 'Identity capture' },
-  { key: 'consent_capture', label: 'GDPR consent capture' },
+  CONSENT_CAPTURE_STEP,
 ];
 
 export const TRACKS: Record<OnboardingTrack, TrackDefinition> = {
@@ -125,6 +134,12 @@ export function trackForRole(role: Role): OnboardingTrack {
  * The ordered steps a role actually runs. For DUAL (§6.2 "loads upline steps IN ADDITION TO rep
  * steps"), this is Flow A followed by the Flow B steps not already in A (deduped by key) — so DUAL
  * inherits Flow B's licensure-gated step and is therefore subject to the same hard-block.
+ *
+ * T-21R (§6.10-10): `consent_capture` is the shared TRAILING step on every track (Flow A/B/D each end
+ * in it) — for DUAL specifically, appending Flow B's upline-only steps straight after the (already
+ * consent_capture-terminated) Flow A list would push it into the middle of the merged union instead
+ * of leaving it last. It's pulled out of the Flow A copy and re-appended after the upline-only steps
+ * so DUAL's track — like every other role's — ends in the GDPR consent gate.
  */
 export function stepsForRole(role: Role): readonly TrackStep[] {
   if (role !== Role.DUAL) {
@@ -133,7 +148,8 @@ export function stepsForRole(role: Role): readonly TrackStep[] {
   const repSteps = TRACKS.A.steps;
   const repKeys = new Set(repSteps.map((s) => s.key));
   const uplineOnly = TRACKS.B.steps.filter((s) => !repKeys.has(s.key));
-  return [...repSteps, ...uplineOnly];
+  const repStepsWithoutTrailingConsent = repSteps.filter((s) => s.key !== CONSENT_CAPTURE_STEP.key);
+  return [...repStepsWithoutTrailingConsent, ...uplineOnly, CONSENT_CAPTURE_STEP];
 }
 
 // ─── The licensure hard-block gate (T-13 §16.5 consumed here) ───────────────────────────────────

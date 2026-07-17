@@ -18,6 +18,7 @@ import type { LicensingState } from '@/services/compliance/licensing';
 
 import ContactImportStep, { type ImportBeat } from './components/ContactImportStep';
 import First48Handoff from './components/First48Handoff';
+import GdprConsentStep from './components/GdprConsentStep';
 import HiddenEarningsReveal from './components/HiddenEarningsReveal';
 import IdentityStep, { type PhotoCaptureState } from './components/IdentityStep';
 import IntensityDial from './components/IntensityDial';
@@ -87,6 +88,13 @@ export default function OnboardingFlow({
   const [outreachConsent, setOutreachConsent] = useState(false);
   const [importBeat, setImportBeat] = useState<ImportBeat>('value');
   const [contactCount, setContactCount] = useState(0);
+  // T-21R (§6.10-10) — GDPR consent capture: an explicit affirmative act, defaults OFF. Granting
+  // calls the session-authenticated `/api/onboarding/consent` route, which is what actually invokes
+  // WP11's `ConsentManager` and sets `User.gdpr_consent = true` (this local state is only the UI's
+  // controlled toggle value, the same pattern as every other field above).
+  const [gdprConsented, setGdprConsented] = useState(false);
+  const [consentSubmitting, setConsentSubmitting] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   // Sponsor outcome consumed straight from the §6.5 matcher — with no candidate pool the rep is
   // waitlisted (never a dead end); the UI renders that verdict, it does not decide it.
@@ -113,6 +121,30 @@ export default function OnboardingFlow({
     const next = nextScreen(screen);
     if (next) setScreen(next);
     else router.push('/dashboard'); // O-9 handoff lands on Today/Mission Control
+  }
+
+  // T-21R (§6.10-10) — the ONLY call site that actually grants GDPR consent: hits the live,
+  // session-authenticated route, which calls WP11's `ConsentManager` and durably records the
+  // versioned/timestamped `ComplianceConsent` row + `User.gdpr_consent = true`. Never advances past
+  // this screen on a failed request — a rep who never actually consented never reaches `first48`
+  // (and, independently, `/api/onboarding/complete` also refuses completion without a recorded
+  // consent — this is not the only enforcement point).
+  async function handleGrantGdprConsent() {
+    setConsentSubmitting(true);
+    setConsentError(null);
+    try {
+      const response = await fetch('/api/onboarding/consent', { method: 'POST' });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}) as { error?: string });
+        setConsentError(body.error ?? 'Could not record your consent — please try again.');
+        return;
+      }
+      advance();
+    } catch {
+      setConsentError('Could not record your consent — please try again.');
+    } finally {
+      setConsentSubmitting(false);
+    }
   }
 
   // Dense upline/RVP track (Flow B/D): one shell, density not cinema — no vision splash, no reveal.
@@ -239,6 +271,16 @@ export default function OnboardingFlow({
           estimatedClients={Math.round(contactCount * 0.12)}
           onContinue={advance}
           onAddContacts={() => setScreen('contacts')}
+        />
+      )}
+
+      {screen === 'consent' && (
+        <GdprConsentStep
+          consented={gdprConsented}
+          onConsentedChange={setGdprConsented}
+          onContinue={handleGrantGdprConsent}
+          submitting={consentSubmitting}
+          error={consentError}
         />
       )}
 
