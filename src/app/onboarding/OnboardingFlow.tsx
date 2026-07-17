@@ -19,7 +19,7 @@ import type { LicensingState } from '@/services/compliance/licensing';
 import ContactImportStep, { type ImportBeat } from './components/ContactImportStep';
 import First48Handoff from './components/First48Handoff';
 import HiddenEarningsReveal from './components/HiddenEarningsReveal';
-import IdentityStep from './components/IdentityStep';
+import IdentityStep, { type PhotoCaptureState } from './components/IdentityStep';
 import IntensityDial from './components/IntensityDial';
 import OrgStep from './components/OrgStep';
 import SevenWhysConversation from './components/SevenWhysConversation';
@@ -74,12 +74,17 @@ export default function OnboardingFlow({
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [photoState, setPhotoState] = useState<PhotoCaptureState>('unset');
   const [orgType, setOrgType] = useState<OrgType | null>(null);
   const [solutionNumber, setSolutionNumber] = useState('');
   const [solutionConfirmed, setSolutionConfirmed] = useState(false);
   const [intensity, setIntensity] = useState<IntensitySetting | null>(null);
   const [whyIndex, setWhyIndex] = useState(0);
   const [whyAnswer, setWhyAnswer] = useState('');
+  // AC-5.1-5 (O-5 completion) — local UI state, defaults OFF; T-18's WhySession already defaults
+  // use_in_outreach_consent=false and only its own setOutreachConsent may ever flip it, so this is
+  // purely the UI surface (no live wiring here, exactly like intensity/solutionNumber above).
+  const [outreachConsent, setOutreachConsent] = useState(false);
   const [importBeat, setImportBeat] = useState<ImportBeat>('value');
   const [contactCount, setContactCount] = useState(0);
 
@@ -129,7 +134,13 @@ export default function OnboardingFlow({
           email={email}
           onNameChange={setName}
           onEmailChange={setEmail}
-          onSkipPhoto={advance}
+          photoState={photoState}
+          onTakePhoto={() => setPhotoState('chosen')}
+          onChooseFromLibrary={() => setPhotoState('chosen')}
+          onSkipPhoto={() => {
+            setPhotoState('skipped');
+            advance();
+          }}
           onContinue={advance}
         />
       )}
@@ -177,6 +188,8 @@ export default function OnboardingFlow({
             setWhyAnswer('');
             setWhyIndex((i) => i + 1);
           }}
+          outreachConsent={outreachConsent}
+          onOutreachConsentChange={setOutreachConsent}
         />
       )}
       {screen === 'seven_whys' && whyTurn.complete && (

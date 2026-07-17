@@ -6,10 +6,16 @@
 // A low resonance surfaces to the rep as `reprompt` — a caring re-ask with a pulsing seed — never as
 // a failure and never as a number. This component renders one question per turn, a typing cadence
 // before an agent turn, and the reflective acknowledgment; it emits no digits.
+//
+// AC-5.1-5 (T-20): once the conversation completes (the anchor-statement render below), the
+// outreach-consent toggle renders in the same completion beat — `outreachConsent` is optional and
+// only rendered when the caller supplies it, so callers that don't pass it (including the existing
+// invisible-score tests) see no behavior change.
 
 import type { SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 
 import styles from '../onboarding.module.css';
+import OutreachConsentToggle from './OutreachConsentToggle';
 import SevenSeedStepper from './SevenSeedStepper';
 
 export interface SevenWhysConversationProps {
@@ -19,6 +25,11 @@ export interface SevenWhysConversationProps {
   onSubmit?: () => void;
   /** Show the three-dot typing cadence before the agent's line (§5.1 O-5). */
   typing?: boolean;
+  /** AC-5.1-5 outreach-consent toggle value, owned by the onboarding orchestrator (local useState,
+   *  same pattern as intensity/solutionNumber; defaults false there). Rendered only once the turn
+   *  completes, and only when a value is actually supplied. */
+  outreachConsent?: boolean;
+  onOutreachConsentChange?: (value: boolean) => void;
 }
 
 export default function SevenWhysConversation({
@@ -27,6 +38,8 @@ export default function SevenWhysConversation({
   onAnswerChange,
   onSubmit,
   typing = false,
+  outreachConsent,
+  onOutreachConsentChange,
 }: SevenWhysConversationProps) {
   return (
     <div className={styles.stepInner}>
@@ -53,6 +66,10 @@ export default function SevenWhysConversation({
           </div>
         )}
       </div>
+
+      {turn.complete && typeof outreachConsent === 'boolean' ? (
+        <OutreachConsentToggle value={outreachConsent} onChange={onOutreachConsentChange} />
+      ) : null}
 
       {!turn.complete ? (
         <form

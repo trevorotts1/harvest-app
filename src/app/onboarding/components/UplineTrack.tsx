@@ -6,10 +6,21 @@
 // Consumes the authoritative wp01 track shell: `stepsForRole` (ordered steps + which step is
 // licensure-gated) and `evaluateTrackCompletion` (the §16.5 hard-block, which itself calls T-13) —
 // this UI never re-implements the licensure rule, it renders the engine's verdict.
+//
+// DUAL persona switcher (§6.2, roles.ts; §4.10 segmented-control pattern, T-20): a DUAL user's
+// per-persona onboarding state is a T-20 UI concern — roles.ts owns the capability/data-isolation
+// invariants (`personasForRole` / `baseRoleForPersona` / `canInPersona`), never re-implemented here.
+// This component only CONSUMES `baseRoleForPersona` conceptually: while the switcher is on 'rep' it
+// renders the REP base track; on 'upline' the UPLINE base track — never the DUAL union — at
+// local-demo-state fidelity (a `useState`, no persistence). Non-DUAL roles never see the switcher and
+// render exactly as before (their own role's track, unchanged).
+
+import { useState } from 'react';
 
 import { Role } from '@prisma/client';
 
 import type { LicensingState } from '@/services/compliance/licensing';
+import { baseRoleForPersona, type Persona } from '@/services/onboarding/wp01/roles';
 import {
   COMPLIANCE_ADVISORY_ROUTE,
   evaluateTrackCompletion,
@@ -25,21 +36,55 @@ const LICENSE_LABEL: Record<LicensingState, string> = {
   LICENSE_EXPIRED: 'Expired',
 };
 
+const PERSONA_LABEL: Record<Persona, string> = {
+  rep: 'My rep setup',
+  upline: 'My team setup',
+};
+
 export interface UplineTrackProps {
   role: Role;
   licensingState: LicensingState;
   onFinish?: () => void;
+  /** Which persona view a DUAL user's switcher starts on (ignored for non-DUAL roles). Defaults to
+   *  'rep'. Exposed so each persona's rendered view is directly testable, the same pattern
+   *  IntensityDial's controlled `value` uses for its positions. */
+  initialPersona?: Persona;
 }
 
-export default function UplineTrack({ role, licensingState, onFinish }: UplineTrackProps) {
-  const steps = stepsForRole(role);
-  const completion = evaluateTrackCompletion(role, licensingState);
+export default function UplineTrack({ role, licensingState, onFinish, initialPersona = 'rep' }: UplineTrackProps) {
+  const isDual = role === Role.DUAL;
+  const [persona, setPersona] = useState<Persona>(initialPersona);
+  // Non-DUAL roles are unaffected: effectiveRole === role, exactly the pre-existing behavior.
+  const effectiveRole = isDual ? baseRoleForPersona(persona) : role;
+
+  const steps = stepsForRole(effectiveRole);
+  const completion = evaluateTrackCompletion(effectiveRole, licensingState);
   const blocked = !completion.allowed;
 
   return (
     <div className={styles.stepInner}>
       <h1 className={styles.headline}>Set up your team account</h1>
       <p className={styles.lede}>A few required steps — this takes just a few minutes.</p>
+
+      {isDual ? (
+        <div className={styles.dial} role="radiogroup" aria-label="Persona">
+          {(['rep', 'upline'] as const).map((p) => {
+            const isSel = persona === p;
+            return (
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={isSel}
+                className={`${styles.dialPos} ${isSel ? styles.dialPosSelected : ''}`}
+                onClick={() => setPersona(p)}
+              >
+                {PERSONA_LABEL[p]}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       <ol className={styles.denseList}>
         {steps.map((step) => {
