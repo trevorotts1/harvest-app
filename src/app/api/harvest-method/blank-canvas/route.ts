@@ -7,10 +7,12 @@ import type { BlankCanvasSubmission } from '@/types/harvest-method';
 // T-26 (§8.1 Layer 1 — Blank Canvas). UNIVERSAL for every organization (§8 preamble, §17.1).
 export const dynamic = 'force-dynamic';
 
-const service = new MethodStateService();
-
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   try {
+    // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
+    // (which imports this module) never triggers the constructor's fail-closed
+    // `getContactEncryptionKey()` default read (T-26 build-integration fix).
+    const service = new MethodStateService();
     const body: BlankCanvasSubmission = await req.json();
 
     if (typeof body.vaultCountAtStart !== 'number' || !Array.isArray(body.entries)) {

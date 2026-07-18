@@ -7,10 +7,12 @@ import { PrioritizedQueueService } from '@/services/harvest-method/prioritized-q
 // licensee" soft-exclusion flag, this doubles as the required acknowledgment (§8.2).
 export const dynamic = 'force-dynamic';
 
-const service = new PrioritizedQueueService();
-
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   try {
+    // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
+    // (which imports this module) never triggers the constructor's fail-closed
+    // `getContactEncryptionKey()` default read (T-26 build-integration fix).
+    const service = new PrioritizedQueueService();
     const { contactId } = await req.json();
     if (!contactId) return NextResponse.json({ error: 'contactId is required' }, { status: 400 });
 

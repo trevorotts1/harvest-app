@@ -8,10 +8,12 @@ import type { QualitiesFlipSubmission } from '@/types/harvest-method';
 // every organization (§8 preamble, §17.1).
 export const dynamic = 'force-dynamic';
 
-const service = new MethodStateService();
-
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   try {
+    // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
+    // (which imports this module) never triggers the constructor's fail-closed
+    // `getContactEncryptionKey()` default read (T-26 build-integration fix).
+    const service = new MethodStateService();
     const body: QualitiesFlipSubmission = await req.json();
 
     if (!Array.isArray(body.selectedClusters) || !Array.isArray(body.assignments)) {

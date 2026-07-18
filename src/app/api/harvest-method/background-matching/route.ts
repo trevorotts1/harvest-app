@@ -10,10 +10,12 @@ import type { BackgroundMatchingSubmission } from '@/types/harvest-method';
 // never returned by this route — this route only returns tile-completion + doctrine corrections.
 export const dynamic = 'force-dynamic';
 
-const service = new MethodStateService();
-
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   try {
+    // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
+    // (which imports this module) never triggers the constructor's fail-closed
+    // `getContactEncryptionKey()` default read (T-26 build-integration fix).
+    const service = new MethodStateService();
     const body: BackgroundMatchingSubmission = await req.json();
     if (!Array.isArray(body.entries)) {
       return NextResponse.json({ error: 'entries array is required' }, { status: 400 });

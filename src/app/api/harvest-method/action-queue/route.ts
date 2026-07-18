@@ -12,10 +12,12 @@ import { PrioritizedQueueService } from '@/services/harvest-method/prioritized-q
 // ENGINE. Empty until all three layers are complete (§8.3 "no short-circuit").
 export const dynamic = 'force-dynamic';
 
-const service = new PrioritizedQueueService();
-
 export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
   try {
+    // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
+    // (which imports this module) never triggers the constructor's fail-closed
+    // `getContactEncryptionKey()` default read (T-26 build-integration fix).
+    const service = new PrioritizedQueueService();
     const user = await prisma.user.findUnique({ where: { id: identity.userId }, select: { rank: true } });
     const result = await service.getQueue(identity.userId, identity.orgType, {
       includeExcluded: false,
