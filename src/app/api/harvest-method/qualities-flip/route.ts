@@ -1,32 +1,31 @@
 import { NextResponse } from 'next/server';
-import { submitQualitiesFlip } from '@/services/harvest-method/method.service';
-import { QualitiesFlipData } from '@/types/harvest-method';
-// T-20 §6.10-1: downstream (WP03) route, now behind the real onboarding gate (see onboarding-gate.ts).
-import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 
-// Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
-// statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
+import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
+import { LayerOrderViolationError, MethodStateService } from '@/services/harvest-method/method-state.service';
+import type { QualitiesFlipSubmission } from '@/types/harvest-method';
+
+// T-26 (§8.1 Layer 2 — Qualities Flip, the SIX clusters govern per §8.1/uiux §5.4). UNIVERSAL for
+// every organization (§8 preamble, §17.1).
 export const dynamic = 'force-dynamic';
 
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   try {
-    const body: QualitiesFlipData = await req.json();
+    // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
+    // (which imports this module) never triggers the constructor's fail-closed
+    // `getContactEncryptionKey()` default read (T-26 build-integration fix).
+    const service = new MethodStateService();
+    const body: QualitiesFlipSubmission = await req.json();
 
-    if (!body.strengths || !body.values || !body.skills) {
-      return NextResponse.json(
-        { error: 'strengths, values, and skills are required' },
-        { status: 400 },
-      );
+    if (!Array.isArray(body.selectedClusters) || !Array.isArray(body.assignments)) {
+      return NextResponse.json({ error: 'selectedClusters and assignments arrays are required' }, { status: 400 });
     }
 
-    const result = submitQualitiesFlip(identity.userId, body);
-
-    if (!result.available) {
-      return NextResponse.json({ available: false, reason: result.reason }, { status: 200 });
-    }
-
-    return NextResponse.json(result.state);
+    const result = await service.submitQualitiesFlip(identity.userId, body);
+    return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof LayerOrderViolationError) {
+      return NextResponse.json({ error: error.message, code: 'LAYER_ORDER_VIOLATION' }, { status: 409 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 });
