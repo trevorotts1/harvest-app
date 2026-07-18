@@ -315,6 +315,28 @@ model Contact {
   agents_paused       Boolean          @default(false)
   household_id        String?          // nullable; household intelligence (blueprint #17)
   is_minor_flag       Boolean          @default(false)
+  // T-29R (WP03 §8.2 "Excluded: state-unlicensed" tier / §8.1 eligibility): the contact's own
+  // jurisdiction — a two-letter US state postal code, e.g. "TX" — normalized/compared the same way
+  // as LicensingRecord.jurisdiction (src/types/licensing.ts). Consumed ONLY by
+  // src/services/harvest-method/eligibility.ts's `checkJurisdictionExclusion`, which excludes a
+  // contact for a REGULATED (Primerica) rep when the rep is not LICENSED in this state (or when the
+  // rep's licensed jurisdictions are unavailable — fail-closed); a no-op for a universal rep (§17.1).
+  //
+  // Deliberately PLAINTEXT, not AES-256-GCM ciphertext like first_name/last_name/phone/email/notes
+  // above: (1) T-22's own doc comment (this model's header, and vault-encryption.ts) names the
+  // encrypted PII surface explicitly as first_name/last_name/phone/email/notes — a coarse ~50-value
+  // categorical field (which US state) is not on that list, the same way industry/relationship_type/
+  // pipeline_stage/career_stage/financial_situation are plaintext categorical fields on Contact/
+  // ContactMethodProfile today; (2) this codebase's own established classification of "jurisdiction"
+  // as non-identifying STRUCTURAL/status data rather than an identifying credential already exists
+  // for the analogous LicensingRecord.jurisdiction column (see the QC-2 carve-out rationale in
+  // src/services/compliance/data-rights/data-rights.ts's `processDeletion`: license_number is
+  // scrubbed on a GDPR/CCPA deletion, jurisdiction/state is deliberately left untouched as
+  // non-identifying status data); (3) the T-R7/R8/R9 ripple (DSAR export / dedup) documented the real
+  // cost of encrypting a Contact column that downstream consumers need to read/match on — encrypting
+  // a field that carries none of the same re-identification risk as a name/phone/email would
+  // reintroduce that exact regression for no compliance benefit.
+  jurisdiction        String?
   linked_user_id      String?          // set when a contact becomes a platform user
   memory_jogger_skip_count Int         @default(0) // T-23 (§7.4): a jogger that surfaces an already-Vaulted contact increments this and skips, instead of re-adding a duplicate
   created_at          DateTime         @default(now()) @db.Timestamptz(6)
@@ -1072,6 +1094,14 @@ enum ReadinessTier {
   B
   SLOW_BURN
   EXCLUDED
+  // T-29R2 (WP03 gate remediation follow-up, §7.6 "needs info" pattern mirrored for §8.2
+  // eligibility): a REGULATED rep's contact with an UNKNOWN (null) jurisdiction — distinct from
+  // EXCLUDED (a CONFIRMED-unlicensed jurisdiction, unchanged). Held out of the §8.3 action queue
+  // (can't draft compliant outreach without knowing the state) but SURFACED in the ritual-review
+  // view as a remediable data-completion prompt, never silently dropped and never conflated with a
+  // confirmed exclusion. See eligibility.ts `checkJurisdictionExclusion` and
+  // prioritized-queue.service.ts's tier-assignment for the full precedence.
+  NEEDS_JURISDICTION
 }
 
 /// One row per rep — the three-layer method's own progress state (§8.1). Deliberately its own

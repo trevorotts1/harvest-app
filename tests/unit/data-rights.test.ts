@@ -361,6 +361,11 @@ const BASE_CONTACTS: Row[] = [
     notes: 'Met at church picnic.',
     phone_hash: 'hash-phone-1',
     email_hash: 'hash-email-1',
+    // T-29R (§8.2 "Excluded: state-unlicensed"): jurisdiction is deliberately PLAINTEXT (not
+    // AES-256-GCM ciphertext like first_name/last_name/phone/email/notes above — see
+    // prisma/schema.prisma's Contact.jurisdiction doc comment), so it is never run through the
+    // encrypt helper below (ENCRYPTED_BASE_CONTACTS) and needs no decrypt step in processExport.
+    jurisdiction: 'TX',
   },
 ];
 
@@ -1299,6 +1304,11 @@ describe('T-11 Data Rights — export', () => {
     expect(parsed.contacts[0].phone).toBe('+15555550101');
     expect(parsed.contacts[0].email).toBe('jane.doe@example.com');
     expect(parsed.contacts[0].notes).toBe('Met at church picnic.');
+
+    // T-29R: jurisdiction is plaintext (not part of T-22's encrypted PII surface), so it must pass
+    // through the export UNTOUCHED — no decrypt step ever runs on it, and it must never be silently
+    // dropped or corrupted by the same spread `decryptContactForExport` uses for phone_hash/email_hash.
+    expect(parsed.contacts[0].jurisdiction).toBe('TX');
   });
 
   test('processExport produces valid CSV', async () => {

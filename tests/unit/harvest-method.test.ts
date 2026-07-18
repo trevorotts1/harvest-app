@@ -517,6 +517,25 @@ describe('readiness-engine — §8.2 formula (exact weights/inputs)', () => {
     test('score < 50 + complete context -> Slow Burn (the watch-list fallback)', () => {
       expect(mapScoreToTier({ score: 10, contextComplete: true, needsTime: false, excluded: false })).toBe(ReadinessTier.SLOW_BURN);
     });
+    // T-29R2 (§7.6 "needs info" mirrored for §8.2 eligibility): needsJurisdiction is a distinct tier,
+    // ranked below `excluded` (a confirmed exclusion always wins) but above score/needsTime (an
+    // unknown jurisdiction gates the contact regardless of how "ready" it otherwise looks).
+    test('needsJurisdiction forces NEEDS_JURISDICTION regardless of score or context completeness', () => {
+      expect(
+        mapScoreToTier({ score: 99, contextComplete: true, needsTime: false, excluded: false, needsJurisdiction: true })
+      ).toBe(ReadinessTier.NEEDS_JURISDICTION);
+      expect(
+        mapScoreToTier({ score: 10, contextComplete: false, needsTime: true, excluded: false, needsJurisdiction: true })
+      ).toBe(ReadinessTier.NEEDS_JURISDICTION);
+    });
+    test('excluded still wins over needsJurisdiction if a caller ever set both (defense-in-depth — the two should be mutually exclusive by construction)', () => {
+      expect(
+        mapScoreToTier({ score: 99, contextComplete: true, needsTime: false, excluded: true, needsJurisdiction: true })
+      ).toBe(ReadinessTier.EXCLUDED);
+    });
+    test('omitting needsJurisdiction entirely behaves exactly as false (backward-compatible, pre-T-29R2 call sites unaffected)', () => {
+      expect(mapScoreToTier({ score: 99, contextComplete: true, needsTime: false, excluded: false })).toBe(ReadinessTier.A);
+    });
   });
 
   describe('the hidden-score tripwire (named WP03 critical failure: "readiness score SHOWN to user")', () => {
@@ -562,6 +581,26 @@ describe('readiness-engine — §8.2 formula (exact weights/inputs)', () => {
       const a = toPublicQueueItem({ ...excluded, tier: ReadinessTier.A, label: 'Ready now' });
       expect(a.needsAcknowledgment).toBe(false);
     });
+
+    // T-29R2 — the mirrored data-completion-prompt signal, distinct from needsAcknowledgment.
+    test('toPublicQueueItem sets needsJurisdiction=true only for the NEEDS_JURISDICTION tier, and never alongside needsAcknowledgment', () => {
+      const needsJurisdictionItem = toPublicQueueItem({
+        contactId: 'c1',
+        firstName: 'Alice',
+        lastInitial: 'J',
+        clusters: [],
+        tiles: {},
+        tier: ReadinessTier.NEEDS_JURISDICTION,
+        label: 'Needs jurisdiction info',
+        layersCompleted: [],
+      });
+      expect(needsJurisdictionItem.needsJurisdiction).toBe(true);
+      expect(needsJurisdictionItem.needsAcknowledgment).toBe(false);
+
+      const excludedItem = toPublicQueueItem({ ...needsJurisdictionItem, tier: ReadinessTier.EXCLUDED, label: 'Not eligible' });
+      expect(excludedItem.needsJurisdiction).toBe(false);
+      expect(excludedItem.needsAcknowledgment).toBe(true);
+    });
   });
 
   describe('computeReadiness — the full per-contact orchestration', () => {
@@ -584,6 +623,20 @@ describe('readiness-engine — §8.2 formula (exact weights/inputs)', () => {
         false
       );
       expect(result.tier).toBe(ReadinessTier.EXCLUDED);
+    });
+
+    // T-29R2 — the 4th (optional) parameter routes to the distinct NEEDS_JURISDICTION tier/label,
+    // never EXCLUDED, even though the same fully-scored inputs would otherwise land in A.
+    test('the same fully-scored inputs marked needsJurisdiction=true land in NEEDS_JURISDICTION, not EXCLUDED', () => {
+      const result = computeReadiness(
+        { assignedClusterCount: 3, tilesFilledCount: 4, daysSinceLastInteraction: 5, careerStage: 'early', financialSituation: 'building' },
+        false,
+        false,
+        true
+      );
+      expect(result.tier).toBe(ReadinessTier.NEEDS_JURISDICTION);
+      expect(result.tier).not.toBe(ReadinessTier.EXCLUDED);
+      expect(result.label).toBe('Needs jurisdiction info');
     });
   });
 });

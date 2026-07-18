@@ -51,6 +51,8 @@ const EMPTY_TIER_COUNTS: Record<ReadinessTier, number> = {
   [ReadinessTier.B]: 0,
   [ReadinessTier.SLOW_BURN]: 0,
   [ReadinessTier.EXCLUDED]: 0,
+  // T-29R2 — an aggregate count only (no contact identity), same as every other tier bucket here.
+  [ReadinessTier.NEEDS_JURISDICTION]: 0,
 };
 
 /**

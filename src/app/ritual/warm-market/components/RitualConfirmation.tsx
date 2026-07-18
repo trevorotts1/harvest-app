@@ -4,6 +4,13 @@
 // only the plain-language tier `label`. Excluded-tier items are rendered in a SEPARATE
 // acknowledgment section and are never mixed into the actionable top-match cards (master spec §8.2
 // "excluded contacts must not appear as actionable").
+//
+// T-29R2: the same "never actionable" rule now also applies to the distinct NEEDS_JURISDICTION tier
+// (§7.6 needs-info mirrored for §8.2) — a contact whose jurisdiction is unknown can't be drafted
+// compliant outreach for any more than an excluded one can, so it is held out of the actionable
+// grid too. It gets its OWN section (never merged into the "excluded, needs acknowledgment" copy,
+// which would misrepresent a remediable data gap as a confirmed exclusion) using the item's own
+// `label` (already the correct plain-language text for either state) rather than a hardcoded string.
 
 'use client';
 
@@ -34,8 +41,11 @@ export default function RitualConfirmation({
   onAddNumber,
   onHandToAgent,
 }: RitualConfirmationProps) {
-  const actionable = queue.filter((item) => item.tier !== ReadinessTier.EXCLUDED);
+  const actionable = queue.filter(
+    (item) => item.tier !== ReadinessTier.EXCLUDED && item.tier !== ReadinessTier.NEEDS_JURISDICTION
+  );
   const excluded = queue.filter((item) => item.tier === ReadinessTier.EXCLUDED);
+  const needsJurisdiction = queue.filter((item) => item.tier === ReadinessTier.NEEDS_JURISDICTION);
 
   return (
     <section className={styles.paper} aria-label="Ritual confirmation">
@@ -80,7 +90,7 @@ export default function RitualConfirmation({
               <span>
                 {item.firstName} {item.lastInitial}.
               </span>
-              <span className={styles.padlockChip}>Not eligible</span>
+              <span className={styles.padlockChip}>{item.label}</span>
               {item.needsAcknowledgment && (
                 <button
                   type="button"
@@ -90,6 +100,23 @@ export default function RitualConfirmation({
                   Acknowledge
                 </button>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {needsJurisdiction.length > 0 && (
+        <div className={styles.excludedSection} aria-label="Needs their state on file">
+          <p>
+            <strong>These contacts need their state on file</strong> — add it to move them into your
+            action queue. Not an exclusion — just missing information.
+          </p>
+          {needsJurisdiction.map((item) => (
+            <div key={item.contactId} className={styles.excludedItem}>
+              <span>
+                {item.firstName} {item.lastInitial}.
+              </span>
+              <span className={styles.padlockChip}>{item.label}</span>
             </div>
           ))}
         </div>

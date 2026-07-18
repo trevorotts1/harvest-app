@@ -10,6 +10,12 @@
 //       not GATED_COMPLETE -> 403; a forged `x-user-id` header has ZERO effect (the session's own id
 //       is what reaches the service); and a contact owned by a DIFFERENT user -> 404 (ownership
 //       check), never a cross-account write.
+//
+// T-29R2 (WP03 gate remediation follow-up, §8.2 "Excluded: state-unlicensed" eligibility) extends
+// both layers with the MANUAL jurisdiction-capture path this route now also owns: session-gated +
+// ownership-checked (same shared code path already proven above) + normalized/validated + never
+// clobbers the other two independent fields — the second of the two production CAPTURE paths for
+// `Contact.jurisdiction` (the other is CSV import, proven in vault.test.ts).
 
 import { OnboardingStatus, Role } from '@prisma/client';
 import { NextRequest } from 'next/server';
@@ -25,9 +31,9 @@ import {
 
 function createFakeContactFlagsPrisma(rows: ContactFlagsRow[]): {
   client: ContactFlagsPrismaClient;
-  updateCalls: { where: { id: string }; data: Record<string, boolean> }[];
+  updateCalls: { where: { id: string }; data: Record<string, boolean | string | null> }[];
 } {
-  const updateCalls: { where: { id: string }; data: Record<string, boolean> }[] = [];
+  const updateCalls: { where: { id: string }; data: Record<string, boolean | string | null> }[] = [];
   const client: ContactFlagsPrismaClient = {
     contact: {
       async findFirst({ where }) {
@@ -53,7 +59,7 @@ describe('(c) ContactFlagsService.setFlags — independent toggle write-path (ui
 
     const result = await service.setFlags('u-1', 'c-1', { isRecruitTarget: true });
 
-    expect(result).toEqual({ ok: true, contactId: 'c-1', isRecruitTarget: true, isClient: false });
+    expect(result).toEqual({ ok: true, contactId: 'c-1', isRecruitTarget: true, isClient: false, jurisdiction: null });
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0].data).toEqual({ is_recruit_target: true });
     expect('is_client' in updateCalls[0].data).toBe(false); // TEETH: not merely unchanged — structurally absent
@@ -66,7 +72,7 @@ describe('(c) ContactFlagsService.setFlags — independent toggle write-path (ui
 
     const result = await service.setFlags('u-1', 'c-2', { isClient: true });
 
-    expect(result).toEqual({ ok: true, contactId: 'c-2', isRecruitTarget: true, isClient: true });
+    expect(result).toEqual({ ok: true, contactId: 'c-2', isRecruitTarget: true, isClient: true, jurisdiction: null });
     expect(updateCalls[0].data).toEqual({ is_client: true });
     expect('is_recruit_target' in updateCalls[0].data).toBe(false);
   });
@@ -93,7 +99,7 @@ describe('(c) ContactFlagsService.setFlags — independent toggle write-path (ui
     const service = new ContactFlagsService(client);
 
     const result = await service.setFlags('u-1', 'c-4', { isRecruitTarget: true, isClient: false });
-    expect(result).toEqual({ ok: true, contactId: 'c-4', isRecruitTarget: true, isClient: false });
+    expect(result).toEqual({ ok: true, contactId: 'c-4', isRecruitTarget: true, isClient: false, jurisdiction: null });
     expect(updateCalls[0].data).toEqual({ is_recruit_target: true, is_client: false });
   });
 
@@ -114,6 +120,71 @@ describe('(c) ContactFlagsService.setFlags — independent toggle write-path (ui
 
     const result = await service.setFlags('u-1', 'c-6', { isRecruitTarget: true });
     expect(result).toEqual({ ok: false, reason: 'not_found' });
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  // ── T-29R2: manual jurisdiction capture — the SAME session-gated/ownership-checked route, one more
+  // independently-settable field alongside the two boolean flags above. ──────────────────────────────
+
+  test('T-29R2: setting jurisdiction alone never touches is_recruit_target/is_client — normalized to the 2-letter postal code', async () => {
+    const rows: ContactFlagsRow[] = [{ id: 'c-7', user_id: 'u-1', is_recruit_target: true, is_client: false, jurisdiction: null }];
+    const { client, updateCalls } = createFakeContactFlagsPrisma(rows);
+    const service = new ContactFlagsService(client);
+
+    const result = await service.setFlags('u-1', 'c-7', { jurisdiction: ' tx ' });
+
+    expect(result).toEqual({ ok: true, contactId: 'c-7', isRecruitTarget: true, isClient: false, jurisdiction: 'TX' });
+    expect(updateCalls[0].data).toEqual({ jurisdiction: 'TX' });
+    expect('is_recruit_target' in updateCalls[0].data).toBe(false); // structurally absent, not merely unchanged
+    expect('is_client' in updateCalls[0].data).toBe(false);
+  });
+
+  test('T-29R2: an explicit null CLEARS jurisdiction back to unknown (distinct from omitting the field, which leaves it untouched)', async () => {
+    const rows: ContactFlagsRow[] = [{ id: 'c-8', user_id: 'u-1', is_recruit_target: false, is_client: false, jurisdiction: 'NY' }];
+    const { client, updateCalls } = createFakeContactFlagsPrisma(rows);
+    const service = new ContactFlagsService(client);
+
+    const result = await service.setFlags('u-1', 'c-8', { jurisdiction: null });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).jurisdiction).toBeNull();
+    expect(updateCalls[0].data).toEqual({ jurisdiction: null });
+  });
+
+  test('T-29R2 TEETH: an invalid jurisdiction (not a 2-letter code) is rejected BEFORE the ownership lookup / any write', async () => {
+    const rows: ContactFlagsRow[] = [{ id: 'c-9', user_id: 'u-1', is_recruit_target: false, is_client: false }];
+    const { client, updateCalls } = createFakeContactFlagsPrisma(rows);
+    const service = new ContactFlagsService(client);
+
+    const tooLong = await service.setFlags('u-1', 'c-9', { jurisdiction: 'TEX' });
+    expect(tooLong).toEqual({ ok: false, reason: 'invalid_jurisdiction' });
+
+    const numeric = await service.setFlags('u-1', 'c-9', { jurisdiction: '12' });
+    expect(numeric).toEqual({ ok: false, reason: 'invalid_jurisdiction' });
+
+    const blank = await service.setFlags('u-1', 'c-9', { jurisdiction: '   ' });
+    expect(blank).toEqual({ ok: false, reason: 'invalid_jurisdiction' });
+
+    expect(updateCalls).toHaveLength(0); // no write ever attempted for any invalid value
+  });
+
+  test('T-29R2: jurisdiction may be set together with a flag in one call, each independent of the other', async () => {
+    const rows: ContactFlagsRow[] = [{ id: 'c-10', user_id: 'u-1', is_recruit_target: false, is_client: false, jurisdiction: null }];
+    const { client, updateCalls } = createFakeContactFlagsPrisma(rows);
+    const service = new ContactFlagsService(client);
+
+    const result = await service.setFlags('u-1', 'c-10', { isClient: true, jurisdiction: 'ca' });
+    expect(result).toEqual({ ok: true, contactId: 'c-10', isRecruitTarget: false, isClient: true, jurisdiction: 'CA' });
+    expect(updateCalls[0].data).toEqual({ is_client: true, jurisdiction: 'CA' });
+  });
+
+  test('no fields provided at all (including jurisdiction) -> ok:false, no write attempted', async () => {
+    const rows: ContactFlagsRow[] = [{ id: 'c-11', user_id: 'u-1', is_recruit_target: false, is_client: false }];
+    const { client, updateCalls } = createFakeContactFlagsPrisma(rows);
+    const service = new ContactFlagsService(client);
+
+    const result = await service.setFlags('u-1', 'c-11', {});
+    expect(result).toEqual({ ok: false, reason: 'no_flags_provided' });
     expect(updateCalls).toHaveLength(0);
   });
 });
@@ -250,5 +321,87 @@ describe('PATCH /api/contacts/flags — session-gated, ownership-checked toggle 
     expect(mockedContactUpdate).toHaveBeenCalledWith({ where: { id: 'c-9' }, data: { is_client: true } });
     const updateArg = mockedContactUpdate.mock.calls[0][0];
     expect('is_recruit_target' in updateArg.data).toBe(false);
+  });
+
+  // ── T-29R2: manual jurisdiction capture, route level ──────────────────────────────────────────────
+
+  test('T-29R2: PATCH with jurisdiction sets Contact.jurisdiction (normalized), session-gated + ownership-checked exactly like the two flags', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedContactFindFirst.mockResolvedValue({
+      id: 'c-12',
+      user_id: 'real-session-user',
+      is_recruit_target: false,
+      is_client: false,
+      jurisdiction: null,
+    });
+    mockedContactUpdate.mockResolvedValue({
+      id: 'c-12',
+      is_recruit_target: false,
+      is_client: false,
+      jurisdiction: 'TX',
+    });
+
+    const res = await PATCH(patchRequest({ contactId: 'c-12', jurisdiction: 'tx' }), {});
+    expect(res.status).toBe(200);
+    expect(mockedContactFindFirst).toHaveBeenCalledWith({ where: { id: 'c-12', user_id: 'real-session-user' } });
+    expect(mockedContactUpdate).toHaveBeenCalledWith({ where: { id: 'c-12' }, data: { jurisdiction: 'TX' } });
+    const body = await res.json();
+    expect(body.jurisdiction).toBe('TX');
+  });
+
+  test('T-29R2 TEETH: a forged x-user-id header has ZERO effect on the jurisdiction write path either — the SESSION user id is what reaches the ownership check', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedContactFindFirst.mockResolvedValue({
+      id: 'c-13',
+      user_id: 'real-session-user',
+      is_recruit_target: false,
+      is_client: false,
+      jurisdiction: null,
+    });
+    mockedContactUpdate.mockResolvedValue({ id: 'c-13', is_recruit_target: false, is_client: false, jurisdiction: 'CA' });
+
+    const res = await PATCH(
+      patchRequest({ contactId: 'c-13', jurisdiction: 'ca' }, { 'x-user-id': 'some-other-victim-id' }),
+      {}
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockedContactFindFirst).toHaveBeenCalledWith({ where: { id: 'c-13', user_id: 'real-session-user' } });
+  });
+
+  test('T-29R2: an invalid jurisdiction at the route level -> 400, never reaches the update call', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedContactFindFirst.mockResolvedValue({
+      id: 'c-14',
+      user_id: 'real-session-user',
+      is_recruit_target: false,
+      is_client: false,
+    });
+
+    const res = await PATCH(patchRequest({ contactId: 'c-14', jurisdiction: 'not-a-state' }), {});
+    expect(res.status).toBe(400);
+    expect(mockedContactUpdate).not.toHaveBeenCalled();
+  });
+
+  test('T-29R2: a non-string, non-null jurisdiction (e.g. a number) -> 400, never reaches Prisma', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+
+    const res = await PATCH(patchRequest({ contactId: 'c-15', jurisdiction: 42 }), {});
+    expect(res.status).toBe(400);
+    expect(mockedContactFindFirst).not.toHaveBeenCalled();
+  });
+
+  test('T-29R2: ownership still applies to the jurisdiction write path — a contact owned by a different user -> 404, no update attempted', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedContactFindFirst.mockResolvedValue(null);
+
+    const res = await PATCH(patchRequest({ contactId: 'not-mine', jurisdiction: 'TX' }), {});
+    expect(res.status).toBe(404);
+    expect(mockedContactUpdate).not.toHaveBeenCalled();
   });
 });

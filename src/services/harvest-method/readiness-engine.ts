@@ -105,8 +105,18 @@ export interface TierInputs {
   contextComplete: boolean;
   needsTime: boolean;
   /** True if EITHER the hard-exclusion boundary (eligibility.ts) OR the Layer-3
-   *  "existing licensee" soft-exclusion flag (§8.1) applies to this contact. */
+   *  "existing licensee" soft-exclusion flag (§8.1) OR a CONFIRMED-unlicensed jurisdiction
+   *  (eligibility.ts's `checkJurisdictionExclusion` returning `'unlicensed_jurisdiction'`) applies
+   *  to this contact. */
   excluded: boolean;
+  /** T-29R2 (§7.6 "needs info" pattern mirrored for §8.2 eligibility) — true when
+   *  `checkJurisdictionExclusion` returned `'needs_jurisdiction'` (a regulated rep, contact
+   *  jurisdiction UNKNOWN). Deliberately distinct from `excluded`: the caller must never set both
+   *  true for the same contact (eligibility.ts's two reasons are mutually exclusive outcomes of the
+   *  same check), and this module trusts that invariant rather than re-deriving it. Optional
+   *  (defaults to falsy) so every PRE-EXISTING call site that never needed this dimension keeps
+   *  typechecking unchanged — additive, not a breaking signature change. */
+  needsJurisdiction?: boolean;
 }
 
 const TIER_LABELS: Record<ReadinessTier, string> = {
@@ -114,6 +124,8 @@ const TIER_LABELS: Record<ReadinessTier, string> = {
   [ReadinessTier.B]: 'Ready soon',
   [ReadinessTier.SLOW_BURN]: 'Still building',
   [ReadinessTier.EXCLUDED]: 'Not eligible',
+  // T-29R2 — distinct from 'Not eligible': this is a fixable data gap, not a confirmed exclusion.
+  [ReadinessTier.NEEDS_JURISDICTION]: 'Needs jurisdiction info',
 };
 
 export function tierLabel(tier: ReadinessTier): string {
@@ -122,19 +134,24 @@ export function tierLabel(tier: ReadinessTier): string {
 
 /**
  * Maps the hidden score + context to the §8.2 tier table. Precedence (highest first):
- *   1. EXCLUDED — a hard/soft exclusion always wins regardless of score (§8.2's own tier row:
- *      "licensee/state-unlicensed/minor").
- *   2. SLOW_BURN — `needs_time` (Layer 2 "need more time") or an incomplete Layer-3 context, per
+ *   1. EXCLUDED — a hard/soft/confirmed-unlicensed exclusion always wins regardless of score
+ *      (§8.2's own tier row: "licensee/state-unlicensed/minor").
+ *   2. NEEDS_JURISDICTION (T-29R2, §7.6 "needs info" mirrored) — a regulated rep's contact with an
+ *      UNKNOWN jurisdiction. Placed above SLOW_BURN/needs_time deliberately: this contact cannot be
+ *      drafted compliant outreach for AT ALL until the state is known, regardless of how complete
+ *      Layer 3 otherwise is — a data-completion prompt, not a readiness judgment.
+ *   3. SLOW_BURN — `needs_time` (Layer 2 "need more time") or an incomplete Layer-3 context, per
  *      §8.2's own row ("needs_time or context incomplete").
- *   3. A — score >= 75 AND context complete.
- *   4. B — score 50-74 AND context complete.
- *   5. SLOW_BURN — the remaining case (context complete, not excluded/needs_time, but score < 50):
- *      §8.2 does not name a fifth tier for "context-complete but not yet ready," and Slow Burn's own
- *      description ("deferred 30+ days ... a watch list") is the correct home for a not-yet-ready
- *      contact — never silently promoted to B.
+ *   4. A — score >= 75 AND context complete.
+ *   5. B — score 50-74 AND context complete.
+ *   6. SLOW_BURN — the remaining case (context complete, not excluded/needs_time/needs_jurisdiction,
+ *      but score < 50): §8.2 does not name a further tier for "context-complete but not yet ready,"
+ *      and Slow Burn's own description ("deferred 30+ days ... a watch list") is the correct home
+ *      for a not-yet-ready contact — never silently promoted to B.
  */
 export function mapScoreToTier(inputs: TierInputs): ReadinessTier {
   if (inputs.excluded) return ReadinessTier.EXCLUDED;
+  if (inputs.needsJurisdiction) return ReadinessTier.NEEDS_JURISDICTION;
   if (inputs.needsTime || !inputs.contextComplete) return ReadinessTier.SLOW_BURN;
   if (inputs.score >= TIER_A_THRESHOLD) return ReadinessTier.A;
   if (inputs.score >= TIER_B_THRESHOLD) return ReadinessTier.B;
@@ -144,13 +161,20 @@ export function mapScoreToTier(inputs: TierInputs): ReadinessTier {
 /**
  * The single entry point orchestrating score -> tier -> label. `excluded` must already have been
  * decided by the caller (eligibility.ts's hard-exclusion check + the Layer-3 existing-licensee soft
- * flag) — this function does not re-derive exclusion, it only reacts to it, so there is exactly one
- * place (eligibility.ts) that owns "is this contact excluded."
+ * flag + a CONFIRMED-unlicensed jurisdiction) and `needsJurisdiction` similarly (eligibility.ts's
+ * `checkJurisdictionExclusion` returning `'needs_jurisdiction'`, T-29R2) — this function does not
+ * re-derive either, it only reacts to them, so there is exactly one place (eligibility.ts) that owns
+ * "is this contact excluded / does this contact need jurisdiction info."
  */
-export function computeReadiness(inputs: ReadinessInputs, excluded: boolean, needsTime: boolean): ReadinessResult {
+export function computeReadiness(
+  inputs: ReadinessInputs,
+  excluded: boolean,
+  needsTime: boolean,
+  needsJurisdiction = false
+): ReadinessResult {
   const score = computeReadinessScore(inputs);
   const contextComplete = inputs.tilesFilledCount >= TOTAL_TILES;
-  const tier = mapScoreToTier({ score, contextComplete, needsTime, excluded });
+  const tier = mapScoreToTier({ score, contextComplete, needsTime, excluded, needsJurisdiction });
   return {
     score,
     tier,
@@ -213,11 +237,14 @@ export function assertNoRawScoreLeak(payload: unknown, where = 'harvest_method_p
  *  module that is allowed to construct a `PublicQueueItem`, so there is exactly one seam that could
  *  ever add a score field back in (and `assertNoRawScoreLeak` catches it if it does). */
 export function toPublicQueueItem(
-  input: Omit<PublicQueueItem, 'needsAcknowledgment'> & { tier: ReadinessTier }
+  input: Omit<PublicQueueItem, 'needsAcknowledgment' | 'needsJurisdiction'> & { tier: ReadinessTier }
 ): PublicQueueItem {
   const item: PublicQueueItem = {
     ...input,
     needsAcknowledgment: input.tier === ReadinessTier.EXCLUDED,
+    // T-29R2 — the distinct data-completion-prompt signal (never true alongside needsAcknowledgment;
+    // the tier itself is exactly one of EXCLUDED/NEEDS_JURISDICTION/A/B/SLOW_BURN at a time).
+    needsJurisdiction: input.tier === ReadinessTier.NEEDS_JURISDICTION,
   };
   assertNoRawScoreLeak(item, 'toPublicQueueItem');
   return item;

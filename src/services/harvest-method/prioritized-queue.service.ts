@@ -1,7 +1,8 @@
 // WP03 §8.1 Layer 3 / §8.2 / §8.3 — the queue orchestrator. This is the ONE place that combines:
 //   - the three-layer completion gate (no short-circuit — §8.3 "the queue is empty until all three
 //     layers are complete... no short-circuit to a raw Vault list");
-//   - the eligibility/exclusion boundary (eligibility.ts — do_not_contact/minor/opted-out never rank);
+//   - the eligibility/exclusion boundary (eligibility.ts — do_not_contact/minor/opted-out/
+//     state-unlicensed never rank);
 //   - the HIDDEN readiness score + tier (readiness-engine.ts — the score never crosses this module's
 //     own return boundary, only `toPublicQueueItem`'s tier+label projection does); and
 //   - the Primerica overlay (primerica-overlay.ts / org-gate.ts — additive context only, gated).
@@ -20,18 +21,30 @@ import {
   ReadinessInputs,
 } from '../../types/harvest-method';
 import { toClusterArray as clustersFromJson } from './clusters';
-import { checkEligibility, type EligibilityContactRow, type OptOutLookupClient } from './eligibility';
+import {
+  checkEligibility,
+  checkJurisdictionExclusion,
+  type EligibilityContactRow,
+  type LicensedJurisdictionsProvider,
+  type OptOutLookupClient,
+} from './eligibility';
 import { computeReadiness, toPublicQueueItem, assertNoRawScoreLeak } from './readiness-engine';
 import { buildPrimericaVelocityContext, isPrimericaBranch, type PrimericaVelocityContext } from './primerica-overlay';
 import { assertNoPrimericaLeak } from '../onboarding/wp01/org-gate';
 import { decryptContactPII, getContactEncryptionKey } from '../warm-market/vault/vault-encryption';
 import type { HarvestMethodPrismaClient, ContactMethodProfileRow } from './method-state.service';
+import { LicensingService } from '../compliance/licensing/licensing-service';
+import { PrismaLicensingRepository, type LicensingRecordPrismaDelegate } from '../compliance/licensing/licensing-repository';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export interface QueueContactRow extends EligibilityContactRow {
   first_name: string; // ciphertext envelope
   last_name: string; // ciphertext envelope
+  /** T-29R (§8.2 "Excluded: state-unlicensed") — plaintext (see prisma/schema.prisma's Contact.
+   *  jurisdiction doc comment for why this one Contact column is not ciphertext). Null/absent is
+   *  treated as "unknown jurisdiction" by `checkJurisdictionExclusion`. */
+  jurisdiction: string | null;
 }
 
 export interface QueuePrismaClient extends HarvestMethodPrismaClient {
@@ -48,8 +61,11 @@ export interface QueuePrismaClient extends HarvestMethodPrismaClient {
 }
 
 export interface GetQueueOptions {
-  /** true = the full ritual-review list (includes EXCLUDED, for the Layer-3 acknowledgment surface);
-   *  false = the §8.3 action-queue view (EXCLUDED never appears — "Excluded contacts never queue"). */
+  /** true = the full ritual-review list (includes EXCLUDED, for the Layer-3 acknowledgment surface,
+   *  AND NEEDS_JURISDICTION, T-29R2, for the data-completion-prompt surface); false = the §8.3
+   *  action-queue view (neither EXCLUDED nor NEEDS_JURISDICTION ever appears there — "Excluded
+   *  contacts never queue," and a contact this rep cannot yet be confirmed licensed for is equally
+   *  held out of the actionable view until its jurisdiction is known). */
   includeExcluded: boolean;
   /** Primerica-only; ignored (and never rendered) for a universal org. */
   rank?: string | null;
@@ -57,20 +73,30 @@ export interface GetQueueOptions {
 
 export type PrioritizedQueueResult = QueueResult & { primericaVelocity?: PrimericaVelocityContext };
 
-/** Tier sort precedence — A first, then B, then Slow Burn, then Excluded (only ever present when
- *  `includeExcluded` is true); score (still hidden) breaks ties WITHIN a tier only, so a needs-time
- *  Slow Burn contact with an incidentally high raw score can never outrank a true B-tier contact. */
+/** Tier sort precedence — A first, then B, then Slow Burn, then Needs Jurisdiction (T-29R2), then
+ *  Excluded (the latter two only ever present when `includeExcluded` is true); score (still hidden)
+ *  breaks ties WITHIN a tier only, so a needs-time Slow Burn contact with an incidentally high raw
+ *  score can never outrank a true B-tier contact. Needs Jurisdiction sorts ahead of Excluded — a
+ *  remediable data gap is a lesser concern than a confirmed exclusion. */
 const TIER_SORT_RANK: Record<ReadinessTier, number> = {
   [ReadinessTier.A]: 0,
   [ReadinessTier.B]: 1,
   [ReadinessTier.SLOW_BURN]: 2,
-  [ReadinessTier.EXCLUDED]: 3,
+  [ReadinessTier.NEEDS_JURISDICTION]: 3,
+  [ReadinessTier.EXCLUDED]: 4,
 };
 
 export class PrioritizedQueueService {
   constructor(
     private prisma: QueuePrismaClient = new PrismaClient() as unknown as QueuePrismaClient,
-    private encryptionKey: string = getContactEncryptionKey()
+    private encryptionKey: string = getContactEncryptionKey(),
+    // T-29R: lazy default, evaluated per-instantiation (never at module scope, per the T-26
+    // build-safety lesson referenced by the routes' own "Lazy: constructed per-request" comment
+    // below) — constructs no encryption key, reads no secret, just a second narrow PrismaClient
+    // handle for LicensingRecord reads, mirroring `prisma` above's own default-param convention.
+    private licensingProvider: LicensedJurisdictionsProvider = new LicensingService(
+      new PrismaLicensingRepository(new PrismaClient() as unknown as { licensingRecord: LicensingRecordPrismaDelegate })
+    )
   ) {}
 
   /**
@@ -111,6 +137,23 @@ export class PrioritizedQueueService {
       }
     }
 
+    // T-29R (§8.2 "Excluded: state-unlicensed", §17.1 regulated-vs-universal) — rep-level, fetched
+    // ONCE per getQueue() call (not per contact): `isPrimericaBranch` is this codebase's own
+    // authoritative regulated/universal split (org-gate.ts), so a universal (non-Primerica) rep never
+    // even calls into LicensingService — the state-unlicensed check is a true no-op for them, never
+    // an accidental over-exclusion. A regulated rep's licensed-jurisdictions lookup is wrapped in
+    // try/catch: an unavailable/erroring lookup degrades to `[]` (fail-closed — excludes every
+    // jurisdiction-bearing contact rather than defaulting open, or throwing the whole queue request).
+    const regulated = isPrimericaBranch(orgType);
+    let licensedJurisdictions: string[] = [];
+    if (regulated) {
+      try {
+        licensedJurisdictions = await this.licensingProvider.getLicensedJurisdictions(userId);
+      } catch {
+        licensedJurisdictions = [];
+      }
+    }
+
     type Scored = { profile: ContactMethodProfileRow; contact: QueueContactRow; score: number; tier: ReadinessTier; label: string };
     const scored: Scored[] = [];
 
@@ -122,7 +165,17 @@ export class PrioritizedQueueService {
       if (!contact) continue;
 
       const eligibility = await checkEligibility(contact, this.prisma.optOutRegistry);
-      const excluded = !eligibility.eligible || profile.existing_licensee_flag;
+      const jurisdictionExclusion = checkJurisdictionExclusion(contact.jurisdiction, {
+        regulated,
+        licensedJurisdictions,
+      });
+      // T-29R2: the two `checkJurisdictionExclusion` outcomes are NOT folded together any more — only
+      // a CONFIRMED-unlicensed jurisdiction feeds `excluded` (unchanged from T-29R); an UNKNOWN
+      // jurisdiction feeds the separate `needsJurisdiction` signal below, which computeReadiness
+      // routes to the distinct NEEDS_JURISDICTION tier instead of EXCLUDED.
+      const excluded =
+        !eligibility.eligible || profile.existing_licensee_flag || jurisdictionExclusion === 'unlicensed_jurisdiction';
+      const needsJurisdiction = jurisdictionExclusion === 'needs_jurisdiction';
 
       const clusters = clustersFromJson(profile.clusters);
       const tilesFilledCount = [
@@ -145,7 +198,7 @@ export class PrioritizedQueueService {
         financialSituation: profile.financial_situation,
       };
 
-      const result = computeReadiness(inputs, excluded, profile.needs_time);
+      const result = computeReadiness(inputs, excluded, profile.needs_time, needsJurisdiction);
 
       // Persist the freshly computed (still-HIDDEN) score+tier so a downstream aggregate/read path
       // never has to re-run the engine — it never crosses THIS module's own return value though.
@@ -164,7 +217,13 @@ export class PrioritizedQueueService {
       scored.push({ profile, contact, score: result.score, tier: result.tier, label: result.label });
     }
 
-    const filtered = options.includeExcluded ? scored : scored.filter((s) => s.tier !== ReadinessTier.EXCLUDED);
+    // T-29R2: NEEDS_JURISDICTION is held out of the default §8.3 action-queue view exactly like
+    // EXCLUDED (can't draft compliant outreach for either), but both remain visible in the
+    // `includeExcluded: true` ritual-review list — EXCLUDED for the acknowledgment tap, NEEDS_
+    // JURISDICTION for the "add this contact's state" data-completion prompt.
+    const filtered = options.includeExcluded
+      ? scored
+      : scored.filter((s) => s.tier !== ReadinessTier.EXCLUDED && s.tier !== ReadinessTier.NEEDS_JURISDICTION);
 
     filtered.sort((a, b) => {
       const tierDiff = TIER_SORT_RANK[a.tier] - TIER_SORT_RANK[b.tier];

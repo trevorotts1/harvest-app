@@ -46,6 +46,13 @@ export interface RawContactImportRow {
   industry?: string | null;
   birthdate?: string | null;
   isMinor?: boolean;
+  /** T-29R2 (WP03 gate remediation follow-up, §8.2 "Excluded: state-unlicensed" eligibility): the
+   *  contact's own jurisdiction (a US state, raw/un-normalized as fuzzy-mapped from a CSV "state"/
+   *  "jurisdiction" column by csv-parser.ts) — `VaultService.upsertRow` normalizes this to the
+   *  two-letter postal code (`eligibility.ts`'s `normalizeJurisdiction`) before persisting to
+   *  `Contact.jurisdiction`. Omitted/null is tolerated on every ingestion path — an import never
+   *  fails for lacking this column, it simply leaves the contact's jurisdiction unknown. */
+  jurisdiction?: string | null;
 }
 
 export enum InteractionType {
