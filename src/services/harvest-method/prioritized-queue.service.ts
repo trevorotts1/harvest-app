@@ -1,7 +1,8 @@
 // WP03 §8.1 Layer 3 / §8.2 / §8.3 — the queue orchestrator. This is the ONE place that combines:
 //   - the three-layer completion gate (no short-circuit — §8.3 "the queue is empty until all three
 //     layers are complete... no short-circuit to a raw Vault list");
-//   - the eligibility/exclusion boundary (eligibility.ts — do_not_contact/minor/opted-out never rank);
+//   - the eligibility/exclusion boundary (eligibility.ts — do_not_contact/minor/opted-out/
+//     state-unlicensed never rank);
 //   - the HIDDEN readiness score + tier (readiness-engine.ts — the score never crosses this module's
 //     own return boundary, only `toPublicQueueItem`'s tier+label projection does); and
 //   - the Primerica overlay (primerica-overlay.ts / org-gate.ts — additive context only, gated).
@@ -20,18 +21,30 @@ import {
   ReadinessInputs,
 } from '../../types/harvest-method';
 import { toClusterArray as clustersFromJson } from './clusters';
-import { checkEligibility, type EligibilityContactRow, type OptOutLookupClient } from './eligibility';
+import {
+  checkEligibility,
+  checkJurisdictionExclusion,
+  type EligibilityContactRow,
+  type LicensedJurisdictionsProvider,
+  type OptOutLookupClient,
+} from './eligibility';
 import { computeReadiness, toPublicQueueItem, assertNoRawScoreLeak } from './readiness-engine';
 import { buildPrimericaVelocityContext, isPrimericaBranch, type PrimericaVelocityContext } from './primerica-overlay';
 import { assertNoPrimericaLeak } from '../onboarding/wp01/org-gate';
 import { decryptContactPII, getContactEncryptionKey } from '../warm-market/vault/vault-encryption';
 import type { HarvestMethodPrismaClient, ContactMethodProfileRow } from './method-state.service';
+import { LicensingService } from '../compliance/licensing/licensing-service';
+import { PrismaLicensingRepository, type LicensingRecordPrismaDelegate } from '../compliance/licensing/licensing-repository';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export interface QueueContactRow extends EligibilityContactRow {
   first_name: string; // ciphertext envelope
   last_name: string; // ciphertext envelope
+  /** T-29R (§8.2 "Excluded: state-unlicensed") — plaintext (see prisma/schema.prisma's Contact.
+   *  jurisdiction doc comment for why this one Contact column is not ciphertext). Null/absent is
+   *  treated as "unknown jurisdiction" by `checkJurisdictionExclusion`. */
+  jurisdiction: string | null;
 }
 
 export interface QueuePrismaClient extends HarvestMethodPrismaClient {
@@ -70,7 +83,14 @@ const TIER_SORT_RANK: Record<ReadinessTier, number> = {
 export class PrioritizedQueueService {
   constructor(
     private prisma: QueuePrismaClient = new PrismaClient() as unknown as QueuePrismaClient,
-    private encryptionKey: string = getContactEncryptionKey()
+    private encryptionKey: string = getContactEncryptionKey(),
+    // T-29R: lazy default, evaluated per-instantiation (never at module scope, per the T-26
+    // build-safety lesson referenced by the routes' own "Lazy: constructed per-request" comment
+    // below) — constructs no encryption key, reads no secret, just a second narrow PrismaClient
+    // handle for LicensingRecord reads, mirroring `prisma` above's own default-param convention.
+    private licensingProvider: LicensedJurisdictionsProvider = new LicensingService(
+      new PrismaLicensingRepository(new PrismaClient() as unknown as { licensingRecord: LicensingRecordPrismaDelegate })
+    )
   ) {}
 
   /**
@@ -111,6 +131,23 @@ export class PrioritizedQueueService {
       }
     }
 
+    // T-29R (§8.2 "Excluded: state-unlicensed", §17.1 regulated-vs-universal) — rep-level, fetched
+    // ONCE per getQueue() call (not per contact): `isPrimericaBranch` is this codebase's own
+    // authoritative regulated/universal split (org-gate.ts), so a universal (non-Primerica) rep never
+    // even calls into LicensingService — the state-unlicensed check is a true no-op for them, never
+    // an accidental over-exclusion. A regulated rep's licensed-jurisdictions lookup is wrapped in
+    // try/catch: an unavailable/erroring lookup degrades to `[]` (fail-closed — excludes every
+    // jurisdiction-bearing contact rather than defaulting open, or throwing the whole queue request).
+    const regulated = isPrimericaBranch(orgType);
+    let licensedJurisdictions: string[] = [];
+    if (regulated) {
+      try {
+        licensedJurisdictions = await this.licensingProvider.getLicensedJurisdictions(userId);
+      } catch {
+        licensedJurisdictions = [];
+      }
+    }
+
     type Scored = { profile: ContactMethodProfileRow; contact: QueueContactRow; score: number; tier: ReadinessTier; label: string };
     const scored: Scored[] = [];
 
@@ -122,7 +159,11 @@ export class PrioritizedQueueService {
       if (!contact) continue;
 
       const eligibility = await checkEligibility(contact, this.prisma.optOutRegistry);
-      const excluded = !eligibility.eligible || profile.existing_licensee_flag;
+      const jurisdictionExclusion = checkJurisdictionExclusion(contact.jurisdiction, {
+        regulated,
+        licensedJurisdictions,
+      });
+      const excluded = !eligibility.eligible || profile.existing_licensee_flag || jurisdictionExclusion !== null;
 
       const clusters = clustersFromJson(profile.clusters);
       const tilesFilledCount = [

@@ -10,6 +10,9 @@
 //   (d) an excluded contact (do_not_contact / DO_NOT_CONTACT / minor / opted-out) never appears in
 //       the queue;
 //   (e) the six clusters are all present (not five) in the actual queue data path.
+//   (f) T-29R (WP03 gate remediation) — state-unlicensed exclusion: a REGULATED (Primerica) rep's
+//       contact in a state the rep is NOT licensed in never appears in the queue either, mirroring
+//       (d) exactly; a UNIVERSAL rep never over-excludes on this dimension.
 
 import { OrgType, PipelineStage, QualityCluster, ReadinessTier } from '@prisma/client';
 
@@ -19,6 +22,7 @@ import {
   type QueueContactRow,
   type QueuePrismaClient,
 } from '../../src/services/harvest-method/prioritized-queue.service';
+import { checkJurisdictionExclusion } from '../../src/services/harvest-method/eligibility';
 import { assertNoPrimericaLeak, OrgBranchViolation } from '../../src/services/onboarding/wp01/org-gate';
 import { buildPrimericaVelocityContext } from '../../src/services/harvest-method/primerica-overlay';
 import { assertAggregateOnly, computeUplineAggregateStats, UplineVisibilityLeakError } from '../../src/services/harvest-method/upline-aggregate';
@@ -133,6 +137,8 @@ function seedContact(
     pipeline_stage?: PipelineStage;
     is_minor_flag?: boolean;
     phone_hash?: string | null;
+    /** T-29R (§8.2 "Excluded: state-unlicensed"). Omitted = unknown jurisdiction. */
+    jurisdiction?: string | null;
   }
 ) {
   contacts.set(input.id, {
@@ -145,6 +151,7 @@ function seedContact(
     is_minor_flag: input.is_minor_flag ?? false,
     phone_hash: input.phone_hash ?? null,
     email_hash: null,
+    jurisdiction: input.jurisdiction ?? null,
   } as any);
 }
 
@@ -391,6 +398,137 @@ describe('(e) six clusters present end-to-end in the queue data path', () => {
     const item = (result as any).queue[0];
     expect(new Set(item.clusters)).toEqual(new Set(ALL_QUALITY_CLUSTERS));
     expect(item.clusters).toHaveLength(6);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// (f) STATE-UNLICENSED EXCLUSION — T-29R (WP03 gate remediation, §8.2 "Excluded: state-unlicensed",
+// §17.1 regulated-vs-universal). Named WP03 critical failure this closes: "An excluded contact
+// (licensee/minor/unlicensed-state) surfacing in the action queue" — the "unlicensed-state" third of
+// that named triple was, before this build unit, entirely unimplemented (Contact had no jurisdiction
+// field; eligibility.ts never consulted LicensingService).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe('(f) state-unlicensed exclusion — T-29R', () => {
+  test('(a) a REGULATED (Primerica) rep + a contact in a state the rep is NOT licensed in -> excluded from the action queue, tagged EXCLUDED in the ritual view', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'ny-contact', userId: 'rep-1', firstName: 'Nadia', lastName: 'York', jurisdiction: 'NY' });
+    await completeAllThreeLayers(prisma, 'rep-1', ['ny-contact']);
+
+    // The rep is licensed ONLY in TX — never NY, where this contact lives.
+    const licensedOnlyTX = { getLicensedJurisdictions: async () => ['TX'] };
+    const service = new PrioritizedQueueService(prisma, undefined, licensedOnlyTX);
+
+    const actionQueue = await service.getQueue('rep-1', OrgType.PRIMERICA, { includeExcluded: false });
+    expect((actionQueue as any).queue).toEqual([]);
+
+    const fullQueue = await service.getQueue('rep-1', OrgType.PRIMERICA, { includeExcluded: true });
+    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    expect((fullQueue as any).queue[0].needsAcknowledgment).toBe(true);
+  });
+
+  test('(b) a REGULATED rep with EMPTY/unavailable licensed jurisdictions -> fail-closed (excluded even though the contact would otherwise be A-tier)', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'tx-contact', userId: 'rep-2', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
+    await completeAllThreeLayers(prisma, 'rep-2', ['tx-contact']);
+
+    const noLicensesOnFile = { getLicensedJurisdictions: async () => [] };
+    const service = new PrioritizedQueueService(prisma, undefined, noLicensesOnFile);
+
+    const actionQueue = await service.getQueue('rep-2', OrgType.PRIMERICA, { includeExcluded: false });
+    expect((actionQueue as any).queue).toEqual([]);
+
+    const fullQueue = await service.getQueue('rep-2', OrgType.PRIMERICA, { includeExcluded: true });
+    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+  });
+
+  test('(b2) an UNAVAILABLE (throwing) licensing lookup for a regulated rep ALSO fails closed — degrades to excluded, never throws the whole queue request', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'tx-contact', userId: 'rep-2b', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
+    await completeAllThreeLayers(prisma, 'rep-2b', ['tx-contact']);
+
+    const unavailable = {
+      getLicensedJurisdictions: async () => {
+        throw new Error('licensing service unavailable');
+      },
+    };
+    const service = new PrioritizedQueueService(prisma, undefined, unavailable);
+
+    const result = await service.getQueue('rep-2b', OrgType.PRIMERICA, { includeExcluded: true });
+    expect(result.available).toBe(true);
+    expect((result as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+  });
+
+  test('(c) a UNIVERSAL (non-Primerica) rep -> NO state-based exclusion; contacts in any state (or with no jurisdiction at all) remain eligible, and the licensing provider is never even consulted', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'ny', userId: 'rep-3', firstName: 'Nadia', lastName: 'York', jurisdiction: 'NY' });
+    seedContact(contacts as any, { id: 'unknown', userId: 'rep-3', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction on file
+    await completeAllThreeLayers(prisma, 'rep-3', ['ny', 'unknown']);
+
+    // A provider that would exclude EVERYTHING (or blow up the request) if it were ever consulted —
+    // proving a universal rep never calls into it at all (the "naive fail-closed over-excludes
+    // everyone" failure mode this build unit's brief explicitly calls out).
+    const neverCallMe = {
+      getLicensedJurisdictions: async (): Promise<string[]> => {
+        throw new Error('must never be called for a universal (non-Primerica) rep — §17.1 no-op');
+      },
+    };
+    const service = new PrioritizedQueueService(prisma, undefined, neverCallMe);
+
+    const actionQueue = await service.getQueue('rep-3', OrgType.EXTERNAL, { includeExcluded: false });
+    const ids = (actionQueue as any).queue.map((q: any) => q.contactId).sort();
+    expect(ids).toEqual(['ny', 'unknown']);
+  });
+
+  test('(d) a REGULATED rep + a contact in a state the rep IS licensed in -> remains eligible (not excluded on this dimension)', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'tx-contact', userId: 'rep-4', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
+    await completeAllThreeLayers(prisma, 'rep-4', ['tx-contact']);
+
+    const licensedTXandCA = { getLicensedJurisdictions: async () => ['TX', 'CA'] };
+    const service = new PrioritizedQueueService(prisma, undefined, licensedTXandCA);
+
+    const actionQueue = await service.getQueue('rep-4', OrgType.PRIMERICA, { includeExcluded: false });
+    const ids = (actionQueue as any).queue.map((q: any) => q.contactId);
+    expect(ids).toEqual(['tx-contact']);
+    expect((actionQueue as any).queue[0].tier).not.toBe(ReadinessTier.EXCLUDED);
+  });
+
+  test('(e) a REGULATED rep + a contact with an UNKNOWN jurisdiction -> excluded (fail-closed; cannot confirm the rep is licensed "wherever this contact is")', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'unknown', userId: 'rep-5', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction set
+    await completeAllThreeLayers(prisma, 'rep-5', ['unknown']);
+
+    const licensedTX = { getLicensedJurisdictions: async () => ['TX'] };
+    const service = new PrioritizedQueueService(prisma, undefined, licensedTX);
+
+    const fullQueue = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: true });
+    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+  });
+
+  test('case-insensitive / whitespace-tolerant jurisdiction match: a lowercase-imported "tx" still matches a licensed "TX"', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts as any, { id: 'tx-lower', userId: 'rep-6', firstName: 'Tex', lastName: 'Lower', jurisdiction: ' tx ' });
+    await completeAllThreeLayers(prisma, 'rep-6', ['tx-lower']);
+
+    const licensedTX = { getLicensedJurisdictions: async () => ['TX'] };
+    const service = new PrioritizedQueueService(prisma, undefined, licensedTX);
+
+    const actionQueue = await service.getQueue('rep-6', OrgType.PRIMERICA, { includeExcluded: false });
+    expect((actionQueue as any).queue.map((q: any) => q.contactId)).toEqual(['tx-lower']);
+  });
+
+  // Mutation-proof: exercises the pure boundary function directly. If `checkJurisdictionExclusion`'s
+  // `!context.regulated` early-return were deleted, the third assertion below (universal, mismatched
+  // jurisdiction) would flip from `null` to `'unlicensed_jurisdiction'` and fail — proving the
+  // no-op-for-universal branch has real teeth, not just the integration tests above.
+  test('mutation-proof: checkJurisdictionExclusion trips ONLY on the regulated+non-licensed-jurisdiction case', () => {
+    expect(checkJurisdictionExclusion('NY', { regulated: true, licensedJurisdictions: ['TX'] })).toBe('unlicensed_jurisdiction');
+    expect(checkJurisdictionExclusion('TX', { regulated: true, licensedJurisdictions: ['TX'] })).toBeNull();
+    expect(checkJurisdictionExclusion('NY', { regulated: false, licensedJurisdictions: [] })).toBeNull(); // universal no-op
+    expect(checkJurisdictionExclusion(null, { regulated: true, licensedJurisdictions: ['TX'] })).toBe('unlicensed_jurisdiction'); // unknown jurisdiction, fail-closed
+    expect(checkJurisdictionExclusion('TX', { regulated: true, licensedJurisdictions: [] })).toBe('unlicensed_jurisdiction'); // empty licensure, fail-closed
+    expect(checkJurisdictionExclusion(undefined, { regulated: false, licensedJurisdictions: [] })).toBeNull(); // universal + unknown jurisdiction: still a no-op
   });
 });
 

@@ -8,7 +8,11 @@ import {
   stricterOf,
   strictestState,
 } from '../../src/services/compliance/licensing/licensing-state-machine';
-import { InMemoryLicensingRepository } from '../../src/services/compliance/licensing/licensing-repository';
+import {
+  InMemoryLicensingRepository,
+  PrismaLicensingRepository,
+  type LicensingRecordPrismaRow,
+} from '../../src/services/compliance/licensing/licensing-repository';
 import { InMemoryLicensingEventSink } from '../../src/services/compliance/licensing/licensing-audit';
 import { LicensingService } from '../../src/services/compliance/licensing/licensing-service';
 import { LicensingState } from '../../src/types/licensing';
@@ -292,5 +296,132 @@ describe('LicensingService — stateful transitions, per-jurisdiction records, a
 
     const licensedStates = await service.getLicensedJurisdictions('rep-7');
     expect(licensedStates).toEqual(['TX']); // CA is still PRE_LICENSING — not yet in the list
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// T-29R — PrismaLicensingRepository: the production repository this build unit adds so
+// `LicensingService.getLicensedJurisdictions()` has a real backing store (previously only
+// `InMemoryLicensingRepository` existed — see this module's own doc comment on "a future DB
+// swap"). Exercised against a narrow mock `licensingRecord` delegate (no live DB), mirroring
+// `PrismaAuditRepository`'s own untested-directly-but-thin-mapping shape.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+describe('T-29R — PrismaLicensingRepository (the production LicensingRepository backing)', () => {
+  function makeMockDelegate() {
+    const rows = new Map<string, LicensingRecordPrismaRow>();
+    const key = (userId: string, jurisdiction: string) => `${userId}::${jurisdiction}`;
+
+    const delegate = {
+      findUnique: async ({ where }: { where: { user_id_jurisdiction: { user_id: string; jurisdiction: string } } }) =>
+        rows.get(key(where.user_id_jurisdiction.user_id, where.user_id_jurisdiction.jurisdiction)) ?? null,
+      findMany: async ({ where }: { where: { user_id: string } }) =>
+        [...rows.values()].filter((r) => r.user_id === where.user_id),
+      upsert: async ({
+        where,
+        create,
+        update,
+      }: {
+        where: { user_id_jurisdiction: { user_id: string; jurisdiction: string } };
+        create: Record<string, unknown>;
+        update: Record<string, unknown>;
+      }) => {
+        const k = key(where.user_id_jurisdiction.user_id, where.user_id_jurisdiction.jurisdiction);
+        const existing = rows.get(k);
+        const now = new Date();
+        const next: LicensingRecordPrismaRow = existing
+          ? { ...existing, ...update, updated_at: now }
+          : {
+              id: 'row-1',
+              user_id: where.user_id_jurisdiction.user_id,
+              jurisdiction: where.user_id_jurisdiction.jurisdiction,
+              state: 'UNLICENSED',
+              license_number: null,
+              issued_at: null,
+              expires_at: null,
+              created_at: now,
+              updated_at: now,
+              ...create,
+            };
+        rows.set(k, next);
+        return next;
+      },
+    };
+    return { delegate, rows };
+  }
+
+  test('get() returns null for a jurisdiction with no record (the fail-closed "no record = UNLICENSED" default is LicensingService\'s job, not this repository, which just reflects what is on file)', async () => {
+    const { delegate } = makeMockDelegate();
+    const repo = new PrismaLicensingRepository({ licensingRecord: delegate });
+    expect(await repo.get('rep-1', 'TX')).toBeNull();
+  });
+
+  test('upsert() then get() round-trips a record, mapping Prisma Dates to ISO strings', async () => {
+    const { delegate } = makeMockDelegate();
+    const repo = new PrismaLicensingRepository({ licensingRecord: delegate });
+
+    await repo.upsert({
+      id: 'rec-1',
+      user_id: 'rep-1',
+      jurisdiction: 'TX',
+      state: 'LICENSED',
+      license_number: 'IBA-123',
+      issued_at: '2026-01-01T00:00:00.000Z',
+      expires_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    const record = await repo.get('rep-1', 'TX');
+    expect(record).not.toBeNull();
+    expect(record!.state).toBe('LICENSED');
+    expect(record!.license_number).toBe('IBA-123');
+    expect(typeof record!.created_at).toBe('string');
+    expect(new Date(record!.created_at).toString()).not.toBe('Invalid Date');
+  });
+
+  test('getAllForUser() returns every jurisdiction on file for that user, and none for another user', async () => {
+    const { delegate } = makeMockDelegate();
+    const repo = new PrismaLicensingRepository({ licensingRecord: delegate });
+
+    await repo.upsert({
+      id: 'rec-tx',
+      user_id: 'rep-1',
+      jurisdiction: 'TX',
+      state: 'LICENSED',
+      license_number: null,
+      issued_at: null,
+      expires_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+    await repo.upsert({
+      id: 'rec-ca',
+      user_id: 'rep-1',
+      jurisdiction: 'CA',
+      state: 'PRE_LICENSING',
+      license_number: null,
+      issued_at: null,
+      expires_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      updated_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    const forRep1 = await repo.getAllForUser('rep-1');
+    expect(forRep1.map((r) => r.jurisdiction).sort()).toEqual(['CA', 'TX']);
+
+    const forSomeoneElse = await repo.getAllForUser('rep-2');
+    expect(forSomeoneElse).toEqual([]);
+  });
+
+  test('a real LicensingService wired to PrismaLicensingRepository resolves getLicensedJurisdictions() end to end', async () => {
+    const { delegate } = makeMockDelegate();
+    const repo = new PrismaLicensingRepository({ licensingRecord: delegate });
+    const service = new LicensingService(repo);
+
+    await service.applyTransition('rep-9', 'TX', 'START_PRE_LICENSING', { actor_id: 'rep-9' });
+    await service.applyTransition('rep-9', 'TX', 'OBTAIN_LICENSE', { actor_id: 'rep-9' });
+
+    expect(await service.getLicensedJurisdictions('rep-9')).toEqual(['TX']);
   });
 });
