@@ -20,6 +20,7 @@ import {
   type ClientPlatform,
 } from '../../../types/warm-market';
 import { hmacForMatch } from '../../compliance/encryption/encryption';
+import { normalizeJurisdiction } from '../../harvest-method/eligibility';
 import { parseContactCsv, MAX_IMPORT_ROWS, ImportLimitExceededError } from './csv-parser';
 import { isMinorRow } from './minors';
 import { encryptOptionalField, encryptRequiredField, getContactEncryptionKey } from './vault-encryption';
@@ -105,6 +106,10 @@ export interface ContactRow {
   notes: string | null;
   industry: string | null;
   is_minor_flag: boolean;
+  /** T-29R2 — see `RawContactImportRow.jurisdiction`'s doc comment; read here so a cross-source
+   *  merge (below) can fill it in ONLY when the existing row doesn't already have one, same as
+   *  every other mergeable field on this row. */
+  jurisdiction: string | null;
 }
 
 type RowOutcome = { kind: 'created' | 'merged'; isMinor: boolean };
@@ -261,6 +266,11 @@ export class VaultService {
     const phoneHash = normalizedPhone ? hmacForMatch(normalizedPhone) : null;
     const emailHash = normalizedEmail ? hmacForMatch(normalizedEmail) : null;
     const minor = isMinorRow(row);
+    // T-29R2: the CSV/native-import capture path for `Contact.jurisdiction` — normalized (uppercase,
+    // trimmed 2-letter code) via the SAME `normalizeJurisdiction` eligibility.ts's own compliance
+    // check compares against, so a stray-case/whitespace difference here can never cause a false
+    // non-match downstream. Absent/unmapped -> null, never fails the row.
+    const normalizedJurisdiction = normalizeJurisdiction(row.jurisdiction);
 
     const { firstName, lastName } = splitName(row.name);
 
@@ -295,6 +305,9 @@ export class VaultService {
       }
       if (!existing.industry && row.industry) {
         mergeData.industry = row.industry;
+      }
+      if (!existing.jurisdiction && normalizedJurisdiction) {
+        mergeData.jurisdiction = normalizedJurisdiction;
       }
       if (minor && !existing.is_minor_flag) {
         mergeData.is_minor_flag = true;
@@ -331,6 +344,7 @@ export class VaultService {
         email_hash: emailHash,
         notes: encryptOptionalField(row.notes ?? null, this.encryptionKey),
         industry: row.industry ?? null,
+        jurisdiction: normalizedJurisdiction,
         source,
         import_batch_id: batchId,
         is_minor_flag: minor,

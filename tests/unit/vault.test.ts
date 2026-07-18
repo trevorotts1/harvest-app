@@ -126,6 +126,85 @@ describe('VaultService — four ingestion modalities land a normalized Contact r
     expect(decryptRequiredField(stored.last_name)).toBe('CSV');
   });
 
+  // T-29R2 (WP03 gate remediation follow-up, §8.2 eligibility) — the CSV capture path proof: this is
+  // what makes `Contact.jurisdiction` populatable in production at all (the T-29R gate's fatal gap).
+  test('T-29R2: CSV import WITH a "State" column lands a normalized (uppercase, trimmed) Contact.jurisdiction', async () => {
+    const { prisma, contacts } = createFakeVaultPrisma();
+    const vault = new VaultService(prisma);
+    const csvText = 'Name,Phone,State\nTex Anderson,555-222-3333,  tx \n';
+
+    const result = await vault.importBatch('user-1', ContactSource.CSV, undefined, {
+      idempotencyKey: 'csv-state-1',
+      csvText,
+    });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.importedCount).toBe(1);
+    const [stored] = [...contacts.values()];
+    expect(stored.jurisdiction).toBe('TX'); // normalized: uppercase + trimmed
+  });
+
+  test('T-29R2: CSV import WITHOUT a state/jurisdiction column still imports successfully — Contact.jurisdiction stays null, never blocks/fails the import', async () => {
+    const { prisma, contacts } = createFakeVaultPrisma();
+    const vault = new VaultService(prisma);
+    const csvText = 'Name,Phone\nNo State Here,555-999-0000\n';
+
+    const result = await vault.importBatch('user-1', ContactSource.CSV, undefined, {
+      idempotencyKey: 'csv-no-state-1',
+      csvText,
+    });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.importedCount).toBe(1);
+    const [stored] = [...contacts.values()];
+    expect(stored.jurisdiction).toBeNull();
+  });
+
+  test('T-29R2: a non-CSV modality (already-normalized rows) also lands a normalized jurisdiction when RawContactImportRow.jurisdiction is supplied', async () => {
+    const { prisma, contacts } = createFakeVaultPrisma();
+    const vault = new VaultService(prisma);
+
+    const result = await vault.importBatch(
+      'user-1',
+      ContactSource.IOS_NATIVE,
+      [{ name: 'Nadia York', phone: '555-444-1111', jurisdiction: ' ny ' }],
+      { idempotencyKey: 'ios-state-1', clientPlatform: 'ios' }
+    );
+
+    expect(result.importedCount).toBe(1);
+    const [stored] = [...contacts.values()];
+    expect(stored.jurisdiction).toBe('NY');
+  });
+
+  test('T-29R2: cross-source merge fills in jurisdiction ONLY when the existing row does not already have one (same "fill only empty fields" rule as phone/email/notes)', async () => {
+    const { prisma, contacts } = createFakeVaultPrisma();
+    const vault = new VaultService(prisma);
+
+    await vault.importBatch('user-1', ContactSource.CSV, [{ name: 'Carla Three', phone: '555-444-5555' }], {
+      idempotencyKey: 'csv-batch-j',
+    });
+    await vault.importBatch(
+      'user-1',
+      ContactSource.IOS_NATIVE,
+      [{ name: 'Carla Three', phone: '555-444-5555', jurisdiction: 'ca' }],
+      { idempotencyKey: 'ios-batch-j', clientPlatform: 'ios' }
+    );
+
+    expect(contacts.size).toBe(1);
+    const [merged] = [...contacts.values()];
+    expect(merged.jurisdiction).toBe('CA'); // filled in from the second source, normalized
+
+    // A THIRD import with a DIFFERENT state must never overwrite the jurisdiction already on file.
+    await vault.importBatch(
+      'user-1',
+      ContactSource.CSV,
+      [{ name: 'Carla Three', phone: '555-444-5555', jurisdiction: 'ny' }],
+      { idempotencyKey: 'csv-batch-j2' }
+    );
+    const [afterThird] = [...contacts.values()];
+    expect(afterThird.jurisdiction).toBe('CA'); // unchanged — never clobbered by a later import
+  });
+
   test('iOS native modality: lands a row when clientPlatform=ios; refused (native-shell-only) otherwise', async () => {
     const { prisma, contacts } = createFakeVaultPrisma();
     const vault = new VaultService(prisma);
@@ -432,8 +511,39 @@ describe('CSV parser — fuzzy header-map, limits, malformed/exotic rows (§7.1,
     const { rows, errorRows } = parseContactCsv(csv);
     expect(errorRows).toHaveLength(0);
     expect(rows).toEqual([
-      { name: 'Emoji 🎉 Name', phone: '555-100-2000', email: 'emoji@example.com', notes: null, industry: null, birthdate: null },
+      { name: 'Emoji 🎉 Name', phone: '555-100-2000', email: 'emoji@example.com', notes: null, industry: null, birthdate: null, jurisdiction: null },
     ]);
+  });
+
+  // T-29R2 (WP03 gate remediation follow-up, §8.2 "Excluded: state-unlicensed" eligibility) — the
+  // fatal gap the T-29R QC caught: NO production path wrote `Contact.jurisdiction`. CSV import is
+  // now one of the two capture paths (the other is the manual PATCH route, tested in
+  // contact-flags.test.ts).
+  test('T-29R2: a "State" column fuzzy-maps onto jurisdiction, passed through raw (VaultService normalizes downstream)', () => {
+    const csv = 'Name,State\nTex Anderson,tx\n';
+    const { rows, errorRows } = parseContactCsv(csv);
+    expect(errorRows).toHaveLength(0);
+    expect(rows).toEqual([
+      { name: 'Tex Anderson', phone: null, email: null, notes: null, industry: null, birthdate: null, jurisdiction: 'tx' },
+    ]);
+  });
+
+  test('T-29R2: alternate header spellings ("Jurisdiction", "Contact State", "Licensing State") all fuzzy-map onto the same field', () => {
+    const csv = 'Name,Jurisdiction\nA One,NY\n';
+    expect(parseContactCsv(csv).rows[0].jurisdiction).toBe('NY');
+
+    const csv2 = 'Name,Contact State\nB Two,CA\n';
+    expect(parseContactCsv(csv2).rows[0].jurisdiction).toBe('CA');
+
+    const csv3 = 'Name,Licensing State\nC Three,WA\n';
+    expect(parseContactCsv(csv3).rows[0].jurisdiction).toBe('WA');
+  });
+
+  test('T-29R2: a CSV WITHOUT a state/jurisdiction column still imports successfully — jurisdiction just stays null, never blocks the import', () => {
+    const csv = 'Name,Phone\nNo State Here,555-999-0000\n';
+    const { rows, errorRows } = parseContactCsv(csv);
+    expect(errorRows).toHaveLength(0);
+    expect(rows[0].jurisdiction).toBeNull();
   });
 
   test('a row missing the name column becomes a downloadable error row, not a crash', () => {

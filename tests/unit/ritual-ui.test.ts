@@ -215,6 +215,7 @@ describe('(a) Ritual confirmation — score NEVER shown, excluded never actionab
     tier: ReadinessTier.A,
     label: 'Ready now',
     needsAcknowledgment: false,
+    needsJurisdiction: false,
     layersCompleted: [],
   };
   const excludedItem: PublicQueueItem = {
@@ -226,6 +227,20 @@ describe('(a) Ritual confirmation — score NEVER shown, excluded never actionab
     tier: ReadinessTier.EXCLUDED,
     label: 'Not eligible',
     needsAcknowledgment: true,
+    needsJurisdiction: false,
+    layersCompleted: [],
+  };
+  // T-29R2 — a distinct data-completion-prompt state, never mixed into the actionable grid either.
+  const needsJurisdictionItem: PublicQueueItem = {
+    contactId: 'c-3',
+    firstName: 'Drew',
+    lastInitial: 'T',
+    clusters: [],
+    tiles: {},
+    tier: ReadinessTier.NEEDS_JURISDICTION,
+    label: 'Needs jurisdiction info',
+    needsAcknowledgment: false,
+    needsJurisdiction: true,
     layersCompleted: [],
   };
 
@@ -255,6 +270,21 @@ describe('(a) Ritual confirmation — score NEVER shown, excluded never actionab
     expect(textOf(html)).toMatch(/never actionable/i);
     // An excluded contact needing acknowledgment gets an Acknowledge action, not a send/approve one.
     expect(textOf(html)).toContain('Acknowledge');
+  });
+
+  test('T-29R2 TEETH: a NEEDS_JURISDICTION item is never mixed into the actionable top-match grid, and is never rendered as an "excluded" acknowledgment item either — it gets its own distinct, non-actionable section', () => {
+    const html = render(RitualConfirmation, {
+      queue: [actionableItem, needsJurisdictionItem],
+      onAcknowledgeExcluded: noop,
+      onHandToAgent: noop,
+    });
+    const occurrences = (html.match(/Drew/g) ?? []).length;
+    expect(occurrences).toBe(1); // present exactly once — never duplicated into the actionable grid
+    expect(textOf(html)).toMatch(/need their state on file/i);
+    expect(textOf(html)).toContain('Needs jurisdiction info');
+    // Distinct from the "excluded, needs acknowledgment" framing — this is a data gap, not a
+    // confirmed exclusion, so there is no Acknowledge action rendered anywhere in this queue.
+    expect(textOf(html)).not.toContain('Acknowledge');
   });
 
   test('names the Warm Market Sub-Agent and states the honest approval boundary (AC-5.4-5)', () => {

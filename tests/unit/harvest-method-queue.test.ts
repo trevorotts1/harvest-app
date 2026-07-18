@@ -465,19 +465,21 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     seedContact(contacts as any, { id: 'unknown', userId: 'rep-3', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction on file
     await completeAllThreeLayers(prisma, 'rep-3', ['ny', 'unknown']);
 
-    // A provider that would exclude EVERYTHING (or blow up the request) if it were ever consulted —
-    // proving a universal rep never calls into it at all (the "naive fail-closed over-excludes
-    // everyone" failure mode this build unit's brief explicitly calls out).
-    const neverCallMe = {
-      getLicensedJurisdictions: async (): Promise<string[]> => {
-        throw new Error('must never be called for a universal (non-Primerica) rep — §17.1 no-op');
-      },
-    };
-    const service = new PrioritizedQueueService(prisma, undefined, neverCallMe);
+    // T-29R2 TEETH: a bare "throws if called" provider is not actually proof of anything — if a
+    // future refactor accidentally moved the call inside a broader try/catch (or ahead of the
+    // `if (regulated)` gate) the throw would simply be swallowed and this test would still pass on
+    // its OWN merits (a universal rep's ids stay correct regardless, since checkJurisdictionExclusion
+    // returns null for `!regulated` before ever touching licensedJurisdictions). A `jest.fn()` spy +
+    // `not.toHaveBeenCalled()` is the only assertion that actually trips if the no-op gate regresses.
+    const licensingProviderSpy = jest.fn(async (): Promise<string[]> => {
+      throw new Error('must never be called for a universal (non-Primerica) rep — §17.1 no-op');
+    });
+    const service = new PrioritizedQueueService(prisma, undefined, { getLicensedJurisdictions: licensingProviderSpy });
 
     const actionQueue = await service.getQueue('rep-3', OrgType.EXTERNAL, { includeExcluded: false });
     const ids = (actionQueue as any).queue.map((q: any) => q.contactId).sort();
     expect(ids).toEqual(['ny', 'unknown']);
+    expect(licensingProviderSpy).not.toHaveBeenCalled();
   });
 
   test('(d) a REGULATED rep + a contact in a state the rep IS licensed in -> remains eligible (not excluded on this dimension)', async () => {
@@ -494,7 +496,7 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     expect((actionQueue as any).queue[0].tier).not.toBe(ReadinessTier.EXCLUDED);
   });
 
-  test('(e) a REGULATED rep + a contact with an UNKNOWN jurisdiction -> excluded (fail-closed; cannot confirm the rep is licensed "wherever this contact is")', async () => {
+  test('(e) T-29R2: a REGULATED rep + a contact with an UNKNOWN jurisdiction -> a DISTINCT "needs jurisdiction" state, never EXCLUDED, never silently dropped — and the data gap is remediable', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
     seedContact(contacts as any, { id: 'unknown', userId: 'rep-5', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction set
     await completeAllThreeLayers(prisma, 'rep-5', ['unknown']);
@@ -502,8 +504,35 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     const licensedTX = { getLicensedJurisdictions: async () => ['TX'] };
     const service = new PrioritizedQueueService(prisma, undefined, licensedTX);
 
+    // Held out of the actionable §8.3 action queue — an unknown state can't be drafted compliant
+    // outreach for either — but this is NOT the same thing as EXCLUDED.
+    const actionQueue = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: false });
+    expect((actionQueue as any).queue).toEqual([]);
+
+    // Surfaced (never silently dropped) in the ritual-review view as the DISTINCT NEEDS_JURISDICTION
+    // state — assert the distinct state explicitly, not merely "not visible."
     const fullQueue = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: true });
-    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    const item = (fullQueue as any).queue[0];
+    expect(item.tier).toBe(ReadinessTier.NEEDS_JURISDICTION);
+    expect(item.tier).not.toBe(ReadinessTier.EXCLUDED);
+    expect(item.needsJurisdiction).toBe(true);
+    expect(item.needsAcknowledgment).toBe(false); // this is a data-completion prompt, not an exclusion tap
+
+    // Remediation, part 1: setting the jurisdiction to a state the rep IS licensed in makes the
+    // contact eligible/actionable — proving the data gap, once filled, no longer gates the queue.
+    contacts.get('unknown')!.jurisdiction = 'TX';
+    const afterLicensed = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: false });
+    expect((afterLicensed as any).queue.map((q: any) => q.contactId)).toEqual(['unknown']);
+    const licensedItem = (afterLicensed as any).queue[0];
+    expect(licensedItem.tier).not.toBe(ReadinessTier.EXCLUDED);
+    expect(licensedItem.tier).not.toBe(ReadinessTier.NEEDS_JURISDICTION);
+
+    // Remediation, part 2: setting the jurisdiction to a state the rep is NOT licensed in instead
+    // correctly lands the CONFIRMED-unlicensed contact in EXCLUDED (unchanged T-29R behavior) —
+    // proving this is a genuine three-way split, not unknown/known collapsing back together.
+    contacts.get('unknown')!.jurisdiction = 'NY';
+    const afterUnlicensed = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: true });
+    expect((afterUnlicensed as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
   });
 
   test('case-insensitive / whitespace-tolerant jurisdiction match: a lowercase-imported "tx" still matches a licensed "TX"', async () => {
@@ -521,13 +550,18 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
   // Mutation-proof: exercises the pure boundary function directly. If `checkJurisdictionExclusion`'s
   // `!context.regulated` early-return were deleted, the third assertion below (universal, mismatched
   // jurisdiction) would flip from `null` to `'unlicensed_jurisdiction'` and fail — proving the
-  // no-op-for-universal branch has real teeth, not just the integration tests above.
-  test('mutation-proof: checkJurisdictionExclusion trips ONLY on the regulated+non-licensed-jurisdiction case', () => {
+  // no-op-for-universal branch has real teeth, not just the integration tests above. T-29R2 adds the
+  // `needs_jurisdiction` assertions: if the needs-info branch were REMOVED (reverting to the T-29R
+  // behavior of `if (!jurisdiction) return 'unlicensed_jurisdiction'`), the null/undefined-jurisdiction
+  // assertions below would flip from `'needs_jurisdiction'` to `'unlicensed_jurisdiction'` and fail —
+  // this is the exact mutation the T-29R2 brief calls out as required to trip test (e) above.
+  test('mutation-proof: checkJurisdictionExclusion trips ONLY on the regulated+non-licensed-jurisdiction case; unknown jurisdiction is its OWN distinct outcome', () => {
     expect(checkJurisdictionExclusion('NY', { regulated: true, licensedJurisdictions: ['TX'] })).toBe('unlicensed_jurisdiction');
     expect(checkJurisdictionExclusion('TX', { regulated: true, licensedJurisdictions: ['TX'] })).toBeNull();
     expect(checkJurisdictionExclusion('NY', { regulated: false, licensedJurisdictions: [] })).toBeNull(); // universal no-op
-    expect(checkJurisdictionExclusion(null, { regulated: true, licensedJurisdictions: ['TX'] })).toBe('unlicensed_jurisdiction'); // unknown jurisdiction, fail-closed
-    expect(checkJurisdictionExclusion('TX', { regulated: true, licensedJurisdictions: [] })).toBe('unlicensed_jurisdiction'); // empty licensure, fail-closed
+    expect(checkJurisdictionExclusion(null, { regulated: true, licensedJurisdictions: ['TX'] })).toBe('needs_jurisdiction'); // unknown jurisdiction -> distinct needs-info state, NOT excluded (T-29R2)
+    expect(checkJurisdictionExclusion(undefined, { regulated: true, licensedJurisdictions: ['TX'] })).toBe('needs_jurisdiction'); // same for undefined as for null
+    expect(checkJurisdictionExclusion('TX', { regulated: true, licensedJurisdictions: [] })).toBe('unlicensed_jurisdiction'); // KNOWN jurisdiction + empty licensure, fail-closed EXCLUDED (unchanged)
     expect(checkJurisdictionExclusion(undefined, { regulated: false, licensedJurisdictions: [] })).toBeNull(); // universal + unknown jurisdiction: still a no-op
   });
 });

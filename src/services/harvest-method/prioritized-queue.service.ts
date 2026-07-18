@@ -61,8 +61,11 @@ export interface QueuePrismaClient extends HarvestMethodPrismaClient {
 }
 
 export interface GetQueueOptions {
-  /** true = the full ritual-review list (includes EXCLUDED, for the Layer-3 acknowledgment surface);
-   *  false = the §8.3 action-queue view (EXCLUDED never appears — "Excluded contacts never queue"). */
+  /** true = the full ritual-review list (includes EXCLUDED, for the Layer-3 acknowledgment surface,
+   *  AND NEEDS_JURISDICTION, T-29R2, for the data-completion-prompt surface); false = the §8.3
+   *  action-queue view (neither EXCLUDED nor NEEDS_JURISDICTION ever appears there — "Excluded
+   *  contacts never queue," and a contact this rep cannot yet be confirmed licensed for is equally
+   *  held out of the actionable view until its jurisdiction is known). */
   includeExcluded: boolean;
   /** Primerica-only; ignored (and never rendered) for a universal org. */
   rank?: string | null;
@@ -70,14 +73,17 @@ export interface GetQueueOptions {
 
 export type PrioritizedQueueResult = QueueResult & { primericaVelocity?: PrimericaVelocityContext };
 
-/** Tier sort precedence — A first, then B, then Slow Burn, then Excluded (only ever present when
- *  `includeExcluded` is true); score (still hidden) breaks ties WITHIN a tier only, so a needs-time
- *  Slow Burn contact with an incidentally high raw score can never outrank a true B-tier contact. */
+/** Tier sort precedence — A first, then B, then Slow Burn, then Needs Jurisdiction (T-29R2), then
+ *  Excluded (the latter two only ever present when `includeExcluded` is true); score (still hidden)
+ *  breaks ties WITHIN a tier only, so a needs-time Slow Burn contact with an incidentally high raw
+ *  score can never outrank a true B-tier contact. Needs Jurisdiction sorts ahead of Excluded — a
+ *  remediable data gap is a lesser concern than a confirmed exclusion. */
 const TIER_SORT_RANK: Record<ReadinessTier, number> = {
   [ReadinessTier.A]: 0,
   [ReadinessTier.B]: 1,
   [ReadinessTier.SLOW_BURN]: 2,
-  [ReadinessTier.EXCLUDED]: 3,
+  [ReadinessTier.NEEDS_JURISDICTION]: 3,
+  [ReadinessTier.EXCLUDED]: 4,
 };
 
 export class PrioritizedQueueService {
@@ -163,7 +169,13 @@ export class PrioritizedQueueService {
         regulated,
         licensedJurisdictions,
       });
-      const excluded = !eligibility.eligible || profile.existing_licensee_flag || jurisdictionExclusion !== null;
+      // T-29R2: the two `checkJurisdictionExclusion` outcomes are NOT folded together any more — only
+      // a CONFIRMED-unlicensed jurisdiction feeds `excluded` (unchanged from T-29R); an UNKNOWN
+      // jurisdiction feeds the separate `needsJurisdiction` signal below, which computeReadiness
+      // routes to the distinct NEEDS_JURISDICTION tier instead of EXCLUDED.
+      const excluded =
+        !eligibility.eligible || profile.existing_licensee_flag || jurisdictionExclusion === 'unlicensed_jurisdiction';
+      const needsJurisdiction = jurisdictionExclusion === 'needs_jurisdiction';
 
       const clusters = clustersFromJson(profile.clusters);
       const tilesFilledCount = [
@@ -186,7 +198,7 @@ export class PrioritizedQueueService {
         financialSituation: profile.financial_situation,
       };
 
-      const result = computeReadiness(inputs, excluded, profile.needs_time);
+      const result = computeReadiness(inputs, excluded, profile.needs_time, needsJurisdiction);
 
       // Persist the freshly computed (still-HIDDEN) score+tier so a downstream aggregate/read path
       // never has to re-run the engine — it never crosses THIS module's own return value though.
@@ -205,7 +217,13 @@ export class PrioritizedQueueService {
       scored.push({ profile, contact, score: result.score, tier: result.tier, label: result.label });
     }
 
-    const filtered = options.includeExcluded ? scored : scored.filter((s) => s.tier !== ReadinessTier.EXCLUDED);
+    // T-29R2: NEEDS_JURISDICTION is held out of the default §8.3 action-queue view exactly like
+    // EXCLUDED (can't draft compliant outreach for either), but both remain visible in the
+    // `includeExcluded: true` ritual-review list — EXCLUDED for the acknowledgment tap, NEEDS_
+    // JURISDICTION for the "add this contact's state" data-completion prompt.
+    const filtered = options.includeExcluded
+      ? scored
+      : scored.filter((s) => s.tier !== ReadinessTier.EXCLUDED && s.tier !== ReadinessTier.NEEDS_JURISDICTION);
 
     filtered.sort((a, b) => {
       const tierDiff = TIER_SORT_RANK[a.tier] - TIER_SORT_RANK[b.tier];

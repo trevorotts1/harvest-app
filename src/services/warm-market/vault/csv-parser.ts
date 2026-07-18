@@ -33,7 +33,7 @@ export interface CsvParseResult {
 }
 
 /** Recognized logical fields a fuzzy-matched header may map onto. */
-type MappedField = 'name' | 'phone' | 'email' | 'notes' | 'industry' | 'birthdate';
+type MappedField = 'name' | 'phone' | 'email' | 'notes' | 'industry' | 'birthdate' | 'jurisdiction';
 
 // §7.1 "fuzzy header-map": common real-world header spellings/casings/synonyms per logical field.
 // Matching is done against a normalized header (lowercased, punctuation/whitespace collapsed), so
@@ -45,6 +45,12 @@ const HEADER_ALIASES: Record<MappedField, string[]> = {
   notes: ['notes', 'note', 'comments', 'comment', 'memo'],
   industry: ['industry', 'company', 'business', 'occupation'],
   birthdate: ['birthdate', 'birth date', 'birthday', 'dob', 'date of birth'],
+  // T-29R2 (WP03 gate remediation follow-up, §8.2 "Excluded: state-unlicensed" eligibility): the
+  // ONLY CSV capture path for `Contact.jurisdiction` — raw value passed through as-is here (see
+  // `RawContactImportRow.jurisdiction`'s doc comment); `VaultService.upsertRow` normalizes to the
+  // two-letter postal code before persistence. Column absent = jurisdiction stays unknown/null; the
+  // import itself never fails for lacking this column.
+  jurisdiction: ['state', 'jurisdiction', 'contact state', 'licensing state'],
 };
 
 function normalizeHeader(header: string): string {
@@ -156,6 +162,9 @@ export function parseContactCsv(csvText: string): CsvParseResult {
       notes: record.notes ?? null,
       industry: record.industry ?? null,
       birthdate: record.birthdate ?? null,
+      // T-29R2: raw pass-through (normalized downstream by VaultService.upsertRow); absent column ->
+      // null, never fails the import.
+      jurisdiction: record.jurisdiction ?? null,
     });
   });
 

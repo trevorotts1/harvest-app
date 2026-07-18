@@ -3,13 +3,18 @@
 // ownership-checked (the contact must belong to the SESSION user), and the two flags are set
 // INDEPENDENTLY — see `ContactFlagsService.setFlags`'s header comment for the write-path guarantee.
 //
+// T-29R2 (WP03 gate remediation follow-up, §8.2 eligibility) extends this SAME route with the
+// manual capture path for `Contact.jurisdiction` — see `ContactFlagsService`'s own header comment
+// for why reusing this route (rather than a new one) is the least-invasive capture surface.
+//
 // Lazy: the service is constructed per-request, INSIDE the handler, not at module scope — the same
 // build-safety convention `contacts/agent-queue/route.ts` and every `harvest-method/*/route.ts`
 // route already follows (T-26's build-integration fix), so `next build`'s page-data collection
 // (which imports every route module with no request in flight) never risks a module-scope
-// construction throwing. This route's service needs no encryption key at all (the two flags are
-// plain booleans, not PII), so there is no key-read hazard here either way — the lazy construction
-// is kept purely for convention consistency with every sibling route.
+// construction throwing. This route's service needs no encryption key at all (the flags are plain
+// booleans and jurisdiction is a plaintext categorical field, not PII — see prisma/schema.prisma's
+// `Contact.jurisdiction` doc comment), so there is no key-read hazard here either way — the lazy
+// construction is kept purely for convention consistency with every sibling route.
 
 import { NextResponse } from 'next/server';
 
@@ -25,12 +30,16 @@ interface SetFlagsBody {
   contactId?: string;
   isRecruitTarget?: boolean;
   isClient?: boolean;
+  /** T-29R2 — a string sets (validated/normalized in the service), `null` explicitly clears,
+   *  omitted leaves untouched. */
+  jurisdiction?: string | null;
 }
 
 // ── PATCH /api/contacts/flags ────────────────────────────────────────────────────────────────────
-// Body: { contactId, isRecruitTarget?, isClient? } — at least one of the two flags must be present.
-// Each is applied independently: sending only `isRecruitTarget` never touches `is_client`, and vice
-// versa (§4.6 "two independent flag toggles").
+// Body: { contactId, isRecruitTarget?, isClient?, jurisdiction? } — at least one field must be
+// present. Each is applied independently: sending only `isRecruitTarget` never touches `is_client`
+// or `jurisdiction`, and so on for every combination (§4.6 "two independent flag toggles", extended
+// by T-29R2 to a third independently-settable field).
 export const PATCH = withOnboardingGate(async (req, _ctx, _session, identity) => {
   let body: SetFlagsBody;
   try {
@@ -48,19 +57,29 @@ export const PATCH = withOnboardingGate(async (req, _ctx, _session, identity) =>
   if (body.isClient !== undefined && typeof body.isClient !== 'boolean') {
     return NextResponse.json({ error: '"isClient" must be a boolean.' }, { status: 400 });
   }
+  if (body.jurisdiction !== undefined && body.jurisdiction !== null && typeof body.jurisdiction !== 'string') {
+    return NextResponse.json({ error: '"jurisdiction" must be a string or null.' }, { status: 400 });
+  }
 
   const service = new ContactFlagsService(prisma as unknown as ContactFlagsPrismaClient);
   const result = await service.setFlags(identity.userId, body.contactId, {
     isRecruitTarget: body.isRecruitTarget,
     isClient: body.isClient,
+    jurisdiction: body.jurisdiction,
   });
 
   if (!result.ok) {
     if (result.reason === 'not_found') {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
+    if (result.reason === 'invalid_jurisdiction') {
+      return NextResponse.json(
+        { error: '"jurisdiction" must be a valid two-letter US state code (or null to clear).' },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
-      { error: 'At least one of "isRecruitTarget"/"isClient" must be provided.' },
+      { error: 'At least one of "isRecruitTarget"/"isClient"/"jurisdiction" must be provided.' },
       { status: 400 }
     );
   }

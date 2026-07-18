@@ -137,6 +137,12 @@ export interface PublicQueueItem {
   tier: ReadinessTier;
   label: string;
   needsAcknowledgment: boolean;
+  /** T-29R2 (§7.6 "needs info" pattern mirrored for §8.2 eligibility): true only for the distinct
+   *  `NEEDS_JURISDICTION` tier — an UNKNOWN contact jurisdiction for a regulated rep. Mirrors
+   *  `needsAcknowledgment`'s shape but signals a data-completion prompt ("add this contact's
+   *  state") rather than an exclusion the rep must acknowledge; never true at the same time as
+   *  `needsAcknowledgment`. */
+  needsJurisdiction: boolean;
   layersCompleted: MethodLayer[];
 }
 

@@ -19,10 +19,18 @@
 //      service.ts) exactly the same way `existing_licensee_flag` is: it is NOT part of
 //      `checkEligibility`'s own return value (this module's Contact-row-only/OptOutRegistry-only
 //      surface stays narrow), but every caller that assembles the final `excluded` boolean must OR
-//      it in. Regulated (Primerica) rep + a contact whose jurisdiction the rep is NOT LICENSED in
-//      (via WP11's `LicensingService.getLicensedJurisdictions()`) => excluded; a rep with NO
-//      licensing regime (universal/non-Primerica, §17.1) => this check is a no-op — never
-//      over-excludes a rep who was never subject to state insurance licensing in the first place.
+//      in the `'unlicensed_jurisdiction'` case. Regulated (Primerica) rep + a contact whose known
+//      jurisdiction the rep is NOT LICENSED in (via WP11's `LicensingService.
+//      getLicensedJurisdictions()`) => excluded; a rep with NO licensing regime
+//      (universal/non-Primerica, §17.1) => this check is a no-op — never over-excludes a rep who was
+//      never subject to state insurance licensing in the first place.
+//   4. NEEDS-JURISDICTION (T-29R2 — the WP03 QC fast-follow closing T-29R's own fatal gap: no
+//      production path wrote `Contact.jurisdiction`, so every regulated rep's queue was always
+//      empty) — a regulated rep + an UNKNOWN contact jurisdiction is deliberately NOT the same
+//      outcome as case 3: it is NOT a confirmed compliance violation, so the caller must route the
+//      `'needs_jurisdiction'` case to the distinct `NEEDS_JURISDICTION` tier (never `EXCLUDED`,
+//      never dropped) — surfaced as a remediable data-completion prompt. See
+//      `checkJurisdictionExclusion`'s own doc comment below for the full split.
 
 import { PipelineStage } from '@prisma/client';
 
@@ -124,34 +132,60 @@ export interface LicensedJurisdictionsProvider {
 /** Uppercase/trim a jurisdiction code for comparison (mirrors the two-letter US state postal code
  *  convention documented on `LicensingRecord.jurisdiction`, src/types/licensing.ts) — a stray-case or
  *  whitespace difference between an imported Contact's state and a LicensingRecord's jurisdiction
- *  must never cause a false non-match at this compliance boundary. */
-function normalizeJurisdiction(value: string | null | undefined): string | null {
+ *  must never cause a false non-match at this compliance boundary. Exported (T-29R2) so every
+ *  jurisdiction CAPTURE path (csv-parser.ts's CSV import, contact-flags.service.ts's manual set)
+ *  normalizes identically to this compliance boundary's own comparison — one implementation of
+ *  "what counts as the same jurisdiction," never a second copy that could drift. */
+export function normalizeJurisdiction(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim().toUpperCase();
   return trimmed.length > 0 ? trimmed : null;
 }
 
 /**
+ * T-29R2 (WP03 QC fast-follow — the fatal gap the T-29R gate remediation left open): the ONE
+ * production defect this build unit exists to fix was `if (!jurisdiction) return
+ * 'unlicensed_jurisdiction'` below — since NO production path wrote `Contact.jurisdiction` before
+ * this unit, EVERY contact of EVERY regulated rep hit this branch and was `EXCLUDED`, making the
+ * action queue always empty (an over-exclusion defect, not a compliance one, but real all the same).
+ * The fix does NOT weaken the fail-closed posture (an unknown jurisdiction still never becomes
+ * eligible/actionable) — it splits "cannot confirm licensure" into two distinguishable outcomes so
+ * the data gap is surfaced and remediable instead of silently and permanently gutting the queue:
+ *   - `'needs_jurisdiction'` — the contact's jurisdiction is unknown. NOT a confirmed compliance
+ *     violation (we simply don't know), so it is NOT `EXCLUDED`; the caller
+ *     (prioritized-queue.service.ts) routes this to the distinct `NEEDS_JURISDICTION` tier — held
+ *     out of the actionable queue exactly like `EXCLUDED` is, but surfaced as a data-completion
+ *     prompt rather than an exclusion the rep must acknowledge.
+ *   - `'unlicensed_jurisdiction'` — the contact's jurisdiction IS known, and either (a) it is not in
+ *     `context.licensedJurisdictions`, or (b) `licensedJurisdictions` is empty/unavailable (the
+ *     rep's own licensure could not be confirmed) — both fail closed to a CONFIRMED exclusion,
+ *     unchanged from T-29R.
+ */
+export type JurisdictionExclusionReason = 'unlicensed_jurisdiction' | 'needs_jurisdiction';
+
+/**
  * §8.2's "Excluded: state-unlicensed" tier / §8.1 eligibility, for one contact against one rep's
  * licensing context. Precedence, all fail-toward-caution at this compliance boundary:
- *   1. `!context.regulated` (universal rep, §17.1) => never excluded on this dimension — a rep with
- *      no licensing regime has nothing for this check to enforce (no over-exclusion).
- *   2. A regulated rep with an UNKNOWN contact jurisdiction (null/blank) => excluded. A regulated rep
- *      cannot be confirmed to be licensed "wherever this contact happens to be" when that location is
- *      unknown — deny-by-default, not assume-eligible-by-default.
- *   3. A regulated rep whose contact jurisdiction is known => excluded UNLESS that exact jurisdiction
- *      appears in `context.licensedJurisdictions` (which is `[]` — and therefore excludes everyone —
- *      whenever the rep's licensure is empty/unavailable, per `JurisdictionLicensingContext`'s own
- *      doc comment).
+ *   1. `!context.regulated` (universal rep, §17.1) => never excluded/gated on this dimension — a rep
+ *      with no licensing regime has nothing for this check to enforce (no over-exclusion).
+ *   2. A regulated rep with an UNKNOWN contact jurisdiction (null/blank) => `'needs_jurisdiction'`
+ *      (T-29R2) — a data gap, not a confirmed violation; never assumed eligible, but also never
+ *      silently folded into `EXCLUDED` (see the module-level comment above for why this split
+ *      exists).
+ *   3. A regulated rep whose contact jurisdiction is known => `'unlicensed_jurisdiction'` UNLESS that
+ *      exact jurisdiction appears in `context.licensedJurisdictions` (which is `[]` — and therefore
+ *      excludes everyone with a KNOWN jurisdiction — whenever the rep's licensure is
+ *      empty/unavailable, per `JurisdictionLicensingContext`'s own doc comment; this fail-closed
+ *      behavior is unchanged from T-29R).
  */
 export function checkJurisdictionExclusion(
   contactJurisdiction: string | null | undefined,
   context: JurisdictionLicensingContext
-): 'unlicensed_jurisdiction' | null {
+): JurisdictionExclusionReason | null {
   if (!context.regulated) return null;
 
   const jurisdiction = normalizeJurisdiction(contactJurisdiction);
-  if (!jurisdiction) return 'unlicensed_jurisdiction';
+  if (!jurisdiction) return 'needs_jurisdiction';
 
   const licensedSet = new Set(
     context.licensedJurisdictions.map((j) => normalizeJurisdiction(j)).filter((j): j is string => j !== null)

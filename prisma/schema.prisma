@@ -1094,6 +1094,14 @@ enum ReadinessTier {
   B
   SLOW_BURN
   EXCLUDED
+  // T-29R2 (WP03 gate remediation follow-up, §7.6 "needs info" pattern mirrored for §8.2
+  // eligibility): a REGULATED rep's contact with an UNKNOWN (null) jurisdiction — distinct from
+  // EXCLUDED (a CONFIRMED-unlicensed jurisdiction, unchanged). Held out of the §8.3 action queue
+  // (can't draft compliant outreach without knowing the state) but SURFACED in the ritual-review
+  // view as a remediable data-completion prompt, never silently dropped and never conflated with a
+  // confirmed exclusion. See eligibility.ts `checkJurisdictionExclusion` and
+  // prioritized-queue.service.ts's tier-assignment for the full precedence.
+  NEEDS_JURISDICTION
 }
 
 /// One row per rep — the three-layer method's own progress state (§8.1). Deliberately its own
