@@ -26,6 +26,7 @@
     "@prisma/client": "^5.14.0",
     "bcryptjs": "^3.0.3",
     "crypto-js": "^4.2.0",
+    "inngest": "^3.54.2",
     "next": "^14.2.0",
     "next-auth": "^4.24.14",
     "otplib": "^13.4.1",
