@@ -70,3 +70,8 @@ export {
 export type { DurableQueue, AgentDispatchEventData } from './durable-queue';
 
 export { dispatchAgentJob } from './dispatch';
+
+// T-31 (§4.5/§4.6) — the REAL cost model, budget/kill-switch RunGate, in-roster degradation ladder,
+// and the production dep-builder that wires them into a dispatch invocation. See ./cost-killswitch
+// for the full surface (this re-export is a convenience; nothing here is duplicated).
+export * from './cost-killswitch';

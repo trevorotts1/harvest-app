@@ -550,6 +550,30 @@ model AgentRun {
   @@index([agent_key])
 }
 
+// T-31 (§4.5/§4.6) — the kill-switch state: PLATFORM (singleton, scope_id = 'GLOBAL'), ORG
+// (scope_id = Organization.id), or REP (scope_id = User.id). A missing row means "not tripped"
+// (the default posture). Budget ceilings themselves are NOT persisted here — they are computed
+// from User.access_tier x User.intensity_setting (per-rep) or a documented org/platform aggregate
+// constant (§4.5), with the live spend read straight off the AgentRun.cost_cents roll-up per the
+// spec's "every AgentRun ... gives a live per-rep and per-org cost roll-up" design. This table only
+// persists the TRIPPED/CLEARED state so a kill-switch (manual or budget-auto-tripped) survives
+// across requests/instances and is toggleable via a session-gated, ownership-checked route.
+model AgentKillSwitch {
+  id          String    @id @default(uuid())
+  scope       String    // PLATFORM | ORG | REP
+  scope_id    String    // 'GLOBAL' for PLATFORM; Organization.id for ORG; User.id for REP
+  tripped     Boolean   @default(false)
+  reason      String?
+  tripped_by  String?   // user_id of the admin/rep who tripped it; null when auto-tripped (budget breach)
+  tripped_at  DateTime? @db.Timestamptz(6)
+  cleared_by  String?
+  cleared_at  DateTime? @db.Timestamptz(6)
+  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@unique([scope, scope_id])
+  @@index([scope, scope_id, tripped])
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // §3.3 New entities — Messaging (§5, §10)
 // ═══════════════════════════════════════════════════════════════════════
