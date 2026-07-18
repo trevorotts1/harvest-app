@@ -1,3 +1,9 @@
+## [2.0.0-build.T26] — BUILD PHASE — 2026-07-18
+### T-26 — WP03 three-layer method + hidden readiness engine (QC 9.2, 1 QC loop) — first WP03 unit
+- Three-layer warm-market method (Blank Canvas soft-gate / 6-cluster Qualities Flip / Background Matching) with enforced layer order (no short-circuit — action queue unavailable until all 3 complete). Hidden 0–100 readiness score (§8.2 weights 0.30/0.25/0.20/0.15/0.10) drives priority tiers but is NEVER surfaced (assertNoRawScoreLeak throws on any score-shaped key in a public payload).
+- Excluded contacts (do_not_contact / DO_NOT_CONTACT / minor / opted-out) never enter the ranking or action queue, re-evaluated live per request. Primerica calibration overlay only behind the org gate (structurally absent for universal users; assertNoPrimericaLeak). Upline visibility is aggregate-only (assertAggregateOnly). Replaced pre-rebuild baseline that had org-gating inverted (refused non-Primerica).
+- Additive schema (HarvestMethodState, ContactMethodProfile + 2 enums) + migration. Routes instantiate services lazily in-handler (build-safe without the encryption key). 853 tests. Deferred/tracked: §8.3 opener-drafting + rep-opt-in consent gate for the upline aggregate surface → WP04.
+
 ## [2.0.0-build.T23] — BUILD PHASE — 2026-07-17
 ### T-23 — Segmentation + Memory Jogger + agent pipeline; Contact-PII decrypt reads (WP02, QC 8.75)
 - Haiku-4.5 contact segmentation (DI-mockable, fail-closed on missing key, no non-Claude fallback; deterministic 0–100 score, A-list ≥70). Memory Jogger surfaces DECRYPTED contact PII (via T-22's decryptContactPII) with dedup + skip-count. Agent pipeline (contact→agent typed contract) + new session-gated /api/contacts/agent-queue route (ownership-checked, forged-header-inert).
