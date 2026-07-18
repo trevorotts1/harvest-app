@@ -1047,3 +1047,81 @@ model IncidentEvent {
   @@index([incident_id, occurred_at])
   @@index([kind, occurred_at])
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — WP03 Harvest Method & readiness engine (§8.1-§8.2, T-26)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// The six Qualities Flip clusters (master-spec §8.1 — this is the section that GOVERNS over the
+/// blueprint's five-quality flip per the uiux §5.4 reconciliation note). A closed Prisma enum, not
+/// a config string, so a future edit can never silently drift the count away from six.
+enum QualityCluster {
+  COMMUNITY_HUB
+  RISING_ACHIEVER
+  NATURAL_TEACHER
+  STEADY_BUILDER
+  HEART_OF_GOLD
+  QUIET_INFLUENCER
+}
+
+/// §8.2 priority tiers. EXCLUDED is a distinct, always-explicit tier (never merely "absent from the
+/// queue") so the exclusion is a value the code has to actively filter, not a state a future bug can
+/// forget to check for.
+enum ReadinessTier {
+  A
+  B
+  SLOW_BURN
+  EXCLUDED
+}
+
+/// One row per rep — the three-layer method's own progress state (§8.1). Deliberately its own
+/// additive table, never a new column on `User` (WP01-owned): every layer here is UNIVERSAL for
+/// every organization (§8 preamble, §17.1) — this table carries no Primerica-only column. Primerica
+/// overlay context (rank, solution number) is read live from `User` at render time by
+/// `primerica-overlay.ts`, never duplicated here.
+model HarvestMethodState {
+  id                               String    @id @default(uuid())
+  user_id                          String    @unique
+  vault_count_at_blank_canvas      Int?      // count shown at Layer-1 entry (number only, no names, §8.1)
+  blank_canvas_completed_at        DateTime? @db.Timestamptz(6)
+  blank_canvas_seed_count          Int?      // size of the curated seed list produced
+  blank_canvas_soft_gate_confirmed Boolean   @default(false) // rep confirmed "stop at N<5" (§8.1 soft gate)
+  qualities_flip_selected_clusters QualityCluster[] @default([]) // the 2-3 clusters the rep picked as resonant (empty = not yet chosen)
+  qualities_flip_completed_at      DateTime? @db.Timestamptz(6)
+  background_matching_completed_at DateTime? @db.Timestamptz(6)
+  created_at                      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+/// One row per (rep, contact) — everything the three layers capture about a single seed contact,
+/// plus the computed HIDDEN readiness score (§8.1 Layer 3, §8.2). This is WP03's own additive
+/// table; it never adds a column to the WP02-owned `Contact` model. `readiness_score` is the named
+/// WP03 critical failure surface ("readiness score SHOWN to user") — no route in this build unit
+/// serializes this column directly; every rep-facing payload is built from `readiness_tier` only,
+/// via readiness-engine.ts's public projector, which asserts the raw score is absent before return.
+model ContactMethodProfile {
+  id                         String         @id @default(uuid())
+  user_id                    String
+  contact_id                 String
+  is_seed                    Boolean        @default(false) // in the Layer-1 Blank Canvas seed list
+  needs_time                 Boolean        @default(false) // Layer 2 "need more time" -> slow-burn queue
+  clusters                   QualityCluster[] @default([]) // assigned in Layer 2 (>=1 once reviewed; empty = not yet reviewed / needs_time)
+  career_stage               String?        // Layer 3 tile: transitioning | early | established | near_retirement
+  financial_situation        String?        // Layer 3 tile: building | stuck | just_starting | wealth_building
+  family_context             String?        // Layer 3 tile (chip value)
+  community_role             String?        // Layer 3 tile (chip value)
+  note                       String?        // Layer 3 optional note (<=500 chars pre-encryption), ciphertext envelope at rest
+  existing_licensee_flag     Boolean        @default(false) // §8.1 Layer 3 "flags immediate unsuitability e.g. an existing licensee" (soft exclusion, requires ack)
+  existing_licensee_acked_at DateTime?      @db.Timestamptz(6)
+  readiness_score            Int?           // 0-100, HIDDEN — see model header; never serialized raw (§8.2)
+  readiness_tier             ReadinessTier? // the ONLY readiness datum ever exposed to a rep-facing payload
+  queue_actioned_at          DateTime?      @db.Timestamptz(6)
+  created_at                 DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime       @updatedAt @db.Timestamptz(6)
+
+  @@unique([user_id, contact_id])
+  @@index([user_id])
+  @@index([user_id, readiness_tier])
+}

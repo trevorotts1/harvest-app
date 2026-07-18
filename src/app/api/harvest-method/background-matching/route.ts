@@ -1,22 +1,33 @@
 import { NextResponse } from 'next/server';
-import { submitBackgroundMatching } from '@/services/harvest-method/method.service';
-import { BackgroundMatchingData } from '@/types/harvest-method';
-// T-20 §6.10-1: downstream (WP03) route, now behind the real onboarding gate (see onboarding-gate.ts).
-import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 
-// Per-request: reads the live session via withOnboardingGate → getCurrentSession, so it must not be
-// statically prerendered at build (no NEXTAUTH_SECRET then). Same pattern as session/whoami/route.ts.
+import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
+import { LayerOrderViolationError, MethodStateService } from '@/services/harvest-method/method-state.service';
+import { NoteTooLongError } from '@/services/harvest-method/doctrine-notes';
+import type { BackgroundMatchingSubmission } from '@/types/harvest-method';
+
+// T-26 (§8.1 Layer 3 — Background Matching). UNIVERSAL for every organization (§8 preamble, §17.1).
+// The readiness SCORE itself is computed by the queue orchestrator (prioritized-queue.service.ts),
+// never returned by this route — this route only returns tile-completion + doctrine corrections.
 export const dynamic = 'force-dynamic';
+
+const service = new MethodStateService();
 
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   try {
-    const body: BackgroundMatchingData = await req.json();
-    if (!body.matchScores) return NextResponse.json({ error: 'matchScores is required' }, { status: 400 });
+    const body: BackgroundMatchingSubmission = await req.json();
+    if (!Array.isArray(body.entries)) {
+      return NextResponse.json({ error: 'entries array is required' }, { status: 400 });
+    }
 
-    const result = submitBackgroundMatching(identity.userId, body);
-    if (!result.available) return NextResponse.json({ available: false, reason: result.reason }, { status: 200 });
-    return NextResponse.json(result.state);
+    const result = await service.submitBackgroundMatching(identity.userId, body);
+    return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof LayerOrderViolationError) {
+      return NextResponse.json({ error: error.message, code: 'LAYER_ORDER_VIOLATION' }, { status: 409 });
+    }
+    if (error instanceof NoteTooLongError) {
+      return NextResponse.json({ error: error.message, code: 'NOTE_TOO_LONG' }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 });
