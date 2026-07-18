@@ -53,6 +53,27 @@ describe('rejectTierOverride — §8.5 "manual A-tier override -> striped (score
     expect(() => rejectTierOverride(null)).not.toThrow();
     expect(() => rejectTierOverride(undefined)).not.toThrow();
   });
+
+  // T-27 QC fast-follow: the guard must be case-insensitive over its OWN already-defined key set
+  // (not new synonyms), and must also scan one level of object nesting — a caller can't dodge the
+  // block just by capitalizing a letter or wrapping the field in an object. These assertions FAIL
+  // if the case-insensitive/nested scan is reverted to the original exact-key, top-level-only match.
+  test('case-insensitive: a differently-cased "Tier" key also throws', () => {
+    expect(() => rejectTierOverride({ contactId: 'c1', Tier: 'A' })).toThrow(AntiPatternBlockedError);
+  });
+
+  test('case-insensitive: "readinessSCORE" also throws', () => {
+    expect(() => rejectTierOverride({ contactId: 'c1', readinessSCORE: 100 })).toThrow(AntiPatternBlockedError);
+  });
+
+  test('one-level nested: {override: {tier: "A"}} also throws', () => {
+    expect(() => rejectTierOverride({ contactId: 'c1', override: { tier: 'A' } })).toThrow(AntiPatternBlockedError);
+    try {
+      rejectTierOverride({ contactId: 'c1', override: { tier: 'A' } });
+    } catch (e) {
+      expect((e as AntiPatternBlockedError).antiPattern).toBe('manual_tier_override');
+    }
+  });
 });
 
 describe('rejectBatchPayload — §8.5 "batch cold outreach (select-N-and-blast) -> not supported"', () => {
@@ -76,6 +97,20 @@ describe('rejectBatchPayload — §8.5 "batch cold outreach (select-N-and-blast)
 
   test('a single contactId string never throws', () => {
     expect(() => rejectBatchPayload({ contactId: 'c1' })).not.toThrow();
+  });
+
+  // T-27 QC fast-follow: same case-insensitive + one-level-nested treatment as rejectTierOverride,
+  // over the SAME already-defined "contactId"(array)/"contactIds" key set. This FAILS if the
+  // case-insensitive/nested scan is reverted.
+  test('nested + case-variant: {batch: {ContactIds: [...]}} also throws', () => {
+    expect(() => rejectBatchPayload({ contactId: 'c1', batch: { ContactIds: ['c1', 'c2'] } })).toThrow(
+      AntiPatternBlockedError
+    );
+    try {
+      rejectBatchPayload({ contactId: 'c1', batch: { ContactIds: ['c1', 'c2'] } });
+    } catch (e) {
+      expect((e as AntiPatternBlockedError).antiPattern).toBe('batch_cold_outreach');
+    }
   });
 });
 
@@ -102,6 +137,14 @@ describe('rejectSortOverride — §8.5 "extraction-first sorting (by perceived w
   test('no sort-shaped param present never throws (limit/offset are not sort params)', () => {
     expect(() => rejectSortOverride(new URLSearchParams('limit=50&offset=0'))).not.toThrow();
     expect(() => rejectSortOverride(new URLSearchParams())).not.toThrow();
+  });
+
+  // T-27 QC fast-follow: case-insensitive over the SAME already-defined param names. Query strings
+  // have no nesting, so there is no nested case here. FAILS if the case-insensitive scan is reverted.
+  test('case-insensitive: "orderBY" also throws', () => {
+    const params = new URLSearchParams();
+    params.set('orderBY', 'wealth');
+    expect(() => rejectSortOverride(params)).toThrow(AntiPatternBlockedError);
   });
 });
 

@@ -153,6 +153,20 @@ describe('GET /api/harvest-method/action-queue', () => {
     expect(mockGetQueue).not.toHaveBeenCalled();
   });
 
+  // T-27 QC fast-follow: case-variant query param names must be caught too (?orderBY, not just
+  // ?orderBy) — FAILS if rejectSortOverride's case-insensitive scan is reverted.
+  test('§8.5 anti-pattern: a case-variant "?orderBY=wealth" is also REJECTED (400) — proves case-insensitivity is wired through this route', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    seedGate(OnboardingStatus.GATED_COMPLETE);
+
+    const res = await actionQueueGET(getRequest('/api/harvest-method/action-queue', '?orderBY=wealth'), {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('ANTI_PATTERN_BLOCKED');
+    expect(body.antiPattern).toBe('extraction_first_sorting');
+    expect(mockGetQueue).not.toHaveBeenCalled();
+  });
+
   test('the empty-until-3-layers result passes through untouched (route never injects/strips fields)', async () => {
     mockedSession.mockResolvedValue(fakeSession());
     seedGate(OnboardingStatus.GATED_COMPLETE);
@@ -296,6 +310,60 @@ describe('POST /api/harvest-method/action-complete', () => {
       expect(res.status).toBe(400);
       expect(mockMarkActionComplete).not.toHaveBeenCalled();
     });
+
+    // T-27 QC fast-follow: a differently-cased key ("Tier") must be rejected too, not silently
+    // accepted as an unrecognized field — FAILS if the guard reverts to exact-case matching.
+    test('a case-variant tier-override attempt ({ contactId, Tier: "A" }) is also REJECTED (400)', async () => {
+      mockedSession.mockResolvedValue(fakeSession());
+      seedGate(OnboardingStatus.GATED_COMPLETE);
+
+      const res = await actionCompletePOST(
+        postRequest('/api/harvest-method/action-complete', { contactId: 'c1', Tier: 'A' }),
+        {}
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.code).toBe('ANTI_PATTERN_BLOCKED');
+      expect(body.antiPattern).toBe('manual_tier_override');
+      expect(mockMarkActionComplete).not.toHaveBeenCalled();
+    });
+
+    // T-27 QC fast-follow: a one-level-nested tier override must also be rejected — FAILS if the
+    // guard's one-level nested scan is reverted to top-level-only.
+    test('a nested tier-override attempt ({ contactId, override: { tier: "A" } }) is also REJECTED (400)', async () => {
+      mockedSession.mockResolvedValue(fakeSession());
+      seedGate(OnboardingStatus.GATED_COMPLETE);
+
+      const res = await actionCompletePOST(
+        postRequest('/api/harvest-method/action-complete', { contactId: 'c1', override: { tier: 'A' } }),
+        {}
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.code).toBe('ANTI_PATTERN_BLOCKED');
+      expect(body.antiPattern).toBe('manual_tier_override');
+      expect(mockMarkActionComplete).not.toHaveBeenCalled();
+    });
+
+    // T-27 QC fast-follow: a one-level-nested + case-variant batch attempt must also be rejected —
+    // FAILS if the guard's case-insensitive/nested scan is reverted.
+    test('a nested, case-variant batch attempt ({ contactId, batch: { ContactIds: [...] } }) is also REJECTED (400)', async () => {
+      mockedSession.mockResolvedValue(fakeSession());
+      seedGate(OnboardingStatus.GATED_COMPLETE);
+
+      const res = await actionCompletePOST(
+        postRequest('/api/harvest-method/action-complete', { contactId: 'c1', batch: { ContactIds: ['c1', 'c2'] } }),
+        {}
+      );
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.code).toBe('ANTI_PATTERN_BLOCKED');
+      expect(body.antiPattern).toBe('batch_cold_outreach');
+      expect(mockMarkActionComplete).not.toHaveBeenCalled();
+    });
   });
 
   describe('the doctrine linter (§8.5) — an optional action note is scanned/corrected BEFORE it is ever persisted', () => {
@@ -346,7 +414,7 @@ describe('POST /api/harvest-method/action-complete', () => {
       expect(mockedInteractionCreate).toHaveBeenCalledTimes(1);
     });
 
-    test('a note over 500 chars is REJECTED (400 NOTE_TOO_LONG), never persisted', async () => {
+    test('a note over 500 chars is REJECTED (400 NOTE_TOO_LONG) BEFORE any mutation ever commits — markActionComplete must NEVER run for a request that ends up 400ing (T-27 QC fast-follow atomicity fix; this assertion FAILS against the pre-fix ordering where markActionComplete ran and committed before the note length was ever checked)', async () => {
       mockedSession.mockResolvedValue(fakeSession());
       seedGate(OnboardingStatus.GATED_COMPLETE);
       mockMarkActionComplete.mockResolvedValue({ success: true });
@@ -360,6 +428,8 @@ describe('POST /api/harvest-method/action-complete', () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.code).toBe('NOTE_TOO_LONG');
+      // The atomicity proof: a 400 response must never follow a committed side effect.
+      expect(mockMarkActionComplete).not.toHaveBeenCalled();
       expect(mockedInteractionCreate).not.toHaveBeenCalled();
     });
 

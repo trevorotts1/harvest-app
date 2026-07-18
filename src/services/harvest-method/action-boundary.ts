@@ -34,6 +34,34 @@ export class AntiPatternBlockedError extends Error {
   }
 }
 
+// T-27 QC fast-follow: every guard below is CASE-INSENSITIVE over its OWN already-defined forbidden
+// key set, and scans exactly ONE level of object nesting (a body's own top-level keys, plus the
+// top-level keys of any of ITS OWN object-shaped values) — so `{Tier: 'A'}` and
+// `{override: {tier: 'A'}}` are both caught, not just the exact-case top-level form. This
+// deliberately does NOT walk deeper than one level, and does NOT widen the key sets themselves with
+// open-ended semantic synonyms (e.g. "rank"/"ranking"/"targets"/"ids") — no route in this codebase
+// ever reads those names, so matching them would guard against an input that can't occur rather than
+// closing a real gap. Scope is intentionally: same keys, case-insensitive, one level of nesting.
+
+/** Case-insensitively finds the first own-key of `obj` (and, one level down, of any of its own
+ *  object-shaped — non-array, non-null — values) that case-insensitively equals one of `forbidden`.
+ *  Returns the actual (as-typed) key name found, or undefined if none match. */
+function findForbiddenKey(obj: Record<string, unknown>, forbidden: readonly string[], depth = 0): string | undefined {
+  const lowerForbidden = forbidden.map((f) => f.toLowerCase());
+  for (const key of Object.keys(obj)) {
+    if (lowerForbidden.includes(key.toLowerCase())) return key;
+  }
+  if (depth === 0) {
+    for (const value of Object.values(obj)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const nested = findForbiddenKey(value as Record<string, unknown>, forbidden, depth + 1);
+        if (nested) return nested;
+      }
+    }
+  }
+  return undefined;
+}
+
 /** §8.5 "manual A-tier override -> striped (score-based tiering is immutable)." The readiness
  *  tier/score are ALWAYS computed server-side by readiness-engine.ts — no route in this codebase
  *  exposes a way to set one directly, and this guard makes that a REJECTION rather than a mere
@@ -43,7 +71,7 @@ const TIER_OVERRIDE_KEYS = ['tier', 'overrideTier', 'forceTier', 'readinessTier'
 
 export function rejectTierOverride(body: Record<string, unknown> | null | undefined): void {
   if (!body || typeof body !== 'object') return;
-  const hit = TIER_OVERRIDE_KEYS.find((k) => Object.prototype.hasOwnProperty.call(body, k));
+  const hit = findForbiddenKey(body, TIER_OVERRIDE_KEYS);
   if (hit) {
     throw new AntiPatternBlockedError(
       'manual_tier_override',
@@ -55,41 +83,62 @@ export function rejectTierOverride(body: Record<string, unknown> | null | undefi
 
 /** §8.5 "batch cold outreach (select-N-and-blast) -> not supported." Every action-queue mutation
  *  in this codebase acts on exactly ONE contact per call. An array-shaped `contactId`, or a plural
- *  `contactIds` field, is rejected outright rather than silently processed as a batch (which is the
- *  only way "not supported" is a real architectural block instead of an accident of what the
- *  handler happens to destructure). */
+ *  `contactIds` field — case-insensitively, and one level of nesting deep (see module header) — is
+ *  rejected outright rather than silently processed as a batch (which is the only way "not
+ *  supported" is a real architectural block instead of an accident of what the handler happens to
+ *  destructure). */
+function findBatchHit(obj: Record<string, unknown>, depth = 0): { key: string; isArrayContactId: boolean } | undefined {
+  for (const [key, value] of Object.entries(obj)) {
+    const lower = key.toLowerCase();
+    if (lower === 'contactid' && Array.isArray(value)) return { key, isArrayContactId: true };
+    if (lower === 'contactids') return { key, isArrayContactId: false };
+  }
+  if (depth === 0) {
+    for (const value of Object.values(obj)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const nested = findBatchHit(value as Record<string, unknown>, depth + 1);
+        if (nested) return nested;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function rejectBatchPayload(body: Record<string, unknown> | null | undefined): void {
   if (!body || typeof body !== 'object') return;
-  if (Array.isArray((body as Record<string, unknown>).contactId)) {
+  const hit = findBatchHit(body);
+  if (!hit) return;
+  if (hit.isArrayContactId) {
     throw new AntiPatternBlockedError(
       'batch_cold_outreach',
-      '"contactId" must be a single id, not an array — batch/select-N-and-blast actions are not ' +
+      `"${hit.key}" must be a single id, not an array — batch/select-N-and-blast actions are not ` +
         'supported (§8.5 "batch cold outreach ... not supported").'
     );
   }
-  if (Object.prototype.hasOwnProperty.call(body, 'contactIds')) {
-    throw new AntiPatternBlockedError(
-      'batch_cold_outreach',
-      '"contactIds" (batch) is not an accepted field — batch/select-N-and-blast actions are not ' +
-        'supported (§8.5 "batch cold outreach ... not supported").'
-    );
-  }
+  throw new AntiPatternBlockedError(
+    'batch_cold_outreach',
+    `"${hit.key}" (batch) is not an accepted field — batch/select-N-and-blast actions are not ` +
+      'supported (§8.5 "batch cold outreach ... not supported").'
+  );
 }
 
 /** §8.5 "extraction-first sorting (by perceived wealth) -> not a permitted sort mode." The action
  *  queue has exactly one ordering (tier precedence, hidden score breaks ties only within a tier —
  *  prioritized-queue.service.ts's own `TIER_SORT_RANK`) and no client-selectable sort mode at all.
- *  A request naming any alternate sort param is rejected rather than silently ignored. */
+ *  A request naming any alternate sort param — case-insensitively; query strings have no nesting, so
+ *  there is no nested-object case to scan here — is rejected rather than silently ignored. */
 const SORT_OVERRIDE_PARAMS = ['sort', 'sortBy', 'orderBy', 'order_by', 'sort_by'] as const;
 
 export function rejectSortOverride(searchParams: URLSearchParams): void {
-  const hit = SORT_OVERRIDE_PARAMS.find((p) => searchParams.has(p));
-  if (hit) {
-    throw new AntiPatternBlockedError(
-      'extraction_first_sorting',
-      `"${hit}" is not an accepted query parameter — the action queue has exactly one ordering ` +
-        '(readiness tier, §8.2/§8.3); a client-selectable sort mode (e.g. by perceived wealth) is ' +
-        'not permitted (§8.5 "extraction-first sorting ... not a permitted sort mode").'
-    );
+  const lowerForbidden = new Set(SORT_OVERRIDE_PARAMS.map((p) => p.toLowerCase()));
+  for (const key of searchParams.keys()) {
+    if (lowerForbidden.has(key.toLowerCase())) {
+      throw new AntiPatternBlockedError(
+        'extraction_first_sorting',
+        `"${key}" is not an accepted query parameter — the action queue has exactly one ordering ` +
+          '(readiness tier, §8.2/§8.3); a client-selectable sort mode (e.g. by perceived wealth) is ' +
+          'not permitted (§8.5 "extraction-first sorting ... not a permitted sort mode").'
+      );
+    }
   }
 }

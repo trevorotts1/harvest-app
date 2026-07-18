@@ -44,6 +44,19 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
       return NextResponse.json({ error: '"note" must be a string' }, { status: 400 });
     }
 
+    // T-27 QC fast-follow (atomicity): ALL input validation that can 400 — the §8.1 500-char note
+    // limit / doctrine-linter scan included — MUST be fully resolved before any side-effecting call
+    // below (`markActionComplete`'s upsert, the `ContactInteraction` create). `lintNote` throws
+    // `NoteTooLongError` synchronously the instant the raw note exceeds the limit; running it here,
+    // BEFORE `markActionComplete`, guarantees a 400 NOTE_TOO_LONG response can never follow a
+    // mutation that already committed. (`rejectBatchPayload`/`rejectTierOverride` above already ran
+    // before this point, for the same reason.) The ownership check further down does NOT need to
+    // move: `markActionComplete`'s own user_id+contact_id composite key already scopes ITS upsert to
+    // this user, so it can't affect another user's data regardless of ownership — the ownership
+    // check only guards the separate `ContactInteraction` write, and stays exactly where it was,
+    // strictly before that write.
+    const linted = typeof note === 'string' && note.length > 0 ? lintNote(contactId, note) : null;
+
     // Lazy: constructed per-request, not at module scope, so `next build`'s page-data collection
     // (which imports this module) never triggers the constructor's fail-closed
     // `getContactEncryptionKey()` default read (T-26 build-integration fix).
@@ -51,14 +64,13 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     const result = await service.markActionComplete(identity.userId, contactId);
 
     let correction: NoteCorrection | null = null;
-    if (result.success && typeof note === 'string' && note.length > 0) {
+    if (result.success && linted) {
       // Defense-in-depth ownership check (mirrors /api/contacts/agent-queue's own pattern) before
       // any note is ever attached to a Contact — a successful `markActionComplete` already implies
       // this contact was seeded under THIS user's own method state, but the note write goes through
       // the Contact-linked `ContactInteraction` table, so it is re-verified here rather than assumed.
       const owned = await prisma.contact.findFirst({ where: { id: contactId, user_id: identity.userId } });
       if (owned) {
-        const linted = lintNote(contactId, note);
         correction = linted.correction;
         await prisma.contactInteraction.create({
           data: {
