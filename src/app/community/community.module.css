@@ -1,0 +1,225 @@
+/* ==========================================================================
+   Segment Plots & Contact Card (uiux §4.6). [T-28]
+
+   Operational surface (§1.1 item 4) — NO ritual paper texture here, unlike
+   ../ritual/warm-market/ritual.module.css. Consumes SEMANTIC tokens only
+   (tokens.css §1.2.2), no raw hex, no opacity/translucent color on text
+   (guard-no-opacity-on-text.mjs scans this file).
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.shell {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-6);
+}
+
+.title {
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0;
+}
+
+/* ---- Plot chip row (§4.6 "Community home") ---- */
+.plotsRow {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+.plotChip {
+  flex: 0 0 auto;
+  min-width: 140px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.plotChipSelected {
+  border-color: var(--color-action);
+  box-shadow: var(--elevation-2);
+}
+.plotChipName {
+  font-weight: 800;
+}
+.plotChipCount {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* the tiny illustrated soil-row motif — token-only, no illustration asset in this build */
+.plotSoilRow {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-growth);
+  margin-top: var(--space-1);
+}
+.plotAListStar {
+  color: var(--color-harvest-text);
+  font-weight: 800;
+}
+
+/* ---- Contact Card (§4.6) ---- */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.contactCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.contactCardNeedsInfo {
+  border-style: dashed;
+  border-color: var(--color-caution-text);
+}
+.contactCardExcluded {
+  background: var(--surface-3);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-mark);
+  color: var(--on-action);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.cardName {
+  font-weight: 800;
+  margin: 0;
+}
+
+.closenessRow {
+  display: flex;
+  gap: var(--space-1);
+}
+.closenessDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+}
+.closenessDotFilled {
+  background: var(--color-growth);
+  border-color: var(--color-growth);
+}
+
+.recencyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+.recencyDot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+}
+.recencyLeaf {
+  background: var(--color-growth);
+}
+.recencySoil {
+  background: var(--text-disabled);
+}
+.recencyHollow {
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+.flagRow {
+  display: flex;
+  gap: var(--space-2);
+}
+.flagToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  min-height: 36px;
+}
+.flagToggleOn {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+}
+.flagToggle:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.segmentTag {
+  align-self: flex-start;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  padding: var(--space-1) var(--space-3);
+}
+
+.stateChip {
+  align-self: flex-start;
+  border-radius: var(--radius-pill);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+}
+.stateChipExcluded {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+}
+.stateChipPaused {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+}
+.stateChipInfo {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.needsInfoNote {
+  font-size: var(--type-caption-size);
+  color: var(--color-caution-text);
+}
