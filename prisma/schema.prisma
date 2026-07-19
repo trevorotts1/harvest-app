@@ -1256,3 +1256,149 @@ model ShiftSession {
   @@unique([user_id, session_date])
   @@index([user_id])
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// T-36 (§10.3, SC5 launch gate) — Deliverability provisioning: A2P 10DLC
+// (brand + campaign registration + platform-number provisioning) and email
+// domain authentication + sender warm-up. Additive only.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Shared brand/campaign lifecycle vocabulary (§10.3: "e.g. UNREGISTERED -> PENDING ->
+// APPROVED/REJECTED"). A row that does not exist yet is treated as UNREGISTERED by fail-closed
+// default (src/services/deliverability's convention mirrors LicensingRecord's "no row =
+// UNLICENSED" doctrine exactly) — absence of a registration never implies approval.
+enum A2PProvisioningStatus {
+  UNREGISTERED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// The platform phone number's own lifecycle, independent of (but referencing) its campaign's A2P
+// status: a number can be PROVISIONED (purchased from Twilio) before it is ever ASSIGNED to an
+// approved campaign, and a number that stops being used is RELEASED rather than deleted (keeps the
+// audit trail intact).
+enum PlatformNumberStatus {
+  UNPROVISIONED
+  PROVISIONED
+  ASSIGNED
+  RELEASED
+}
+
+// SPF/DKIM/DMARC authentication-record status for one sending domain (§10.3). NOT_CONFIGURED is
+// the fail-closed default for a domain with no check on file yet.
+enum EmailAuthRecordStatus {
+  NOT_CONFIGURED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+// The email sender warm-up ramp lifecycle (§10.3 "sender warm-up plan"): a domain must actually be
+// RAMPING or WARMED — never NOT_STARTED or PAUSED — for the readiness gate to consider it
+// deliverable, on top of full SPF/DKIM/DMARC verification.
+enum EmailWarmupStage {
+  NOT_STARTED
+  RAMPING
+  WARMED
+  PAUSED
+}
+
+// One row per Organization — A2P 10DLC brand registration is tied to a legal business entity, and
+// Organization is this schema's existing legal-entity boundary (OrgType PRIMERICA | EXTERNAL).
+// `twilio_brand_sid`/`twilio_campaign_sid` (on A2PCampaignRegistration) are opaque Twilio-assigned
+// identifiers, never secrets — safe to read/log/display on an ops surface.
+model A2PBrandRegistration {
+  id               String                @id @default(uuid())
+  organization_id  String                @unique
+  twilio_brand_sid String?
+  status           A2PProvisioningStatus @default(UNREGISTERED)
+  entity_type      String? // e.g. STANDARD | SOLE_PROPRIETOR (Twilio's brand vocabulary)
+  failure_reason   String?
+  submitted_at     DateTime?             @db.Timestamptz(6)
+  approved_at      DateTime?             @db.Timestamptz(6)
+  created_at       DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime              @updatedAt @db.Timestamptz(6)
+
+  @@index([status])
+}
+
+// One row per Organization (single automated-cadence campaign per org at launch — §10.3's P0
+// scope; a multi-campaign-per-org extension is additive later and does not require reshaping this
+// table). `opt_in_language` is the "opt-in language on file" the spec requires be documented before
+// any platform send.
+model A2PCampaignRegistration {
+  id                  String                @id @default(uuid())
+  organization_id     String                @unique
+  twilio_campaign_sid String?
+  status              A2PProvisioningStatus @default(UNREGISTERED)
+  use_case            String // Twilio use-case code, e.g. "MIXED" | "LOW_VOLUME"
+  opt_in_language     String // the opt-in language on file (§10.3)
+  throughput_tier     String? // assigned by Twilio once APPROVED
+  failure_reason      String?
+  submitted_at        DateTime?             @db.Timestamptz(6)
+  approved_at         DateTime?             @db.Timestamptz(6)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @updatedAt @db.Timestamptz(6)
+
+  @@index([status])
+}
+
+// The platform-sent number(s) for an org (§10.1 "automated cadence — platform number"). A number is
+// only "sendable" once its own status is ASSIGNED AND the campaign it is assigned to is APPROVED —
+// see src/services/deliverability/gate.ts's isChannelDeliverable, the single fail-closed seam that
+// computes this, never re-derived ad hoc at a call site.
+model PlatformPhoneNumber {
+  id                        String               @id @default(uuid())
+  organization_id           String
+  phone_number              String // E.164
+  twilio_phone_number_sid   String?
+  campaign_registration_id  String?
+  status                    PlatformNumberStatus @default(UNPROVISIONED)
+  released_at               DateTime?            @db.Timestamptz(6)
+  created_at                DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime             @updatedAt @db.Timestamptz(6)
+
+  @@unique([phone_number])
+  @@index([organization_id])
+  @@index([organization_id, status])
+}
+
+// SPF/DKIM/DMARC status for one (org, sending domain) pair (§10.3 "email domain authentication").
+model EmailDomainAuthentication {
+  id              String                 @id @default(uuid())
+  organization_id String
+  sending_domain  String
+  spf_status      EmailAuthRecordStatus  @default(NOT_CONFIGURED)
+  dkim_status     EmailAuthRecordStatus  @default(NOT_CONFIGURED)
+  dmarc_status    EmailAuthRecordStatus  @default(NOT_CONFIGURED)
+  last_checked_at DateTime?              @db.Timestamptz(6)
+  created_at      DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime               @updatedAt @db.Timestamptz(6)
+
+  @@unique([organization_id, sending_domain])
+  @@index([organization_id])
+}
+
+// The sender-reputation ramp schedule for one (org, sending domain) pair (§10.3 "sender warm-up
+// plan for campaigns"): `current_day`/`daily_volume_cap` track where in the ramp this domain is;
+// `sent_today`/`last_send_date` are the daily counter T-37's send scheduler increments via
+// EmailDeliverabilityService.recordSend before each platform email send.
+model EmailWarmupPlan {
+  id                  String           @id @default(uuid())
+  organization_id     String
+  sending_domain      String
+  stage               EmailWarmupStage @default(NOT_STARTED)
+  started_at          DateTime?        @db.Timestamptz(6)
+  current_day         Int              @default(0)
+  daily_volume_cap    Int              @default(0)
+  target_daily_volume Int              @default(0)
+  sent_today          Int              @default(0)
+  last_send_date      String? // rep-local-independent yyyy-mm-dd (UTC), for the daily-counter reset
+  paused_reason       String?
+  created_at          DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
+
+  @@unique([organization_id, sending_domain])
+  @@index([organization_id])
+}
