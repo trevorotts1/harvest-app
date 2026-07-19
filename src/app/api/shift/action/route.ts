@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
-import { ShiftOwnershipError, ShiftService } from '@/services/learning-state/shift.service';
+import { ShiftApprovalRequiresReviewError, ShiftOwnershipError, ShiftService } from '@/services/learning-state/shift.service';
 import type { ShiftCardAction } from '@/types/learning-state';
 
 const VALID_ACTIONS: ShiftCardAction[] = ['APPROVE', 'DECLINE', 'SKIP', 'CONFIRM', 'LOG'];
@@ -35,6 +35,14 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   } catch (error) {
     if (error instanceof ShiftOwnershipError) {
       return NextResponse.json({ error: error.message, code: 'NOT_OWNED' }, { status: 403 });
+    }
+    if (error instanceof ShiftApprovalRequiresReviewError) {
+      // T-34 QC fix (D2, fail-closed): ShiftService.actionCard already refuses an APPROVE on a
+      // non-PASS (FLAG/BLOCK) draft BEFORE any mutation — this is the ROUTE-layer half of that
+      // defense in depth, surfaced as a distinct, non-500 refusal code (mirrors the existing
+      // LAYER_ORDER_VIOLATION 409 convention, e.g. src/app/api/harvest-method/qualities-flip/route.ts)
+      // so a caller can tell "this needs real compliance review" apart from "something broke."
+      return NextResponse.json({ error: error.message, code: 'REQUIRES_REVIEW' }, { status: 409 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

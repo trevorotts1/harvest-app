@@ -97,6 +97,26 @@ describe('(a) computeFieldTrainerRatio — real fixture data in, exact counts ou
 });
 
 // ─── (b) TEETH: the learning-state threshold, exactly at the spec boundary ────────────────────────
+//
+// QC FIX (T-34 QC round): the boundary tests below USED to compute their inputs as
+// `LEARNING_STATE_MIN_THRESHOLD - 1` / `LEARNING_STATE_MIN_THRESHOLD` — self-referential to the
+// constant under test, so mutating the constant (e.g. 20 -> 21) shifted BOTH the input and the
+// expectation together and left every test green. Proven vacuous live: temporarily setting
+// `LEARNING_STATE_MIN_THRESHOLD = 21` in ratios.ts and re-running this file, every test in this
+// describe block still passed. That is now fixed two ways: (1) the constants themselves are
+// asserted against the spec's LITERAL numbers below, so any change to the constant is immediately
+// test-visible; (2) new literal-input tests below feed hardcoded numbers (19/20/49/50), never the
+// constant, so a boundary drift fails those regardless of what the self-referential tests do.
+
+describe('(b0) TEETH — the threshold CONSTANTS themselves are the spec\'s literal 20 and 50, not just internally self-consistent', () => {
+  test('LEARNING_STATE_MIN_THRESHOLD is literally 20 (master-spec §9.7 "20:5:1")', () => {
+    expect(LEARNING_STATE_MIN_THRESHOLD).toBe(20);
+  });
+
+  test('LEARNING_STATE_ESTABLISHED_THRESHOLD is literally 50 (master-spec §9.7 "20-50 data points")', () => {
+    expect(LEARNING_STATE_ESTABLISHED_THRESHOLD).toBe(50);
+  });
+});
 
 describe('(b) deriveLearningStateStatus — transitions AT the spec threshold, not before or after', () => {
   test(`${LEARNING_STATE_MIN_THRESHOLD - 1} data points -> LEARNING (below threshold: baseline/oversight mode)`, () => {
@@ -123,6 +143,30 @@ describe('(b) deriveLearningStateStatus — transitions AT the spec threshold, n
     expect(isLearningLabelActive('LEARNING')).toBe(true);
     expect(isLearningLabelActive('SHIFTING')).toBe(true);
     expect(isLearningLabelActive('SHIFTED')).toBe(false);
+  });
+
+  // TEETH, literal inputs — no reference to the constant anywhere in this describe block. These
+  // fail if the boundary drifts in EITHER direction, and — unlike the block above — they also fail
+  // if someone "fixes" the vacuous-test defect by mutating the constant instead of the real bug:
+  // mutating LEARNING_STATE_MIN_THRESHOLD from 20 to 21 makes `deriveLearningStateStatus(19)`
+  // return 'SHIFTING' instead of the literal spec answer 'LEARNING' below, and 'a red test proves
+  // it. (Verified live during this fix: temporarily edited ratios.ts's
+  // `LEARNING_STATE_MIN_THRESHOLD` to 21 — the `19 -> LEARNING` / `20 -> SHIFTING` tests in this
+  // literal-input block turned red; reverted immediately after confirming.)
+  test('LITERAL: exactly 19 data points -> LEARNING (one below the spec\'s literal 20)', () => {
+    expect(deriveLearningStateStatus(19)).toBe('LEARNING');
+  });
+
+  test('LITERAL: exactly 20 data points -> SHIFTING (the spec\'s literal minimum — "the shift" fires)', () => {
+    expect(deriveLearningStateStatus(20)).toBe('SHIFTING');
+  });
+
+  test('LITERAL: exactly 49 data points -> SHIFTING (one below the spec\'s literal 50)', () => {
+    expect(deriveLearningStateStatus(49)).toBe('SHIFTING');
+  });
+
+  test('LITERAL: exactly 50 data points -> SHIFTED (the spec\'s literal established threshold)', () => {
+    expect(deriveLearningStateStatus(50)).toBe('SHIFTED');
   });
 });
 

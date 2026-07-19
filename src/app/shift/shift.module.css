@@ -6,7 +6,13 @@
    translucent `color:` on text (guard-no-opacity-on-text.mjs scans this
    file) — inactive/active states below are distinguished by token color,
    never by dimming. Reserved color semantics respected: this screen is
-   operational, not compliance/flagged, so clay/wheat never appear here.
+   operational, not compliance/flagged, so clay/wheat never appear here —
+   EXCEPT `.cfeBand*` below (T-34 QC fix, D2), the one place a real CFE
+   FLAG/BLOCK verdict genuinely surfaces in this ritual (a flagged/blocked
+   draft's Work-phase card) — that is exactly the reserved meaning clay/wheat
+   exist for, not a violation of it. `--color-caution-*` / `--color-blocked-*`
+   are pre-existing tokens.css semantic tokens already covered by
+   verify-contrast.mjs's pair list — no new contrast pairs were added.
    ========================================================================== */
 
 .shell {
@@ -258,6 +264,39 @@
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---- Flagged/blocked compliance band (T-34 QC fix, D2) — see the file header note above on the
+   clay/wheat exception. FLAG uses the same caution pairing as the rest of the app's "expiring/
+   flagged" surfaces; BLOCK uses the reserved "compliance-blocked" fill. Both pairs are already
+   asserted AA by verify-contrast.mjs (`color-caution-text on color-caution-bg` /
+   `on-blocked on color-blocked-fill`). */
+.cfeBand {
+  align-self: flex-start;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cfeBandFlag {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+}
+.cfeBandBlock {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+}
+
+/* Plain deep-link to the real Approval Inbox (T-33, `/inbox`) — not a button, since it navigates
+   away rather than acting in place; token color only, no opacity. */
+.inboxLink {
+  color: var(--color-action);
+  font-weight: 600;
+  font-size: var(--type-body-size);
+  text-decoration: underline;
 }
 
 /* ---- Close phase ---- */

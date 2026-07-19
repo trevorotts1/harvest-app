@@ -139,6 +139,60 @@ describe('AC-5.3-1: WorkPhase renders exactly ONE card at a time', () => {
   });
 });
 
+// ─── T-34 QC fix (D2): a flagged/blocked draft's Work-phase card fails closed in the UI too ───────
+// Mirrors T-32's Mission Control fail-closed-queue-approve fix: RESPOND_FLAGGED cards get a visible
+// CFE band + a plain deep-link to the real Approval Inbox, and NEVER a one-tap Approve button.
+
+describe('T-34 QC fix (D2): RESPOND_FLAGGED cards get a CFE band + inbox deep-link, never one-tap Approve', () => {
+  test('a FLAG draft renders the "Flagged" band, an /inbox deep-link, and Decline — but NO Approve button', () => {
+    const stack: ShiftQueueCard[] = [
+      { id: 'flag-1', type: 'RESPOND_FLAGGED', title: 'Respond to a flagged draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'FLAG' },
+    ];
+    const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
+    const text = textOf(html);
+
+    expect(text).toMatch(/Flagged by compliance review/);
+    expect(html).toMatch(/<a[^>]*href="\/inbox"[^>]*>/);
+    expect(text).toMatch(/Review in Approval Inbox/);
+    expect(text).toMatch(/Decline/);
+    expect(text).not.toMatch(/\bApprove\b/); // "Approval Inbox" must not be mistaken for an Approve button
+  });
+
+  test('a BLOCK draft renders the "Blocked" band (reserved compliance-blocked token), deep-link, Decline — no Approve', () => {
+    const stack: ShiftQueueCard[] = [
+      { id: 'block-1', type: 'RESPOND_FLAGGED', title: 'Respond to a flagged draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'BLOCK' },
+    ];
+    const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
+    const text = textOf(html);
+
+    expect(text).toMatch(/Blocked by compliance review/);
+    expect(html).toMatch(/<a[^>]*href="\/inbox"[^>]*>/);
+    expect(text).not.toMatch(/\bApprove\b/);
+  });
+
+  test('a clean PASS draft still gets the normal one-tap Approve — the fail-closed gate never blocks the common case', () => {
+    const stack: ShiftQueueCard[] = [
+      { id: 'clean-1', type: 'APPROVE_DRAFT', title: 'Approve a draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'PASS' },
+    ];
+    const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
+    const text = textOf(html);
+
+    expect(text).toMatch(/\bApprove\b/);
+    expect(html).not.toMatch(/href="\/inbox"/);
+    expect(html).not.toMatch(/data-testid="cfe-band"/);
+  });
+
+  test('TEETH: defense in depth — even a mislabeled card (type APPROVE_DRAFT but cfeOutcome FLAG) never renders an Approve BUTTON', () => {
+    // Title deliberately avoids the word "Approve" (unlike the real service-set title) so this
+    // assertion is checking for the ACTION BUTTON specifically, not incidentally matching card copy.
+    const stack: ShiftQueueCard[] = [
+      { id: 'stale-1', type: 'APPROVE_DRAFT', title: 'Stale-typed draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'FLAG' },
+    ];
+    const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
+    expect(html).not.toMatch(/<button[^>]*>\s*Approve\s*<\/button>/);
+  });
+});
+
 // ─── AC-5.3-2: the timer counts up, tabular, and NEVER alarms/reds out — proven structurally ───────
 
 describe('AC-5.3-2: the shift timer never renders an alarm/overtime state', () => {

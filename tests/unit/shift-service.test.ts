@@ -6,6 +6,7 @@
 // enforcement on card actions (a forged cardId belonging to another user's data is refused).
 
 import {
+  ShiftApprovalRequiresReviewError,
   ShiftOwnershipError,
   ShiftService,
   type AppointmentQueueRow,
@@ -180,6 +181,84 @@ describe('ShiftService — one card at a time, skip semantics', () => {
     await expect(service.actionCard('rep-1', 'victim-draft', 'APPROVE')).rejects.toBeInstanceOf(ShiftOwnershipError);
     const stillPending = await prisma.draftMessage.findUnique({ where: { id: 'victim-draft' } });
     expect(stillPending?.approval_state).toBe('PENDING');
+  });
+});
+
+// ─── T-34 QC fix (D2): a flagged/blocked draft's Approve is FAIL-CLOSED at the service layer ───────
+// Mirrors T-32's Mission Control fail-closed-queue-approve fix: a draft whose CFE outcome is not a
+// clean PASS can never be approved through the Shift ritual's action endpoint, regardless of what
+// the calling UI renders — this is the service-layer half of the defense-in-depth (the route-layer
+// half is proven in tests/unit/learning-state-shift-routes.test.ts).
+
+describe('ShiftService — T-34 QC fix (D2): FLAG/BLOCK drafts fail-closed on APPROVE', () => {
+  test('TEETH: APPROVE on a FLAG draft is refused (ShiftApprovalRequiresReviewError) — no mutation, no recap credit', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('flagged-1', { cfe_outcome: 'FLAG' })] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await expect(service.actionCard('rep-1', 'flagged-1', 'APPROVE')).rejects.toBeInstanceOf(
+      ShiftApprovalRequiresReviewError
+    );
+    const stillPending = await prisma.draftMessage.findUnique({ where: { id: 'flagged-1' } });
+    expect(stillPending?.approval_state).toBe('PENDING');
+    const view = await service.getOrCreateToday('rep-1');
+    expect(view.recap?.approvals ?? 0).toBe(0);
+  });
+
+  test('TEETH: APPROVE on a BLOCK draft is refused (ShiftApprovalRequiresReviewError) — no mutation', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('blocked-1', { cfe_outcome: 'BLOCK' })] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await expect(service.actionCard('rep-1', 'blocked-1', 'APPROVE')).rejects.toBeInstanceOf(
+      ShiftApprovalRequiresReviewError
+    );
+    const stillPending = await prisma.draftMessage.findUnique({ where: { id: 'blocked-1' } });
+    expect(stillPending?.approval_state).toBe('PENDING');
+  });
+
+  test('a clean PASS draft is still one-tap approvable — the fail-closed check never blocks the common case', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('clean-1', { cfe_outcome: 'PASS' })] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    const view = await service.actionCard('rep-1', 'clean-1', 'APPROVE');
+    expect(view.recap?.approvals).toBe(1);
+    const updated = await prisma.draftMessage.findUnique({ where: { id: 'clean-1' } });
+    expect(updated?.approval_state).toBe('APPROVED');
+  });
+
+  test('DECLINE on a FLAG/BLOCK draft is NEVER gated — rejecting risky content is always allowed', async () => {
+    const prisma = makeFakePrisma({
+      drafts: [draft('flagged-2', { cfe_outcome: 'FLAG' }), draft('blocked-2', { cfe_outcome: 'BLOCK' })],
+    });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await service.actionCard('rep-1', 'flagged-2', 'DECLINE');
+    await service.actionCard('rep-1', 'blocked-2', 'DECLINE');
+    const d1 = await prisma.draftMessage.findUnique({ where: { id: 'flagged-2' } });
+    const d2 = await prisma.draftMessage.findUnique({ where: { id: 'blocked-2' } });
+    expect(d1?.approval_state).toBe('DECLINED');
+    expect(d2?.approval_state).toBe('DECLINED');
+  });
+
+  test('the built stack carries the real cfeOutcome + RESPOND_FLAGGED type for FLAG/BLOCK drafts (what WorkPhase gates its UI on)', async () => {
+    const prisma = makeFakePrisma({
+      drafts: [draft('flagged-3', { cfe_outcome: 'FLAG' }), draft('clean-3', { cfe_outcome: 'PASS' })],
+    });
+    const service = new ShiftService(prisma);
+    const view = await service.getOrCreateToday('rep-1');
+    const flaggedCard = view.stack.find((c) => c.id === 'flagged-3');
+    const cleanCard = view.stack.find((c) => c.id === 'clean-3');
+    expect(flaggedCard?.type).toBe('RESPOND_FLAGGED');
+    expect(flaggedCard?.cfeOutcome).toBe('FLAG');
+    expect(cleanCard?.type).toBe('APPROVE_DRAFT');
+    expect(cleanCard?.cfeOutcome).toBe('PASS');
   });
 });
 

@@ -40,7 +40,7 @@ jest.mock('@/services/learning-state/shift.service', () => {
 
 import { getCurrentSession } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
-import { ShiftOwnershipError } from '@/services/learning-state/shift.service';
+import { ShiftApprovalRequiresReviewError, ShiftOwnershipError } from '@/services/learning-state/shift.service';
 import { GET as learningStateGET } from '@/app/api/learning-state/route';
 import { GET as shiftGET } from '@/app/api/shift/route';
 import { POST as shiftBeginPOST } from '@/app/api/shift/begin/route';
@@ -231,6 +231,30 @@ describe('POST /api/shift/action', () => {
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.code).toBe('NOT_OWNED');
+  });
+
+  // T-34 QC fix (D2): the route-layer half of the fail-closed defense in depth — proves the HTTP
+  // boundary itself surfaces ShiftService's refusal as a distinct, non-500 code, never a silent
+  // 200 or an opaque 500 that a caller can't distinguish from "something broke."
+  test('TEETH: a ShiftApprovalRequiresReviewError from the service (FLAG/BLOCK draft) surfaces as 409 REQUIRES_REVIEW — never a silent 200', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    seedGate(OnboardingStatus.GATED_COMPLETE);
+    mockActionCard.mockRejectedValue(new ShiftApprovalRequiresReviewError());
+
+    const res = await shiftActionPOST(postRequest('/api/shift/action', { cardId: 'flagged-draft', action: 'APPROVE' }), {});
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe('REQUIRES_REVIEW');
+  });
+
+  test('a clean PASS approve still reaches the service and returns 200 (the fail-closed refusal never fires for the common case)', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    seedGate(OnboardingStatus.GATED_COMPLETE);
+    mockActionCard.mockResolvedValue({ phase: 'WORK' });
+
+    const res = await shiftActionPOST(postRequest('/api/shift/action', { cardId: 'clean-draft', action: 'APPROVE' }), {});
+    expect(res.status).toBe(200);
+    expect(mockActionCard).toHaveBeenCalledWith('rep-real-session', 'clean-draft', 'APPROVE');
   });
 });
 

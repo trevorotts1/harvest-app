@@ -28,6 +28,16 @@ export interface ShiftQueueCard {
   title: string;
   detail: string;
   estimateMinutes: number;
+  /** The linked DraftMessage's CFE outcome ('PASS' | 'FLAG' | 'BLOCK'), or `null` for card types
+   * that aren't backed by a DraftMessage at all (CONFIRM_APPOINTMENT / LOG_INTRODUCTION /
+   * MARK_ATTENDANCE). Carried through so the Work-phase card can show the compliance band and
+   * fail closed on a non-PASS draft instead of rendering the same one-tap Approve a clean draft
+   * gets (T-34 QC fix — mirrors T-32's Mission Control fail-closed-queue-approve fix). Optional
+   * (not just nullable) so that pre-existing card fixtures elsewhere (e.g. the generic
+   * AC-5.3-1/AC-5.3-2 one-card-at-a-time / no-alarm-timer fixtures in shift-ui.test.ts, which
+   * don't care about compliance state at all) keep compiling unchanged — WorkPhase's own
+   * fail-closed gate treats "absent" the same as anything other than a literal `'PASS'`. */
+  cfeOutcome?: string | null;
 }
 
 export interface ShiftStateView {

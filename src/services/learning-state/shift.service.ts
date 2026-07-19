@@ -106,6 +106,28 @@ export class ShiftOwnershipError extends Error {
   }
 }
 
+/** T-34 QC fix — FAIL-CLOSED (master-spec §9.2/§18.6, uiux §5.2 "never sendable"): thrown by
+ * `actionCard` when an 'APPROVE' is attempted on a DraftMessage whose `cfe_outcome` is not `PASS`
+ * (i.e. `FLAG` or `BLOCK`). Mirrors the identical class of bug fixed in Mission Control's
+ * `actOnQueueDraft` (T-32 QC fix, `src/services/mission-control/today.service.ts`) — the Shift's
+ * Work-phase "Approve a draft" / "Respond to a flagged draft" cards shared ONE action handler with
+ * no CFE check at all, so a FLAG or BLOCK-banded draft could be one-tap approved from the ritual
+ * with no adjudication. This is DEFENSE IN DEPTH at the service layer: it holds even if the calling
+ * UI (WorkPhase.tsx) is wrong, stale, or bypassed — the endpoint itself is the fail-closed
+ * authority. Declining a flagged/blocked draft is NEVER gated — rejecting risky content is always
+ * safe. Real adjudication (re-checked CFE, classifier drawer, edit-re-enters-CFE) is the Approval
+ * Inbox's job (T-33, `/inbox` in main) — the Shift ritual only offers a deep-link there now; the
+ * full inline-edit-in-Shift (embedding T-33's Approval Inbox Item component directly in the Work
+ * phase) is DEFERRED to a post-merge integration tracked as T-R13, not built here. */
+export class ShiftApprovalRequiresReviewError extends Error {
+  constructor(
+    message = 'This draft was flagged by compliance review and cannot be approved from the Shift ritual — review it in the Approval Inbox.'
+  ) {
+    super(message);
+    this.name = 'ShiftApprovalRequiresReviewError';
+  }
+}
+
 function todayDateString(now: Date = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
@@ -148,19 +170,29 @@ export class ShiftService {
       this.prisma.appointment.findMany({ where: { rep_id: userId, status: 'PROPOSED' } }),
     ]);
 
-    const draftCards: ShiftQueueCard[] = drafts.map((d) => ({
-      id: d.id,
-      type: (d.cfe_outcome === 'FLAG' ? 'RESPOND_FLAGGED' : 'APPROVE_DRAFT') as ShiftCardType,
-      title: d.cfe_outcome === 'FLAG' ? 'Respond to a flagged draft' : 'Approve a draft',
-      detail: d.body,
-      estimateMinutes: 1,
-    }));
+    const draftCards: ShiftQueueCard[] = drafts.map((d) => {
+      // T-34 QC fix: BLOCK is treated the same as FLAG here (both are non-PASS, both get the
+      // RESPOND_FLAGGED card type) — defense in depth alongside actionCard's fail-closed check
+      // below, even though in practice a BLOCK verdict is persisted as `approval_state: 'HELD'`
+      // (agent-runtime.ts) and this query only ever fetches `approval_state: 'PENDING'` rows, so a
+      // BLOCK draft does not currently reach this stack at all. Never assume that invariant here.
+      const isNonPass = d.cfe_outcome === 'FLAG' || d.cfe_outcome === 'BLOCK';
+      return {
+        id: d.id,
+        type: (isNonPass ? 'RESPOND_FLAGGED' : 'APPROVE_DRAFT') as ShiftCardType,
+        title: isNonPass ? 'Respond to a flagged draft' : 'Approve a draft',
+        detail: d.body,
+        estimateMinutes: 1,
+        cfeOutcome: d.cfe_outcome,
+      };
+    });
     const apptCards: ShiftQueueCard[] = appointments.map((a) => ({
       id: a.id,
       type: 'CONFIRM_APPOINTMENT' as ShiftCardType,
       title: 'Confirm an appointment window',
       detail: `Appointment ${a.id} awaiting your confirmation.`,
       estimateMinutes: 1,
+      cfeOutcome: null,
     }));
 
     const all = [...draftCards, ...apptCards].filter((c) => (skipCounts[c.id] ?? 0) < 2);
@@ -296,6 +328,13 @@ export class ShiftService {
       if (draft) {
         if (draft.user_id !== userId) throw new ShiftOwnershipError();
         if (action === 'APPROVE') {
+          // T-34 QC FIX — FAIL-CLOSED: a draft whose CFE outcome is not PASS (FLAG or BLOCK) can
+          // NEVER be approved through the Shift ritual's action endpoint — only a clean PASS draft
+          // may be one-tap approved here. Mirrors T-32's `actOnQueueDraft` fix exactly. Declining
+          // is still allowed below (never gated) — this refusal throws BEFORE any mutation and
+          // before stack_position/recap counters advance, so the card stays in place for the rep
+          // to actually deal with (decline, or leave it for the real Approval Inbox).
+          if (draft.cfe_outcome !== 'PASS') throw new ShiftApprovalRequiresReviewError();
           await this.prisma.draftMessage.update({
             where: { id: cardId },
             data: { approval_state: 'APPROVED', approved_by: userId, approved_at: this.now() },
