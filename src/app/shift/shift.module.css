@@ -1,0 +1,381 @@
+/* ==========================================================================
+   The Shift (uiux §5.3) — the bounded daily ritual: Open -> Work (one card
+   at a time) -> Close -> "You're done for today." [T-34]
+
+   Semantic tokens only (tokens.css) — no raw hex anywhere. No `opacity`/
+   translucent `color:` on text (guard-no-opacity-on-text.mjs scans this
+   file) — inactive/active states below are distinguished by token color,
+   never by dimming. Reserved color semantics respected: this screen is
+   operational, not compliance/flagged, so clay/wheat never appear here —
+   EXCEPT `.cfeBand*` below (T-34 QC fix, D2), the one place a real CFE
+   FLAG/BLOCK verdict genuinely surfaces in this ritual (a flagged/blocked
+   draft's Work-phase card) — that is exactly the reserved meaning clay/wheat
+   exist for, not a violation of it. `--color-caution-*` / `--color-blocked-*`
+   are pre-existing tokens.css semantic tokens already covered by
+   verify-contrast.mjs's pair list — no new contrast pairs were added.
+   ========================================================================== */
+
+.shell {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.focusShell {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ---- Focus-shell chrome: "Save & leave" + shift timer (uiux §4.12/§5.3) ---- */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.saveLeave {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-operational);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-1);
+}
+.saveLeave:hover {
+  color: var(--text-primary);
+}
+
+/* Count-up timer: quiet soil color, tabular figures, NEVER alarm/red — no state in this file ever
+   swaps this color based on elapsed time (uiux §5.3 AC-5.3-2). */
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-operational);
+  font-size: var(--type-title-size);
+  color: var(--soil-550);
+  letter-spacing: 0.02em;
+}
+
+/* ---- Open phase ---- */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.briefingLine {
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.streakRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.streakBadge {
+  background: var(--leaf-100);
+  color: var(--leaf-800);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+}
+
+.graceDayBanner {
+  background: var(--harvest-50);
+  border: 1px solid var(--harvest-200);
+  color: var(--harvest-900);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--type-caption-size);
+}
+
+.motivationalLine {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.primaryButton {
+  align-self: flex-start;
+  background: var(--color-action);
+  color: var(--on-action);
+  border: none;
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-6);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+  transition: transform var(--dur-tick) var(--ease-organic);
+}
+.primaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.secondaryButton {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+}
+
+/* ---- Ratio cards (§9.5 item 5 / §9.7) ---- */
+.ratioGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .ratioGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.ratioCard {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ratioCardTitle {
+  font-size: var(--type-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.ratioHeadline {
+  font-family: var(--font-operational);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--type-title-size);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.learningBadge {
+  align-self: flex-start;
+  background: var(--soil-100);
+  color: var(--soil-700);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+}
+
+.ratioExplainer {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  margin: 0;
+}
+
+/* ---- Work phase: one card at a time (uiux §5.3 AC-5.3-1) ---- */
+.progressDots {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--soil-200);
+}
+.dotActive {
+  background: var(--leaf-600);
+}
+
+.workCard {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-2);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: unfurl var(--dur-grow) var(--ease-settle);
+}
+
+@keyframes unfurl {
+  0% {
+    opacity: 0;
+    transform: scale(var(--enter-scale-from));
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workCard {
+    animation: none;
+  }
+}
+
+.cardTitle {
+  font-size: var(--type-title-size);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.cardDetail {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  margin: 0;
+}
+
+.cardActions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---- Flagged/blocked compliance band (T-34 QC fix, D2) — see the file header note above on the
+   clay/wheat exception. FLAG uses the same caution pairing as the rest of the app's "expiring/
+   flagged" surfaces; BLOCK uses the reserved "compliance-blocked" fill. Both pairs are already
+   asserted AA by verify-contrast.mjs (`color-caution-text on color-caution-bg` /
+   `on-blocked on color-blocked-fill`). */
+.cfeBand {
+  align-self: flex-start;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cfeBandFlag {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+}
+.cfeBandBlock {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+}
+
+/* Plain deep-link to the real Approval Inbox (T-33, `/inbox`) — not a button, since it navigates
+   away rather than acting in place; token color only, no opacity. */
+.inboxLink {
+  color: var(--color-action);
+  font-weight: 600;
+  font-size: var(--type-body-size);
+  text-decoration: underline;
+}
+
+/* ---- Close phase ---- */
+.recapLine {
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.celebrateLine {
+  color: var(--leaf-700);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+}
+
+.reflectionInput {
+  width: 100%;
+  min-height: 96px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  padding: var(--space-3);
+  resize: vertical;
+}
+
+.reflectionActions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* ---- Done state (uiux §5.3 AC-5.3-3) ---- */
+.doneCard {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: center;
+  animation: settle var(--dur-bloom) var(--ease-settle);
+}
+
+@keyframes settle {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doneCard {
+    animation: none;
+  }
+}
+
+.doneMessage {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.offlineBanner {
+  background: var(--soil-50);
+  border: 1px solid var(--soil-200);
+  color: var(--soil-700);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--type-caption-size);
+}

@@ -1184,3 +1184,75 @@ model ContactMethodProfile {
   @@index([user_id])
   @@index([user_id, readiness_tier])
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — Learning state, the two ratios & The Shift (§9.7-§9.8) [T-34]
+// ═══════════════════════════════════════════════════════════════════════
+
+// T-34 (§9.7 "the two ratios"; §9.5 item 5 "Ratio cards ... baseline defaults (20:5:1) labeled
+// 'learning your community' until 20-50 real data points exist"; §9.9-7 "never NaN"): the durable
+// per-rep learning-state row. Recomputed from real Contact.pipeline_stage / Appointment data by
+// src/services/learning-state/learning-state.service.ts (never at module scope — constructed
+// lazily per-request) and persisted here so the rep's current learning state survives across
+// requests/instances, the same durability convention as `AgentKillSwitch` (T-31) above. Purely
+// additive: no existing table/column/enum is altered or dropped.
+//
+// `status` mirrors src/services/learning-state/ratios.ts's `LearningStateStatus`: LEARNING (< 20
+// data points — the fixed 20:5:1 baseline is shown, labeled "learning your community"), SHIFTING
+// (20-49 — the rep's OWN real numbers are now shown, still labeled per the spec's literal 20-50
+// range), SHIFTED (>= 50 — the rep's own established record, label removed). This durable
+// LEARNING -> SHIFTING -> SHIFTED progression IS "the shift" the master spec's §9.8 heading names
+// (via §9.7's "20:5:1" baseline-to-real-record transition) — the rep is handed their own real
+// numbers, in place of a borrowed community-wide default, once they've earned enough real data.
+// It is NOT a numeric-autonomy toggle on the agents themselves — that is the IPA_VALUE agent's own
+// periodic, batched, Opus 4.8 self-optimization loop (§4.4/§9.9-10), already scaffolded by T-30 in
+// agent-handlers.ts/runtime-model-map.ts and left untouched here; this table is the deterministic,
+// real-data tally that FEEDS the ratio cards and any narrative IPA_VALUE eventually composes.
+model LearningState {
+  id                       String   @id @default(uuid())
+  user_id                  String   @unique
+  status                   String   @default("LEARNING") // LEARNING | SHIFTING | SHIFTED
+  // Agent's Ratio (§9.7): introductions -> responses -> appointments set -> confirmed shows.
+  agent_introductions      Int      @default(0)
+  agent_responses          Int      @default(0)
+  agent_appointments_set   Int      @default(0)
+  agent_confirmed_shows    Int      @default(0)
+  // Field Trainer's Ratio (§9.7): appointments run -> client signs / recruit joins. Belongs to the
+  // human closer (the trainer who ran the appointment), scoped to this rep's own contacts.
+  trainer_appointments_run Int      @default(0)
+  trainer_closes           Int      @default(0)
+  computed_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+// T-34 (§9.8 "The Shift" bounded daily ritual; uiux §5.3): one durable row per rep per calendar day
+// (`session_date`, the rep-local YYYY-MM-DD), so an interrupted shift (uiux AC-5.3-7) resumes at
+// the same stack position with cumulative elapsed time, and Today's done-state (AC-5.3-3) persists
+// for the rest of that day. `skip_counts` is a JSON map of queue-item-id -> times skipped (uiux
+// §5.3: once = moved to the end of the stack; twice = the item leaves the Shift for Today's queue).
+model ShiftSession {
+  id                  String    @id @default(uuid())
+  user_id             String
+  session_date        String // rep-local YYYY-MM-DD; one shift session per rep per day
+  mode                String    @default("STANDARD") // STANDARD | SHORT (uiux §5.3 short mode, cap 3)
+  phase               String    @default("OPEN") // OPEN | WORK | CLOSE | DONE
+  stack_position       Int      @default(0)
+  skip_counts          Json     @default("{}")
+  accumulated_seconds  Int      @default(0) // frozen elapsed seconds from prior WORK spans (interrupted-resume)
+  last_resumed_at      DateTime? @db.Timestamptz(6) // set when phase enters WORK; null while not actively running
+  streak_count         Int      @default(0) // the rep's streak as of this session's close (§5.3, §12.5)
+  grace_day_used       Boolean  @default(false)
+  reflection_text      String?
+  // §5.3 Close: "recap (approvals, confirmations, logs)".
+  recap_approvals      Int      @default(0)
+  recap_confirmations  Int      @default(0)
+  recap_logs           Int      @default(0)
+  completed_at         DateTime? @db.Timestamptz(6)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([user_id, session_date])
+  @@index([user_id])
+}
