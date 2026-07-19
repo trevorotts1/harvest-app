@@ -1,0 +1,299 @@
+/* ==========================================================================
+   The Approval Inbox (master-spec §9.2; uiux §5.6/§4.3). [T-33]
+
+   Operational surface (uiux §1.1 item 4) — no ritual paper texture. Semantic
+   tokens only (tokens.css §1.2.2), no raw hex, no opacity/translucent color
+   on text (guard-no-opacity-on-text.mjs scans this file).
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.title {
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+/* ---- Filter chips (§5.6 "filter chips row") ---- */
+.filterRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.filterChip {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  min-height: 36px;
+}
+.filterChipActive {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+}
+.filterChip:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* ---- Empty / loading / error states (§5.6 "the empty inbox is a good day") ---- */
+.emptyState,
+.loadingState,
+.errorState {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+}
+.errorState {
+  color: var(--color-danger-form-text);
+  background: var(--color-danger-form-bg);
+  border-color: var(--color-danger-form-text);
+}
+.retryButton {
+  margin-top: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+/* ---- The item list ---- */
+.itemList {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+.itemHeld {
+  border-left: 3px solid var(--color-blocked-fill);
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.itemHeaderMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+.agentChip {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ---- CFE status chip — icon + label, NEVER color alone (uiux §4.3) ---- */
+.cfeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-pill);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+  white-space: nowrap;
+}
+.cfeChipPass {
+  background: var(--surface-2);
+  color: var(--color-growth);
+}
+.cfeChipFlag {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+}
+.cfeChipBlock {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+}
+.cfeChipChecking {
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.itemBody {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.itemMeta {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.heldBanner {
+  border-radius: var(--radius-panel);
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+}
+
+/* ---- Footer actions ---- */
+.itemFooter {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.actionButton {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-body-size);
+  cursor: pointer;
+  min-height: 44px;
+}
+.actionButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.actionButton:disabled {
+  cursor: not-allowed;
+  color: var(--text-disabled);
+}
+.approveButton {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+  font-weight: 700;
+}
+.declineButton {
+  color: var(--color-danger-form-text);
+}
+
+/* ---- Inline edit surface (§5.6 "the edit surface, inline, autosaved") ---- */
+.editArea {
+  width: 100%;
+  min-height: 96px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  padding: var(--space-3);
+  resize: vertical;
+}
+.editArea:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* ---- Decline reason selector (uiux AC-5.6-9: "always intercepts declines") ---- */
+.reasonRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.reasonChip {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  min-height: 36px;
+}
+.reasonChipSelected {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+}
+.noteInput {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-operational);
+  font-size: var(--type-caption-size);
+}
+
+/* ---- Per-contact controls (§9.4; uiux §5.7 "Pause agents for {name}" / "Do not contact") ---- */
+.controlsRow {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.controlToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  min-height: 36px;
+}
+.controlToggleOn {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+  border-color: var(--color-caution-text);
+}
+.controlToggleDanger {
+  background: var(--surface-2);
+}
+.controlToggleDangerOn {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+  border-color: var(--color-blocked-fill);
+}
+.controlConfirm {
+  font-size: var(--type-caption-size);
+  color: var(--color-growth);
+}

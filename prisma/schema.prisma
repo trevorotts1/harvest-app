@@ -594,6 +594,11 @@ model DraftMessage {
   approved_by           String?
   approved_at           DateTime?       @db.Timestamptz(6)
   edited_after_approval Boolean         @default(false)
+  // T-33 (§9.2/uiux §5.6): the Approval Inbox decline-reason selector ("not my voice / wrong
+  // person / wrong time / other" + optional note) — feeds agent learning per the uiux spec.
+  // Additive, nullable; both are only ever set on a decline.
+  decline_reason        String?
+  decline_note          String?
   created_at            DateTime        @default(now()) @db.Timestamptz(6)
   updated_at            DateTime        @updatedAt @db.Timestamptz(6)
 
