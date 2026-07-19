@@ -1,0 +1,509 @@
+/* ==========================================================================
+   Mission Control / Today (uiux §5.2) + the Grove organism (§3). [T-32]
+
+   Operational surface (§1.1 item 4). Consumes SEMANTIC tokens only
+   (tokens.css §1.2.2) — no raw hex anywhere in this file, no opacity/
+   translucent color on TEXT (guard-no-opacity-on-text.mjs scans this file).
+   The Grove's decorative dimming uses SVG `fill-opacity` set as a JSX prop
+   on individual shapes (see Grove.tsx), never a CSS `opacity` declaration —
+   so there is nothing here for that guard to (correctly) flag.
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.shell {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 1.3fr 0.7fr;
+  }
+}
+.gridMain,
+.gridSide {
+  display: grid;
+  gap: var(--space-5);
+  align-content: start;
+}
+
+/* ---- Shared zone card shell ---- */
+.zoneCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+.zoneBadge {
+  display: inline-block;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+}
+.zoneHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.zoneErrorText {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.narrativeLine {
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+  margin: 0;
+}
+.freshnessStamp {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+
+/* ---- Anchor header (zone 1) ---- */
+.headerZone {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-2);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-4);
+}
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.greeting {
+  font-family: var(--font-vision);
+  font-size: var(--type-display-size);
+  line-height: var(--type-display-line);
+  letter-spacing: var(--type-display-tracking);
+  margin: 0;
+}
+.approvalBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  min-height: var(--touch-target-min);
+  cursor: pointer;
+}
+.approvalBadge:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.approvalBadgeCount {
+  border-radius: var(--radius-pill);
+  background: var(--color-action);
+  color: var(--on-action);
+  font-weight: 800;
+  font-size: var(--type-caption-size);
+  padding: 0 var(--space-2);
+}
+.headerBody {
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.momentumBlock {
+  display: grid;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 200px;
+}
+.momentumButton {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.momentumButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.momentumScore {
+  font-family: var(--font-vision);
+  font-size: var(--type-hero-size);
+  line-height: var(--type-hero-line);
+  font-variant-numeric: tabular-nums;
+}
+.momentumBand {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 32px;
+}
+.sparklineBar {
+  width: 8px;
+  border-radius: 2px;
+  background: var(--color-growth);
+  display: inline-block;
+}
+.receiptsPanel {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+.receiptsTitle {
+  font-weight: 700;
+  margin: 0 0 var(--space-1);
+}
+.receiptsList {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+
+/* ---- Overnight Briefing (zone 2) ---- */
+.briefingLine {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+.briefingLine:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+.briefingLineButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  color: var(--text-primary);
+}
+.briefingLineButton:disabled {
+  cursor: default;
+}
+.briefingLineButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.receiptChevron {
+  color: var(--text-secondary);
+  font-size: var(--type-title-size);
+  flex-shrink: 0;
+}
+
+/* ---- Action Queue (zone 3) ---- */
+.queueList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.queueRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3);
+  flex-wrap: wrap;
+}
+.queueRowMain {
+  display: grid;
+  gap: 2px;
+}
+.queueWhy {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+.queueMeta {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+.queueActions {
+  display: flex;
+  gap: var(--space-2);
+}
+.queueActionButton {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+  cursor: pointer;
+}
+.queueActionButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.queueActionButtonSecondary {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+/* T-32 QC fix: the review_flagged item's CFE band summary + its deep-link to the Approval Inbox
+   (a plain navigation link, styled like the other queue actions — never a one-tap approve). */
+.queueCfeBand {
+  display: inline-block;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+}
+.queueReviewLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+  text-decoration: none;
+}
+.queueReviewLink:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.showAllNote {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+/* ---- Pipeline glance (zone 4) ---- */
+.pipelineRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+.pipelineBucket {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3);
+}
+.pipelineCount {
+  font-size: var(--type-title-size);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.pipelineLabel {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+.deltaUp {
+  color: var(--color-growth);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+}
+.deltaNeedsTending {
+  color: var(--color-caution-text);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+}
+.deltaFlat {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+
+/* ---- Ratio cards (zone 5) ---- */
+.ratioCard {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+  display: grid;
+  gap: var(--space-1);
+}
+.ratioCard:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+.learningChip {
+  border-radius: var(--radius-pill);
+  background: var(--cream);
+  color: var(--color-harvest-on-cream);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+}
+.ratioNumerals {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+.ratioLabels {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+/* ---- Team calendar strip (zone 6) ---- */
+.calendarList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.calendarRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3);
+  flex-wrap: wrap;
+}
+.attendanceMarked {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+
+/* ---- Primary CTA (§5.2) ---- */
+.primaryCta {
+  position: sticky;
+  bottom: var(--space-4);
+  justify-self: center;
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-3) var(--space-6);
+  font-weight: 800;
+  font-size: var(--type-body-lg-size);
+  cursor: pointer;
+  box-shadow: var(--elevation-2);
+}
+.primaryCta:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   The Grove (uiux §3) — layered SVG organism, tokens only.
+   ========================================================================== */
+.groveHero {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  width: 200px;
+}
+.groveCompact {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: 120px;
+}
+.groveSvg {
+  width: 100%;
+  height: auto;
+  transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .groveSway {
+    animation: groveSway 4s ease-in-out infinite;
+  }
+}
+@keyframes groveSway {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+.groveGround {
+  fill: var(--soil-300);
+}
+.groveMound {
+  fill: var(--soil-200);
+}
+.groveSeed {
+  fill: var(--color-harvest-fill);
+}
+.groveTrunk {
+  stroke: var(--soil-700);
+}
+.groveLeafActive {
+  fill: var(--leaf-600);
+}
+.groveLeafDull {
+  fill: var(--leaf-300);
+}
+.groveFruit {
+  fill: var(--color-harvest-fill);
+}
+.groveBloomBurst {
+  fill: var(--color-harvest-fill);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .groveBloomBurst {
+    animation: groveBloom var(--dur-bloom) var(--ease-organic);
+  }
+}
+@keyframes groveBloom {
+  0% { r: 0; }
+  60% { r: 46; }
+  100% { r: 40; }
+}
+.groveMist {
+  fill: var(--soil-0);
+}
+.groveCaption {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  text-align: center;
+  margin: 0;
+}

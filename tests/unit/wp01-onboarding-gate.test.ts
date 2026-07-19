@@ -18,8 +18,10 @@ import {
   isGatedDownstreamPage,
 } from '@/lib/auth/onboarding-gate';
 // The REAL downstream (WP04) route handler, built on withOnboardingGate — proving the gate is
-// enforced end-to-end at the API surface, not just in the pure function (§6.10-1).
-import { GET as briefingGET } from '@/app/api/mission-control/briefing/route';
+// enforced end-to-end at the API surface, not just in the pure function (§6.10-1). T-32 retired the
+// inert `/api/mission-control/briefing` demo scaffold this block used to exercise; it now proves the
+// SAME §6.10-1 wire against the real Mission Control / Today route that replaced it.
+import { GET as todayGET } from '@/app/api/mission-control/today/route';
 
 const mockedSession = getCurrentSession as jest.MockedFunction<typeof getCurrentSession>;
 const mockedFindUnique = (prisma as unknown as {
@@ -151,34 +153,44 @@ describe('withOnboardingGate — the §6.10-1 hard gate at the API layer', () =>
   });
 });
 
-describe('LIVE downstream route GET /api/mission-control/briefing is gated on GATED_COMPLETE (§6.10-1 is REAL)', () => {
+describe('LIVE downstream route GET /api/mission-control/today is gated on GATED_COMPLETE (§6.10-1 is REAL)', () => {
   function req() {
-    return new NextRequest('http://localhost/api/mission-control/briefing');
+    return new NextRequest('http://localhost/api/mission-control/today');
   }
 
-  test('an authenticated-but-not-complete user is DENIED (403) — no briefing leaks', async () => {
+  test('an authenticated-but-not-complete user is DENIED (403) — no Today data leaks', async () => {
     mockedSession.mockResolvedValue(fakeSession());
     seedOnboardingRow(OnboardingStatus.IN_PROGRESS);
-    const res = await briefingGET(req(), {});
+    const res = await todayGET(req(), {});
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.code).toBe('ONBOARDING_INCOMPLETE');
-    expect(body.briefing).toBeUndefined(); // the payload never rendered
+    expect(body.header).toBeUndefined(); // the payload never rendered
   });
 
-  test('a GATED_COMPLETE user passes and gets their briefing', async () => {
+  test('a GATED_COMPLETE user passes and gets their Today payload', async () => {
     mockedSession.mockResolvedValue(fakeSession({ onboardingStatus: OnboardingStatus.GATED_COMPLETE }));
     seedOnboardingRow(OnboardingStatus.GATED_COMPLETE);
-    const res = await briefingGET(req(), {});
+    const res = await todayGET(req(), {});
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.userId).toBe('user-gate-1');
+    // This suite's `jest.mock('@/lib/prisma', ...)` only stubs `user.findUnique` (the gate's own
+    // dependency) — none of the six zone queries, so every zone independently reports its own
+    // `status: 'error'` (proving the isolation guarantee holds even here) while the route itself
+    // still succeeds end-to-end. The full real-data path is proven in
+    // tests/unit/mission-control-today-service.test.ts and tests/unit/mission-control-route.test.ts.
+    expect(body.generatedAt).toBeDefined();
+    expect(body.header).toBeDefined();
     expect(body.briefing).toBeDefined();
+    expect(body.actionQueue).toBeDefined();
+    expect(body.pipeline).toBeDefined();
+    expect(body.ratios).toBeDefined();
+    expect(body.calendar).toBeDefined();
   });
 
   test('an unauthenticated request is DENIED (401)', async () => {
     mockedSession.mockResolvedValue(null);
-    const res = await briefingGET(req(), {});
+    const res = await todayGET(req(), {});
     expect(res.status).toBe(401);
   });
 });
