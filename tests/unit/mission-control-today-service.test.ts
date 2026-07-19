@@ -159,6 +159,85 @@ describe('actOnQueueDraft — approve/decline with ownership scoping', () => {
   });
 });
 
+// T-32 QC FIX — adversarial QC proved LIVE against shipped code that a CFE-FLAGGED or
+// CFE-BLOCKED draft (content the spec says is "never sendable", master-spec §9.2/§18.6) could be
+// moved to APPROVED with a single `actOnQueueDraft(user, id, 'approve')` call, because this
+// function checked ONLY `approval_state`, never `cfe_outcome`. THESE TESTS FAIL against the
+// pre-fix code (they must — the bug was live) and PASS once `actOnQueueDraft` also refuses
+// 'approve' for any draft whose `cfe_outcome !== 'PASS'`. This is the load-bearing, defense-in-depth
+// check: it must hold even if every caller/UI upstream is wrong, since it is the last gate before a
+// DraftMessage becomes APPROVED.
+describe('FAIL-CLOSED — actOnQueueDraft refuses to approve a FLAG or BLOCK banded draft (T-32 QC fix)', () => {
+  function seedBanded(cfeOutcome: 'PASS' | 'FLAG' | 'BLOCK', approvalState: 'PENDING' | 'HELD') {
+    return createInMemoryMissionControlDb({
+      draftMessages: [
+        {
+          id: 'draft-banded',
+          user_id: USER,
+          contact_id: 'contact-1',
+          channel: 'SMS_HANDOFF',
+          cfe_outcome: cfeOutcome,
+          approval_state: approvalState,
+          approved_by: null,
+          approved_at: null,
+          created_at: NOW,
+        },
+      ],
+      contacts: [
+        { id: 'contact-1', user_id: USER, first_name: 'Maya', last_name: 'Johnson', pipeline_stage: 'INTRODUCED', is_client: false, updated_at: NOW, created_at: NOW },
+      ],
+    });
+  }
+
+  test('a FLAG-banded (PENDING) draft: approve is REFUSED with a distinct "requires_review" reason, not silently APPROVED', async () => {
+    const db = seedBanded('FLAG', 'PENDING');
+    const result = await actOnQueueDraft(USER, 'draft-banded', 'approve', db);
+    expect(result).toEqual({ ok: false, reason: 'requires_review' });
+
+    // Never mutated — still PENDING, never APPROVED, no momentum event fabricated for it.
+    const drafts = await db.draftMessage.findMany({ where: { user_id: USER } });
+    expect(drafts.find((d) => d.id === 'draft-banded')?.approval_state).toBe('PENDING');
+    const events = await db.momentumEvent.findMany({ where: { user_id: USER } });
+    expect(events.some((e) => e.law === 'grow')).toBe(false);
+  });
+
+  test('a BLOCK-banded (HELD) draft: approve is REFUSED with "requires_review", never reaches APPROVED', async () => {
+    const db = seedBanded('BLOCK', 'HELD');
+    const result = await actOnQueueDraft(USER, 'draft-banded', 'approve', db);
+    expect(result).toEqual({ ok: false, reason: 'requires_review' });
+
+    // Still HELD — never mutated to APPROVED.
+    const held = await db.draftMessage.findFirst({ where: { id: 'draft-banded', user_id: USER } });
+    expect(held?.approval_state).toBe('HELD');
+    const events = await db.momentumEvent.findMany({ where: { user_id: USER } });
+    expect(events.some((e) => e.law === 'grow')).toBe(false);
+  });
+
+  test('declining a FLAG-banded draft is still allowed — rejecting risky content is always safe', async () => {
+    const db = seedBanded('FLAG', 'PENDING');
+    const result = await actOnQueueDraft(USER, 'draft-banded', 'decline', db);
+    expect(result).toEqual({ ok: true });
+    const row = await db.draftMessage.findFirst({ where: { id: 'draft-banded', user_id: USER } });
+    expect(row?.approval_state).toBe('DECLINED');
+  });
+
+  test('declining a BLOCK-banded (HELD) draft is still allowed', async () => {
+    const db = seedBanded('BLOCK', 'HELD');
+    const result = await actOnQueueDraft(USER, 'draft-banded', 'decline', db);
+    expect(result).toEqual({ ok: true });
+    const row = await db.draftMessage.findFirst({ where: { id: 'draft-banded', user_id: USER } });
+    expect(row?.approval_state).toBe('DECLINED');
+  });
+
+  test('a clean PASS-banded draft is UNAFFECTED — still one-tap approvable as before', async () => {
+    const db = seedBanded('PASS', 'PENDING');
+    const result = await actOnQueueDraft(USER, 'draft-banded', 'approve', db);
+    expect(result).toEqual({ ok: true });
+    const row = await db.draftMessage.findFirst({ where: { id: 'draft-banded', user_id: USER } });
+    expect(row?.approval_state).toBe('APPROVED');
+  });
+});
+
 describe('confirmAppointment — ownership scoping + momentum', () => {
   test('confirms a PROPOSED appointment owned by the rep', async () => {
     const db = fullSeed();

@@ -287,6 +287,35 @@
   padding: var(--space-2) var(--space-4);
   cursor: pointer;
 }
+/* T-32 QC fix: the review_flagged item's CFE band summary + its deep-link to the Approval Inbox
+   (a plain navigation link, styled like the other queue actions — never a one-tap approve). */
+.queueCfeBand {
+  display: inline-block;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+}
+.queueReviewLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+  text-decoration: none;
+}
+.queueReviewLink:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
 .showAllNote {
   color: var(--text-secondary);
   font-size: var(--type-caption-size);

@@ -79,11 +79,20 @@ export type QueueDraftAction = 'approve' | 'decline';
 
 export type QueueDraftResult =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'invalid_state' };
+  | { ok: false; reason: 'not_found' | 'invalid_state' | 'requires_review' };
 
 /** Approve/decline a DraftMessage from the Today Action Queue zone. Ownership-checked (the draft
  *  must belong to the SESSION user — never trusts any caller-supplied id without that check). Uses
- *  the same `approval_state` vocabulary T-33 (Approval Inbox) will also drive. */
+ *  the same `approval_state` vocabulary T-33 (Approval Inbox) will also drive.
+ *
+ *  FAIL-CLOSED (T-32 QC fix — master-spec §9.2/§18.6, uiux §5.2 "never sendable"): a draft whose CFE
+ *  outcome is not `PASS` (i.e. `FLAG` or `BLOCK`) can NEVER be approved through this Mission Control
+ *  queue-clear endpoint — only a clean (`PASS`) draft may be one-tap approved here. This check is
+ *  DEFENSE IN DEPTH: it holds even if the calling UI is wrong, stale, or bypassed entirely (a forged
+ *  request, a bug in ActionQueue.tsx) — the endpoint itself is the fail-closed authority, not the
+ *  button wiring. A FLAG/BLOCK draft can only move forward through the real Approval Inbox (T-33),
+ *  which re-checks CFE and shows the band/classifier to a human adjudicator. Declining a flagged/
+ *  blocked draft is still allowed here — rejecting risky content is always safe, never gated. */
 export async function actOnQueueDraft(
   userId: string,
   draftMessageId: string,
@@ -95,6 +104,7 @@ export async function actOnQueueDraft(
   if (draft.approval_state !== 'PENDING' && draft.approval_state !== 'HELD') return { ok: false, reason: 'invalid_state' };
 
   if (action === 'approve') {
+    if (draft.cfe_outcome !== 'PASS') return { ok: false, reason: 'requires_review' };
     await db.draftMessage.update({
       where: { id: draftMessageId },
       data: { approval_state: 'APPROVED', approved_by: userId, approved_at: new Date() },

@@ -8,10 +8,14 @@ import Grove from './Grove';
 import styles from '../today.module.css';
 import type { HeaderZoneData, ZoneResult } from '@/services/mission-control/types';
 
+// T-32 QC fix (non-blocking item): 'quiet' previously read "At risk" here — an alarming label for
+// the SAME momentum band whose Grove caption (momentum.ts) is the deliberately gentle "Your field
+// is quiet — one small action wakes it up" (uiux §3.2 non-shaming states). "Quiet" reconciles the
+// two so the same state isn't narrated as calm in one place and alarming in the other.
 const BAND_LABEL: Record<string, string> = {
   thriving: 'Thriving',
   growing: 'Growing',
-  quiet: 'At risk',
+  quiet: 'Quiet',
   resting: 'Resting',
 };
 
@@ -37,10 +41,13 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
     <section className={styles.headerZone} data-zone="header">
       <div className={styles.headerTop}>
         <h1 className={styles.greeting}>Good morning, {greetingName}</h1>
-        <button type="button" className={styles.approvalBadge} aria-label={`Approval inbox, ${approvalInboxCount} waiting`}>
+        {/* T-32 QC fix (non-blocking item): was a bare `<button>` with no onClick — a no-op that
+            looked actionable. This is a plain navigation link to the Approval Inbox (T-33's route;
+            no T-33 code imported here). */}
+        <a href="/inbox" className={styles.approvalBadge} aria-label={`Approval inbox, ${approvalInboxCount} waiting`}>
           Approval Inbox
           <span className={styles.approvalBadgeCount}>{approvalInboxCount}</span>
-        </button>
+        </a>
       </div>
 
       <div className={styles.headerBody}>

@@ -130,7 +130,11 @@ export default function TodayPage() {
           </div>
         </div>
 
-        <button type="button" className={styles.primaryCta}>
+        {/* T-32 QC fix (non-blocking item): this CTA has no wired destination yet (the guided
+            30-minutes flow is future work, not part of T-32's scope) — `disabled` so it is never
+            shown as actionable when it silently does nothing (uiux §4.1 / master-spec §18.6 "no
+            fabricated content" applies to affordances too, not just copy). */}
+        <button type="button" className={styles.primaryCta} disabled aria-disabled="true">
           Start today&apos;s 30 minutes
         </button>
       </div>

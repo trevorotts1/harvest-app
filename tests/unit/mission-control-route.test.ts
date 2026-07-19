@@ -24,6 +24,11 @@ function seededDb() {
     ],
     draftMessages: [
       { id: 'draft-rep1', user_id: REP_ONE, contact_id: 'contact-1', channel: 'SMS_HANDOFF', cfe_outcome: 'PASS', approval_state: 'PENDING', approved_by: null, approved_at: null, created_at: NOW },
+      // T-32 QC fix: a FLAG-banded (PENDING) and a BLOCK-banded (HELD) draft — content the spec
+      // says is "never sendable" (master-spec §9.2/§18.6) — seeded so the fail-closed refusal can
+      // be proven end-to-end through the real HTTP route, not just the service unit.
+      { id: 'draft-flagged', user_id: REP_ONE, contact_id: 'contact-1', channel: 'SMS_HANDOFF', cfe_outcome: 'FLAG', approval_state: 'PENDING', approved_by: null, approved_at: null, created_at: NOW },
+      { id: 'draft-blocked', user_id: REP_ONE, contact_id: 'contact-1', channel: 'SMS_HANDOFF', cfe_outcome: 'BLOCK', approval_state: 'HELD', approved_by: null, approved_at: null, created_at: NOW },
     ],
     contacts: [{ id: 'contact-1', user_id: REP_ONE, first_name: 'Maya', last_name: 'Johnson', pipeline_stage: 'INTRODUCED', is_client: false, updated_at: NOW, created_at: NOW }],
     appointments: [],
@@ -143,6 +148,53 @@ describe('POST /api/mission-control/queue-action — ownership-scoped mutation',
     const req = new NextRequest('http://localhost/api/mission-control/queue-action', {
       method: 'POST',
       body: JSON.stringify({ kind: 'draft', id: 'draft-rep1', action: 'approve' }),
+    });
+    const res = await queueActionPOST(req, {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+  });
+
+  // T-32 QC FIX — adversarial QC proved LIVE against the shipped route that a FLAG- or
+  // BLOCK-banded draft could be moved to APPROVED through this exact endpoint with one POST. THESE
+  // TWO TESTS FAIL against the pre-fix route/service (they must — the bug was live) and PASS once
+  // actOnQueueDraft's fail-closed check lands. Proven end-to-end through the real route handler,
+  // not a mock of actOnQueueDraft — so this also proves the route never turns the refusal into a
+  // silent 200.
+  test('FAIL-CLOSED: approving a FLAG-banded draft through the route is REFUSED, not a silent 200', async () => {
+    mockedSession.mockResolvedValue(fakeSession(REP_ONE));
+    gatedComplete();
+    const req = new NextRequest('http://localhost/api/mission-control/queue-action', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'draft', id: 'draft-flagged', action: 'approve' }),
+    });
+    const res = await queueActionPOST(req, {});
+    expect(res.status).not.toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBeUndefined();
+    expect(body.error).toMatch(/requires review/i);
+  });
+
+  test('FAIL-CLOSED: approving a BLOCK-banded (HELD) draft through the route is REFUSED, not a silent 200', async () => {
+    mockedSession.mockResolvedValue(fakeSession(REP_ONE));
+    gatedComplete();
+    const req = new NextRequest('http://localhost/api/mission-control/queue-action', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'draft', id: 'draft-blocked', action: 'approve' }),
+    });
+    const res = await queueActionPOST(req, {});
+    expect(res.status).not.toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBeUndefined();
+    expect(body.error).toMatch(/requires review/i);
+  });
+
+  test('declining a FLAG-banded draft through the route still succeeds — decline is never gated', async () => {
+    mockedSession.mockResolvedValue(fakeSession(REP_ONE));
+    gatedComplete();
+    const req = new NextRequest('http://localhost/api/mission-control/queue-action', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'draft', id: 'draft-flagged', action: 'decline' }),
     });
     const res = await queueActionPOST(req, {});
     expect(res.status).toBe(200);

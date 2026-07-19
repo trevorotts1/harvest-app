@@ -31,6 +31,7 @@ import type {
   GroveState,
   HeaderZoneData,
   PipelineZoneData,
+  QueueItem,
   RatiosZoneData,
   ZoneResult,
 } from '@/services/mission-control/types';
@@ -209,6 +210,103 @@ describe('(a) Six Today zones render from real ZoneResult data (not demo)', () =
   test('CalendarStrip renders its OWN error state independently', () => {
     const html = render(CalendarStrip, { result: { status: 'error', message: 'calendar failed safely' }, onMarkAttendance: () => {} });
     expect(textOf(html)).toContain('calendar failed safely');
+  });
+});
+
+// ─── (e) T-32 QC FIX — the CFE approve-bypass ──────────────────────────────────────────────────────
+// Adversarial QC proved LIVE against shipped code that the "Review" button on a review_flagged
+// (CFE FLAG or BLOCK-banded) item fired the SAME `onAction(item, 'approve')` as a clean draft's
+// Approve button — a one-tap approve for content the spec says is "never sendable" (master-spec
+// §9.2/§18.6). These tests FAIL against the pre-fix ActionQueue.tsx (they must — the bug was live)
+// and PASS once the affordance is removed and replaced with a CFE band summary + a deep-link to the
+// Approval Inbox.
+describe('(e) T-32 QC fix — review_flagged items never wire a one-tap approve; the CFE band is shown', () => {
+  const flaggedItem: QueueItem = {
+    id: 'flag-1',
+    kind: 'review_flagged',
+    title: 'Review flagged draft',
+    why: 'This draft needs your review before it can send.',
+    contactLabel: 'Maya J.',
+    minutes: 3,
+    cfeBand: 'FLAG',
+    channel: 'SMS_HANDOFF',
+  };
+  const blockedItem: QueueItem = { ...flaggedItem, id: 'block-1', cfeBand: 'BLOCK' };
+
+  test('renders the CFE band text — captured in QueueItem data but never shown pre-fix', () => {
+    const data: ActionQueueZoneData = { totalMinutes: 3, items: [flaggedItem], totalCount: 1 };
+    const html = render(ActionQueue, { result: { status: 'ok', data }, onAction: () => {} });
+    expect(textOf(html)).toMatch(/FLAG/);
+  });
+
+  test('a BLOCKED item also renders its band', () => {
+    const data: ActionQueueZoneData = { totalMinutes: 3, items: [blockedItem], totalCount: 1 };
+    const html = render(ActionQueue, { result: { status: 'ok', data }, onAction: () => {} });
+    expect(textOf(html)).toMatch(/BLOCK/);
+  });
+
+  test('renders a deep-link to the Approval Inbox for a flagged item, and NO "Review"-labelled approve button', () => {
+    const data: ActionQueueZoneData = { totalMinutes: 3, items: [flaggedItem], totalCount: 1 };
+    const html = render(ActionQueue, { result: { status: 'ok', data }, onAction: () => {} });
+    expect(html).toMatch(/<a[^>]+href="\/inbox"/);
+    // The old one-tap-approve button rendered exactly `<button ...>Review</button>` — gone.
+    expect(html).not.toMatch(/<button[^>]*>\s*Review\s*<\/button>/);
+  });
+
+  test('renders a deep-link to the Approval Inbox for a blocked item too', () => {
+    const data: ActionQueueZoneData = { totalMinutes: 3, items: [blockedItem], totalCount: 1 };
+    const html = render(ActionQueue, { result: { status: 'ok', data }, onAction: () => {} });
+    expect(html).toMatch(/<a[^>]+href="\/inbox"/);
+    expect(html).not.toMatch(/<button[^>]*>\s*Review\s*<\/button>/);
+  });
+
+  // Recursively collects every `onClick` handler in the component's real element tree — calling
+  // the component directly (no DOM/jsdom needed) returns the same JSX element graph React would
+  // render, so this is a true interaction proof: every clickable affordance in the row is
+  // exercised, not just the markup inspected statically.
+  function collectOnClicks(node: unknown, acc: Array<() => void> = []): Array<() => void> {
+    if (node === null || typeof node !== 'object') return acc;
+    if (Array.isArray(node)) {
+      for (const child of node) collectOnClicks(child, acc);
+      return acc;
+    }
+    const props = (node as { props?: Record<string, unknown> }).props;
+    if (!props) return acc;
+    if (typeof props.onClick === 'function') acc.push(props.onClick as () => void);
+    if (props.children !== undefined) collectOnClicks(props.children, acc);
+    return acc;
+  }
+
+  test('INTERACTION: clicking every affordance in a review_flagged / blocked row never calls onAction(item, "approve")', () => {
+    const data: ActionQueueZoneData = { totalMinutes: 6, items: [flaggedItem, blockedItem], totalCount: 2 };
+    const onAction = jest.fn();
+    const tree = ActionQueue({ result: { status: 'ok', data }, onAction });
+    const onClicks = collectOnClicks(tree);
+
+    expect(onClicks.length).toBeGreaterThan(0); // sanity: the Decline button IS still there
+    for (const fn of onClicks) fn();
+
+    expect(onAction).not.toHaveBeenCalledWith(expect.anything(), 'approve');
+  });
+
+  test('a clean approve_draft item is UNAFFECTED — its Approve button still calls onAction(item, "approve")', () => {
+    const cleanItem: QueueItem = {
+      id: 'clean-1',
+      kind: 'approve_draft',
+      title: 'Approve draft',
+      why: 'because',
+      contactLabel: 'Maya J.',
+      minutes: 2,
+      cfeBand: 'PASS',
+      channel: 'SMS_HANDOFF',
+    };
+    const data: ActionQueueZoneData = { totalMinutes: 2, items: [cleanItem], totalCount: 1 };
+    const onAction = jest.fn();
+    const tree = ActionQueue({ result: { status: 'ok', data }, onAction });
+    const onClicks = collectOnClicks(tree);
+    for (const fn of onClicks) fn();
+
+    expect(onAction).toHaveBeenCalledWith(cleanItem, 'approve');
   });
 });
 

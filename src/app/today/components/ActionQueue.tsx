@@ -49,6 +49,14 @@ export default function ActionQueue({ result, onAction }: ActionQueueProps) {
             <div className={styles.queueRowMain}>
               <strong>{item.title}</strong>
               <span className={styles.queueWhy}>{item.why}</span>
+              {item.kind === 'review_flagged' && item.cfeBand && (
+                // T-32 QC fix: the band/classifier summary was captured on every item but never
+                // shown — the rep now sees WHY this draft can't be one-tap approved (uiux §5.2
+                // "never sendable" / master-spec §18.6 no fabricated content, shown honestly here).
+                <span className={styles.queueCfeBand}>
+                  {item.cfeBand === 'BLOCK' ? 'Blocked by compliance review' : 'Flagged by compliance review'} (CFE: {item.cfeBand})
+                </span>
+              )}
               <span className={styles.queueMeta}>
                 {item.contactLabel ? `${item.contactLabel} · ` : ''}
                 {`~${item.minutes} min`}
@@ -59,6 +67,20 @@ export default function ActionQueue({ result, onAction }: ActionQueueProps) {
                 <button type="button" className={styles.queueActionButton} onClick={() => onAction(item, 'confirm')}>
                   {KIND_LABEL[item.kind]}
                 </button>
+              ) : item.kind === 'review_flagged' ? (
+                // T-32 QC fix: a FLAG/BLOCK-banded draft is NEVER one-tap-approvable from Today —
+                // the fix is fail-closed at the endpoint (today.service.ts's actOnQueueDraft), and
+                // this affordance is removed here too so the rep is never shown a button that looks
+                // like it would work. Real adjudication (re-checked CFE, classifier drawer) is the
+                // Approval Inbox's job (T-33) — this is a plain navigation link, not T-33 code.
+                <>
+                  <a href="/inbox" className={styles.queueReviewLink}>
+                    Review in Approval Inbox
+                  </a>
+                  <button type="button" className={styles.queueActionButtonSecondary} onClick={() => onAction(item, 'decline')}>
+                    Decline
+                  </button>
+                </>
               ) : (
                 <>
                   <button type="button" className={styles.queueActionButton} onClick={() => onAction(item, 'approve')}>
