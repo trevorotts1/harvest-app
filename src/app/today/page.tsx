@@ -9,6 +9,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 
 import AnchorHeader from './components/AnchorHeader';
 import BriefingCard from './components/BriefingCard';
@@ -130,13 +131,14 @@ export default function TodayPage() {
           </div>
         </div>
 
-        {/* T-32 QC fix (non-blocking item): this CTA has no wired destination yet (the guided
-            30-minutes flow is future work, not part of T-32's scope) — `disabled` so it is never
-            shown as actionable when it silently does nothing (uiux §4.1 / master-spec §18.6 "no
-            fabricated content" applies to affordances too, not just copy). */}
-        <button type="button" className={styles.primaryCta} disabled aria-disabled="true">
+        {/* T-35R (WP04 gate remediation): master-spec §9.8 "Entered from Today's primary CTA" /
+            uiux §5.2 AC-5.2-2 — the daily ritual (T-34, /shift) is now live, so this CTA navigates
+            there. `/shift` is itself a gated downstream page (see
+            GATED_DOWNSTREAM_PAGE_PREFIXES in src/lib/auth/onboarding-gate-edge.ts), so an
+            authenticated-but-not-onboarded rep is still correctly routed into onboarding first. */}
+        <Link href="/shift" className={styles.primaryCta}>
           Start today&apos;s 30 minutes
-        </button>
+        </Link>
       </div>
     </main>
   );
