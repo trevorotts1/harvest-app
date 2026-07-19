@@ -10,6 +10,10 @@
 //   (d) the retired legacy demo scaffold (`agent-layer`, the demo `/api/agents` +
 //       `/api/mission-control/briefing` routes, `buildDemoBriefing`) is GONE and nothing live
 //       references it — grep-clean across the whole source tree.
+//   (e) T-35R (WP04 gate remediation): the Today primary CTA is wired to `/shift` (master-spec
+//       §9.8 "Entered from Today's primary CTA" / uiux §5.2 AC-5.2-2), not disabled — see the
+//       constraint note above that describe block for why this is a source-level assertion rather
+//       than a rendered-DOM one.
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -24,6 +28,7 @@ import ActionQueue from '@/app/today/components/ActionQueue';
 import PipelineGlance from '@/app/today/components/PipelineGlance';
 import RatioCards from '@/app/today/components/RatioCards';
 import CalendarStrip from '@/app/today/components/CalendarStrip';
+import { isGatedDownstreamPage } from '@/lib/auth/onboarding-gate-edge';
 import type {
   ActionQueueZoneData,
   BriefingZoneData,
@@ -338,5 +343,47 @@ describe('(d) legacy demo scaffold is GONE and nothing live references it', () =
       if (/agent-layer|buildDemoBriefing/.test(src)) offenders.push(path.relative(REPO_ROOT, file));
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+// ─── (e) T-35R: Today's primary CTA is wired to /shift, not disabled (WP04 gate remediation) ──────
+//
+// CONSTRAINT: `TodayPage` is a 'use client' component whose CTA only renders once its `useState`
+// data-load reaches the `'ready'` state via a `useEffect`-triggered `fetch`. `renderToStaticMarkup`
+// (this suite's convention — testEnvironment is plain `node`, no jsdom/@testing-library/react, see
+// jest.config.js) never runs effects, so the `'ready'` branch — and therefore the CTA markup — is
+// structurally unreachable from a single static render of the full page component. Per T-35R's
+// brief, the lightest REAL assertion available is a source-level inspection of the CTA's own JSX,
+// scoped tightly to the CTA line itself (not a loose whole-file substring match) — this still fails
+// exactly as intended if the CTA is ever reverted to `disabled`/unwired, or re-pointed elsewhere.
+describe('(e) Today primary CTA → /shift wiring (T-35R, master-spec §9.8 / uiux §5.2 AC-5.2-2)', () => {
+  const pageSrc = readFileSync(path.join(TODAY_DIR, 'page.tsx'), 'utf8');
+  // Isolate the CTA's own JSX element (opening tag through closing tag) so assertions can't be
+  // fooled by an unrelated `disabled` elsewhere on the page, or pass vacuously against the whole file.
+  const ctaMatch = pageSrc.match(/<Link\s+href="\/shift"[^>]*>[\s\S]*?<\/Link>/);
+
+  test('sanity: the CTA element was actually found in src/app/today/page.tsx (not a vacuous pass)', () => {
+    expect(ctaMatch).not.toBeNull();
+  });
+
+  test('the CTA links to /shift — the real T-34 ritual entry route', () => {
+    expect(ctaMatch?.[0]).toMatch(/href="\/shift"/);
+  });
+
+  test('the CTA is NOT disabled — this is the exact WP04 gate-blocking defect: fails if reverted', () => {
+    expect(ctaMatch?.[0]).not.toMatch(/\bdisabled\b/);
+    expect(ctaMatch?.[0]).not.toMatch(/aria-disabled/);
+  });
+
+  test('the CTA renders the expected label text', () => {
+    expect(ctaMatch?.[0]).toMatch(/Start today(?:&apos;|')s 30 minutes/);
+  });
+
+  test('/shift is itself a gated downstream page — a not-yet-onboarded rep following the CTA still lands in onboarding first', () => {
+    expect(isGatedDownstreamPage('/shift')).toBe(true);
+  });
+
+  test('src/app/shift/page.tsx (the T-34 ritual entry) actually exists — the CTA is not pointed at a route that does not exist', () => {
+    expect(existsSync(path.join(SRC_DIR, 'app', 'shift', 'page.tsx'))).toBe(true);
   });
 });
