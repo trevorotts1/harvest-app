@@ -48,7 +48,7 @@ export type MessagingConsentSource = 'sms_keyword' | 'web_form' | 'manual_entry'
  * version tie (the row actually written later is "more current"); `id` is the final, always-unique
  * absolute tiebreak so ordering is deterministic even for two rows inserted in the same instant.
  */
-const CURRENT_CONSENT_ORDER_BY = [
+export const CURRENT_CONSENT_ORDER_BY = [
   { version: 'desc' as const },
   { timestamp: 'desc' as const },
   { id: 'desc' as const },

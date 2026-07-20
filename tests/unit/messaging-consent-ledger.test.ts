@@ -12,9 +12,16 @@
 //
 // T-R17 (remediation of a T-38 QC finding, §9.2 — consent-version race): additionally proves (a)
 // the multi-key orderBy (`version` desc, `timestamp` desc, `id` desc) is what makes "current
-// consent" deterministic even when two rows share a version — this fake client's `findFirst` /
-// `findMany` implement a REAL multi-key sort (not a version-only shortcut) so these tests exercise
-// the exact orderBy the ledger sends, not a pre-baked substitute; (b) the fake `create` enforces
+// consent" deterministic even when two rows share a version. Unlike an earlier draft of this file
+// (QC FAIL 7.5), the fake client's `findFirst` / `findMany` below do NOT hardcode their own
+// comparator — they destructure `args.orderBy` and sort by EXACTLY those keys, in that order, via
+// `sortByOrderBy`. That means these tests exercise the REAL orderBy the ledger sends, not a
+// pre-baked substitute: if production ever regresses to `orderBy: [{version:'desc'}]` alone (the
+// exact bug T-R17 fixes), the fake stops applying the `timestamp`/`id` tiebreaks too, and the
+// T-R17(a) "two rows share a version" tests below go RED instead of staying green. A dedicated
+// assertion (T-R17(e)) additionally pins the ledger's `captureConsent` read, `hasMessagingConsent`,
+// and `getHistory` calls to the real, imported `CURRENT_CONSENT_ORDER_BY` constant, so a revert is
+// caught even before the sort behavior is exercised. Also proves (b) the fake `create` enforces
 // the SAME semantics as the DB `@@unique([contact_id, consent_type, version])` added alongside
 // this fix — including Postgres's NULL-is-distinct default, so a `contact_id: null` row (the WP11
 // onboarding-consent shape) never collides with another `contact_id: null` row — and that
@@ -23,6 +30,7 @@
 import {
   MessagingConsentLedger,
   MESSAGING_TCPA_CONSENT_TYPE,
+  CURRENT_CONSENT_ORDER_BY,
   type MessagingConsentPrismaClient,
 } from '../../src/services/compliance/messaging-consent/messaging-consent-ledger';
 
@@ -46,20 +54,40 @@ class FakeUniqueConstraintError extends Error {
   }
 }
 
-/** Multi-key comparator mirroring exactly what Prisma sends the DB for
- *  `orderBy: [{version:'desc'},{timestamp:'desc'},{id:'desc'}]` — each key breaks ties in the
- *  previous key, `id` (a strict total order in this fake, like a real DB primary key) as the final
- *  absolute tiebreak. A version-only sort would leave same-version rows in whatever order the
- *  underlying array happens to be in (stable sort) — exactly the ambiguity T-R17 fixes. */
-function sortByCurrentConsentOrder(rows: FakeRow[]): FakeRow[] {
+/** The exact shape `messaging-consent-ledger.ts`'s `MessagingConsentPrismaClient` declares for
+ *  `orderBy` — a list of single-key clauses applied in order, each breaking ties left by the ones
+ *  before it. */
+type ConsentOrderBy = Array<{ version: 'desc' } | { timestamp: 'desc' } | { id: 'desc' }>;
+
+/** Sorts rows using ONLY the keys present in `orderBy`, in the order given — a faithful model of
+ *  Prisma's multi-key `orderBy` semantics, driven entirely by what the CALLER passes, not a
+ *  hardcoded pre-baked comparator. This is the crux of the T-R17 QC fix: previously this fake
+ *  ignored `args.orderBy` outright and always applied its own full version/timestamp/id
+ *  comparator, so reverting the ledger's real orderBy to `[{version:'desc'}]` alone was invisible
+ *  to every test in this file. Now, if the ledger sends fewer/different keys, this sort resolves
+ *  ties using ONLY those keys too — reproducing the exact non-determinism T-R17 exists to fix. */
+function sortByOrderBy(rows: FakeRow[], orderBy: ConsentOrderBy): FakeRow[] {
   // Fake ids are `cc-<N>`; compare the numeric suffix (not lexicographically — "cc-10" < "cc-2"
   // as strings, which would misrepresent a real DB primary key's total order once N reaches double
-  // digits) so `id desc` behaves like a real, monotonic absolute tiebreak.
+  // digits) so an `id` clause behaves like a real, monotonic absolute tiebreak.
   const idNum = (id: string) => Number(id.split('-')[1]);
+  const valueOf = (row: FakeRow, key: string): number => {
+    if (key === 'version') return row.version;
+    if (key === 'timestamp') return row.timestamp.getTime();
+    if (key === 'id') return idNum(row.id);
+    throw new Error(`sortByOrderBy: unsupported orderBy key "${key}"`);
+  };
   return [...rows].sort((a, b) => {
-    if (a.version !== b.version) return b.version - a.version;
-    if (a.timestamp.getTime() !== b.timestamp.getTime()) return b.timestamp.getTime() - a.timestamp.getTime();
-    return idNum(b.id) - idNum(a.id);
+    for (const clause of orderBy) {
+      const [key, direction] = Object.entries(clause)[0] as [string, 'asc' | 'desc'];
+      const diff = valueOf(a, key) - valueOf(b, key);
+      if (diff !== 0) return direction === 'desc' ? -diff : diff;
+    }
+    // Exhausted every key the CALLER provided without finding a difference: a genuine tie under
+    // THIS orderBy (e.g. a version-only orderBy comparing two same-version rows). Stable sort
+    // leaves these in whatever order they arrived — exactly the DB-implementation-detail ambiguity
+    // a real Postgres `ORDER BY version DESC` (no further tiebreak) would also leave undefined.
+    return 0;
   });
 }
 
@@ -88,15 +116,17 @@ function makeFakeLedgerClient() {
         rows.push(row);
         return row;
       }),
-      findFirst: jest.fn(async ({ where }) => {
-        const matches = sortByCurrentConsentOrder(
-          rows.filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type)
+      findFirst: jest.fn(async ({ where, orderBy }) => {
+        const matches = sortByOrderBy(
+          rows.filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type),
+          orderBy
         );
         return matches[0] ?? null;
       }),
-      findMany: jest.fn(async ({ where }) => {
-        return sortByCurrentConsentOrder(
-          rows.filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type)
+      findMany: jest.fn(async ({ where, orderBy }) => {
+        return sortByOrderBy(
+          rows.filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type),
+          orderBy
         );
       }),
     },
@@ -294,19 +324,19 @@ describe('T-R17 (a): deterministic ordering when two rows share a version', () =
     // Same two rows, opposite array order — a real DB gives no scan-order guarantee for ties, so
     // "current consent" must not depend on which order the two rows happen to come back in.
     const { client: clientA } = makeFakeLedgerClient();
-    clientA.complianceConsent.findFirst = jest.fn(async ({ where }) => {
+    clientA.complianceConsent.findFirst = jest.fn(async ({ where, orderBy }) => {
       const matches = [rowLow, rowHigh].filter(
         (r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type
       );
-      return sortByCurrentConsentOrder(matches)[0] ?? null;
+      return sortByOrderBy(matches, orderBy)[0] ?? null;
     });
 
     const { client: clientB } = makeFakeLedgerClient();
-    clientB.complianceConsent.findFirst = jest.fn(async ({ where }) => {
+    clientB.complianceConsent.findFirst = jest.fn(async ({ where, orderBy }) => {
       const matches = [rowHigh, rowLow].filter(
         (r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type
       );
-      return sortByCurrentConsentOrder(matches)[0] ?? null;
+      return sortByOrderBy(matches, orderBy)[0] ?? null;
     });
 
     const ledgerA = new MessagingConsentLedger(clientA);
@@ -485,5 +515,45 @@ describe('T-R17 (d): hasMessagingConsent is still fail-closed after the ordering
       },
     };
     expect(await new MessagingConsentLedger(failingClient).hasMessagingConsent('contact-x')).toBe(false);
+  });
+});
+
+describe('T-R17 (e): every read path sends the EXACT, real CURRENT_CONSENT_ORDER_BY — not a substitute', () => {
+  // These assertions pin the ledger's actual `orderBy` argument (imported straight from
+  // `messaging-consent-ledger.ts`, not re-typed here) on all three call sites that read "current
+  // consent". A revert to `orderBy: [{version:'desc'}]` (or dropping/reordering any key) fails
+  // these directly — independent of, and in addition to, the sort-behavior teeth in T-R17(a) above.
+
+  test('captureConsent\'s pre-write "what is the current version" read uses CURRENT_CONSENT_ORDER_BY', async () => {
+    const { client } = makeFakeLedgerClient();
+    const ledger = new MessagingConsentLedger(client);
+
+    await ledger.captureConsent('rep-1', 'contact-1', true);
+
+    expect(client.complianceConsent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: CURRENT_CONSENT_ORDER_BY })
+    );
+  });
+
+  test('hasMessagingConsent\'s lookup uses CURRENT_CONSENT_ORDER_BY', async () => {
+    const { client } = makeFakeLedgerClient();
+    const ledger = new MessagingConsentLedger(client);
+
+    await ledger.hasMessagingConsent('contact-1');
+
+    expect(client.complianceConsent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: CURRENT_CONSENT_ORDER_BY })
+    );
+  });
+
+  test('getHistory\'s findMany uses CURRENT_CONSENT_ORDER_BY', async () => {
+    const { client } = makeFakeLedgerClient();
+    const ledger = new MessagingConsentLedger(client);
+
+    await ledger.getHistory('contact-1');
+
+    expect(client.complianceConsent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: CURRENT_CONSENT_ORDER_BY })
+    );
   });
 });
