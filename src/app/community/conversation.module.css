@@ -1,0 +1,277 @@
+/* ==========================================================================
+   Conversation Timeline (uiux §5.7 / §4.7). [T-39]
+
+   The per-contact conversation stream + the two honest send-path bubble
+   variants + the agent-sent badge + the three-way handoff card + the system
+   entries (reply-paused, opt-out do-not-contact rule, thread reactivation).
+
+   Operational surface — consumes SEMANTIC tokens only (tokens.css §1.2.2):
+   NO raw hex (scanned by tests/unit/contact-card-plots.test.ts's community
+   raw-hex sweep), NO opacity/translucent color on text
+   (guard-no-opacity-on-text.mjs scans this file). All message-meta and badge
+   text sits on --surface-canvas so it always lands on an AA-verified pair.
+   ========================================================================== */
+
+/* ---- The stream ---- */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.timelineEmpty {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* ---- One entry ---- */
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 82%;
+}
+.entryOutbound {
+  align-self: flex-end;
+  align-items: flex-end;
+  text-align: right;
+}
+.entryInbound {
+  align-self: flex-start;
+  align-items: flex-start;
+  text-align: left;
+}
+.entrySystem {
+  align-self: stretch;
+  width: 100%;
+}
+
+/* ---- Bubbles: the send-path grammar is VISIBLE and DISTINCT (§5.7). ---- */
+.bubble {
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--elevation-1);
+  max-width: 100%;
+}
+.messageBody {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Own-number (composer handoff) — a true blue bubble; "sent from your number". */
+.bubbleOwnNumber {
+  background: var(--color-action);
+  color: var(--on-action);
+  border: 1px solid var(--color-action);
+}
+/* Platform number — leaf-tinted, clearly not the rep's own bubble. */
+.bubblePlatform {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--color-growth);
+}
+/* Email — its own tint (harvest accent), still distinct from both SMS paths. */
+.bubbleEmail {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--color-harvest-text);
+}
+/* Inbound (the contact's reply) — a neutral received bubble. */
+.bubbleInbound {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+}
+
+/* ---- Entry meta (channel icon · timestamp · honest status) — on the canvas. ---- */
+.entryMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+.channelIcon {
+  font-size: var(--type-caption-size);
+}
+.timestamp {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.statusLine {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+/* Failed send stays in the stream, honestly, with a solid AA-verified danger chip. */
+.statusFailed {
+  background: var(--color-danger-form-bg);
+  color: var(--color-danger-form-text);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-2);
+}
+
+.retryButton {
+  align-self: flex-end;
+  margin-top: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-4);
+  cursor: pointer;
+  min-height: 36px;
+}
+.retryButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* ---- The agent-sent badge (§4.7; T-R16/T-R19 fold-in) — on the canvas. ---- */
+.agentBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+.agentBadgeIcon {
+  color: var(--color-action);
+}
+.agentBadgeText {
+  color: var(--text-secondary);
+}
+.cfeEvidence {
+  margin-left: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  padding: 0 var(--space-2);
+  font-weight: 700;
+}
+
+/* ---- Three-way handoff card (§10.6 / uiux §5.7). ---- */
+.handoffCard {
+  align-self: stretch;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--color-growth);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.handoffLine {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.handoffIcon {
+  color: var(--color-growth);
+  font-weight: 800;
+}
+.chipRow {
+  display: flex;
+  gap: var(--space-2);
+}
+.identityChip {
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+}
+.coachedStep {
+  margin: 0;
+  color: var(--text-primary);
+}
+.coachLabel {
+  display: inline-block;
+  margin-right: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+  padding: 0 var(--space-2);
+  font-size: var(--type-caption-size);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- System entries ---- */
+/* The opt-out do-not-contact rule — full-width, blocked semantics (§4.7 / §18.8). */
+.optOutRule {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-panel);
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+  padding: var(--space-3) var(--space-4);
+  font-weight: 800;
+}
+.optOutIcon {
+  color: var(--on-blocked);
+  font-weight: 800;
+}
+
+/* The reply-arrived / cadence-paused chip (§10.8) — caution semantics. */
+.replyPausedChip {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+}
+.systemIcon {
+  color: var(--color-caution-text);
+  font-weight: 800;
+}
+
+/* Thread reactivation context-replay card. */
+.reactivationCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.reactivationLabel {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.reactivationSummary {
+  margin: 0;
+  color: var(--text-primary);
+}

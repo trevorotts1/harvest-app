@@ -43,6 +43,14 @@ export type SendHoldReason =
   /** The Twilio messaging credentials (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) are absent — the
    *  platform send fails SAFE (no send, no crash), never fabricating a delivered result (§0.4). */
   | 'TWILIO_UNCONFIGURED'
+  /** T-39 (§10.7 email path): the transactional-email credential (RESEND_API_KEY) is absent — the
+   *  email send fails SAFE (HELD, no send, no crash), never a fabricated delivery (§0.4). */
+  | 'EMAIL_UNCONFIGURED'
+  /** T-39: the recipient has no email on file (or it could not be decrypted) — nothing to send to. */
+  | 'NO_EMAIL'
+  /** T-39 (§10.3): no authenticated sending domain was resolved for the org — the EMAIL
+   *  deliverability check cannot run, so the send fails CLOSED rather than guessing a domain. */
+  | 'NO_SENDING_DOMAIN'
   /** A2P is APPROVED but no platform from-number resolved — fail-closed rather than guess a
    *  sender. */
   | 'NO_PLATFORM_NUMBER'
@@ -64,6 +72,17 @@ export interface SendDraftFields {
   cfe_outcome: CFEOutcome | null;
   approval_state: string;
   edited_after_approval: boolean;
+  /** T-39 (T-R16 fold-in): the human who approved this draft in the Approval Inbox, denormalized
+   *  onto the sent Message so the uiux §4.7 agent-sent badge ("approved by you [date]") is
+   *  self-contained. Optional so pre-T-39 draft rows / test fixtures without it still typecheck. */
+  approved_by?: string | null;
+  approved_at?: Date | null;
+  /** T-39 (T-R19 fold-in): the draft's persisted CFE risk score / classifier data (from WP04's CFE
+   *  pass) — read at send time to build the durable compliance-evidence AuditEntry that
+   *  Message.cfe_audit_id links to, WITHOUT re-running the CFE (key-less). Optional for the same
+   *  fixture-compatibility reason. */
+  cfe_risk_score?: number | null;
+  cfe_classifier_data?: unknown;
 }
 
 export type DraftClearance =

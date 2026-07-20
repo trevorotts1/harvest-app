@@ -28,6 +28,7 @@ import {
   clearSendHold,
   defaultBodyEncryptor,
   defaultPhoneDecryptor,
+  linkCfeAuditForSend,
   recordOutboundMessage,
   recordSendHold,
   resolveThreadId,
@@ -157,6 +158,8 @@ export class FirstTouchComposerService {
 
       // Record the handoff EVENT as compliance evidence: sent_from = rep_number, HANDED_OFF (honest,
       // never a fake delivery tick), handoff_confirmed = false until the rep taps "I sent it".
+      // T-R19/T-R16 fold-in: link the compliance-evidence AuditEntry + carry approval attribution.
+      const cfeAuditId = await linkCfeAuditForSend(this.prisma, draft, MessageChannel.SMS_HANDOFF);
       const threadId = await resolveThreadId(this.prisma, userId, contact.id, MessageChannel.SMS_HANDOFF, now);
       const message = await recordOutboundMessage(this.prisma, this.encryptBody, {
         threadId,
@@ -166,6 +169,9 @@ export class FirstTouchComposerService {
         body: draft.body,
         deliveryStatus: 'HANDED_OFF',
         handoffConfirmed: false,
+        cfeAuditId,
+        approvedBy: draft.approved_by ?? null,
+        approvedAt: draft.approved_at ?? null,
       });
       await clearSendHold(this.prisma, draftId);
 

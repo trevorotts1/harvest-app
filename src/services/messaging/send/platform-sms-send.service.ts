@@ -30,6 +30,7 @@ import {
   clearSendHold,
   defaultBodyEncryptor,
   defaultPhoneDecryptor,
+  linkCfeAuditForSend,
   recordOutboundMessage,
   recordSendHold,
   resolveThreadId,
@@ -149,6 +150,10 @@ export class PlatformSmsSendService {
       }
 
       // ── All three gates passed — the ONLY path that reaches an actual dispatch. ──────────────────
+      // T-R19 fold-in: persist the compliance-evidence AuditEntry from the draft's already-computed
+      // CFE verdict and link it on the recorded Message (no CFE re-run — key-less). T-R16 fold-in:
+      // carry the draft's approval attribution onto the sent Message for the uiux §4.7 badge.
+      const cfeAuditId = await linkCfeAuditForSend(this.prisma, draft, MessageChannel.SMS_PLATFORM);
       const threadId = await resolveThreadId(this.prisma, userId, contact.id, MessageChannel.SMS_PLATFORM, now);
       let sendResult;
       try {
@@ -165,6 +170,9 @@ export class PlatformSmsSendService {
           body: draft.body,
           deliveryStatus: 'FAILED',
           handoffConfirmed: false,
+          cfeAuditId,
+          approvedBy: draft.approved_by ?? null,
+          approvedAt: draft.approved_at ?? null,
         });
         return { status: 'FAILED', error: (err as Error).message };
       }
@@ -177,6 +185,9 @@ export class PlatformSmsSendService {
         body: draft.body,
         deliveryStatus: sendResult.status,
         handoffConfirmed: false,
+        cfeAuditId,
+        approvedBy: draft.approved_by ?? null,
+        approvedAt: draft.approved_at ?? null,
       });
       await clearSendHold(this.prisma, draftId);
 
