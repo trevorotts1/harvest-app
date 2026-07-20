@@ -41,13 +41,21 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
     <section className={styles.headerZone} data-zone="header">
       <div className={styles.headerTop}>
         <h1 className={styles.greeting}>Good morning, {greetingName}</h1>
-        {/* T-32 QC fix (non-blocking item): was a bare `<button>` with no onClick — a no-op that
-            looked actionable. This is a plain navigation link to the Approval Inbox (T-33's route;
-            no T-33 code imported here). */}
-        <a href="/inbox" className={styles.approvalBadge} aria-label={`Approval inbox, ${approvalInboxCount} waiting`}>
-          Approval Inbox
-          <span className={styles.approvalBadgeCount}>{approvalInboxCount}</span>
-        </a>
+        <div className={styles.headerBadgeRow}>
+          {/* T-32 QC fix (non-blocking item): was a bare `<button>` with no onClick — a no-op that
+              looked actionable. This is a plain navigation link to the Approval Inbox (T-33's route;
+              no T-33 code imported here). */}
+          <a href="/inbox" className={styles.approvalBadge} aria-label={`Approval inbox, ${approvalInboxCount} waiting`}>
+            Approval Inbox
+            <span className={styles.approvalBadgeCount}>{approvalInboxCount}</span>
+          </a>
+          {/* T-R22 (remediation): the only reachable path to /team (the new upline "accept a bridge"
+              surface) from Mission Control — no mission-control zone data was added for this (no
+              count), so this link carries no query of its own; /team fetches its own pending list. */}
+          <a href="/team" className={styles.approvalBadge} aria-label="Team">
+            Team
+          </a>
+        </div>
       </div>
 
       <div className={styles.headerBody}>

@@ -1,0 +1,144 @@
+/* ==========================================================================
+   The Team surface — pending upline bridge requests (T-R22, remediation of
+   the T-40R re-QC finding: POST /api/messaging/handoff/join was API-reachable
+   only, with no upline-facing UI). master-spec §10.6; uiux §5.7 "bridge my
+   upline" (the upline-side complement of ../community/components/
+   BridgeUplinePanel.tsx).
+
+   Operational surface (uiux §1.1 item 4) — no ritual paper texture. Semantic
+   tokens only (tokens.css §1.2.2), no raw hex, no opacity/translucent color
+   on text (guard-no-opacity-on-text.mjs scans this file).
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.title {
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+/* ---- Empty / loading / error states ---- */
+.emptyState,
+.loadingState,
+.errorState {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+}
+.errorState {
+  color: var(--color-danger-form-text);
+  background: var(--color-danger-form-bg);
+  border-color: var(--color-danger-form-text);
+}
+.retryButton {
+  margin-top: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+/* ---- The pending-bridge list ---- */
+.itemList {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.itemHeaderMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+.repChip {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.itemMeta {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.itemStatus {
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+.itemFooter {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.actionButton {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-body-size);
+  cursor: pointer;
+  min-height: 44px;
+}
+.actionButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.actionButton:disabled {
+  cursor: not-allowed;
+  color: var(--text-disabled);
+}
+.joinButton {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+  font-weight: 700;
+}
