@@ -16,6 +16,7 @@
 
 import { prisma } from '@/lib/prisma';
 
+import { SendComplianceGate } from '../../compliance/send-gate/send-compliance-gate';
 import { isChannelDeliverable } from '../../deliverability/gate';
 import { A2PProvisioningService } from '../../deliverability/a2p-service';
 import {
@@ -43,6 +44,25 @@ import type { SequencePrismaClient } from '../sequence/sequence.service';
 
 type AnyPrisma = typeof prisma;
 
+/**
+ * TEST/DI SEAM (T-40R QC fix, factory-coverage remediation) — the ONLY parameter this file adds
+ * that isn't itself a real production dependency. `EmailSendService`/`PlatformSmsSendService` both
+ * already default an omitted `sendGate` to `new SendComplianceGate()` (which in turn defaults its
+ * OWN `OptOutRegistryService`/`MessagingConsentLedger` to the real imported `prisma` singleton) —
+ * exactly what production wants. But that means the `db` this factory threads through for CFE reads
+ * + deliverability was NEVER also reaching `SendComplianceGate`, so a caller supplying an in-memory
+ * `db` (a unit test) had no way to keep opt-out/quiet-hours/TCPA-consent reads off a live database
+ * too. `overrides.sendGate`, when supplied, is passed straight through as the `sendGate` dep instead
+ * of leaving it undefined; every production call-site below omits the second argument entirely, so
+ * `overrides.sendGate` is `undefined` and every build* function below is BYTE-IDENTICAL to before
+ * this change (`deps.sendGate ?? new SendComplianceGate()` behaves the same whether the key is
+ * absent or present-but-undefined). No gate logic changes — this only widens who may construct the
+ * gate the services already run.
+ */
+export interface ProductionWiringOverrides {
+  sendGate?: SendComplianceGate;
+}
+
 /** The real T-36 A2P deliverability service, wired per invocation (never at module scope). */
 export function buildA2PService(db: AnyPrisma = prisma): A2PProvisioningService {
   return new A2PProvisioningService(
@@ -65,22 +85,30 @@ export function buildEmailDeliverabilityService(db: AnyPrisma = prisma): EmailDe
 }
 
 /** The fully-gated automated EMAIL sender (CFE + SendComplianceGate(EMAIL) + isChannelDeliverable). */
-export function buildEmailSendService(db: AnyPrisma = prisma): EmailSendService {
+export function buildEmailSendService(
+  db: AnyPrisma = prisma,
+  overrides: ProductionWiringOverrides = {}
+): EmailSendService {
   const a2pService = buildA2PService(db);
   const emailService = buildEmailDeliverabilityService(db);
   return new EmailSendService(db as unknown as SendPrismaClient, {
     checkDeliverable: (channel, organizationId, domain) =>
       isChannelDeliverable({ a2pService, emailService }, channel, organizationId, domain),
+    sendGate: overrides.sendGate,
   });
 }
 
 /** The fully-gated automated platform-SMS sender (CFE + SendComplianceGate(SMS_PLATFORM) + A2P). */
-export function buildPlatformSmsSendService(db: AnyPrisma = prisma): PlatformSmsSendService {
+export function buildPlatformSmsSendService(
+  db: AnyPrisma = prisma,
+  overrides: ProductionWiringOverrides = {}
+): PlatformSmsSendService {
   const a2pService = buildA2PService(db);
   const emailService = buildEmailDeliverabilityService(db);
   return new PlatformSmsSendService(db as unknown as SendPrismaClient, {
     checkDeliverable: (channel, organizationId) =>
       isChannelDeliverable({ a2pService, emailService }, channel, organizationId),
+    sendGate: overrides.sendGate,
   });
 }
 
@@ -95,17 +123,27 @@ export function buildFirstTouchComposerService(db: AnyPrisma = prisma): FirstTou
  * else. Identical to the one T-39's own seam test drives — this factory just supplies the real,
  * prisma-backed services production needs.
  */
-export function buildSequenceDispatcher(db: AnyPrisma = prisma): SeamSequenceDispatcher {
+export function buildSequenceDispatcher(
+  db: AnyPrisma = prisma,
+  overrides: ProductionWiringOverrides = {}
+): SeamSequenceDispatcher {
   return new SeamSequenceDispatcher(
     buildFirstTouchComposerService(db),
-    buildPlatformSmsSendService(db),
-    buildEmailSendService(db)
+    buildPlatformSmsSendService(db, overrides),
+    buildEmailSendService(db, overrides)
   );
 }
 
 /** The production `SequenceService` — the cadence engine over the real dispatcher above. */
-export function buildSequenceService(db: AnyPrisma = prisma): SequenceService {
-  return new SequenceService(db as unknown as SequencePrismaClient, buildSequenceDispatcher(db));
+export function buildSequenceService(
+  db: AnyPrisma = prisma,
+  overrides: ProductionWiringOverrides = {}
+): SequenceService {
+  return new SequenceService(
+    db as unknown as SequencePrismaClient,
+    buildSequenceDispatcher(db, overrides),
+    overrides.sendGate
+  );
 }
 
 /**
