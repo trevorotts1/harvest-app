@@ -231,3 +231,50 @@ export async function createCheckoutSession(
   }
   return { id: json.id, url: json.url };
 }
+
+export interface RetrieveChargeInput {
+  /** The Stripe charge id (the `charge` field on a `charge.dispute.created` Dispute object). */
+  chargeId: string;
+  env?: Record<string, string | undefined>;
+  /** Injectable fetch (tests). Defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+export interface StripeCharge {
+  id: string;
+  /** The Stripe customer id on the charge, or null when the charge carries none. */
+  customer: string | null;
+}
+
+/**
+ * Retrieve a Stripe Charge by id (`GET /v1/charges/{id}`) — the ONLY way to resolve the customer
+ * behind a `charge.dispute.created` event. Stripe's Dispute object carries NO top-level `customer`
+ * field; it exposes only a bare `charge` (and `payment_intent`) id string, so customer identity is
+ * reachable solely by retrieving the charge (or payment_intent) from the API. (This is exactly the
+ * bug T-47R shipped: it read `dispute.customer`, which is always absent on a real event.)
+ *
+ * LAZY + FAIL-CLOSED, identical to createCheckoutSession: reads STRIPE_SECRET_KEY by NAME at call
+ * time and throws StripeConfigError if absent (never fakes a customer). A non-2xx response throws
+ * (the caller treats a retrieval failure as RETRIABLE, not "resolved"). No `stripe` npm SDK.
+ */
+export async function retrieveStripeCharge(input: RetrieveChargeInput): Promise<StripeCharge> {
+  const { chargeId, env = process.env } = input;
+  const secret = readStripeSecret(STRIPE_SECRET_KEY_ENV_VAR, env);
+  const doFetch = input.fetchImpl ?? fetch;
+
+  const res = await doFetch(`${STRIPE_API_BASE}/charges/${encodeURIComponent(chargeId)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Stripe charge retrieve failed (${res.status}): ${detail.slice(0, 500)}`);
+  }
+  const json = (await res.json()) as { id?: string; customer?: unknown };
+  if (!json.id) {
+    throw new Error('Stripe charge response missing id.');
+  }
+  // `customer` is a bare id string (unexpanded) or null; anything else → treat as no customer.
+  return { id: json.id, customer: typeof json.customer === 'string' ? json.customer : null };
+}

@@ -31,8 +31,10 @@ export interface SubscriptionUpdatedArgs {
 }
 
 export interface DisputeArgs {
+  /** The disputed charge's id — a BARE id string on the Dispute object. Resolves the customer. */
   stripeChargeId: string | null;
-  stripeCustomerId: string | null;
+  /** The disputed PaymentIntent id — also a bare id string; an alternate resolution path. */
+  stripePaymentIntentId: string | null;
   disputeId: string;
 }
 
@@ -106,9 +108,13 @@ export async function dispatchStripeEvent(
       return { handled: true, type: event.type };
 
     case 'charge.dispute.created':
+      // The Stripe Dispute object has NO top-level `customer` field — only bare `charge` /
+      // `payment_intent` id strings. Customer identity is resolved downstream by RETRIEVING the
+      // charge from the Stripe API (production-wiring.ts `onDisputeCreated`). Reading `customer`
+      // here (as the original T-47R fix did) is always null on a real event — that was the bug.
       await handlers.onDisputeCreated({
         stripeChargeId: str(obj, 'charge'),
-        stripeCustomerId: str(obj, 'customer'),
+        stripePaymentIntentId: str(obj, 'payment_intent'),
         disputeId: str(obj, 'id') ?? 'unknown_dispute',
       });
       return { handled: true, type: event.type };

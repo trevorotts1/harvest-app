@@ -25,6 +25,7 @@ import type {
   MemberTransitionStore,
 } from './sponsor-cascade';
 import { anniversaryThresholdCrossed } from './sponsor-cascade';
+import { retrieveStripeCharge, StripeConfigError } from './stripe-client';
 import type { StripeWebhookHandlers } from './webhook-events';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -342,41 +343,89 @@ export function buildStripeWebhookHandlers(): StripeWebhookHandlers {
       });
     },
 
-    // `charge.dispute.created` → chargeback handling (§15.5 / §15.7-8). T-47R: resolves the
-    // disputed Stripe CUSTOMER id to a live subscription/user via `stripe_customer_id` (persisted
-    // by `onCheckoutCompleted` above), then calls the already-built, already-unit-tested
-    // `handleDisputeCreated` (chargeback.ts) — status → DISPUTED (entitlement.ts then denies
-    // `outbound` while retaining `read`), the audit-trail evidence pack, and the support alert.
+    // `charge.dispute.created` → chargeback handling (§15.5 / §15.7-8).
     //
-    // FAIL-SAFE, not silent: a dispute event that cannot be resolved (no customer id on the event,
-    // or no subscription row carries that customer id — e.g. the checkout that created it predates
-    // this migration, or a data gap) is LOGGED LOUDLY (`console.error`, a distinct tag from the
-    // routine `[billing-notification]` log line) and returns without throwing — Stripe is
-    // acknowledged (no infinite retry storm over an unresolvable id) but the miss is never quietly
-    // dropped; it is visible to anyone watching production logs/alerting for exactly this signal,
-    // so a genuinely resolvable dispute that hits this branch due to a bug is never hidden.
-    async onDisputeCreated({ stripeCustomerId, disputeId }) {
+    // CUSTOMER RESOLUTION (the T-47R2 fix). The Stripe Dispute object exposes NO top-level
+    // `customer` field — only a bare `charge` id string (and `payment_intent`). So we RETRIEVE the
+    // charge from the Stripe REST API (`retrieveStripeCharge`, mirroring the lazy/fail-closed
+    // checkout fetch — no `stripe` SDK), read `charge.customer` off it, then look up the live
+    // Subscription by `stripe_customer_id` (persisted by `onCheckoutCompleted` above) → user →
+    // call the already-built, already-unit-tested `handleDisputeCreated` (chargeback.ts): status →
+    // DISPUTED (entitlement.ts then denies `outbound` while retaining `read`), the audit-trail
+    // evidence pack, and the support alert. (The original T-47R fix read `dispute.customer` off the
+    // event — always null on a real payload — so it early-returned on EVERY genuine dispute.)
+    //
+    // FAIL-SAFE, not silent, and it DISTINGUISHES "couldn't resolve" from "resolved → suspended":
+    //   • RETRIABLE (rethrow → idempotency claim released → route 500 → Stripe retries; never
+    //     marked done): Stripe key absent (fail-closed), a charge-retrieval network/HTTP error, or
+    //     a charge that came back with NO customer — none of these has actually resolved the
+    //     disputing user, so the event must be re-attempted / held for manual review, not buried.
+    //   • DEAD-END (log + return 200; marked done so Stripe does not retry-storm forever): the
+    //     customer resolved but NO subscription row carries that id (a data gap / pre-migration
+    //     checkout), or the event carried no charge id at all — retrying will never change the
+    //     outcome, but the miss is LOGGED LOUDLY (`console.error`, the distinct `[chargeback-
+    //     unresolved]` tag) so a genuinely-resolvable dispute that lands here due to a bug is
+    //     observable in alerting rather than quietly dropped.
+    async onDisputeCreated({ stripeChargeId, disputeId }) {
+      // No charge id → the event is malformed/unresolvable; retrying cannot help (dead-end).
+      if (!stripeChargeId) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[chargeback-unresolved]',
+          JSON.stringify({ disputeId, reason: 'dispute_event_missing_charge_id' })
+        );
+        return;
+      }
+
+      // Resolve the disputing customer by RETRIEVING the charge from Stripe (lazy, fail-closed).
+      let stripeCustomerId: string | null;
+      try {
+        const charge = await retrieveStripeCharge({ chargeId: stripeChargeId });
+        stripeCustomerId = charge.customer;
+      } catch (error) {
+        const reason =
+          error instanceof StripeConfigError ? 'stripe_not_configured' : 'charge_retrieval_failed';
+        // eslint-disable-next-line no-console
+        console.error(
+          '[chargeback-unresolved]',
+          JSON.stringify({ disputeId, chargeId: stripeChargeId, reason, error: String(error) })
+        );
+        // RETRIABLE: the customer was never resolved (transient/config) — release + let Stripe retry.
+        throw error;
+      }
+
+      // Charge retrieved but carries no customer → the user is still unresolved → RETRIABLE.
       if (!stripeCustomerId) {
         // eslint-disable-next-line no-console
         console.error(
           '[chargeback-unresolved]',
-          JSON.stringify({ disputeId, reason: 'dispute_event_missing_stripe_customer_id' })
+          JSON.stringify({ disputeId, chargeId: stripeChargeId, reason: 'charge_has_no_customer' })
         );
-        return;
+        throw new Error(
+          `Dispute ${disputeId}: charge ${stripeChargeId} retrieved but has no customer; retriable.`
+        );
       }
+
       const sub = await db.subscription.findFirst({
         where: { stripe_customer_id: stripeCustomerId },
         orderBy: { created_at: 'desc' },
         select: { user_id: true },
       });
+      // Customer resolved but no subscription carries it → DEAD-END (retrying won't grow a row).
       if (!sub) {
         // eslint-disable-next-line no-console
         console.error(
           '[chargeback-unresolved]',
-          JSON.stringify({ disputeId, stripeCustomerId, reason: 'no_subscription_for_stripe_customer_id' })
+          JSON.stringify({
+            disputeId,
+            chargeId: stripeChargeId,
+            stripeCustomerId,
+            reason: 'no_subscription_for_stripe_customer_id',
+          })
         );
         return;
       }
+
       await handleDisputeCreated({
         userId: sub.user_id,
         disputeId,
