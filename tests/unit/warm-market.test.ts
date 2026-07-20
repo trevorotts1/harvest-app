@@ -1,8 +1,10 @@
-import { ContactService, ContactInput } from '../../src/services/warm-market/contact.service';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
+
+import { ContactService } from '../../src/services/warm-market/contact.service';
 import { PipelineService } from '../../src/services/warm-market/pipeline.service';
 import { MemoryJoggerService, MemoryJoggerVocabViolationError } from '../../src/services/warm-market/memory-jogger.service';
-import { ContactSource, PipelineStage, RelationshipType } from '../../src/types/warm-market';
-import { hmacForMatch } from '../../src/services/compliance/encryption/encryption';
+import { PipelineStage, RelationshipType } from '../../src/types/warm-market';
 import {
   encryptRequiredField,
   encryptOptionalField,
@@ -99,43 +101,6 @@ describe('Warm Market Engine', () => {
       contactService = new ContactService(mockPrisma);
     });
 
-    test('should import and deduplicate contacts', async () => {
-      // First call returns null (no existing contact), second returns existing
-      mockContactFindFirst
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'existing-contact',
-          name: 'John Doe',
-          email: 'john@example.com',
-        });
-      mockContactCreate.mockResolvedValue({
-        id: 'contact-1',
-        name: 'John Doe',
-        email: 'john@example.com',
-        user_id: userId,
-        source: ContactSource.MANUAL,
-        pipeline_stage: PipelineStage.IDENTIFIED,
-        segment_score: 0,
-      });
-
-      const data: ContactInput[] = [
-        { userId, name: 'John Doe', email: 'john@example.com', source: ContactSource.MANUAL },
-        { userId, name: 'John Doe', email: 'john@example.com', source: ContactSource.MANUAL },
-      ];
-
-      const imported = await contactService.importContacts(userId, ContactSource.MANUAL, data);
-      expect(imported).toHaveLength(1);
-      expect(mockContactFindFirst).toHaveBeenCalledTimes(2);
-      expect(mockContactCreate).toHaveBeenCalledTimes(1);
-    });
-
-    test('should normalize contact data', () => {
-      const contact = { name: 'Alice', phone: '(555) 123-4567', email: 'Alice@Example.COM' };
-      const normalized = contactService.normalize(contact);
-      expect(normalized.phone).toBe('5551234567');
-      expect(normalized.email).toBe('alice@example.com');
-    });
-
     test('should calculate scoring based on interactions', () => {
       const contactHigh = { interactions: Array(6).fill({}) };
       expect(contactService.scoreContact(contactHigh)).toBe(80);
@@ -169,43 +134,70 @@ describe('Warm Market Engine', () => {
       });
     });
 
-    test('should populate phone_hash/email_hash via the keyed HMAC function (T-03 defect 2)', async () => {
-      mockContactFindFirst.mockResolvedValue(null);
-      mockContactCreate.mockResolvedValue({ id: 'contact-3' });
+  });
 
-      const data: ContactInput[] = [
-        { userId, name: 'Jane Roe', phone: '(555) 999-1234', email: 'Jane@Example.com', source: ContactSource.MANUAL },
-      ];
+  // T-R8 (housekeeping, from the T-22 QC): `ContactService.importContacts` used to dedupe via
+  // `{ phone: normalized.phone }` / `{ email: normalized.email }` — a plaintext equality query
+  // that could never match once T-22 made `Contact.phone`/`.email` AES-256-GCM ciphertext (IV
+  // varies per call, so equality against a plaintext value is dead by construction). The only
+  // *live* import path is `VaultService.importBatch` (tests/unit/vault.test.ts), which already
+  // dedupes correctly via the keyed `phone_hash`/`email_hash` columns. Since `importContacts` had
+  // zero live (non-test) call sites, it was retired rather than fixed — this block proves the
+  // retirement stuck: the method (and its orphaned `normalize`/`splitName`/`ContactInput`
+  // helpers) are actually gone, and nothing under `src/` references them. Reintroduce the old
+  // `{ phone: normalized.phone }` dedup query, or a live caller of `importContacts`, and these
+  // tests fail.
+  describe('ContactService.importContacts retirement (T-R8)', () => {
+    const REPO_ROOT = path.join(__dirname, '..', '..');
+    const SRC_DIR = path.join(REPO_ROOT, 'src');
+    const CONTACT_SERVICE_FILE = path.join(SRC_DIR, 'services', 'warm-market', 'contact.service.ts');
 
-      await contactService.importContacts(userId, ContactSource.MANUAL, data);
+    function findFiles(dir: string, predicate: (name: string) => boolean): string[] {
+      const out: string[] = [];
+      for (const entry of readdirSync(dir)) {
+        const full = path.join(dir, entry);
+        const stat = statSync(full);
+        if (stat.isDirectory()) out.push(...findFiles(full, predicate));
+        else if (predicate(entry)) out.push(full);
+      }
+      return out;
+    }
 
-      const createArgs = mockContactCreate.mock.calls[0][0];
-      // Same normalization the service applies (digits-only phone, lowercased email) fed through
-      // the real keyed HMAC — proves the wiring uses hmacForMatch, not a plain/unkeyed hash.
-      expect(createArgs.data.phone_hash).toBe(hmacForMatch('5559991234'));
-      expect(createArgs.data.email_hash).toBe(hmacForMatch('jane@example.com'));
+    test('importContacts/normalize/splitName no longer exist on ContactService', () => {
+      expect(typeof (ContactService.prototype as any).importContacts).toBe('undefined');
+      expect(typeof (ContactService.prototype as any).normalize).toBe('undefined');
+      expect(typeof (ContactService.prototype as any).splitName).toBe('undefined');
     });
 
-    test('should handle contacts without phone or email', async () => {
-      mockContactFindFirst.mockResolvedValue(null);
-      mockContactCreate.mockResolvedValue({
-        id: 'contact-2',
-        name: 'No Phone Guy',
-        phone: null,
-        email: null,
-        user_id: userId,
-        source: ContactSource.MANUAL,
-        pipeline_stage: PipelineStage.IDENTIFIED,
-        segment_score: 0,
-      });
+    test('ContactInput is no longer exported from contact.service', () => {
+      const mod = require('../../src/services/warm-market/contact.service');
+      expect(mod.ContactInput).toBeUndefined();
+    });
 
-      const data: ContactInput[] = [
-        { userId, name: 'No Phone Guy', source: ContactSource.MANUAL },
-      ];
+    test('the dead plaintext dedup query is gone from contact.service.ts source', () => {
+      const src = readFileSync(CONTACT_SERVICE_FILE, 'utf8');
+      expect(src).not.toMatch(/phone:\s*normalized\.phone/);
+      expect(src).not.toMatch(/email:\s*normalized\.email/);
+      expect(src).not.toContain('importContacts');
+    });
 
-      const imported = await contactService.importContacts(userId, ContactSource.MANUAL, data);
-      expect(imported).toHaveLength(1);
-      expect(imported[0].name).toBe('No Phone Guy');
+    // NOTE: this deliberately checks for an import of the `contact.service` MODULE, not the bare
+    // word "importContacts" — `src/app/dashboard/contact-upload-demo.tsx` happens to have its own,
+    // wholly unrelated local `importContacts()` handler (a demo `fetch('/api/contacts/import')`
+    // caller) that shares the name by coincidence. The real signal that nothing live can still
+    // reach `ContactService.importContacts` is that nothing outside this file even constructs a
+    // `ContactService` in the first place.
+    test('no remaining source file (other than contact.service.ts itself) imports the ContactService module', () => {
+      const allSourceFiles = findFiles(SRC_DIR, (name) => name.endsWith('.ts') || name.endsWith('.tsx'));
+      const offenders: string[] = [];
+      for (const file of allSourceFiles) {
+        if (file === CONTACT_SERVICE_FILE) continue;
+        const src = readFileSync(file, 'utf8');
+        if (/from\s+['"][^'"]*\/contact\.service['"]/.test(src) || /require\(\s*['"][^'"]*\/contact\.service['"]\s*\)/.test(src)) {
+          offenders.push(path.relative(REPO_ROOT, file));
+        }
+      }
+      expect(offenders).toEqual([]);
     });
   });
 
