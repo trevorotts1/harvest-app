@@ -55,6 +55,11 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
         <a href="/grow" className={styles.approvalBadge} aria-label="Open the Orchard">
           Grow
         </a>
+        {/* WP10 (T-47) — Me → Subscription entry (uiux §5.8). Plain nav link to the billing surface,
+            matching the ad-hoc link pattern this header already uses for the Approval Inbox. */}
+        <a href="/me/subscription" className={styles.approvalBadge} aria-label="Subscription and billing">
+          Subscription
+        </a>
       </div>
 
       <div className={styles.headerBody}>

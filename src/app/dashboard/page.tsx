@@ -24,6 +24,7 @@ export default function DashboardPage() {
           <a className="side-link" href="#warm-market">Warm Market</a>
           <a className="side-link" href="#contact-upload">Upload Contacts</a>
           <a className="side-link" href="#compliance">Compliance</a>
+          <Link className="side-link" href="/me/subscription">Subscription</Link>
         </nav>
       </aside>
 

@@ -1,0 +1,189 @@
+/* WP10 (T-47) — Subscription surface (uiux §5.8). Semantic tokens only (LFDS) so it themes light/
+   dark and passes verify-contrast + guard-no-opacity-on-text: text never uses `opacity` or a
+   translucent `color`; card backgrounds use the opaque `--surface-1-solid-fallback`. */
+
+.page {
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  min-height: 100vh;
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-6);
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-title-size);
+  font-weight: 700;
+  margin: 0;
+}
+
+.subhead {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+/* ── Tier cards: three, equal visual weight (uiux §5.8) ── */
+.tierGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.tierCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.tierCardCurrent {
+  border-color: var(--color-action);
+}
+
+.tierName {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  font-weight: 700;
+  margin: 0;
+}
+
+.priceLine {
+  font-size: var(--type-body-lg-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tierBody {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.currentBadge {
+  justify-self: start;
+  border-radius: var(--radius-pill);
+  background: var(--color-harvest-fill);
+  color: var(--on-harvest-fill);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: var(--space-1) var(--space-3);
+}
+
+/* ── Buttons ── */
+.actionBtn {
+  min-height: var(--touch-target-min);
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-action);
+  color: var(--on-action);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.secondaryBtn {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.btnRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* ── Banners (uiux §4.11) — caution for grace/anniversary, blocked for suspension/dispute ── */
+.banner {
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+}
+
+.bannerCaution {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+  border-color: var(--color-caution-text);
+}
+
+.bannerBlocked {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+}
+
+.bannerQuiet {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--line);
+}
+
+.bannerTitle {
+  font-weight: 700;
+  margin: 0;
+  font-size: var(--type-body-lg-size);
+}
+
+.bannerBody {
+  margin: 0;
+  font-size: var(--type-body-size);
+}
+
+/* ── Sponsored state card ── */
+.stateCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  font-weight: 700;
+  margin: 0;
+}
+
+.meta {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+.prorationPreview {
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  margin: 0;
+}
+
+.loading,
+.errorState {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  padding: var(--space-6);
+}

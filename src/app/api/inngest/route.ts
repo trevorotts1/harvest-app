@@ -38,6 +38,11 @@ import { taprootingInngestFunctions } from '@/services/taprooting/inngest/taproo
 // (daily), milestone detection (5-minute backstop), and the notification sweep (hourly). Same
 // registration convention as the two imports above.
 import { gamificationInngestFunctions } from '@/services/gamification/gamification-inngest-functions';
+// T-47 (WP10 payments): the payments-lane cron functions — the sponsor-lapse cascade (§15.3), the
+// sponsorship anniversary notices (§15.3), and the billing-lifecycle soft-suspension sweep (§15.4).
+// Registered here so Inngest's sync step reads their `cron` triggers at deploy/register time and its
+// scheduler fires this same signed endpoint when each is due (same Vercel-native mechanism as above).
+import { paymentInngestFunctions } from '@/services/payment/inngest/payment-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
@@ -51,5 +56,6 @@ export const { GET, POST, PUT } = serve({
     ...socialContentInngestFunctions,
     ...taprootingInngestFunctions,
     ...gamificationInngestFunctions,
+    ...paymentInngestFunctions,
   ],
 });

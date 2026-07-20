@@ -1013,9 +1013,17 @@ model EnterpriseOrgConfig {
 model Subscription {
   id                     String             @id @default(uuid())
   user_id                String
-  stripe_subscription_id String?            @unique
-  plan_tier              String // free | individual | enterprise
-  billing_cycle          String // monthly | annual
+  stripe_subscription_id String?             @unique
+  // T-47R (WP10 gate remediation, master-spec §15.7-8 chargeback AC): the Stripe CUSTOMER id,
+  // additive/nullable. `charge.dispute.created` only exposes charge/customer (never the
+  // subscription id or our user id) — without a customer→subscription map, a dispute event can
+  // never be resolved back to a user, which is exactly why the chargeback path was dead scaffold
+  // before this migration. Persisted by `onCheckoutCompleted` (the checkout session always carries
+  // the Stripe customer id); read by `onDisputeCreated` to resolve the disputing customer to a
+  // live subscription/user. Indexed for that lookup.
+  stripe_customer_id     String?
+  plan_tier              String              // free | individual | enterprise
+  billing_cycle          String              // monthly | annual
   status                 SubscriptionStatus
   current_period_start   DateTime?          @db.Timestamptz(6)
   current_period_end     DateTime?          @db.Timestamptz(6)
@@ -1025,6 +1033,7 @@ model Subscription {
   updated_at             DateTime           @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
+  @@index([stripe_customer_id])
 }
 
 // The Downline-Sponsor → member relationship. Drives free-tier provisioning and the lapse
