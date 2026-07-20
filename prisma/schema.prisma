@@ -460,6 +460,31 @@ model ComplianceConsent {
   @@index([timestamp])
   @@index([user_id, timestamp])
   @@index([contact_id, consent_type]) // NEW (T-38): the messaging-consent ledger's lookup path.
+  // NEW (T-R17, remediation of a T-38 QC finding, §9.2): under a concurrent same-contact
+  // messaging-consent write, two `captureConsent` calls could both read the same "current"
+  // version and both insert with the SAME next version number — two rows silently sharing one
+  // version, with whichever sort order the DB happened to return deciding which one "wins" as
+  // current. This constraint makes that race DETECTABLE (the loser's INSERT throws a Prisma
+  // P2002, which `MessagingConsentLedger.captureConsent` catches and retries against the
+  // now-current version — see messaging-consent-ledger.ts) instead of silently landing two rows on
+  // one version number.
+  //
+  // Deliberately a PLAIN `@@unique`, not a hand-authored partial index (contrast `Subscription`'s
+  // `WHERE status = 'ACTIVE'` partial index above): Postgres treats NULL as DISTINCT from every
+  // other NULL in a unique index by default (this has always been Postgres's default — the
+  // opt-in `NULLS NOT DISTINCT` clause, PG 15+, is not used anywhere in this schema), so a plain
+  // `UNIQUE("contact_id", "consent_type", "version")` NEVER constrains the `contact_id = NULL`
+  // rows against each other. That is exactly the WP11 onboarding-consent shape
+  // (`src/lib/onboarding/gdpr-consent.ts` writes `contact_id` unset -> NULL, and never sets
+  // `version` -> always the schema default, 1) — many `contact_id = NULL, consent_type = 'gdpr',
+  // version = 1` rows already coexist there (one per grant/revoke event; WP11's real versioning
+  // lives in `ConsentManager`'s in-process Map, not this column) and must go on doing so
+  // unconstrained. The race this unit fixes is specifically PER-CONTACT (`contact_id` set, T-38's
+  // messaging ledger), so a plain unique — which only ever fires when `contact_id` is a real,
+  // matching, non-null value — is the correct, narrower tool; a partial index would be strictly
+  // more machinery for the same result here. See tests/unit/gdpr-consent.test.ts and
+  // tests/unit/messaging-consent-ledger.test.ts for the regression/race proofs.
+  @@unique([contact_id, consent_type, version])
 }
 
 // Parameterized regulatory rules — a regulatory change is a config update, not a code change (§5.3).
