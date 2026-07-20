@@ -32,6 +32,11 @@ import {
   AgentDispatchEventData,
   DurableQueue,
 } from './durable-queue';
+import {
+  runScheduledDispatch,
+  SCHEDULED_AGENT_DISPATCH_CRON,
+  SCHEDULED_AGENT_DISPATCH_FUNCTION_ID,
+} from './scheduled-dispatch';
 
 export const agentDispatchFunction = inngest.createFunction(
   { id: AGENT_DISPATCH_FUNCTION_ID, name: 'Agent dispatch (nine-agent runtime)', retries: AGENT_DISPATCH_RETRIES },
@@ -49,11 +54,44 @@ export const agentDispatchFunction = inngest.createFunction(
   }
 );
 
-export const agentRuntimeFunctions = [agentDispatchFunction];
-
 /** The real producer: enqueue an agent job onto Inngest. Used by session-gated routes / schedulers. */
 export class InngestDurableQueue implements DurableQueue {
   async send(data: AgentDispatchEventData): Promise<void> {
     await inngest.send({ name: AGENT_DISPATCH_EVENT, data: data as unknown as Record<string, unknown> });
   }
 }
+
+// T-R14 (LAUNCH-GATE, §4 "24/7 / while you slept") — THE MISSING SCHEDULED TRIGGER. Before this, the
+// only ways an agent job reached the queue were the session-gated POST /api/agents/dispatch (a human
+// has to be in the app) and this file's own EVENT-triggered `agentDispatchFunction` (something else
+// has to fire the event) — there was no autonomous, time-based trigger, which contradicts the
+// product's own "while you slept" premise. This is that trigger.
+//
+// Cadence: HOURLY (`0 * * * *`). Documented in full in scheduled-dispatch.ts's file doc comment —
+// short version: every unit of due work carries a per-UTC-day idempotency key, so the hourly tick is
+// a liveness/catch-up mechanism (and the reason a rep skipped one hour — RunGate denial, a transient
+// infra hiccup — is naturally retried the next hour), not the cadence itself. The cadence a rep
+// actually experiences is "at most once per UTC day per agent per target," which is what makes the
+// overnight wave land "while you slept" without needing a precise midnight-exact trigger.
+//
+// The handler is a single `step.run` around the SAME separation `agentDispatchFunction` uses above:
+// all the real logic (enumeration, the RunGate guard, the enqueue calls) lives in the package-free,
+// directly-unit-testable `runScheduledDispatch` (scheduled-dispatch.ts) — this wrapper's only job is
+// supplying the real `InngestDurableQueue` producer, i.e. the EXACT same durable-queue boundary the
+// user-invoked dispatch route already uses. No agent-execution logic is forked or duplicated here.
+export const scheduledAgentDispatchFunction = inngest.createFunction(
+  { id: SCHEDULED_AGENT_DISPATCH_FUNCTION_ID, name: 'Scheduled agent dispatch (24/7 autonomous runs, T-R14)' },
+  { cron: SCHEDULED_AGENT_DISPATCH_CRON },
+  async ({ step }) => {
+    return step.run('scheduled-dispatch', () =>
+      // Lazy per-invocation, never at module scope (build-safety rule) — mirrors the
+      // `buildProductionAgentRuntimeDeps` convention above. `runScheduledDispatch` is itself
+      // fail-safe (an unreachable DB/infra hiccup logs and no-ops rather than throwing); Inngest's
+      // own cron delivery plus the per-day idempotency key on every unit of due work is what makes a
+      // skipped hour harmless.
+      runScheduledDispatch({ queue: new InngestDurableQueue() })
+    );
+  }
+);
+
+export const agentRuntimeFunctions = [agentDispatchFunction, scheduledAgentDispatchFunction];
