@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { prisma } from '@/lib/prisma';
 
 /**
  * Session-hijack / takeover protections (T-12, master-spec §16.4/§18.10):
@@ -15,7 +16,10 @@ import crypto from 'crypto';
  * Deliberately pure/framework-decoupled — same design choice T-04 made for `StepUpState` in
  * mfa.ts ("not next-auth's Session type ... so this module (and its tests) stay decoupled from
  * the NextAuth request/response lifecycle"). `src/lib/auth/options.ts` and `with-role.ts` are the
- * thin glue that reads real request headers / the real session and calls into this module.
+ * thin glue that reads real request headers / the real session and calls into this module. The
+ * `prisma` import below is the one exception, for `PostgresSessionActivityStore` (T-R5) — it is
+ * never touched at module scope (see that class's constructor default) and the pure functions
+ * above it remain fully decoupled/synchronous.
  */
 
 /** §16.4 exact figure: "idle timeout (30 min)". */
@@ -167,13 +171,77 @@ export class InMemorySessionActivityStore implements SessionActivityStore {
   }
 }
 
-let activeSessionActivityStore: SessionActivityStore = new InMemorySessionActivityStore();
+// ─────────────────────────────────────────────────────────────────────────
+// Postgres-backed shared store (T-R5, launch-gate remediation, §16.4/§18.10): on a multi-instance
+// deploy, `InMemorySessionActivityStore` gave each instance its own idea of "last activity" for a
+// session, so idle-timeout enforcement could be wrong depending on which instance handled the most
+// recent request. `SessionActivityRecord` (prisma/schema.prisma) is the cluster-wide row behind
+// this same `SessionActivityStore` interface — no interface change, so a future Redis
+// implementation could still swap in without touching `evaluateSessionSecurity`/`with-role.ts`.
+// `touch()` only ever records "now" (never a computed delta off the previous value), so a plain
+// last-write-wins upsert is correct with no optimistic-concurrency dance (contrast
+// `PostgresRateLimitStore`, which increments a counter and does need one).
+// ─────────────────────────────────────────────────────────────────────────
+
+interface SessionActivityDelegate {
+  findUnique(args: { where: { key: string } }): Promise<{ key: string; last_activity_at: Date } | null>;
+  upsert(args: {
+    where: { key: string };
+    create: { key: string; last_activity_at: Date };
+    update: { last_activity_at: Date };
+  }): Promise<unknown>;
+}
+
+/**
+ * Cluster-wide `SessionActivityStore` backed by the `SessionActivityRecord` table. Lazily bound to
+ * the shared Prisma client (src/lib/prisma.ts) — never constructed at module scope; see
+ * `createDefaultSessionActivityStore` below.
+ */
+export class PostgresSessionActivityStore implements SessionActivityStore {
+  constructor(
+    private readonly db: { sessionActivityRecord: SessionActivityDelegate } = prisma as unknown as {
+      sessionActivityRecord: SessionActivityDelegate;
+    }
+  ) {}
+
+  async get(key: string): Promise<number | undefined> {
+    const row = await this.db.sessionActivityRecord.findUnique({ where: { key } });
+    return row ? row.last_activity_at.getTime() : undefined;
+  }
+
+  async touch(key: string, at: number): Promise<void> {
+    const lastActivityAt = new Date(at);
+    await this.db.sessionActivityRecord.upsert({
+      where: { key },
+      create: { key, last_activity_at: lastActivityAt },
+      update: { last_activity_at: lastActivityAt },
+    });
+  }
+}
+
+/**
+ * Chooses the default session-activity store (T-R5): process-local in-memory for tests (no DB
+ * needed — every existing test that cares about session activity already calls
+ * `setSessionActivityStore` explicitly in `beforeEach`) and local dev without a `DATABASE_URL`; the
+ * cluster-wide Postgres-backed store everywhere else.
+ */
+function createDefaultSessionActivityStore(): SessionActivityStore {
+  if (process.env.NODE_ENV === 'test' || !process.env.DATABASE_URL) {
+    return new InMemorySessionActivityStore();
+  }
+  return new PostgresSessionActivityStore();
+}
+
+// T-R5: lazily defaulted on first access (never at module scope) — see
+// `createDefaultSessionActivityStore` above.
+let activeSessionActivityStore: SessionActivityStore | undefined;
 
 export function setSessionActivityStore(store: SessionActivityStore): void {
   activeSessionActivityStore = store;
 }
 
 export function getSessionActivityStore(): SessionActivityStore {
+  if (!activeSessionActivityStore) activeSessionActivityStore = createDefaultSessionActivityStore();
   return activeSessionActivityStore;
 }
 

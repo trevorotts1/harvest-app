@@ -10,7 +10,15 @@
  * bcrypt compare on the "no such user" path) — that defends against enumeration-by-timing; this
  * module defends against the credential-stuffing *volume* attack itself (reused breached
  * passwords, scripted login bursts, new-device/new-geo takeover attempts).
+ *
+ * `LoginHistoryStore` (below) was `InMemoryLoginHistoryStore`-only, which is process-local: on a
+ * multi-instance deploy, each instance only ever saw *its own* slice of a user's login history, so
+ * anomaly scoring (new-device/new-IP/velocity) could under-detect depending on which instance
+ * happened to handle a given request. `PostgresLoginHistoryStore` (T-R5, launch-gate remediation)
+ * is the cluster-wide default that closes this gap behind the same `LoginHistoryStore` interface.
  */
+
+import { prisma } from '@/lib/prisma';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Breached-password screening
@@ -111,7 +119,9 @@ export interface LoginHistoryStore {
   record(userId: string, entry: LoginHistoryEntry): Promise<void>;
 }
 
-const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// Exported (T-R5) so `PostgresLoginHistoryStore` below can prune by the exact same window rather
+// than duplicating the magic number.
+export const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export class InMemoryLoginHistoryStore implements LoginHistoryStore {
   private history = new Map<string, LoginHistoryEntry[]>();
@@ -136,13 +146,93 @@ export class InMemoryLoginHistoryStore implements LoginHistoryStore {
   }
 }
 
-let activeLoginHistoryStore: LoginHistoryStore = new InMemoryLoginHistoryStore();
+// ─────────────────────────────────────────────────────────────────────────
+// Postgres-backed shared store (T-R5, launch-gate remediation, §16.4/§18.10). `record()` is a
+// plain INSERT — atomic by construction, no read-then-write race to guard against (contrast
+// `PostgresRateLimitStore`'s counter, which does need optimistic concurrency). The retention prune
+// after each insert mirrors `InMemoryLoginHistoryStore.record`'s behavior exactly (same cutoff, same
+// "relative to this entry's own `at`" semantics) so swapping stores never changes what a caller
+// observes from `recent()`.
+// ─────────────────────────────────────────────────────────────────────────
+
+interface LoginHistoryRow {
+  device_fingerprint_hash: string;
+  ip_hash: string;
+  at: Date;
+  outcome: string;
+}
+
+interface LoginHistoryDelegate {
+  findMany(args: { where: { user_id: string; at: { gte: Date } } }): Promise<LoginHistoryRow[]>;
+  create(args: {
+    data: { user_id: string; device_fingerprint_hash: string; ip_hash: string; at: Date; outcome: string };
+  }): Promise<unknown>;
+  deleteMany(args: { where: { user_id: string; at: { lt: Date } } }): Promise<{ count: number }>;
+}
+
+/**
+ * Cluster-wide `LoginHistoryStore` backed by the `LoginHistoryRecord` table. Lazily bound to the
+ * shared Prisma client (src/lib/prisma.ts) — never constructed at module scope; see
+ * `createDefaultLoginHistoryStore` below.
+ */
+export class PostgresLoginHistoryStore implements LoginHistoryStore {
+  constructor(
+    private readonly db: { loginHistoryRecord: LoginHistoryDelegate } = prisma as unknown as {
+      loginHistoryRecord: LoginHistoryDelegate;
+    }
+  ) {}
+
+  async recent(userId: string, sinceMs: number, now: number = Date.now()): Promise<LoginHistoryEntry[]> {
+    const rows = await this.db.loginHistoryRecord.findMany({
+      where: { user_id: userId, at: { gte: new Date(now - sinceMs) } },
+    });
+    return rows.map((row) => ({
+      deviceFingerprintHash: row.device_fingerprint_hash,
+      ipHash: row.ip_hash,
+      at: row.at.getTime(),
+      outcome: row.outcome as LoginHistoryEntry['outcome'],
+    }));
+  }
+
+  async record(userId: string, entry: LoginHistoryEntry): Promise<void> {
+    await this.db.loginHistoryRecord.create({
+      data: {
+        user_id: userId,
+        device_fingerprint_hash: entry.deviceFingerprintHash,
+        ip_hash: entry.ipHash,
+        at: new Date(entry.at),
+        outcome: entry.outcome,
+      },
+    });
+    await this.db.loginHistoryRecord.deleteMany({
+      where: { user_id: userId, at: { lt: new Date(entry.at - HISTORY_RETENTION_MS) } },
+    });
+  }
+}
+
+/**
+ * Chooses the default login-history store (T-R5): process-local in-memory for tests (no DB
+ * needed — every existing test that cares about login history already calls
+ * `setLoginHistoryStore` explicitly in `beforeEach`) and local dev without a `DATABASE_URL`; the
+ * cluster-wide Postgres-backed store everywhere else.
+ */
+function createDefaultLoginHistoryStore(): LoginHistoryStore {
+  if (process.env.NODE_ENV === 'test' || !process.env.DATABASE_URL) {
+    return new InMemoryLoginHistoryStore();
+  }
+  return new PostgresLoginHistoryStore();
+}
+
+// T-R5: lazily defaulted on first access (never at module scope) — see
+// `createDefaultLoginHistoryStore` above.
+let activeLoginHistoryStore: LoginHistoryStore | undefined;
 
 export function setLoginHistoryStore(store: LoginHistoryStore): void {
   activeLoginHistoryStore = store;
 }
 
 export function getLoginHistoryStore(): LoginHistoryStore {
+  if (!activeLoginHistoryStore) activeLoginHistoryStore = createDefaultLoginHistoryStore();
   return activeLoginHistoryStore;
 }
 
