@@ -22,7 +22,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import PendingBridgeItem, { type PendingBridgeData } from './components/PendingBridgeItem';
+import PendingBridgesList from './components/PendingBridgesList';
+import type { PendingBridgeData } from './components/PendingBridgeItem';
 
 type LoadState = { kind: 'loading' } | { kind: 'ready'; items: PendingBridgeData[] } | { kind: 'failed' };
 
@@ -90,17 +91,7 @@ export default function TeamBridgesPage() {
           hours or it returns to them with a coached next step.
         </p>
 
-        {items.length === 0 && (
-          <p style={{ color: 'var(--muted)', marginTop: 12 }}>No pending bridge requests right now.</p>
-        )}
-
-        {items.length > 0 && (
-          <div className="stack" style={{ marginTop: 16 }}>
-            {items.map((item) => (
-              <PendingBridgeItem key={item.id} item={item} onJoin={handleJoin} />
-            ))}
-          </div>
-        )}
+        <PendingBridgesList items={items} onJoin={handleJoin} />
       </section>
     </div>
   );

@@ -7,6 +7,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
+import { NamesInPlayPanel, PipelineStatesPanel } from './components/RepDataPanels';
+
 interface DrillIn {
   repUserId: string;
   repName: string;
@@ -62,26 +64,9 @@ export default function RepDrillInPage() {
         <h2 style={{ marginTop: 8 }}>{data.repName}</h2>
       </section>
 
-      <section className="card panel">
-        <span className="badge">Pipeline states</span>
-        <div className="metric-grid" style={{ marginTop: 12 }}>
-          {Object.entries(data.pipelineStateCounts).map(([stage, count]) => (
-            <div className="metric" key={stage}>
-              <strong>{count}</strong>
-              <span>{stage.toLowerCase().replace(/_/g, ' ')}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <PipelineStatesPanel counts={data.pipelineStateCounts} />
 
-      <section className="card panel">
-        <span className="badge">Names in play</span>
-        <ul>
-          {data.namesInPlay.map((n) => (
-            <li key={n.contactId}>{n.displayName} — {n.pipelineStage.toLowerCase().replace(/_/g, ' ')}</li>
-          ))}
-        </ul>
-      </section>
+      <NamesInPlayPanel names={data.namesInPlay} />
 
       {data.milestones.length > 0 && (
         <section className="card panel">

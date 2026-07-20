@@ -4,17 +4,10 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
-interface CourseModuleSummary {
-  key: string;
-  order: number;
-  title: string;
-  summary: string;
-  status: string;
-  completedAt: string | null;
-}
+import CourseModulesList, { type CourseLoadState, type CourseModuleSummary } from './components/CourseModulesList';
 
 interface StreakSummary {
   currentStreakDays: number;
@@ -27,20 +20,32 @@ export default function LearnPage() {
   const [modules, setModules] = useState<CourseModuleSummary[]>([]);
   const [disclosure, setDisclosure] = useState('');
   const [streak, setStreak] = useState<StreakSummary | null>(null);
+  // T-55 (master-spec §17.7 / uiux §6.6 "Learn → fully populated from day zero ... never renders as
+  // under-construction") — the course list previously had no loading/failed tracking at all: a
+  // transient fetch failure left `modules` at its initial `[]` forever with no narrative, so the
+  // "Course modules" section rendered its header over a silently empty list — a narrative-free blank
+  // region (SC9). This tracks the real state so a genuine zero/failure always renders a next step.
+  const [courseState, setCourseState] = useState<CourseLoadState>('loading');
 
-  useEffect(() => {
+  const loadCourse = useCallback(() => {
+    setCourseState('loading');
     fetch('/api/gamification/course')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: { modules: CourseModuleSummary[]; roadmapDisclosure: string }) => {
         setModules(data.modules);
         setDisclosure(data.roadmapDisclosure);
+        setCourseState('ready');
       })
-      .catch(() => {});
+      .catch(() => setCourseState('failed'));
+  }, []);
+
+  useEffect(() => {
+    loadCourse();
     fetch('/api/gamification/streak')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: StreakSummary) => setStreak(data))
       .catch(() => {});
-  }, []);
+  }, [loadCourse]);
 
   return (
     <main className="shell section">
@@ -49,7 +54,16 @@ export default function LearnPage() {
       <section className="card panel" style={{ marginTop: 18 }}>
         <span className="badge">Downline Maxxing course</span>
         <h1 style={{ marginTop: 12 }}>Learn</h1>
-        <p style={{ color: 'var(--muted)' }}>{disclosure}</p>
+        {courseState === 'ready' && <p style={{ color: 'var(--muted)' }}>{disclosure}</p>}
+        {courseState === 'loading' && <p style={{ color: 'var(--muted)' }}>Gathering your course…</p>}
+        {courseState === 'failed' && (
+          <p style={{ color: 'var(--muted)' }}>
+            We couldn&apos;t load the course right now — your progress is safe.{' '}
+            <button type="button" className="badge" onClick={loadCourse} style={{ cursor: 'pointer' }}>
+              Retry
+            </button>
+          </p>
+        )}
       </section>
 
       {streak && (
@@ -98,18 +112,7 @@ export default function LearnPage() {
 
       <section className="card panel" style={{ marginTop: 18 }}>
         <span className="badge">Course modules</span>
-        <div className="stack" style={{ marginTop: 16 }}>
-          {modules.map((m) => (
-            <Link key={m.key} href={`/learn/course/${m.key}`} className="action-row" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <span className="priority">{m.order}</span>
-              <div>
-                <strong>{m.title}</strong><br />
-                <span style={{ color: 'var(--muted)' }}>{m.summary}</span>
-              </div>
-              <span className="badge">{m.status === 'COMPLETED' ? 'Done' : m.status === 'IN_PROGRESS' ? 'In progress' : 'Start'}</span>
-            </Link>
-          ))}
-        </div>
+        <CourseModulesList state={courseState} modules={modules} onRetry={loadCourse} />
       </section>
     </main>
   );

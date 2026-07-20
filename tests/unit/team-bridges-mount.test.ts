@@ -32,10 +32,20 @@ describe('T-R22R — the /team/bridges tab (upline "accept a bridge" surface) is
     expect(existsSync(path.join(SRC_DIR, 'app', 'team', 'bridges', 'page.tsx'))).toBe(true);
   });
 
-  test('the page actually renders PendingBridgeItem, not a stub', () => {
+  test('the page actually renders PendingBridgeItem (via PendingBridgesList), not a stub', () => {
+    // T-55 (master-spec §17.7 "every list has an empty state with one action") extracted the
+    // items.length===0/>0 branch that used to live inline in page.tsx into
+    // `./components/PendingBridgesList` so the zero-item empty state (now a narrative + a next-step
+    // link, not just "No pending bridge requests right now.") is independently render-testable —
+    // see tests/unit/empty-states-team-bridges.test.ts. The page still composes the real item
+    // component end-to-end, one level of indirection deeper: page -> PendingBridgesList ->
+    // PendingBridgeItem.
     const page = src('app', 'team', 'bridges', 'page.tsx');
-    expect(page).toMatch(/import\s+PendingBridgeItem\b/);
-    expect(page).toMatch(/<PendingBridgeItem\b/);
+    expect(page).toMatch(/import\s+PendingBridgesList\b/);
+    expect(page).toMatch(/<PendingBridgesList\b/);
+    const list = src('app', 'team', 'bridges', 'components', 'PendingBridgesList.tsx');
+    expect(list).toMatch(/import\s+PendingBridgeItem\b/);
+    expect(list).toMatch(/<PendingBridgeItem\b/);
   });
 
   test('the page fetches the read route, GET /api/messaging/handoff/pending', () => {
