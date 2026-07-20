@@ -23,11 +23,13 @@ import { agentRuntimeFunctions } from '@/services/agent-runtime/inngest-function
 // step reads their `cron` triggers at deploy/register time and its own scheduler fires this same
 // signed endpoint when each is due (the exact Vercel-native mechanism the agent-dispatch cron uses).
 import { messagingInngestFunctions } from '@/services/messaging/inngest/messaging-inngest-functions';
+// T-45 (WP09 §14.1) — the calendar dual-sync cron tick (Google read+write / CalDAV read-only).
+import { teamCalendarInngestFunctions } from '@/services/team-calendar/calendar-sync-inngest';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions],
+  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions, ...teamCalendarInngestFunctions],
 });
