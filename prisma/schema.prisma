@@ -339,6 +339,16 @@ model Contact {
   jurisdiction        String?
   linked_user_id      String?          // set when a contact becomes a platform user
   memory_jogger_skip_count Int         @default(0) // T-23 (§7.4): a jogger that surfaces an already-Vaulted contact increments this and skips, instead of re-adding a duplicate
+  // T-38 (master-spec §10.4 recipient-timezone quiet hours): the contact's own IANA timezone id
+  // (e.g. "America/Chicago"), used by SendComplianceGate/isWithinQuietHours to compute the
+  // recipient's LOCAL 8 AM–9 PM send window — deliberately distinct from any rep-side notification
+  // timezone/quiet-hours setting (§10.4 "distinct from the rep's own notification quiet hours").
+  // Nullable — deliberately: an unknown timezone is NOT defaulted to UTC or the rep's own zone, it
+  // fails CLOSED (treated as within quiet hours, i.e. blocked) in isWithinQuietHours. Deliberately
+  // PLAINTEXT like industry/relationship_type/jurisdiction above — an IANA zone id is coarse
+  // categorical/structural data, not an identifying credential, so it is not in this model's
+  // encrypted-PII surface (first_name/last_name/phone/email/notes).
+  timezone            String?
   created_at          DateTime         @default(now()) @db.Timestamptz(6)
   updated_at          DateTime         @updatedAt @db.Timestamptz(6)
   interactions        ContactInteraction[]
@@ -421,15 +431,35 @@ model AuditEntry {
   @@index([content_id])
 }
 
+// T-38 additions (master-spec §10.4 TCPA consent ledger; §16.2 "TCPA | ... | Per-contact consent"):
+// `contact_id` + `version` are purely additive (both nullable/defaulted, no backfill required).
+// This model originally tracked only platform-USER-level consent (profile/contacts/calendar/
+// agent_logs/analytics/gdpr — §16.3's signup consent capture, see src/lib/onboarding/
+// gdpr-consent.ts). The TCPA messaging-consent ledger (src/services/compliance/messaging-consent/)
+// reuses this SAME table rather than forking a parallel one — a row with `contact_id` set (and
+// `consent_type` = the ledger's `MESSAGING_TCPA_CONSENT_TYPE` constant) is a per-RECIPIENT-contact
+// consent record; a row with `contact_id` null is the original per-platform-user record. `user_id`
+// is always the owning rep either way (for a contact-scoped row, the rep whose Vault the contact
+// belongs to), so existing per-user queries (`user_id, timestamp`) keep working unmodified.
 model ComplianceConsent {
   id              String   @id @default(uuid())
   user_id         String
+  contact_id      String?  // NEW (T-38): set only for per-contact (recipient) consent rows.
   consent_type    String
   given           Boolean
+  // NEW (T-38): durable version number for this (subject, consent_type) lineage. Pre-T-38 rows
+  // (the GDPR bridge, src/lib/onboarding/gdpr-consent.ts) never wrote this column and relied on
+  // WP11's in-process `ConsentManager` Map for versioning instead — that version number never
+  // reached the DB row, so it did not survive a process restart / multi-instance deploy. Every
+  // NEW write from the T-38 messaging-consent ledger computes and persists the real next version
+  // here so "versioned" is durable, not process-local. Existing rows default to 1 — harmless,
+  // since nothing read this column before this unit.
+  version         Int      @default(1)
   timestamp       DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([timestamp])
   @@index([user_id, timestamp])
+  @@index([contact_id, consent_type]) // NEW (T-38): the messaging-consent ledger's lookup path.
 }
 
 // Parameterized regulatory rules — a regulatory change is a config update, not a code change (§5.3).
