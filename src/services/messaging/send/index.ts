@@ -45,9 +45,35 @@ export {
   type TwilioSendResult,
 } from './twilio-messaging-client';
 
+// T-39 (§10.5/§10.7) — the EMAIL send path (the third channel through this seam), gated identically
+// (CFE-cleared + SendComplianceGate + isChannelDeliverable('EMAIL')) with a mockable, key-less-safe
+// client. Sequences dispatch EMAIL steps through `EmailSendService.send`, never around it.
 export {
+  EmailSendService,
+  type EmailSendDeps,
+  type EmailDeliverabilityCheck,
+  type EmailSenderIdentity,
+  type EmailSendResultOut,
+} from './email-send.service';
+
+export {
+  createEmailSendClient,
+  isEmailSendConfigured,
+  resolveEmailFrom,
+  InMemoryEmailSendClient,
+  LiveEmailSendClient,
+  EMAIL_SEND_API_KEY_ENV_VAR,
+  EMAIL_SEND_FROM_ENV_VAR,
+  type EmailSendClient,
+  type EmailSendInput,
+  type EmailSendResult,
+} from './email-send-client';
+
+export {
+  linkCfeAuditForSend,
   type SendContactRow,
   type SendPrismaClient,
   type PhoneDecryptor,
+  type EmailDecryptor,
   type BodyEncryptor,
 } from './send-support';

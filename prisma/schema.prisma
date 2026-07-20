@@ -690,6 +690,14 @@ model Message {
   channel            MessageChannel
   body               String            // encrypted at rest
   cfe_audit_id       String?           // link to AuditEntry.id
+  // T-39 (T-R16 fold-in; uiux §4.7 agent-sent badge "sent by your agent · approved by you [date]").
+  // The APPROVAL ATTRIBUTION denormalized onto the immutable sent record so the conversation
+  // timeline can render the transparency/compliance badge without re-joining the (mutable, possibly-
+  // pruned) DraftMessage. Both are carried from the DraftMessage's approved_by/approved_at at the
+  // moment of send (an agent-sourced OUTBOUND message with these set is what earns the badge).
+  // Additive, nullable: an inbound message, a system event, or a pre-T-39 row simply has them null.
+  approved_by        String?
+  approved_at        DateTime?         @db.Timestamptz(6)
   sent_from          String?           // rep_number | platform_number | email_domain
   delivery_status    String            @default("PENDING")
   handoff_confirmed  Boolean           @default(false) // composer handoff confirmation (§10)
@@ -697,6 +705,92 @@ model Message {
 
   @@index([thread_id, created_at])
   @@index([cfe_audit_id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — WP05 outreach sequences + three-way handoff (§10.2/§10.6) [T-39]
+//
+// All ADDITIVE. State/type fields are plain `String` with an inline enumeration comment —
+// matching the existing messaging models' convention (DraftMessage.approval_state,
+// MessageThread.state, Message.delivery_status, OptOutRegistry.reason are all String), so this
+// migration adds no new enum. No FK crosses a rep/org boundary; visibility gating is enforced in
+// the service layer (upline sees a handoff only when it carries their upline_id AND organization_id).
+// ═══════════════════════════════════════════════════════════════════════
+
+// The doctrine-safe multi-touch cadence (§10.2): warm open → social proof → reflected qualities →
+// soft ask → low-pressure next step. Never a "NLP close". One row per contact per enrolled cadence.
+model OutreachSequence {
+  id                 String   @id @default(uuid())
+  user_id            String
+  contact_id         String
+  // FAST_TRACK (5d) | STANDARD (14d) | NURTURE (30d) | RE_ENGAGEMENT (custom) — §10.2 sequence types.
+  sequence_type      String
+  // ACTIVE | PAUSED | STOPPED | COMPLETED. PAUSES on reply/opt-out/compliance-block (§10.8) — a
+  // paused/stopped sequence never fires another step.
+  state              String   @default("ACTIVE")
+  // Why the sequence is not ACTIVE: REPLY | OPT_OUT | COMPLIANCE_BLOCK | MANUAL (null while ACTIVE).
+  pause_reason       String?
+  current_step_index Int      @default(0)
+  started_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+  steps              OutreachSequenceStep[]
+
+  @@index([user_id])
+  @@index([contact_id])
+  @@index([user_id, state])
+}
+
+// One scheduled touch in a sequence. `draft_id` is the DraftMessage this step dispatches THROUGH the
+// T-37 send seam (which enforces CFE-cleared + approved + SendComplianceGate + deliverability) — the
+// step itself never sends; it hands `draft_id` to the seam and reacts to the { status } result.
+model OutreachSequenceStep {
+  id               String           @id @default(uuid())
+  sequence_id      String
+  sequence         OutreachSequence @relation(fields: [sequence_id], references: [id], onDelete: Cascade)
+  step_index       Int
+  channel          MessageChannel
+  scheduled_at     DateTime         @db.Timestamptz(6)
+  // SCHEDULED | SENT | HELD | SKIPPED | DEFERRED | CANCELED.
+  status           String           @default("SCHEDULED")
+  draft_id         String?
+  // Mirrors DraftMessage.send_hold_reason for the step when the seam HELD its dispatch (evidence).
+  send_hold_reason String?
+  sent_message_id  String?
+  dispatched_at    DateTime?        @db.Timestamptz(6)
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+
+  @@index([sequence_id, step_index])
+  @@index([status, scheduled_at])
+}
+
+// The edification / warm-intro-to-upline three-way handoff (§10.5/§10.6; uiux §5.7): a buying signal
+// or a hard question bridges the rep's upline into the same thread. Upline visibility is org-gated —
+// `organization_id` + `upline_id` are the ONLY keys a visibility query filters on, so a handoff can
+// never surface to a different org's upline, a cross-line rep, or a rep who is not this rep's upline.
+model ThreeWayHandoff {
+  id                 String    @id @default(uuid())
+  user_id            String    // the rep who owns the contact/thread
+  upline_id          String    // the rep's upline at trigger time (the human invited to bridge)
+  organization_id    String    // org gate — visibility never crosses organizations
+  contact_id         String
+  thread_id          String?
+  // BUYING_SIGNAL | HARD_QUESTION | MANUAL — §10.6 triggers.
+  trigger_reason     String
+  // INVITED | JOINED | RETURNED | CLOSED. RETURNED = the 24h no-join return-to-rep path (§10.9-8).
+  state              String    @default("INVITED")
+  invited_at         DateTime  @default(now()) @db.Timestamptz(6)
+  joined_at          DateTime? @db.Timestamptz(6)
+  returned_at        DateTime? @db.Timestamptz(6)
+  // invited_at + 24h; a still-INVITED handoff past this returns to the rep with a coached next step.
+  return_deadline_at DateTime  @db.Timestamptz(6)
+  coached_next_step  String?
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+  @@index([upline_id, organization_id])
+  @@index([contact_id])
+  @@index([state, return_deadline_at])
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -8,10 +8,16 @@
 // read CONTACT_ENCRYPTION_KEY lazily, by name, at call time (never at module scope) and fail closed
 // if absent — so a key-less build never touches the key, and tests inject deterministic stubs.
 
-import { MessageChannel, MessageDirection, MessageSource } from '@prisma/client';
+import { MessageChannel, MessageDirection, MessageSource, Role } from '@prisma/client';
 
 import { decryptOptionalField, encryptRequiredField } from '../../warm-market/vault/vault-encryption';
 import type { SendComplianceContact } from '../../compliance/send-gate/send-compliance-gate';
+import {
+  AuditService,
+  PrismaAuditRepository,
+  type AuditEntryPrismaDelegate,
+} from '../../compliance/audit/audit-service';
+import { CFE_RULE_VERSION } from '../../../types/compliance';
 import type { SendDraftFields, SendHoldReason } from './send-decision';
 
 /** Narrow contact shape the send paths read — never the full encrypted Prisma row. `phone` is the
@@ -24,6 +30,10 @@ export interface SendContactRow {
   phone_hash: string | null;
   email_hash: string | null;
   timezone: string | null;
+  /** T-39 (§10.7 email path): the AES-256-GCM email envelope, decrypted to a plaintext address only
+   *  at the email dispatch boundary. Optional so the SMS paths' fixtures (which never read it) and
+   *  pre-T-39 mocks still satisfy this shape. */
+  email?: string | null;
 }
 
 export interface MessageRow {
@@ -49,9 +59,22 @@ export interface SendPrismaClient {
   contact: {
     findFirst(args: {
       where: { id: string; user_id: string };
-      select: { id: true; user_id: true; phone: true; phone_hash: true; email_hash: true; timezone: true };
+      select: {
+        id: true;
+        user_id: true;
+        phone: true;
+        phone_hash: true;
+        email_hash: true;
+        timezone: true;
+        email?: true;
+      };
     }): Promise<SendContactRow | null>;
   };
+  /** T-39 (T-R19 fold-in): OPTIONAL — the append-only AuditEntry delegate `linkCfeAuditForSend` uses
+   *  to persist the durable compliance-evidence record `Message.cfe_audit_id` points at. Absent in
+   *  the SMS paths' pre-existing fixtures → the link resolves best-effort to null (never a crash,
+   *  never a blocked send); present (real Prisma, or a test's in-memory store) → the link is written. */
+  auditEntry?: AuditEntryPrismaDelegate;
   messageThread: {
     findFirst(args: {
       where: { user_id: string; contact_id: string; channel: MessageChannel };
@@ -75,7 +98,12 @@ export type PhoneDecryptor = (encrypted: string | null) => string | null;
  *  §3.3). Defaults to the real T-22 primitive; tests inject an identity so they can assert plaintext. */
 export type BodyEncryptor = (plaintext: string) => string;
 
+/** Decrypts the recipient's email envelope to a plaintext address (email path only). Same T-22
+ *  primitive as the phone decryptor; a separate name keeps the two dispatch boundaries self-documenting. */
+export type EmailDecryptor = (encrypted: string | null) => string | null;
+
 export const defaultPhoneDecryptor: PhoneDecryptor = (encrypted) => decryptOptionalField(encrypted);
+export const defaultEmailDecryptor: EmailDecryptor = (encrypted) => decryptOptionalField(encrypted);
 export const defaultBodyEncryptor: BodyEncryptor = (plaintext) => encryptRequiredField(plaintext);
 
 /** Adapt a stored contact row to the exact shape SendComplianceGate.evaluate needs. */
@@ -113,15 +141,25 @@ export interface RecordMessageInput {
   threadId: string;
   channel: MessageChannel;
   source: MessageSource;
-  /** 'rep_number' (composer handoff) | 'platform_number' (Twilio) — per §3.3 Message.sent_from. */
-  sentFrom: 'rep_number' | 'platform_number';
+  /** 'rep_number' (composer handoff) | 'platform_number' (Twilio) | 'email_domain' (T-39 email) —
+   *  per §3.3 Message.sent_from. */
+  sentFrom: 'rep_number' | 'platform_number' | 'email_domain';
   /** PLAINTEXT body; this helper encrypts it via `encryptBody` before persistence. */
   body: string;
   deliveryStatus: string;
   handoffConfirmed: boolean;
+  /** T-39 (T-R19 fold-in): the AuditEntry.id this send points at (compliance-evidence link). T-37
+   *  left this null; every T-39 gated send now resolves it via `linkCfeAuditForSend`. */
+  cfeAuditId?: string | null;
+  /** T-39 (T-R16 fold-in): approval attribution carried from the DraftMessage so the uiux §4.7
+   *  agent-sent badge ("approved by you [date]") reads off the immutable sent record. */
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
 }
 
-/** Record ONE outbound Message (the sent/handed-off event, §3.3). Body is encrypted at rest. */
+/** Record ONE outbound Message (the sent/handed-off event, §3.3). Body is encrypted at rest. The
+ *  T-R16/T-R19 fold-in fields (cfe_audit_id + approval attribution) are written when the caller
+ *  resolved them; a caller that passes none leaves them null exactly as before (additive). */
 export async function recordOutboundMessage(
   prisma: SendPrismaClient,
   encryptBody: BodyEncryptor,
@@ -137,8 +175,60 @@ export async function recordOutboundMessage(
       sent_from: input.sentFrom,
       delivery_status: input.deliveryStatus,
       handoff_confirmed: input.handoffConfirmed,
+      cfe_audit_id: input.cfeAuditId ?? null,
+      approved_by: input.approvedBy ?? null,
+      approved_at: input.approvedAt ?? null,
     },
   });
+}
+
+/**
+ * T-39 (T-R19 fold-in; §2.3 "→ audit store"; §5.6/§5.7) — resolve the AuditEntry.id a sent Message
+ * links to. T-37 left `Message.cfe_audit_id` null because WP04's draft/approval flow currently emits
+ * CFE decisions to a Noop audit sink (nothing persisted). At the moment of send — the point §2.3
+ * places the audit-store write — this persists ONE durable, hash-chained compliance-evidence
+ * AuditEntry built from the draft's ALREADY-COMPUTED, persisted CFE verdict (`cfe_outcome` /
+ * `cfe_risk_score` / `cfe_classifier_data`). It NEVER re-runs the CFE (that would need a live key and
+ * break the key-less contract) — it records the verdict WP04 already reached, tagged to the draft via
+ * `content_id`, so the send provably points at its compliance record.
+ *
+ * Best-effort by design: any failure (no auditEntry delegate in a fixture, a DB error) resolves to
+ * `null` — the evidence link is not itself a send gate, so its absence must never block a
+ * fully-gated, compliant send nor crash the path. Returns the new AuditEntry.id, or null.
+ */
+export async function linkCfeAuditForSend(
+  prisma: SendPrismaClient,
+  draft: Pick<SendDraftFields, 'id' | 'user_id' | 'body' | 'cfe_outcome' | 'cfe_risk_score' | 'cfe_classifier_data'>,
+  channel: MessageChannel,
+  auditService?: AuditService
+): Promise<string | null> {
+  try {
+    if (!auditService && !prisma.auditEntry) return null;
+    const service =
+      auditService ??
+      new AuditService(new PrismaAuditRepository(prisma as unknown as { auditEntry: AuditEntryPrismaDelegate }));
+    return await service.recordAuditEvent({
+      domain: 'cfe',
+      user_id: draft.user_id,
+      role: Role.REP,
+      content_id: draft.id,
+      content_text: draft.body,
+      channel,
+      risk_score: draft.cfe_risk_score ?? 0,
+      // The draft carries the CFE's released verdict (PASS/FLAG); pass it through verbatim as the
+      // audit outcome. A non-released draft never reaches here — the send decision HELDs it first.
+      outcome: (draft.cfe_outcome ?? 'RECORDED') as 'PASS' | 'FLAG' | 'BLOCK' | 'RECORDED',
+      event_data: {
+        source: 'T39_SEND',
+        dispatched_channel: channel,
+        classifier_data: draft.cfe_classifier_data ?? null,
+      },
+      regulation: 'NONE',
+      rule_version: CFE_RULE_VERSION,
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Record why a send was withheld (`DraftMessage.send_hold_reason`, T-37 migration). This is the
