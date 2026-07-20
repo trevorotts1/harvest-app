@@ -629,6 +629,14 @@ model DraftMessage {
   // Additive, nullable; both are only ever set on a decline.
   decline_reason        String?
   decline_note          String?
+  // T-37 (WP05 §10.1/§10.8; uiux §4.4 "held" states) — records WHY the unified send decision
+  // (src/services/messaging/send/*) withheld a send for this draft at dispatch time, distinct from
+  // a human `decline_reason`: OPTED_OUT | QUIET_HOURS | NO_TCPA_CONSENT | NOT_DELIVERABLE |
+  // NOT_CFE_CLEARED | NOT_APPROVED | EDITED_AFTER_APPROVAL | CHANNEL_MISMATCH | TWILIO_UNCONFIGURED
+  // | NO_PLATFORM_NUMBER | NO_PHONE | ERROR. Additive, nullable; set on a held send, cleared to
+  // null on a successful send/handoff. This is the "held for review — nothing was lost" (§5.2)
+  // evidence the rep-facing timeline surfaces; it never causes a send by itself (deny-by-default).
+  send_hold_reason      String?
   created_at            DateTime        @default(now()) @db.Timestamptz(6)
   updated_at            DateTime        @updatedAt @db.Timestamptz(6)
 
