@@ -5,6 +5,13 @@
 // optional <=500-char note. The engine computes the Readiness Score in the background — this layer
 // NEVER receives or renders it (only the server-returned doctrine corrections after submit,
 // AC-5.4-3/5.4-4).
+//
+// OFFLINE (§5.4 "Offline"; T-R11): "Layer 3's matching requires connection: tiles capture offline,
+// matching defers" — a deliberately different treatment than Layers 1-2 (which queue-and-replay).
+// Tile/note edits below are already local-only React state regardless of connectivity, so nothing
+// typed here is ever lost either way; the ONLY thing gated by `offline` is the final submit, which
+// is replaced with the honest deferred notice instead of a disabled-looking dead button — never a
+// silent no-op, never a crash.
 
 'use client';
 
@@ -57,6 +64,9 @@ export interface BackgroundMatchingLayerProps {
   corrections: NoteCorrection[];
   onSubmit: () => void;
   flipping?: boolean;
+  /** True while the browser is offline (§5.4 "Offline" — T-R11). Tile/note capture stays fully
+   *  interactive; only the submit action is replaced with the deferred notice. */
+  offline?: boolean;
 }
 
 function TileSelect({
@@ -97,6 +107,7 @@ export default function BackgroundMatchingLayer({
   corrections,
   onSubmit,
   flipping = false,
+  offline = false,
 }: BackgroundMatchingLayerProps) {
   return (
     <section
@@ -179,9 +190,15 @@ export default function BackgroundMatchingLayer({
       })}
 
       <div className={styles.actions}>
-        <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onSubmit}>
-          Finish matching
-        </button>
+        {offline ? (
+          <p className={styles.deferredNotice} role="status">
+            We&rsquo;ll finish matching when you&rsquo;re back online. What you&rsquo;ve entered here is saved.
+          </p>
+        ) : (
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onSubmit}>
+            Finish matching
+          </button>
+        )}
       </div>
     </section>
   );

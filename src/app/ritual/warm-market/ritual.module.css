@@ -206,6 +206,33 @@
   margin: 0 0 var(--space-3);
 }
 
+/* ---- Offline / reconnect (§5.4 "Offline"; §6.4; T-R11) — soil-toned, informational, never an
+   error/caution color: being offline is an honest state, not a failure. Same token pairing as
+   ShiftView's `.offlineBanner` (shift.module.css). ---- */
+.offlineBanner {
+  background: var(--soil-50);
+  border: 1px solid var(--soil-200);
+  color: var(--soil-700);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+/* ---- Layer 3's deferred-matching notice (§5.4 "Layer 3's matching requires connection") — same
+   soil tone as the offline banner (an honest deferral, not an error), rendered in place of the
+   submit button so it's never a silent dead control. ---- */
+.deferredNotice {
+  background: var(--soil-50);
+  border: 1px solid var(--soil-200);
+  color: var(--soil-700);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--type-body-size);
+  margin: 0;
+  flex: 1 1 auto;
+}
+
 /* ---- Buttons ---- */
 .actions {
   display: flex;
