@@ -48,10 +48,13 @@ function makeFakePrisma(opts: {
   drafts?: DraftMessageQueueRow[];
   appointments?: AppointmentQueueRow[];
   intensity?: string;
+  /** T-R13 — contact rows the embedded ApprovalInboxItem's header can hydrate a name from. */
+  contacts?: { id: string; first_name: string; last_name: string }[];
 }): ShiftPrismaClient {
   const sessions = new Map<string, ShiftSessionRow>((opts.sessions ?? []).map((s) => [`${s.user_id}::${s.session_date}`, s]));
   const drafts = new Map<string, DraftMessageQueueRow>((opts.drafts ?? []).map((d) => [d.id, d]));
   const appointments = new Map<string, AppointmentQueueRow>((opts.appointments ?? []).map((a) => [a.id, a]));
+  const contacts = new Map((opts.contacts ?? []).map((c) => [c.id, c]));
   let idCounter = 0;
 
   return {
@@ -116,6 +119,11 @@ function makeFakePrisma(opts: {
         return { intensity_setting: opts.intensity ?? 'MEDIUM' };
       },
     },
+    contact: {
+      async findMany({ where }) {
+        return Array.from(contacts.values()).filter((c) => where.id.in.includes(c.id));
+      },
+    },
   };
 }
 
@@ -123,10 +131,12 @@ function draft(id: string, overrides: Partial<DraftMessageQueueRow> = {}): Draft
   return {
     id,
     user_id: 'rep-1',
+    contact_id: `contact-for-${id}`,
     body: `draft ${id}`,
     channel: 'SMS_HANDOFF',
     approval_state: 'PENDING',
     cfe_outcome: 'PASS',
+    cfe_risk_score: 5,
     created_at: new Date('2026-07-18T08:00:00Z'),
     ...overrides,
   };
@@ -259,6 +269,43 @@ describe('ShiftService — T-34 QC fix (D2): FLAG/BLOCK drafts fail-closed on AP
     expect(flaggedCard?.cfeOutcome).toBe('FLAG');
     expect(cleanCard?.type).toBe('APPROVE_DRAFT');
     expect(cleanCard?.cfeOutcome).toBe('PASS');
+  });
+
+  // ─── T-R13: the stack hydrates everything DraftApprovalCard needs to embed the real
+  // ApprovalInboxItem (contact name, channel, risk score, approval_state) — no second source of
+  // truth for any of it. ─────────────────────────────────────────────────────────────────────────
+
+  test('T-R13: a draft card carries `draft.{contact,channel,cfeRiskScore,approvalState}` hydrated from the real DraftMessage/Contact rows', async () => {
+    const prisma = makeFakePrisma({
+      drafts: [draft('d-embed', { contact_id: 'c-1', channel: 'EMAIL', cfe_risk_score: 42, approval_state: 'PENDING' })],
+      contacts: [{ id: 'c-1', first_name: 'Maya', last_name: 'Jordan' }],
+    });
+    const service = new ShiftService(prisma);
+    const view = await service.getOrCreateToday('rep-1');
+    const card = view.stack.find((c) => c.id === 'd-embed');
+
+    expect(card?.draft?.contactId).toBe('c-1');
+    expect(card?.draft?.contact).toEqual({ firstName: 'Maya', lastName: 'Jordan' });
+    expect(card?.draft?.channel).toBe('EMAIL');
+    expect(card?.draft?.cfeRiskScore).toBe(42);
+    expect(card?.draft?.approvalState).toBe('PENDING');
+  });
+
+  test('T-R13: a draft with no matching contact row still hydrates `draft` with `contact: null` (never throws)', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('d-no-contact', { contact_id: 'ghost-contact' })] });
+    const service = new ShiftService(prisma);
+    const view = await service.getOrCreateToday('rep-1');
+    const card = view.stack.find((c) => c.id === 'd-no-contact');
+    expect(card?.draft?.contact).toBeNull();
+  });
+
+  test('T-R13: CONFIRM_APPOINTMENT cards (no backing DraftMessage) carry no `draft` payload', async () => {
+    const prisma = makeFakePrisma({ appointments: [{ id: 'appt-1', rep_id: 'rep-1', contact_id: 'c-1', status: 'PROPOSED', proposed_windows: [], created_at: new Date() }] });
+    const service = new ShiftService(prisma);
+    const view = await service.getOrCreateToday('rep-1');
+    const card = view.stack.find((c) => c.id === 'appt-1');
+    expect(card?.type).toBe('CONFIRM_APPOINTMENT');
+    expect(card?.draft).toBeUndefined();
   });
 });
 

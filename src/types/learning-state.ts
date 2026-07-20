@@ -38,6 +38,26 @@ export interface ShiftQueueCard {
    * don't care about compliance state at all) keep compiling unchanged — WorkPhase's own
    * fail-closed gate treats "absent" the same as anything other than a literal `'PASS'`. */
   cfeOutcome?: string | null;
+  /** T-R13 (uiux §5.3 "approve-with-inline-edit ... embedded full-width", §4.2/§4.3) — present only
+   * for APPROVE_DRAFT / RESPOND_FLAGGED cards (the ones backed by a real DraftMessage): the extra
+   * shape `DraftApprovalCard` needs to embed T-33's `ApprovalInboxItem` component directly in the
+   * Work-phase card, replacing the old deep-link-to-`/inbox` stopgap. `undefined` for
+   * CONFIRM_APPOINTMENT / LOG_INTRODUCTION / MARK_ATTENDANCE, which have no DraftMessage to embed
+   * at all — and for any pre-existing fixture that predates this field (keeps compiling unchanged,
+   * same optionality rationale as `cfeOutcome` above). */
+  draft?: {
+    contactId: string;
+    contact: { firstName: string; lastName: string } | null;
+    channel: string;
+    cfeRiskScore: number | null;
+    /** The DraftMessage's OWN `approval_state` ('PENDING' | 'HELD' at this point in the stack —
+     * APPROVED/DECLINED drafts never reach `buildCandidateStack` in the first place). This is what
+     * `ApprovalInboxItem`'s own fail-closed render gate (`isHeld`) checks — NOT `cfeOutcome` — so
+     * embedding the real component preserves ITS rule (HELD/blocked is never one-tap-approvable by
+     * any UI path) rather than reintroducing a second, divergent one. */
+    approvalState: string;
+    createdAt: string;
+  };
 }
 
 export interface ShiftStateView {

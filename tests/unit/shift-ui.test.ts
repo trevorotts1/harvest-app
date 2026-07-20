@@ -118,10 +118,12 @@ describe('(c) RatioCard — the headline is never rendered alone', () => {
 // ─── AC-5.3-1: exactly one card at a time ───────────────────────────────────────────────────────────
 
 describe('AC-5.3-1: WorkPhase renders exactly ONE card at a time', () => {
+  // Non-draft card types here (title/detail render generically) — the draft-backed
+  // APPROVE_DRAFT/RESPOND_FLAGGED rendering path is covered on its own below (T-R13).
   const stack: ShiftQueueCard[] = [
-    { id: 'card-1', type: 'APPROVE_DRAFT', title: 'FIRST CARD TITLE', detail: 'first', estimateMinutes: 1 },
-    { id: 'card-2', type: 'APPROVE_DRAFT', title: 'SECOND CARD TITLE', detail: 'second', estimateMinutes: 1 },
-    { id: 'card-3', type: 'CONFIRM_APPOINTMENT', title: 'THIRD CARD TITLE', detail: 'third', estimateMinutes: 1 },
+    { id: 'card-1', type: 'CONFIRM_APPOINTMENT', title: 'FIRST CARD TITLE', detail: 'first', estimateMinutes: 1 },
+    { id: 'card-2', type: 'MARK_ATTENDANCE', title: 'SECOND CARD TITLE', detail: 'second', estimateMinutes: 1 },
+    { id: 'card-3', type: 'LOG_INTRODUCTION', title: 'THIRD CARD TITLE', detail: 'third', estimateMinutes: 1 },
   ];
 
   test('only the top-of-stack card title/detail renders; the rest exist only as progress dots', () => {
@@ -139,57 +141,90 @@ describe('AC-5.3-1: WorkPhase renders exactly ONE card at a time', () => {
   });
 });
 
-// ─── T-34 QC fix (D2): a flagged/blocked draft's Work-phase card fails closed in the UI too ───────
-// Mirrors T-32's Mission Control fail-closed-queue-approve fix: RESPOND_FLAGGED cards get a visible
-// CFE band + a plain deep-link to the real Approval Inbox, and NEVER a one-tap Approve button.
+// ─── T-R13: APPROVE_DRAFT / RESPOND_FLAGGED cards embed T-33's real ApprovalInboxItem ─────────────
+// Replaces the old deep-link-to-`/inbox` stopgap (T-34 QC fix D2) with the actual approve-with-
+// inline-edit component (uiux §5.3 "embedded full-width") — see WorkPhase.tsx / DraftApprovalCard.tsx
+// and ShiftApprovalRequiresReviewError's doc comment in shift.service.ts for the full rationale.
+// The fail-closed authority these tests prove against is now `ApprovalInboxItem`'s OWN render rule
+// (no Approve while `approval_state === 'HELD'`) plus `ShiftService.actionCard`'s unchanged
+// server-side check — NOT a WorkPhase-local `cfeOutcome !== 'PASS'` gate, which no longer exists.
 
-describe('T-34 QC fix (D2): RESPOND_FLAGGED cards get a CFE band + inbox deep-link, never one-tap Approve', () => {
-  test('a FLAG draft renders the "Flagged" band, an /inbox deep-link, and Decline — but NO Approve button', () => {
+function draftCard(
+  id: string,
+  overrides: Partial<Omit<ShiftQueueCard, 'draft'>> & { approvalState?: string } = {}
+): ShiftQueueCard {
+  const { approvalState, ...cardOverrides } = overrides;
+  return {
+    id,
+    type: 'APPROVE_DRAFT',
+    title: 'Approve a draft',
+    detail: 'body',
+    estimateMinutes: 1,
+    cfeOutcome: 'PASS',
+    draft: {
+      contactId: 'contact-1',
+      contact: { firstName: 'Maya', lastName: 'Jordan' },
+      channel: 'SMS_HANDOFF',
+      cfeRiskScore: 3,
+      approvalState: approvalState ?? 'PENDING',
+      createdAt: '2026-07-18T08:00:00.000Z',
+    },
+    ...cardOverrides,
+  };
+}
+
+describe('T-R13: draft cards embed the real ApprovalInboxItem — the old /inbox deep-link stopgap is gone', () => {
+  test('the deep-link stopgap no longer exists anywhere in WorkPhase\'s output, for any draft card', () => {
+    const stack: ShiftQueueCard[] = [draftCard('any-1', { cfeOutcome: 'FLAG' })];
+    const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
+    expect(html).not.toMatch(/href="\/inbox"/);
+    expect(textOf(html)).not.toMatch(/Review in Approval Inbox/);
+  });
+
+  test('a FLAG (still-PENDING) draft embeds the real item — CFE chip visible, and Approve/Edit/Decline all present (uiux "approve-with-inline-edit")', () => {
     const stack: ShiftQueueCard[] = [
-      { id: 'flag-1', type: 'RESPOND_FLAGGED', title: 'Respond to a flagged draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'FLAG' },
+      draftCard('flag-1', { type: 'RESPOND_FLAGGED', title: 'Respond to a flagged draft', cfeOutcome: 'FLAG' }),
     ];
     const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
     const text = textOf(html);
 
-    expect(text).toMatch(/Flagged by compliance review/);
-    expect(html).toMatch(/<a[^>]*href="\/inbox"[^>]*>/);
-    expect(text).toMatch(/Review in Approval Inbox/);
-    expect(text).toMatch(/Decline/);
-    expect(text).not.toMatch(/\bApprove\b/); // "Approval Inbox" must not be mistaken for an Approve button
+    expect(text).toMatch(/Flagged/); // ApprovalInboxItem's own CFE chip label
+    expect(text).toMatch(/\bApprove\b/);
+    expect(text).toMatch(/\bEdit\b/);
+    expect(text).toMatch(/\bDecline\b/);
+    expect(text).toMatch(/Later today/); // skip is still offered alongside the embedded card
   });
 
-  test('a BLOCK draft renders the "Blocked" band (reserved compliance-blocked token), deep-link, Decline — no Approve', () => {
+  test('TEETH: a HELD draft (blocked verdict) — the ONE state with no recovery path — never renders an Approve button; only the compliant-rewrite/discard affordances', () => {
     const stack: ShiftQueueCard[] = [
-      { id: 'block-1', type: 'RESPOND_FLAGGED', title: 'Respond to a flagged draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'BLOCK' },
+      draftCard('held-1', {
+        type: 'RESPOND_FLAGGED',
+        title: 'Respond to a flagged draft',
+        cfeOutcome: 'BLOCK',
+        approvalState: 'HELD',
+      }),
     ];
     const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
     const text = textOf(html);
 
-    expect(text).toMatch(/Blocked by compliance review/);
-    expect(html).toMatch(/<a[^>]*href="\/inbox"[^>]*>/);
-    expect(text).not.toMatch(/\bApprove\b/);
+    expect(html).not.toMatch(/<button[^>]*>\s*Approve\s*<\/button>/);
+    expect(text).toMatch(/cannot be approved as-is/i); // ApprovalInboxItem's held banner
+    expect(text).toMatch(/Discard/);
   });
 
-  test('a clean PASS draft still gets the normal one-tap Approve — the fail-closed gate never blocks the common case', () => {
-    const stack: ShiftQueueCard[] = [
-      { id: 'clean-1', type: 'APPROVE_DRAFT', title: 'Approve a draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'PASS' },
-    ];
+  test('a clean PASS draft still gets the normal one-tap Approve — the common case renders exactly as before', () => {
+    const stack: ShiftQueueCard[] = [draftCard('clean-1', { cfeOutcome: 'PASS' })];
     const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
     const text = textOf(html);
 
     expect(text).toMatch(/\bApprove\b/);
     expect(html).not.toMatch(/href="\/inbox"/);
-    expect(html).not.toMatch(/data-testid="cfe-band"/);
   });
 
-  test('TEETH: defense in depth — even a mislabeled card (type APPROVE_DRAFT but cfeOutcome FLAG) never renders an Approve BUTTON', () => {
-    // Title deliberately avoids the word "Approve" (unlike the real service-set title) so this
-    // assertion is checking for the ACTION BUTTON specifically, not incidentally matching card copy.
-    const stack: ShiftQueueCard[] = [
-      { id: 'stale-1', type: 'APPROVE_DRAFT', title: 'Stale-typed draft', detail: 'body', estimateMinutes: 1, cfeOutcome: 'FLAG' },
-    ];
+  test('Later today (skip) still renders alongside the embedded card — skip is not gated', () => {
+    const stack: ShiftQueueCard[] = [draftCard('c1')];
     const html = render(WorkPhase, { stack, elapsedSeconds: 10, onAction: noop, onSaveAndLeave: noop });
-    expect(html).not.toMatch(/<button[^>]*>\s*Approve\s*<\/button>/);
+    expect(textOf(html)).toMatch(/Later today/);
   });
 });
 
