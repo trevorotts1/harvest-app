@@ -10,6 +10,15 @@
 // phase embeds the same item action, one at a time, per uiux §5.3 ("approve-with-inline-edit...
 // embedded full-width") — it does not fork a second approval mechanism.
 //
+// T-R13 (post-merge integration): `DraftApprovalCard` (src/app/shift/components/DraftApprovalCard.tsx)
+// now embeds T-33's real `ApprovalInboxItem` directly in the Work-phase card in place of the old
+// deep-link-to-`/inbox` stopgap — Approve/Decline still flow through THIS file's `actionCard` (so
+// the fail-closed check immediately below and the offline queue/optimistic-advance both apply
+// unchanged), while Edit posts straight to the real `/api/approval-inbox/edit` route (re-entering
+// the CFE via `ApprovalInboxService.editDraft`, not reimplemented here). `buildCandidateStack`'s
+// `draft` field on each card (below) is exactly what that embed needs — this file still owns no CFE
+// logic and still forks no second approval mechanism.
+//
 // SCOPE NOTE: uiux §5.3 names five Work-phase card types; this build unit populates the stack from
 // the two that have a real, pre-existing backing model at this branch point (APPROVE_DRAFT from
 // DraftMessage, CONFIRM_APPOINTMENT from Appointment). LOG_INTRODUCTION / MARK_ATTENDANCE are
@@ -61,11 +70,23 @@ export interface ShiftSessionRow {
 export interface DraftMessageQueueRow {
   id: string;
   user_id: string;
+  contact_id: string;
   body: string;
   channel: string;
   approval_state: string;
   cfe_outcome: string | null;
+  cfe_risk_score: number | null;
   created_at: Date;
+}
+
+/** Mirrors `ApprovalInboxService`'s own `ContactNameRow` (same two columns, same select shape) —
+ * duplicated here rather than imported so this file's narrow, DI-mockable Prisma surface stays
+ * self-contained (same convention as every other narrow *PrismaClient interface in this codebase);
+ * it is not a second definition of any COMPLIANCE logic, just a tiny read-only row shape. */
+export interface ShiftContactRow {
+  id: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface AppointmentQueueRow {
@@ -97,6 +118,14 @@ export interface ShiftPrismaClient {
   user: {
     findUnique(args: { where: { id: string } }): Promise<{ intensity_setting: string } | null>;
   };
+  /** T-R13 — contact-name hydration for the embedded Approval-Inbox-Item's header (mirrors
+   * `ApprovalInboxService.listInbox`'s identical join; see `ShiftContactRow` above). */
+  contact: {
+    findMany(args: {
+      where: { id: { in: string[] } };
+      select: { id: true; first_name: true; last_name: true };
+    }): Promise<ShiftContactRow[]>;
+  };
 }
 
 export class ShiftOwnershipError extends Error {
@@ -113,12 +142,22 @@ export class ShiftOwnershipError extends Error {
  * Work-phase "Approve a draft" / "Respond to a flagged draft" cards shared ONE action handler with
  * no CFE check at all, so a FLAG or BLOCK-banded draft could be one-tap approved from the ritual
  * with no adjudication. This is DEFENSE IN DEPTH at the service layer: it holds even if the calling
- * UI (WorkPhase.tsx) is wrong, stale, or bypassed — the endpoint itself is the fail-closed
- * authority. Declining a flagged/blocked draft is NEVER gated — rejecting risky content is always
- * safe. Real adjudication (re-checked CFE, classifier drawer, edit-re-enters-CFE) is the Approval
- * Inbox's job (T-33, `/inbox` in main) — the Shift ritual only offers a deep-link there now; the
- * full inline-edit-in-Shift (embedding T-33's Approval Inbox Item component directly in the Work
- * phase) is DEFERRED to a post-merge integration tracked as T-R13, not built here. */
+ * UI (`DraftApprovalCard`/`ApprovalInboxItem`, T-R13) is wrong, stale, or bypassed — this endpoint
+ * itself is the fail-closed authority, unconditionally, regardless of what any UI renders. Declining
+ * a flagged/blocked draft is NEVER gated — rejecting risky content is always safe.
+ *
+ * T-R13 note (this check is intentionally UNCHANGED by that build unit): the Shift now embeds T-33's
+ * real `ApprovalInboxItem` in the Work-phase card, so a rep CAN see an Approve button on a FLAG/HELD
+ * draft there (that component's own render rule only hides Approve when `approval_state === 'HELD'`
+ * — it does not know about this file's stricter `cfe_outcome !== 'PASS'` rule, by design, since it
+ * is the same component the real `/inbox` page uses unmodified). If the rep taps Approve WITHOUT
+ * first editing the draft into a clean re-checked PASS, THIS check still throws exactly as it always
+ * has — no mutation, no recap credit — and `DraftApprovalCard`'s approve handler surfaces that
+ * refusal as an inline error rather than a silent success. The intended path for a FLAG/HELD draft
+ * is edit-with-CFE-re-entry (posts to `/api/approval-inbox/edit`, i.e. `ApprovalInboxService.
+ * editDraft`) FIRST — once the re-checked `cfe_outcome` is a clean `PASS`, this same check passes
+ * the common case exactly as it always has. A HELD draft (blocked verdict) has no Approve button to
+ * tap in the first place — `ApprovalInboxItem` never renders one for `isHeld`. */
 export class ShiftApprovalRequiresReviewError extends Error {
   constructor(
     message = 'This draft was flagged by compliance review and cannot be approved from the Shift ritual — review it in the Approval Inbox.'
@@ -170,6 +209,18 @@ export class ShiftService {
       this.prisma.appointment.findMany({ where: { rep_id: userId, status: 'PROPOSED' } }),
     ]);
 
+    // T-R13 — contact-name hydration for the embedded ApprovalInboxItem (same join
+    // ApprovalInboxService.listInbox does; skipped entirely when there are no drafts to embed).
+    const contactIds = Array.from(new Set(drafts.map((d) => d.contact_id)));
+    const contacts =
+      contactIds.length === 0
+        ? []
+        : await this.prisma.contact.findMany({
+            where: { id: { in: contactIds } },
+            select: { id: true, first_name: true, last_name: true },
+          });
+    const contactById = new Map(contacts.map((c) => [c.id, c]));
+
     const draftCards: ShiftQueueCard[] = drafts.map((d) => {
       // T-34 QC fix: BLOCK is treated the same as FLAG here (both are non-PASS, both get the
       // RESPOND_FLAGGED card type) — defense in depth alongside actionCard's fail-closed check
@@ -177,6 +228,7 @@ export class ShiftService {
       // (agent-runtime.ts) and this query only ever fetches `approval_state: 'PENDING'` rows, so a
       // BLOCK draft does not currently reach this stack at all. Never assume that invariant here.
       const isNonPass = d.cfe_outcome === 'FLAG' || d.cfe_outcome === 'BLOCK';
+      const c = contactById.get(d.contact_id);
       return {
         id: d.id,
         type: (isNonPass ? 'RESPOND_FLAGGED' : 'APPROVE_DRAFT') as ShiftCardType,
@@ -184,6 +236,19 @@ export class ShiftService {
         detail: d.body,
         estimateMinutes: 1,
         cfeOutcome: d.cfe_outcome,
+        // T-R13 — everything DraftApprovalCard needs to embed the real ApprovalInboxItem in place
+        // of the old deep-link stopgap. `approvalState` here always reads 'PENDING' in practice
+        // (per the query above) UNLESS an inline edit — taken via /api/approval-inbox/edit while
+        // this same card is on screen — flips it to 'HELD', which is exactly the signal
+        // ApprovalInboxItem's OWN fail-closed render gate needs to hide Approve.
+        draft: {
+          contactId: d.contact_id,
+          contact: c ? { firstName: c.first_name, lastName: c.last_name } : null,
+          channel: d.channel,
+          cfeRiskScore: d.cfe_risk_score,
+          approvalState: d.approval_state,
+          createdAt: d.created_at.toISOString(),
+        },
       };
     });
     const apptCards: ShiftQueueCard[] = appointments.map((a) => ({
