@@ -34,6 +34,10 @@ import { socialContentInngestFunctions } from '@/services/social-content/inngest
 // two imports above (Inngest's sync step reads this function's `cron` trigger at deploy/register
 // time; its own scheduler fires this signed endpoint when due).
 import { taprootingInngestFunctions } from '@/services/taprooting/inngest/taprooting-inngest-functions';
+// T-43 (WP07 §12.1/§12.3/§12.6): the gamification-lane cron functions — momentum reconciliation
+// (daily), milestone detection (5-minute backstop), and the notification sweep (hourly). Same
+// registration convention as the two imports above.
+import { gamificationInngestFunctions } from '@/services/gamification/gamification-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
@@ -46,5 +50,6 @@ export const { GET, POST, PUT } = serve({
     ...teamCalendarInngestFunctions,
     ...socialContentInngestFunctions,
     ...taprootingInngestFunctions,
+    ...gamificationInngestFunctions,
   ],
 });

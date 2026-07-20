@@ -20,6 +20,7 @@ import { buildActionQueueZone } from './zones/action-queue';
 import { buildPipelineZone } from './zones/pipeline';
 import { buildRatiosZone } from './zones/ratios';
 import { buildCalendarZone } from './zones/calendar';
+import { buildMilestonesZone } from './zones/milestones';
 
 /** Never leaks internals (stack traces, query shapes) into the zone's error message — the honest,
  *  non-shaming copy every degraded zone shows while its siblings keep working (uiux §4.1 error
@@ -45,16 +46,17 @@ export async function buildMissionControlToday(userId: string, opts: BuildTodayO
   const db = opts.db ?? (prisma as unknown as MissionControlPrismaClient);
   const now = opts.now ?? new Date();
 
-  const [header, briefing, actionQueue, pipeline, ratios, calendar] = await Promise.all([
+  const [header, briefing, actionQueue, pipeline, ratios, calendar, milestones] = await Promise.all([
     safeZone(() => buildHeaderZone(db, userId, opts.greetingName, now)),
     safeZone(() => buildBriefingZone(db, userId, now)),
     safeZone(() => buildActionQueueZone(db, userId)),
     safeZone(() => buildPipelineZone(db, userId, now)),
     safeZone(() => buildRatiosZone(db, userId)),
     safeZone(() => buildCalendarZone(db, userId, opts.organizationId, now)),
+    safeZone(() => buildMilestonesZone(db, userId)),
   ]);
 
-  return { generatedAt: now.toISOString(), header, briefing, actionQueue, pipeline, ratios, calendar };
+  return { generatedAt: now.toISOString(), header, briefing, actionQueue, pipeline, ratios, calendar, milestones };
 }
 
 // ── Mutations: the real IPAs this screen performs directly ─────────────────────────────────────

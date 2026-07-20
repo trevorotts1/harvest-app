@@ -6,7 +6,13 @@
 // a query across zones would silently couple their failure modes, defeating the independent-zone-
 // failure guarantee (master-spec §9.5 / uiux AC-5.2-6).
 
-import { computeBloomOverride, computeGroveBandState, computeMomentum, groveCaptionFor } from '../momentum';
+import {
+  computeBloomOverride,
+  computeGroveBandState,
+  computeMomentum,
+  computeMomentumCriteria,
+  groveCaptionFor,
+} from '../momentum';
 import type { MissionControlPrismaClient } from '../prisma-types';
 import type { HeaderZoneData } from '../types';
 
@@ -25,6 +31,7 @@ export async function buildHeaderZone(
   ]);
 
   const momentum = computeMomentum(events, now);
+  const momentumCriteria = computeMomentumCriteria(events, now);
   const bloom = computeBloomOverride(milestones, now);
   const groveState = bloom ? 'bloom' : computeGroveBandState(momentum);
   const groveCaption = groveCaptionFor(groveState, bloom?.label);
@@ -35,5 +42,6 @@ export async function buildHeaderZone(
     groveState,
     groveCaption,
     approvalInboxCount: drafts.length,
+    momentumCriteria,
   };
 }
