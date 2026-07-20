@@ -103,6 +103,43 @@ describe('computeGdprClock — GDPR Art. 33 72-hour clock (PROVE item b)', () =>
     expect(clock.approachingDeadline).toBe(true);
   });
 
+  test('a truthy-but-unparseable clockStartedAt (corrupt/garbage timestamp) fails SAFE to max-urgent, never "plenty of time" (T-R6)', () => {
+    // Without the Number.isNaN(startMs) guard, this falls through into NaN arithmetic:
+    // `new Date(deadlineMs).toISOString()` throws RangeError: Invalid time value, and even if it
+    // didn't, `referenceMs > NaN` is always false, so `overDeadline` would silently read `false` —
+    // exactly the wrong ("plenty of time") direction for a regulatory deadline.
+    const clock = computeGdprClock({
+      breachClass: 'CONFIRMED_PERSONAL_DATA_BREACH',
+      clockStartedAt: 'not-a-real-timestamp',
+    });
+    expect(clock.applicable).toBe(true);
+    expect(clock.overDeadline).toBe(true);
+    expect(clock.approachingDeadline).toBe(true);
+    expect(clock.deadline).toBeNull();
+    expect(clock.elapsedMs).toBeNull();
+    expect(clock.remainingMs).toBeNull();
+  });
+
+  test('a VALID clockStartedAt is unaffected by the NaN guard — normal computation still applies (T-R6)', () => {
+    const now = new Date(new Date(START).getTime() + 24 * 60 * 60 * 1000);
+    const clock = computeGdprClock({ breachClass: 'CONFIRMED_PERSONAL_DATA_BREACH', clockStartedAt: START, now });
+    expect(clock.overDeadline).toBe(false);
+    expect(clock.elapsedMs).toBe(24 * 60 * 60 * 1000);
+    expect(clock.remainingMs).toBe(48 * 60 * 60 * 1000);
+    expect(clock.deadline).toBe(new Date(new Date(START).getTime() + GDPR_NOTIFICATION_WINDOW_MS).toISOString());
+  });
+
+  test('null clockStartedAt still takes the distinct "not started" fail-safe path, not the NaN path (T-R6)', () => {
+    // Same output shape as the NaN case (both fail safe to max-urgent), but reached via a
+    // DIFFERENT branch — asserting this guards against the NaN check ever swallowing the
+    // null/undefined "not started" branch above it.
+    const clock = computeGdprClock({ breachClass: 'SUSPECTED_PERSONAL_DATA_BREACH', clockStartedAt: null });
+    expect(clock.applicable).toBe(true);
+    expect(clock.clockStartedAt).toBeNull();
+    expect(clock.overDeadline).toBe(true);
+    expect(clock.approachingDeadline).toBe(true);
+  });
+
   test('isClockApplicable is true for every BreachClass except NOT_PERSONAL_DATA', () => {
     expect(isClockApplicable('SUSPECTED_PERSONAL_DATA_BREACH')).toBe(true);
     expect(isClockApplicable('CONFIRMED_PERSONAL_DATA_BREACH')).toBe(true);
