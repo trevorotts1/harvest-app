@@ -1077,6 +1077,56 @@ model SecurityEvent {
   @@index([type, created_at])
 }
 
+// T-R5 (launch-gate remediation, §16.4/§18.10): T-12's rate-limit/session-activity/login-history
+// stores (src/services/security/rate-limiter.ts, src/lib/auth/session-security.ts,
+// src/services/security/credential-stuffing.ts) were process-local (`InMemory*Store`) — correct on
+// one instance, but on a multi-instance/serverless (Vercel) deploy each instance keeps its own
+// counters, so a distributed attacker can multiply their effective attempt budget by the instance
+// count. These three tables back a Postgres-backed, cluster-wide implementation of those
+// already-swap-ready store interfaces. Additive only — same caps/windows/lockout math as before;
+// this is a store swap, not a policy change.
+
+// Shared, cluster-wide rate-limit counters (`RateLimitStore`). `version` is an optimistic-
+// concurrency token: `PostgresRateLimitStore.put()` does a conditional `UPDATE ... WHERE key = ?
+// AND version = ?` (a brand-new key instead relies on this table's own primary-key constraint to
+// turn a racing double-insert into a conflict) so two instances racing to increment the same key
+// never silently lose one instance's attempt — the losing writer gets a `RateLimitConflictError`
+// and `RateLimiter.check()` retries with a fresh read instead of overwriting a stale count.
+model RateLimitCounter {
+  key             String    @id
+  count           Int
+  window_start    DateTime  @db.Timestamptz(6)
+  violation_count Int       @default(0)
+  locked_until    DateTime? @db.Timestamptz(6)
+  version         Int       @default(1)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+}
+
+// Shared session-activity ("last seen") timestamps (`SessionActivityStore`), keyed by
+// `sessionActivityKey(userId, boundAt)` (src/lib/auth/session-security.ts). Plain last-write-wins
+// upsert — `touch()` only ever records "now" (no computed delta), so no optimistic concurrency is
+// needed here (contrast `RateLimitCounter` above).
+model SessionActivityRecord {
+  key              String   @id
+  last_activity_at DateTime @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+}
+
+// Shared, append-only per-user login history feeding credential-stuffing anomaly scoring
+// (`LoginHistoryStore`, src/services/security/credential-stuffing.ts). INSERT-only — atomic by
+// construction, no read-then-write race to guard against.
+model LoginHistoryRecord {
+  id                      String   @id @default(uuid())
+  user_id                 String
+  device_fingerprint_hash String
+  ip_hash                 String
+  at                      DateTime @db.Timestamptz(6)
+  outcome                 String   // success | failure
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, at])
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // §3.3 New entities — State insurance licensing state machine (§16.5, T-13)
 // ═══════════════════════════════════════════════════════════════════════
