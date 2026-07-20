@@ -18,11 +18,16 @@ import { serve } from 'inngest/next';
 
 import { inngest } from '@/lib/inngest/client';
 import { agentRuntimeFunctions } from '@/services/agent-runtime/inngest-functions';
+// T-40R (WP05 GATE remediation): the messaging-lane cron functions — the outreach-sequence cadence
+// tick (§10.2) and the three-way-handoff return sweep (§10.9-8). Registered here so Inngest's sync
+// step reads their `cron` triggers at deploy/register time and its own scheduler fires this same
+// signed endpoint when each is due (the exact Vercel-native mechanism the agent-dispatch cron uses).
+import { messagingInngestFunctions } from '@/services/messaging/inngest/messaging-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: agentRuntimeFunctions,
+  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions],
 });

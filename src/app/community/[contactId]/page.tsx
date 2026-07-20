@@ -22,6 +22,9 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import ConversationTimeline, { type TimelineEntry } from '../components/ConversationTimeline';
+import SequenceEnrollPanel from '../components/SequenceEnrollPanel';
+import ObjectionCoachPanel from '../components/ObjectionCoachPanel';
+import BridgeUplinePanel from '../components/BridgeUplinePanel';
 import styles from '../conversation.module.css';
 
 interface ConversationContact {
@@ -112,6 +115,18 @@ export default function ContactConversationPage({ params }: PageProps) {
               </div>
             </div>
             <ConversationTimeline entries={entries} />
+
+            {/* T-40R (uiux §5.7) — the rep-facing WRITE affordances that route through the gated
+                messaging surfaces: start a sequence (§10.2), the objection coach (§10.7, only you see
+                it), and bridge my upline (§10.6). Withheld once a contact has opted out — the send
+                gates would HELD anyway, but the UI should never even offer it. */}
+            {!contact.doNotContact && (
+              <div className={styles.repActionsRegion}>
+                <SequenceEnrollPanel contactId={contact.id} />
+                <ObjectionCoachPanel contactId={contact.id} />
+                <BridgeUplinePanel contactId={contact.id} />
+              </div>
+            )}
           </>
         )}
       </div>

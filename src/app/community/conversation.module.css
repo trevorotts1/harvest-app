@@ -315,3 +315,171 @@
   margin: 0;
   color: var(--text-primary);
 }
+
+/* ==========================================================================
+   T-40R (WP05 gate remediation, uiux §5.7) — the rep-facing WRITE affordances
+   on the conversation surface: start a sequence (§10.2), the objection coach
+   (§10.7, only you see it), bridge my upline (§10.6). Semantic tokens ONLY
+   (no raw hex — community raw-hex sweep), no opacity on text.
+   ========================================================================== */
+.repActionsRegion {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.repActionPanel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.repActionTitle {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.repActionNote {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+.repActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.repActionLabel {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.repActionSelect {
+  flex: 1 1 auto;
+  min-width: 160px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-operational);
+}
+.repActionSelect:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.repActionButton {
+  min-height: 44px;
+  border: 1px solid var(--color-action);
+  border-radius: var(--radius-pill);
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-1) var(--space-4);
+  font-weight: 700;
+  cursor: pointer;
+}
+.repActionButton:disabled {
+  cursor: default;
+}
+.repActionButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.repActionStatus {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-primary);
+}
+.repActionBridgeCopy {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--color-growth);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-3) var(--space-4);
+}
+.repActionBridgeLabel {
+  display: inline-block;
+  margin-right: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-primary);
+  padding: 0 var(--space-2);
+  font-size: var(--type-caption-size);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Objection coach (§10.7). ---- */
+.objectionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.objectionItem {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.objectionToggle {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 700;
+  cursor: pointer;
+}
+.objectionToggle:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: -2px;
+}
+.objectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface-1-solid-fallback);
+}
+.objectionQuestion {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.branchRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-canvas);
+  padding: var(--space-3);
+}
+.branchLabel {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.branchResponse {
+  margin: 0;
+  color: var(--text-primary);
+}
