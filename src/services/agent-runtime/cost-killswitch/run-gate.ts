@@ -62,10 +62,21 @@ export function startOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-/** The daily cents ceiling for a rep's tier x intensity (ENTERPRISE handled by the caller separately). */
+/**
+ * The daily cents ceiling for a rep's tier x intensity (ENTERPRISE handled by the caller
+ * separately). T-56 DRILL HARDENING: the accessTier dimension already fell back to a safe default
+ * table via `??`, but the intensity dimension had no equivalent fallback — an unrecognized/corrupt
+ * `intensitySetting` (a data-integrity gap, not a normal enum value) made `table[intensitySetting]`
+ * resolve to `undefined`, and `spend >= undefined` is ALWAYS `false` in JS, so the budget check
+ * could never trip: a mis-set threshold silently became UNLIMITED spend (fail-open) instead of
+ * halting (fail-closed), the opposite of §4.5's mandate. A missing/unknown ceiling now returns 0
+ * (halt immediately) rather than `undefined` (never trip) — "no known safe ceiling" must mean HALT,
+ * not "assume the largest one."
+ */
 export function dailyBudgetCentsFor(accessTier: AccessTier, intensitySetting: IntensitySetting): number {
   const table = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY[accessTier as Exclude<AccessTier, 'ENTERPRISE'>];
-  return (table ?? DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED)[intensitySetting];
+  const ceiling = (table ?? DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED)[intensitySetting];
+  return typeof ceiling === 'number' && Number.isFinite(ceiling) ? ceiling : 0;
 }
 
 export interface BudgetKillSwitchRunGateOptions {
