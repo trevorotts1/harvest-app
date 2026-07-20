@@ -15,12 +15,15 @@ export const dynamic = 'force-dynamic';
 export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
   const service = new TeamCalendarService(prisma as unknown as TeamCalendarPrismaClient);
 
-  const [broadcastEvents, personalAgenda] = await Promise.all([
+  const [broadcastEvents, personalAgenda, caller] = await Promise.all([
     identity.organizationId ? service.listBroadcastEvents(identity.organizationId, identity.userId) : Promise.resolve([]),
     service.getPersonalAgenda(identity.userId),
+    prisma.user.findUnique({ where: { id: identity.userId }, select: { upline_id: true } }),
   ]);
 
-  return NextResponse.json({ broadcastEvents, personalAgenda });
+  // Surfaced so the calendar page can offer a real "propose a coaching session with your upline"
+  // action (POST /api/team/coaching-sessions/propose) without the client having to guess an id.
+  return NextResponse.json({ broadcastEvents, personalAgenda, myUplineId: caller?.upline_id ?? null });
 });
 
 interface CreateBroadcastEventBody {
