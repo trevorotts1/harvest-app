@@ -17,6 +17,12 @@ class ClearClassifierClient implements ClaudeClassifierClient {
     return { flagged: false, confidence: 0, rationale: 'clean' };
   }
 }
+class FixedConfidenceClassifierClient implements ClaudeClassifierClient {
+  constructor(private confidence: number) {}
+  async classify(): Promise<ClassifierVerdict> {
+    return { flagged: this.confidence >= 0.5, confidence: this.confidence, rationale: 'test' };
+  }
+}
 const originalKey = process.env.ANTHROPIC_API_KEY;
 beforeEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
@@ -124,10 +130,9 @@ function makeDelayedStubClient(dirtyPiece?: 'ANNOUNCEMENT' | 'RECRUIT_FRAMING'):
   };
 }
 
-function buildServices(client: AgentModelClient) {
+function buildServices(client: AgentModelClient, cfe: ComplianceFilterEngine = new ComplianceFilterEngine({ classifierClient: new ClearClassifierClient() })) {
   const briefService = new ContentBriefService(makeFakeBriefDb());
   const itemDb = makeFakeItemDb();
-  const cfe = new ComplianceFilterEngine({ classifierClient: new ClearClassifierClient() });
   const itemService = new ContentItemService(itemDb, cfe);
   const kitDb = makeFakeKitDb(itemDb);
   const service = new LaunchKitService(kitDb, briefService, itemService, { modelClient: client });
@@ -182,6 +187,20 @@ describe('LaunchKitService.triggerKit — coherent batch + whole-kit hold (§11.
     const announcement = result.items.find((i) => i.launch_kit_piece_type === 'ANNOUNCEMENT')!;
     expect(announcement.state).toBe('BLOCKED');
     expect(result.wholeKitHeld).toBe(true);
+  });
+
+  test('a CFE classifier BLOCK (not just a doctrine-guard violation) ALSO triggers the whole-kit hold', async () => {
+    // Every piece here is doctrine-clean text; the CFE itself (a high-confidence classifier double)
+    // is what blocks — proving the whole-kit hold reacts to a CFE block, not only to the doctrine
+    // scan (the QC break-it instruction: "trigger a launch kit where one piece is CFE-blocked and
+    // confirm the whole kit holds").
+    const blockedCFE = new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0.99) });
+    const { service } = buildServices(makeDelayedStubClient(), blockedCFE);
+    const result = await service.triggerKit({ userId: 'u-1', newMemberFirstName: 'Quinn', welcomeVariant: 'PERSONAL_REFERRAL' });
+    expect(result.wholeKitHeld).toBe(true);
+    expect(result.kit.state).toBe('HELD_FOR_REVIEW');
+    expect(result.items.every((i) => i.state === 'BLOCKED')).toBe(true);
+    expect(result.items.every((i) => i.cfe_outcome === 'BLOCK')).toBe(true);
   });
 
   test('no photo on file -> photo_url is null (never a fabricated stock substitute)', async () => {
