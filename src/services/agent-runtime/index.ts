@@ -71,6 +71,34 @@ export type { DurableQueue, AgentDispatchEventData } from './durable-queue';
 
 export { dispatchAgentJob } from './dispatch';
 
+// T-R14 (LAUNCH-GATE, §4 "24/7 / while you slept") — the scheduled (cron-triggered) dispatch pass.
+// See scheduled-dispatch.ts for the full design doc comment. The Inngest `{ cron }` wrapper
+// (`scheduledAgentDispatchFunction`, `SCHEDULED_AGENT_DISPATCH_CRON`) lives in inngest-functions.ts
+// (imports the `inngest` package, so it is intentionally NOT re-exported here — same convention as
+// `agentDispatchFunction`/`InngestDurableQueue` today).
+export {
+  runScheduledDispatch,
+  agentKeyForPipelineStage,
+  scheduledIdempotencyKey,
+  utcDateKey,
+  PrismaScheduledDispatchStore,
+  InMemoryScheduledDispatchStore,
+  SCHEDULED_TRIGGER_CONTACT,
+  SCHEDULED_TRIGGER_BRIEFING,
+  SCHEDULED_ACTION_CAP_BY_INTENSITY,
+  DEFAULT_OUTREACH_CADENCE_DAYS,
+  SCHEDULED_AGENT_DISPATCH_FUNCTION_ID,
+  SCHEDULED_AGENT_DISPATCH_CRON,
+} from './scheduled-dispatch';
+export type {
+  ScheduledDispatchStore,
+  ScheduledDispatchDeps,
+  ScheduledDispatchResult,
+  ScheduledDispatchRepSummary,
+  DueRep,
+  DueContactCandidate,
+} from './scheduled-dispatch';
+
 // T-31 (§4.5/§4.6) — the REAL cost model, budget/kill-switch RunGate, in-roster degradation ladder,
 // and the production dep-builder that wires them into a dispatch invocation. See ./cost-killswitch
 // for the full surface (this re-export is a convenience; nothing here is duplicated).
