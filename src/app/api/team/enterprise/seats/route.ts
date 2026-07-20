@@ -44,14 +44,27 @@ export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
   return NextResponse.json({ seat }, { status: 201 });
 });
 
-export const DELETE = withOnboardingGate(async (req, _ctx, session, _identity) => {
+export const DELETE = withOnboardingGate(async (req, _ctx, session, identity) => {
   if (!hasCapability(session, 'enterprise_console', 'manage')) {
     return NextResponse.json({ error: 'The enterprise console is for RVP/admin accounts.' }, { status: 403 });
   }
+  if (!identity.organizationId) {
+    return NextResponse.json({ error: 'No organization on file for this account.' }, { status: 400 });
+  }
+
   const seatId = req.nextUrl.searchParams.get('seatId');
   if (!seatId) {
     return NextResponse.json({ error: '"seatId" query param is required.' }, { status: 400 });
   }
+
+  // Defense-in-depth: the seat being revoked must belong to the SAME organization as the caller —
+  // mirrors the assign path's same-org check above. A seat id belonging to another org (or one that
+  // doesn't exist) resolves to the same 404, so cross-org existence is never leaked.
+  const target = await prisma.enterpriseSeatAssignment.findUnique({ where: { id: seatId }, select: { organization_id: true } });
+  if (!target || target.organization_id !== identity.organizationId) {
+    return NextResponse.json({ error: 'Seat not found.' }, { status: 404 });
+  }
+
   const service = new EnterpriseConsoleService(prisma as unknown as EnterpriseConsolePrismaClient);
   const seat = await service.revokeSeat(seatId);
   return NextResponse.json({ seat });
