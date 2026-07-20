@@ -23,11 +23,15 @@ import { agentRuntimeFunctions } from '@/services/agent-runtime/inngest-function
 // step reads their `cron` triggers at deploy/register time and its own scheduler fires this same
 // signed endpoint when each is due (the exact Vercel-native mechanism the agent-dispatch cron uses).
 import { messagingInngestFunctions } from '@/services/messaging/inngest/messaging-inngest-functions';
+// T-43 (WP07 §12.1/§12.3/§12.6): the gamification-lane cron functions — momentum reconciliation
+// (daily), milestone detection (5-minute backstop), and the notification sweep (hourly). Same
+// registration convention as the two imports above.
+import { gamificationInngestFunctions } from '@/services/gamification/gamification-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions],
+  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions, ...gamificationInngestFunctions],
 });

@@ -9,6 +9,12 @@
 // shared try/catch and no zone reuses another zone's query, so one throwing cannot affect another).
 export type ZoneResult<T> = { status: 'ok'; data: T } | { status: 'error'; message: string };
 
+// T-43 (WP07 §12.1) — re-exported here (rather than imported piecemeal at every call site) so this
+// file stays the single import surface for every Today zone's data shape, matching the convention
+// already established for every other type in this file.
+import type { MomentumCriteriaResult } from './momentum';
+export type { MomentumCriteriaResult } from './momentum';
+
 /** uiux §3.2 — the Grove's eight named states. A component rendering all eight is AC-3-2. */
 export type GroveState =
   | 'seed'
@@ -46,6 +52,11 @@ export interface HeaderZoneData {
   groveState: GroveState;
   groveCaption: string;
   approvalInboxCount: number;
+  // T-43 (WP07 §12.1): the ten-criteria breakdown + five-level Downline-Maxxer name, layered on top
+  // of `momentum` above (see mission-control/momentum.ts's `computeMomentumCriteria` design note —
+  // this is an additive lens, not a second score). Optional so existing hand-built `HeaderZoneData`
+  // fixtures (predating T-43) keep compiling; `buildHeaderZone` always populates it in practice.
+  momentumCriteria?: MomentumCriteriaResult;
 }
 
 // ── Zone 2: Overnight Briefing ──────────────────────────────────────────────────────────────────
@@ -147,6 +158,10 @@ export interface CalendarZoneData {
   events: CalendarEventItem[];
 }
 
+// ── Zone 7: Milestones (T-43, WP07 §12.3) ──────────────────────────────────────────────────────
+import type { MilestonesZoneData } from './zones/milestones';
+export type { MilestoneSummary, MilestonesZoneData } from './zones/milestones';
+
 // ── The full Today response ─────────────────────────────────────────────────────────────────────
 export interface MissionControlToday {
   generatedAt: string;
@@ -156,6 +171,9 @@ export interface MissionControlToday {
   pipeline: ZoneResult<PipelineZoneData>;
   ratios: ZoneResult<RatiosZoneData>;
   calendar: ZoneResult<CalendarZoneData>;
+  // T-43 (WP07 §12.3): additive 7th zone — the milestone pin strip. Optional so any existing caller
+  // that constructs a `MissionControlToday` object by hand (fixtures/tests) keeps compiling.
+  milestones?: ZoneResult<MilestonesZoneData>;
 }
 
 /** Master spec §9.7 / uiux §4.1: the shared baseline shown as "learning your community" until real

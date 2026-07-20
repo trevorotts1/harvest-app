@@ -18,11 +18,27 @@
 // something that genuinely lifts all three at once, not a diluted fractional credit.
 
 import type { GroveState, LawBreakdown, MomentumBand, MomentumResult } from './types';
+import {
+  ALL_MOMENTUM_CRITERIA,
+  criterionForEventType,
+  downlineMaxxerLevel,
+  MOMENTUM_CRITERION_LAW,
+  MOMENTUM_CRITERION_MODE,
+  MomentumCriterion,
+  type MomentumCriteriaBreakdown,
+} from '../gamification/momentum-criteria';
 
 export interface MomentumEventLike {
   law: string; // 'grow' | 'engage' | 'wealth' | 'cross'
   points: number;
   created_at: Date;
+  // T-43 (WP07 §12.1): OPTIONAL — the ten-criteria breakdown (`computeMomentumCriteria` below) reads
+  // this to attribute an event to one of the ten named criteria. Deliberately optional so every
+  // existing caller/fixture that only ever set `law`/`points`/`created_at` (this file's own
+  // `computeMomentum`, and every fixture in tests/unit/mission-control-momentum.test.ts) keeps
+  // compiling and behaving IDENTICALLY — `computeMomentum`'s score/band/decay/sparkline/Law-total
+  // math below is completely unchanged by this addition.
+  event_type?: string;
 }
 
 export interface MilestoneLike {
@@ -124,4 +140,75 @@ export function computeBloomOverride(milestones: MilestoneLike[], now: Date = ne
     (m) => !m.celebrated && now.getTime() - m.achieved_at.getTime() <= BLOOM_FRESH_WINDOW_MS
   );
   return fresh ? { label: fresh.milestone_key.replaceAll('_', ' ') } : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// T-43 (WP07 §12.1) — the ten-criteria breakdown. ADDITIVE ONLY (see the file-header design note
+// and momentum-criteria.ts): does not change `computeMomentum`'s score/band/decay/sparkline output.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** One named criterion's 0-10 score as of `asOf`, from events mapped to it, using the SAME
+ *  72h-grace/-1-per-day decay rule `lawScoreAsOf` applies to a whole Law, just capped at 10 instead
+ *  of 100 (§12.1: "ten equally-weighted criteria, 10 pts each"). `'sum'`-mode criteria decay-sum every
+ *  matching event (count-like); `'latest'`-mode criteria use only the single most recent matching
+ *  event's own points as the current reading, decayed toward 0 if it goes stale (state/rate-like —
+ *  see MOMENTUM_CRITERION_MODE's doc comment for why summing would be wrong for these four). */
+function criterionScoreAsOf(events: MomentumEventLike[], criterion: MomentumCriterion, asOf: Date): number {
+  const relevant = events.filter(
+    (e) => criterionForEventType(e.event_type) === criterion && e.created_at.getTime() <= asOf.getTime()
+  );
+  if (relevant.length === 0) return 0;
+
+  if (MOMENTUM_CRITERION_MODE[criterion] === 'latest') {
+    const latest = relevant.reduce((max, e) => (e.created_at > max.created_at ? e : max), relevant[0]);
+    const idleDays = daysBetween(asOf, latest.created_at);
+    const decay = Math.max(0, idleDays - DECAY_GRACE_DAYS) * DECAY_PER_DAY;
+    return clamp(Math.round(latest.points - decay), 0, 10);
+  }
+
+  const sum = relevant.reduce((s, e) => s + e.points, 0);
+  const lastAt = relevant.reduce((max, e) => (e.created_at > max ? e.created_at : max), relevant[0].created_at);
+  const idleDays = daysBetween(asOf, lastAt);
+  const decay = Math.max(0, idleDays - DECAY_GRACE_DAYS) * DECAY_PER_DAY;
+  return clamp(Math.round(sum - decay), 0, 10);
+}
+
+export interface MomentumCriteriaResult {
+  criteria: MomentumCriteriaBreakdown;
+  /** §12.1 "maps to the five Downline-Maxxer levels" — derived from `computeMomentum`'s UNCHANGED
+   *  overall score, so there is exactly one authoritative Momentum Score in the product; this is a
+   *  five-tier NAME for that same number, not a second score. */
+  levelName: string;
+  /** The single named criterion, within the CURRENT weakest Law, with the lowest 0-10 score — the
+   *  uiux §3.3 "tap-to-expand ... the single action that most improves the weakest Law" driver. */
+  weakestCriterion: MomentumCriterion;
+}
+
+/** The ten-criteria breakdown + five-level name, layered on top of `computeMomentum`'s existing,
+ *  unchanged Law/score/band/decay computation (§12.1's own note: "Recalculates on every IPA" — this
+ *  is a pure, synchronous read-time computation, so it is current within the caller's own request
+ *  latency, satisfying the <=60s AC by construction, not by a cache/cron). */
+export function computeMomentumCriteria(events: MomentumEventLike[], now: Date = new Date()): MomentumCriteriaResult {
+  const overall = computeMomentum(events, now);
+
+  const criteria = {} as MomentumCriteriaBreakdown;
+  for (const c of ALL_MOMENTUM_CRITERIA) {
+    criteria[c] = criterionScoreAsOf(events, c, now);
+  }
+
+  const weakestLaw = (Object.entries(overall.laws) as [keyof LawBreakdown, number][]).reduce((min, cur) =>
+    cur[1] < min[1] ? cur : min
+  )[0];
+  const criteriaInWeakestLaw = ALL_MOMENTUM_CRITERIA.filter(
+    (c) => MOMENTUM_CRITERION_LAW[c] === weakestLaw || MOMENTUM_CRITERION_LAW[c] === 'cross'
+  );
+  const weakestCriterion = criteriaInWeakestLaw.reduce((min, c) => (criteria[c] < criteria[min] ? c : min),
+    criteriaInWeakestLaw[0] ?? ALL_MOMENTUM_CRITERIA[0]
+  );
+
+  return {
+    criteria,
+    levelName: downlineMaxxerLevel(overall.score),
+    weakestCriterion,
+  };
 }

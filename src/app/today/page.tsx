@@ -18,6 +18,7 @@ import PipelineGlance from './components/PipelineGlance';
 import RatioCards from './components/RatioCards';
 import CalendarStrip from './components/CalendarStrip';
 import ZoneErrorBoundary from './components/ZoneErrorBoundary';
+import WP07Panel from './components/WP07Panel';
 import styles from './today.module.css';
 import type { CalendarEventItem, MissionControlToday, QueueItem } from '@/services/mission-control/types';
 
@@ -103,6 +104,12 @@ export default function TodayPage() {
       <div className={styles.shell}>
         <ZoneErrorBoundary zoneName="header">
           <AnchorHeader result={data.header} />
+        </ZoneErrorBoundary>
+
+        {/* T-43 (WP07 §12.2/§12.3): First-48 banner, milestone pins, and Learn/Grow/Momentum links —
+            independently error-bounded like every other zone (uiux AC-5.2-6). */}
+        <ZoneErrorBoundary zoneName="wp07">
+          <WP07Panel milestones={data.milestones ?? { status: 'error', message: 'Not available.' }} />
         </ZoneErrorBoundary>
 
         <div className={styles.grid}>

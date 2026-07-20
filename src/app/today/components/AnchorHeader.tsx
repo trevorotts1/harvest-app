@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import Grove from './Grove';
 import styles from '../today.module.css';
+import { MOMENTUM_CRITERION_LABEL } from '@/services/gamification/momentum-criteria';
 import type { HeaderZoneData, ZoneResult } from '@/services/mission-control/types';
 
 // T-32 QC fix (non-blocking item): 'quiet' previously read "At risk" here — an alarming label for
@@ -34,7 +35,7 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
     );
   }
 
-  const { greetingName, momentum, groveState, groveCaption, approvalInboxCount } = result.data;
+  const { greetingName, momentum, groveState, groveCaption, approvalInboxCount, momentumCriteria } = result.data;
   const bandLabel = BAND_LABEL[momentum.band] ?? momentum.band;
 
   return (
@@ -72,12 +73,32 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
 
           {receiptsOpen && (
             <div className={styles.receiptsPanel}>
-              <p className={styles.receiptsTitle}>Per-Law breakdown (receipts)</p>
+              {/* T-43 (WP07 §12.1): the ten-criteria per-Law breakdown + the five-level Downline-Maxxer
+                  name. The raw score itself is deliberately shown ONLY to the rep who owns it (this is
+                  the rep's own Today, never a cross-rep surface) — see the anti-surveillance doctrine
+                  note in the file header of momentum-criteria.ts / this package's QC notes: no
+                  leaderboard/ranking view exists anywhere in this build. */}
+              <p className={styles.receiptsTitle}>{momentumCriteria?.levelName ?? bandLabel}</p>
               <ul className={styles.receiptsList}>
                 <li>Grow: {momentum.laws.grow}</li>
                 <li>Engage: {momentum.laws.engage}</li>
                 <li>Wealth: {momentum.laws.wealth}</li>
               </ul>
+              {momentumCriteria && (
+                <>
+                  <p className={styles.receiptsTitle}>The ten criteria feeding your Grove</p>
+                  <ul className={styles.receiptsList}>
+                    {(Object.keys(momentumCriteria.criteria) as (keyof typeof MOMENTUM_CRITERION_LABEL)[]).map((key) => (
+                      <li key={key}>
+                        {MOMENTUM_CRITERION_LABEL[key]}: {momentumCriteria.criteria[key]}/10
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <a href="/today/momentum" className={styles.momentumButton}>
+                See the one action that helps most
+              </a>
             </div>
           )}
         </div>

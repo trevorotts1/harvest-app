@@ -218,6 +218,19 @@ model User {
   organization_id       String?
   organization          Organization?     @relation(fields: [organization_id], references: [id])
   onboarding_sessions   OnboardingSession[]
+  // T-43 (WP07, master-spec §12.2): the First-48 countdown's anchor timestamp. Nullable — lazily
+  // stamped (never at module scope, never on an unrelated write path) the FIRST time a
+  // GATED_COMPLETE rep's Today/First-48 surface is actually read (see
+  // src/services/gamification/first-48.service.ts `ensureFirstFortyEightStarted`). This bridges an
+  // existing, pre-T-43 gap: the only "complete onboarding" route in this build
+  // (src/app/api/onboarding/complete/route.ts) still writes to an in-memory demo store, not real
+  // Prisma (see that file's own header comments) — so there is today no real-DB write the instant
+  // `onboarding_status` flips to GATED_COMPLETE for T-43 to hook synchronously. Stamping on first
+  // real read of the gated Today surface (the very next screen after the O-9 handoff, since "Today
+  // is the default landing surface, always" — uiux §2.1) is the honest, fail-safe production
+  // trigger available today; see that service's file header for the full reasoning (a stated
+  // deviation, not a silent gap).
+  gated_complete_at     DateTime?         @db.Timestamptz(6)
   // Auth.js / NextAuth Prisma-adapter contract fields (T-04, §16.4). Nullable and unused by the
   // Credentials-provider + JWT-session flow this unit wires up; present so the adapter can be
   // handed to an OAuth provider (§6.3 Flow A: "auth: email/password or OAuth") in a later unit
@@ -349,6 +362,13 @@ model Contact {
   // categorical/structural data, not an identifying credential, so it is not in this model's
   // encrypted-PII surface (first_name/last_name/phone/email/notes).
   timezone            String?
+  // T-43 (WP07 §12.7 "referred names auto-create pipeline entries linked to their referrer, ... with
+  // attribution"): a plain scalar self-pointer (this schema's established convention for a loosely-
+  // referenced attribution column — see ImportBatch's file-level note above — rather than a new
+  // back-reference array on Contact for every adjacent entity) to the EXISTING Contact who gave this
+  // referral. Null for every contact not created via the referral flow. Deliberately NOT a `@relation`
+  // (no cascade semantics needed; mirrors `linked_user_id`/`import_batch_id` above).
+  referred_by_contact_id String?
   created_at          DateTime         @default(now()) @db.Timestamptz(6)
   updated_at          DateTime         @updatedAt @db.Timestamptz(6)
   interactions        ContactInteraction[]
@@ -358,6 +378,7 @@ model Contact {
   @@index([phone_hash])
   @@index([email_hash])
   @@index([household_id])
+  @@index([referred_by_contact_id])
 }
 
 // Extended to reference Message and AgentRun (both plain scalar pointers, §3 new-entities table)
@@ -1641,4 +1662,110 @@ model EmailWarmupPlan {
 
   @@unique([organization_id, sending_domain])
   @@index([organization_id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// T-43 — WP07 new entities (master-spec §12: Accountability, Gamification & Motivation)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Additive only, per the platform invariant: no existing model/column/enum above is altered.
+// `MomentumEvent`, `Milestone`, `QuoteLibrary`, `CourseProgress` already exist (added ahead of time
+// by WP04/WP03's own schema passes, §3.3) and are reused as-is by the services in
+// src/services/gamification/*; the models below fill the remaining §12 surfaces that had no table
+// yet: the Goal Commitment Card (§12.8), the streak tracker's durable state (§12.5), the rep's own
+// notification preferences + an append-only send log (§12.6), and the referral script generator's
+// asset + CFE record (§12.7 — attribution itself lives on `Contact.referred_by_contact_id` above).
+
+/// §12.8 "Goal Commitment Card: income target, promotion timeline, top-three dreams and financial
+/// goals, the weekly-activity math, all tied to the anchor statement; lives at the top of Mission
+/// Control." One row per rep — a ritual/reflection artifact, not an activity-event stream, so (unlike
+/// `MomentumEvent`) it is a single upserted row.
+model GoalCommitmentCard {
+  id                   String   @id @default(uuid())
+  user_id              String   @unique
+  income_target        String?
+  promotion_timeline   String?
+  top_three_dreams     Json? // string[], <=3
+  financial_goals      Json? // string[]
+  weekly_activity_math Json? // { introductions, appointments, closes } derived weekly targets
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+/// §12.5 "Weekly streak tracker": the durable rolling-window state. `last_qualifying_date` is the
+/// rep-local yyyy-mm-dd (UTC-normalized, same convention as `EmailWarmupPlan.last_send_date` above)
+/// of the most recent day that qualified (>=1 IPA, 5+min Mission Control review, or >=1 community
+/// introduction — computed from `MomentumEvent`, not stored twice here). `grace_day_used_for_week` is
+/// an ISO-week key ("2026-W29"): the ONE grace day per week (Low intensity only, §12.5) is spent at
+/// most once per that key: a second missed day in the SAME week gets no grace and breaks the streak
+/// (no partial credit, §12.9-5).
+model StreakState {
+  id                      String    @id @default(uuid())
+  user_id                 String    @unique
+  current_streak_days     Int       @default(0)
+  longest_streak_days     Int       @default(0)
+  last_qualifying_date    String? // yyyy-mm-dd, UTC-normalized
+  grace_day_used_for_week String? // ISO week key, e.g. "2026-W29"
+  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+/// §12.6 "The rep controls timing/frequency of all non-critical notifications ... quiet hours are
+/// the rep's own and are distinct from recipient TCPA quiet hours." One row per rep; Action
+/// Alerts/Milestone/Billing-security are unmutable by doctrine and therefore have no on/off column
+/// here at all (there is nothing for the rep to configure for them — see notification.service.ts).
+model NotificationPreference {
+  id                        String   @id @default(uuid())
+  user_id                   String   @unique
+  morning_briefing_enabled  Boolean  @default(true)
+  morning_briefing_time     String   @default("07:00") // rep-local HH:mm
+  midday_motivation_enabled Boolean  @default(true)
+  evening_recap_enabled     Boolean  @default(true)
+  quiet_hours_start         String   @default("21:00") // rep's OWN notification quiet hours (§12.6)
+  quiet_hours_end           String   @default("07:00")
+  timezone                  String   @default("UTC")
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
+/// Append-only send record for every §12.6 notification actually dispatched — the idempotency guard
+/// (one send per rep/type/dedupe-key) AND the proof surface for "inactivity nudges fire at exactly
+/// 3/5/7 days" / "milestone/critical notifications are unmutable" (QC break-it checks read this
+/// table). Mirrors `SecurityEvent`'s append-only posture above (no update path is exposed by design).
+model NotificationLog {
+  id         String   @id @default(uuid())
+  user_id    String
+  type       String // MORNING_BRIEFING | MIDDAY_MOTIVATION | EVENING_RECAP | ACTION_ALERT | INACTIVITY_NUDGE | MILESTONE_CELEBRATION | APPROVAL_WAITING | BILLING_SECURITY
+  unmutable  Boolean  @default(false)
+  dedupe_key String // e.g. a yyyy-mm-dd day-key, or a milestone_key, or a draft id
+  deep_link  String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([user_id, type, dedupe_key])
+  @@index([user_id, created_at])
+}
+
+/// §12.7 "Referral script generator ... all scripts CFE-cleared before the rep sees them." One row
+/// per generated script (a rep may generate more than one relationship-typed / channel-length
+/// variant for the same ask), auditable independent of whether it ever produces a new `Contact`.
+/// `referred_contact_id` is populated once the rep records the resulting introduction as a new
+/// warm-market contact (see `Contact.referred_by_contact_id`, the attribution column, above) — a
+/// plain scalar pointer, same convention as that column.
+model Referral {
+  id                  String      @id @default(uuid())
+  referrer_user_id    String
+  relationship_type   String // family | friend | work | church | neighbor | former_coworker | coach
+  channel             String // SMS | EMAIL
+  script_text         String
+  cfe_outcome         CFEOutcome?
+  cfe_cleared         Boolean     @default(false)
+  referred_contact_id String?
+  created_at          DateTime    @default(now()) @db.Timestamptz(6)
+
+  @@index([referrer_user_id])
+  @@index([referred_contact_id])
 }
