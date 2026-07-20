@@ -25,18 +25,35 @@ export const FORBIDDEN_TERMS: ForbiddenTermRule[] = [
   // "close rate" (§9.7's Field Trainer's Ratio — a human CLOSE RATE metric,
   // not extraction framing), "CLOSED_RECRUIT" (the pipeline-stage enum;
   // already word-boundary-safe since `_` is a \w char, but excluded on
-  // whitespace grounds here too), "closing the loop", "close friend", etc.
-  // These patterns require the extraction-object context (a sale/deal/
-  // prospect/lead, a person as the thing being closed, or the "hard/soft
-  // close" and "sales closer" sales-technique idiom) that marks the phrase
-  // as manipulative-selling framing rather than an unrelated ordinary use.
+  // whitespace grounds here too), "closing the loop", "close friend", and
+  // (post T-R15-QC-7.3 fix) ordinary transaction/accounting/furniture uses
+  // of "close(d) the deal" — "closed the deal on her new apartment/car/the
+  // merger", "hard close of the books", "soft close drawers" — which have NO
+  // person/extraction-object in them and must stay clean.
+  //
+  // The "closing" rule below therefore REQUIRES an explicit extraction-object
+  // cue rather than matching bare "close/closed the deal/sale": either (1)
+  // the thing being closed is a PERSON — them/him/her/(the/this/a/my/our)
+  // contact/prospect/lead — directly as the verb's object ("close them",
+  // "closing the prospect"), or (2) "close/closing/closed the sale/deal" is
+  // followed by "with"/"on" + that same person-noun ("close the deal with
+  // this contact"), or (3) the "sales closer" / "sale closing" idiom (sale(s)
+  // immediately before the close verb). Ordinary objects after "on" (a
+  // house, a car, the merger, the books, drawers) never satisfy the
+  // person-noun requirement, so they no longer match. The bare "hard/soft
+  // close" alternative was REMOVED entirely — it had no object gating at
+  // all and could not be reliably distinguished by regex from the
+  // accounting ("hard close of the books") and furniture ("soft-close
+  // drawers") senses of the same words; the patterns below already cover
+  // the genuine sales-technique "hard/soft close" cases whenever they're
+  // actually aimed at a person.
   {
     term: /\bsell(?:ing|s)?\s+(?:them\b|him\b|her\b|(?:the\s+)?(?:opportunity|deal|dream|business)\b)/i,
     forbidden: 'selling',
     replacement: 'inviting, introducing, welcoming, onboarding',
   },
   {
-    term: /\b(?:hard|soft)\s+clos(?:e|es|ing|ed)\b|\bsales?\s*clos(?:e|es|er|ing)\b|\bclos(?:e|es|ing|ed)\s+(?:on\s+)?(?:the\s+)?(?:sale|deal|prospect|lead)s?\b|\bclos(?:e|es|ing|ed)\s+(?:them|him|her)\b/i,
+    term: /\bclos(?:e|es|ing|ed)\s+(?:them|him|her|(?:(?:this|that|the|a|my|our)\s+)?(?:contact|prospect|lead)s?)\b|\bclos(?:e|es|ing|ed)\s+(?:the\s+)?(?:sale|deal)\s+(?:with|on)\s+(?:(?:this|that|the|a|my|our)\s+)?(?:contact|prospect|lead)s?\b|\bsales?\s*clos(?:e|es|er|ing)\b/i,
     forbidden: 'closing',
     replacement: 'inviting, introducing, welcoming, onboarding',
   },

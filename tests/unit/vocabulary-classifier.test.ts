@@ -33,10 +33,10 @@ describe('VocabularyClassifier — §0.5 row 3 "selling / closing (as extraction
     const extractionCases: Array<[string, string]> = [
       ['Time to close the deal with this contact.', 'closing'],
       ["I'm going to close them today, no matter what.", 'closing'],
-      ["Let's do a hard close on this one, she won't say no.", 'closing'],
+      ["Let's close the sale on this prospect, she won't say no.", 'closing'],
       ["She's a great sales closer, always closing the sale.", 'closing'],
       ["We need to sell them on joining the team tonight.", 'selling'],
-      ['Stop overthinking it and just close the sale already.', 'closing'],
+      ["Don't overthink it, just close the deal with this lead already.", 'closing'],
       ['He is selling the opportunity way too hard on this call.', 'selling'],
     ];
 
@@ -90,6 +90,23 @@ describe('VocabularyClassifier — §0.5 row 3 "selling / closing (as extraction
       'She just closed on a house last week.',
       "Don't sell yourself short — you did great today.",
       'He sells insurance in three states.',
+      // --- T-R15 QC 7.3 over-block fixes -----------------------------------
+      // Ordinary transaction-completion idiom: "close(d) the deal" with no
+      // person/extraction-object — must NOT be treated as extraction-selling
+      // a community member just because the object of "on" happens to be a
+      // deal/transaction rather than a person.
+      'She closed the deal on her new apartment yesterday.',
+      'The board finally closed the deal on the merger this morning.',
+      'I closed the deal on my new car over the weekend.',
+      // Bare "close/closed the deal/sale" alone, with no object at all —
+      // also must not match (the old regex matched this unconditionally).
+      "Don't overthink it, just close the sale already.",
+      // "Hard close"/"soft close" with zero extraction-object gating are
+      // accounting and furniture terms, not sales-technique idioms, and the
+      // bare alternative that used to catch these regardless of context has
+      // been removed.
+      'Finance does a hard close of the books every month-end.',
+      'These cabinets have a soft close drawers feature.',
     ];
 
     it.each(allowedCases)('leaves "%s" clean', (content) => {
