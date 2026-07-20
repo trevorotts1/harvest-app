@@ -75,9 +75,25 @@ export type Resource =
   | 'onboarding'
   | 'incident_response' // T-15, §16.7 breach notification & incident-response lifecycle
   | 'sponsor_invite' // T-19, §6.5/§6.6: sending/managing an UplineInvite (the sponsor-matching invite)
-  | 'access_tier_assignment'; // T-19, §6.7: the MANUAL admin-provisioning branch only — every other
+  | 'access_tier_assignment' // T-19, §6.7: the MANUAL admin-provisioning branch only — every other
   // tier outcome (free_org_linked/free_paid_external/paid_individual) is a system-computed result of
   // the registration path, not a role "acting", so it has no capability row of its own here.
+  // T-45 (WP09, §14.4/uiux §5.9): the RVP master calendar (opportunity nights, training, team
+  // calls). Distinct from the pre-existing `calendar` resource above (which governs a rep's own
+  // personal calendar link/read/write) — this one gates who may CREATE/EDIT the org-wide broadcast
+  // calendar everyone else sees read-only ("The RVP controls and populates the master calendar").
+  | 'team_calendar_broadcast'
+  // T-45 (WP09, §14.2): booking a Coaching Session (rep + upline mentoring window) — either party
+  // may propose/respond, so this is broader than `team_calendar_broadcast` above.
+  | 'coaching_session'
+  // T-45 (WP09, §14.5): the enterprise ($25k/yr) admin console — seat management, org analytics
+  // narrative trigger, custom onboarding config, SSO config/status.
+  | 'enterprise_console'
+  // T-45 (WP09, §14.5/uiux §5.9 item 7): the Sponsor Cockpit. Every role may sponsor a downline
+  // member (mirrors `sponsor_invite`'s "any existing account can sponsor" rule, §15.3) — the actual
+  // gate is row-level ownership (sponsor_user_id = caller), enforced in the service layer, not a
+  // role restriction here.
+  | 'sponsor_cockpit';
 
 export type Action = 'read' | 'write' | 'delete' | 'export' | 'approve' | 'manage';
 
@@ -234,6 +250,35 @@ export const MATRIX: Record<Resource, Grant> = {
   // — because §6.7 names exactly "admin provisioning", no RVP-level exception.
   access_tier_assignment: {
     manage: [Role.ADMIN],
+  },
+
+  // T-45 (WP09, §14.4): "The RVP controls and populates the master calendar" — write/manage is
+  // RVP+ADMIN only; every role reads it (reps see it read-only and mark attendance, §14.4).
+  team_calendar_broadcast: {
+    read: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
+    write: [Role.RVP, Role.ADMIN],
+    manage: [Role.RVP, Role.ADMIN],
+  },
+
+  // T-45 (WP09, §14.2): either the rep or their upline trainer may propose/respond to a Coaching
+  // Session — broader than team_calendar_broadcast's RVP-only write.
+  coaching_session: {
+    read: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
+    write: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
+  },
+
+  // T-45 (WP09, §14.5): the enterprise admin console — seat management, org analytics, custom
+  // onboarding config, SSO config. RVP/ADMIN only (mirrors org_seat_config's row-7 allow-list).
+  enterprise_console: {
+    read: [Role.RVP, Role.ADMIN],
+    manage: [Role.RVP, Role.ADMIN],
+  },
+
+  // T-45 (WP09, §14.5/uiux §5.9 item 7): the Sponsor Cockpit. Every role may be a Downline Sponsor
+  // (§15.3) — the service layer scopes results to the caller's OWN sponsorships (sponsor_user_id =
+  // caller), so a flat "everyone may read" grant here is safe; it is not a cross-account read.
+  sponsor_cockpit: {
+    read: [Role.REP, Role.UPLINE, Role.RVP, Role.ADMIN],
   },
 };
 

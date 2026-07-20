@@ -846,6 +846,16 @@ model Appointment {
   slot_lock_id       String?   @unique
   created_at         DateTime  @default(now()) @db.Timestamptz(6)
   updated_at         DateTime  @updatedAt @db.Timestamptz(6)
+  // ── WP09 (§14.1-§14.3) additive columns ──────────────────────────────────────────────────────
+  // `event_kind` distinguishes the "Closing Appointment (critical — upline + rep + contact)" event
+  // type (§14.2) from other Appointment rows this table may carry; nullable/defaulted so every
+  // pre-existing row (WP04/WP05) reads as the same kind it always was.
+  event_kind         String?   @default("closing_appointment")
+  // The pre-event briefing dossier the Appointment Setting Agent generates from Mission Control
+  // signals (§14.3 "Each booked appointment generates a pre-event briefing dossier ... prior
+  // engagement signals, compliance-approved anchor points"). Populated at booking time, read-only
+  // thereafter.
+  dossier            Json?
 
   @@index([rep_id])
   @@index([contact_id])
@@ -863,6 +873,108 @@ model CalendarLink {
   updated_at DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
+  @@index([user_id, provider])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// §3.3 New entities — WP09 Team Calendar & Upline Dashboard (master-spec §14, uiux §5.9)
+// ═══════════════════════════════════════════════════════════════════════
+
+// The read-side of calendar sync (§14.1): busy/blocking windows ingested from a CONNECTED
+// `CalendarLink` — Google (dual sync, read half) or iOS CalDAV (read-only). Deliberately carries
+// NO title/description/attendee content — only the opaque time window + an opaque provider event
+// ref (never displayed) — so "CalDAV events are ingested as blocking availability only and never
+// displayed in upline dashboards (privacy)" (§14.1) holds structurally: there is no content column
+// for a privacy leak to expose, for either provider. The booking engine (booking.service.ts) reads
+// this table to compute real availability; the upline/team-availability aggregate (dashboard.service.ts)
+// only ever returns coarse busy/free zone buckets computed FROM these rows, never a row itself.
+model CalendarBusyBlock {
+  id           String   @id @default(uuid())
+  user_id      String
+  provider     String   // google | caldav_ios
+  external_ref String?  // opaque upstream event id, for de-dup on re-sync only — never rendered
+  starts_at    DateTime @db.Timestamptz(6)
+  ends_at      DateTime @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([user_id, provider, external_ref])
+  @@index([user_id, starts_at])
+}
+
+// The "Coaching Session (high — rep + upline)" event type (§14.2) — a 1:1 mentoring booking
+// between a rep and their upline trainer, distinct from the contact-facing `Appointment` (which
+// requires a `contact_id`). Same slot-locking discipline as Appointment: `slot_lock_id` is a
+// DETERMINISTIC key (see booking.service.ts `deterministicSlotLockId`) so two concurrent booking
+// attempts for the exact same trainer+window collide on this unique constraint — the DB, not
+// application code, decides the winner (§14.3/§18.4 "double-booking race → atomic slot-lock
+// confirm; loser auto-proposes the next window").
+model CoachingSession {
+  id              String   @id @default(uuid())
+  organization_id String
+  rep_id          String
+  trainer_id      String
+  starts_at       DateTime @db.Timestamptz(6)
+  ends_at         DateTime @db.Timestamptz(6)
+  status          String   @default("PROPOSED") // PROPOSED|CONFIRMED|DECLINED|CANCELLED|COMPLETED|NO_SHOW
+  slot_lock_id    String?  @unique
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([rep_id])
+  @@index([trainer_id])
+  @@index([organization_id])
+}
+
+// Enterprise ($25k/yr) seat-pool management (§14.5 "enterprise admin console ... seat management").
+// Distinct from the free-tier `Sponsorship` state machine (§15.3's lapse-cascade semantics do not
+// apply here) — an enterprise seat is a flat org-licensed assignment billed to the RVP/org account.
+model EnterpriseSeatAssignment {
+  id                 String   @id @default(uuid())
+  organization_id    String
+  assigned_user_id   String
+  status             String   @default("ACTIVE") // ACTIVE | REVOKED
+  assigned_by_user_id String?
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([organization_id, assigned_user_id])
+  @@index([organization_id])
+}
+
+// Org-level analytic narratives (§14.5 "Org-level analytic narratives are composed by Opus 4.8,
+// sparse, batched, §4.4") for the enterprise admin console. Generated periodically (batched cron)
+// or on RVP/admin-triggered refresh — never on the per-message path.
+model OrgAnalyticsNarrative {
+  id              String   @id @default(uuid())
+  organization_id String
+  narrative_text  String
+  model_used      String   @default("opus_4_8")
+  period_start    DateTime @db.Timestamptz(6)
+  period_end      DateTime @db.Timestamptz(6)
+  input_metrics   Json?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([organization_id, created_at])
+}
+
+// Enterprise console config surface (§14.5 "custom onboarding-flow config, SSO"). SSO here is
+// deliberately the CONFIG/STATUS surface only (provider id, metadata URL, connection status) —
+// consuming a real per-org IdP's SAML/OIDC assertions requires that org's own IdP secrets, which
+// this build has none of (§0.4 lazy-instantiation discipline: no credential is fabricated or
+// assumed). `sso_status` therefore never advances past `pending` without a real, later-supplied
+// IdP integration — see enterprise-console.service.ts's header comment for the stated deviation.
+model EnterpriseOrgConfig {
+  id                        String   @id @default(uuid())
+  organization_id           String   @unique
+  onboarding_welcome_message String?
+  onboarding_enabled_steps  Json?
+  sso_provider              String?
+  sso_status                String   @default("not_connected") // not_connected | pending | connected
+  sso_metadata_url          String?
+  updated_by_user_id        String?
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @updatedAt @db.Timestamptz(6)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
