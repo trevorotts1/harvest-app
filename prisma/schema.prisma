@@ -1120,6 +1120,26 @@ model UplineInvite {
   @@index([sponsor_id])
 }
 
+// WP08 §13.5/§18.7 — the org-switch audit/archive trail. An org-type switch (e.g. Primerica ->
+// external, or the reverse) never deletes a rep's OrgTreeEdge/Milestone rows — "archived, not
+// deleted" (§13.6-5) is implemented by NEVER mutating/removing those rows on a switch; this model
+// exists only to record that a switch happened, when, and how much Primerica-gated state was
+// affected, so a QC pass (or the rep's own data-rights view) has read-backed proof the archive
+// claim is true rather than a narrative. `archived_edge_count` / `archived_milestone_count` are a
+// snapshot taken AT SWITCH TIME (not a live count) — the historical record of what was hidden by
+// that specific switch, independent of what the counts are today.
+model OrgSwitchEvent {
+  id                       String   @id @default(uuid())
+  user_id                  String
+  from_org_type            OrgType
+  to_org_type              OrgType
+  archived_edge_count      Int      @default(0)
+  archived_milestone_count Int      @default(0)
+  switched_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id])
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // §3.3 New entities — Gamification (§12)
 // ═══════════════════════════════════════════════════════════════════════

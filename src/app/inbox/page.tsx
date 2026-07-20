@@ -15,6 +15,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 
 import ApprovalInboxItem, { type InboxItemData } from './components/ApprovalInboxItem';
 import styles from './inbox.module.css';
@@ -119,7 +120,13 @@ export default function ApprovalInboxPage() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <h1 className={styles.title}>Approval Inbox</h1>
+        <div className={styles.headerRow}>
+          <h1 className={styles.title}>Approval Inbox</h1>
+          {/* WP08 reachability wiring — see community/page.tsx's identical Grow link. */}
+          <Link href="/grow" className={styles.growLink}>
+            Grow →
+          </Link>
+        </div>
         <p className={styles.subtitle}>
           Every agent-drafted message waits here for your review — nothing sends without your approval.
         </p>

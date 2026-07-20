@@ -31,6 +31,24 @@
   margin: 0;
 }
 
+/* WP08 reachability wiring: a plain header row so the Grow link sits beside the page title
+   without disturbing the existing single-title layout above. */
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.growLink {
+  color: var(--color-action);
+  font-weight: 700;
+  text-decoration: none;
+}
+.growLink:hover {
+  text-decoration: underline;
+}
+
 /* ---- Plot chip row (§4.6 "Community home") ---- */
 .plotsRow {
   display: flex;

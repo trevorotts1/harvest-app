@@ -48,6 +48,12 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
           Approval Inbox
           <span className={styles.approvalBadgeCount}>{approvalInboxCount}</span>
         </a>
+        {/* WP08 (§13, uiux §5.5) — the reachability mandate: the Orchard/Grow surface must be
+            linked from existing nav, not orphaned. Today's persistent header is the one element
+            rendered on every visit to the app's primary landing page, so it is the anchor link. */}
+        <a href="/grow" className={styles.approvalBadge} aria-label="Open the Orchard">
+          Grow
+        </a>
       </div>
 
       <div className={styles.headerBody}>

@@ -30,6 +30,23 @@
   margin: 0;
 }
 
+/* WP08 reachability wiring — see community.module.css's identical .headerRow/.growLink pair. */
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.growLink {
+  color: var(--color-action);
+  font-weight: 700;
+  text-decoration: none;
+}
+.growLink:hover {
+  text-decoration: underline;
+}
+
 .subtitle {
   color: var(--text-secondary);
   font-size: var(--type-caption-size);

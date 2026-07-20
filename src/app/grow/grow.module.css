@@ -1,0 +1,259 @@
+/* ==========================================================================
+   The Orchard — WP08 taprooting/timeline (master-spec §13, uiux §5.5).
+
+   Consumes SEMANTIC tokens only (tokens.css §1.2.2) — no raw hex, no
+   opacity/translucent color on TEXT (guard-no-opacity-on-text.mjs scans
+   this file). The ghost seedling's 38% dim (uiux §4.8) is set as an SVG
+   `fillOpacity` PROP on a decorative shape in OrchardCanvas.tsx, never a
+   CSS `opacity` declaration here — the exact convention Grove.tsx already
+   established for the Grove's own dulled-state dimming.
+   ========================================================================== */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.shell {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.title {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0;
+}
+.navLink {
+  color: var(--color-action);
+  text-decoration: none;
+  font-weight: 600;
+}
+.navLink:hover {
+  text-decoration: underline;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.badge {
+  display: inline-block;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  padding: 4px 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Toolbar (view toggle, zoom, time-lapse, share) ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.segmentGroup {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.segmentButton {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 700;
+  cursor: pointer;
+}
+.segmentButton[aria-pressed='true'] {
+  background: var(--color-action);
+  color: var(--on-action);
+}
+.iconButton {
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── Canvas ── */
+.canvasWrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  overflow: auto;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.canvasSvg {
+  display: block;
+}
+.nodeLabel {
+  font-size: var(--type-caption-size);
+  fill: var(--text-primary);
+}
+.nodeGreen {
+  fill: var(--color-growth);
+  stroke: var(--color-growth);
+}
+.nodeYellow {
+  fill: var(--color-caution-bg);
+  stroke: var(--color-caution-text);
+}
+/* uiux AC-5.5-4: reverse-maxxing renders as a clay OUTLINE only — never a clay FILL (clay fill is
+   compliance-reserved). */
+.nodeRed {
+  fill: var(--surface-1-solid-fallback);
+  stroke: var(--color-blocked-fill);
+  stroke-width: 2.5;
+}
+.ghostSeedling {
+  fill: var(--text-secondary);
+  stroke: var(--text-secondary);
+  stroke-dasharray: 3 3;
+}
+
+/* ── Empty state ── */
+.emptyState {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-5);
+}
+
+/* ── Rules of Building chips ── */
+.chipRow {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+}
+.chip {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 4px;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  cursor: pointer;
+  text-align: left;
+}
+.chipMet {
+  border-color: var(--color-growth);
+  background: var(--surface-2);
+}
+.chipCountdown {
+  border-color: var(--color-caution-text);
+}
+.chipLabel {
+  font-weight: 700;
+  font-size: var(--type-caption-size);
+}
+.chipStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+
+/* ── List view (the a11y surface, uiux AC-5.5-8) ── */
+.listTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+.listTable th,
+.listTable td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.ghostRow {
+  color: var(--text-secondary);
+}
+
+/* ── Timeline / phases ── */
+.phaseHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.checklist {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.checklistItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+.checklistDone {
+  color: var(--color-growth);
+  font-weight: 700;
+}
+.lockedNote {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+
+/* ── Banners ── */
+.blockedBanner {
+  border-radius: var(--radius-panel);
+  background: var(--color-blocked-fill);
+  color: #ffffff;
+  padding: var(--space-3) var(--space-4);
+  font-weight: 700;
+}
+
+.formRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.errorText {
+  color: var(--color-danger-form, var(--color-blocked-fill));
+}
