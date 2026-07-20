@@ -603,7 +603,11 @@ describe('Kill-switch fail-CLOSED hardening (§4.5) — a missing/mis-set thresh
   test('a rep with a corrupt intensitySetting is DENIED regardless of spend (halt, never unlimited)', async () => {
     const store = new InMemoryBudgetKillSwitchStore();
     store.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'BOGUS' as never, organizationId: null });
-    store.recordSpend('user-1', 999_999); // absurdly over any real ceiling
+    // Deliberately well under PLATFORM_DAILY_BUDGET_CENTS so the (unrelated) platform circuit
+    // breaker can't independently save this check — this test must fail/pass on the
+    // intensitySetting-ceiling fallback ALONE, not be masked by a different gate tripping too.
+    store.recordSpend('user-1', 10_000);
+    expect(10_000).toBeLessThan(PLATFORM_DAILY_BUDGET_CENTS);
     const gate = new BudgetKillSwitchRunGate({ store });
     const decision = await gate.check({ userId: 'user-1', agentKey: AgentKey.PROSPECTING, criticality: 'non_critical', primaryTier: ClaudeModelTier.SONNET_5 });
     expect(decision.allowed).toBe(false); // fail CLOSED
