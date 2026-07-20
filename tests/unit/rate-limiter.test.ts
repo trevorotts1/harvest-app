@@ -2,7 +2,6 @@ import {
   InMemoryRateLimitStore,
   RateLimiter,
   type RateLimitConfig,
-  type RateLimitRecord,
   type RateLimitStore,
 } from '../../src/services/security/rate-limiter';
 
@@ -14,10 +13,7 @@ const CONFIG: RateLimitConfig = {
 };
 
 class ThrowingRateLimitStore implements RateLimitStore {
-  async get(): Promise<RateLimitRecord | undefined> {
-    throw new Error('simulated store outage');
-  }
-  async put(): Promise<void> {
+  async atomicUpdate(): Promise<never> {
     throw new Error('simulated store outage');
   }
   async delete(): Promise<void> {
@@ -119,5 +115,46 @@ describe('RateLimiter (§16.4/§18.10 rate limiting + progressive lockout)', () 
     }
     // A different key (e.g. a different IP) is unaffected by the first key's lockout.
     expect((await limiter.check('login:ip:xyz')).allowed).toBe(true);
+  });
+});
+
+/**
+ * T-R20: hardens `check()`'s read-modify-write against concurrent-hit lost updates. Pre-T-R20,
+ * `InMemoryRateLimitStore` had NO atomicity at all: `check()` did `await store.get()` ... business
+ * logic ... `await store.put()`, and `await` always yields to the microtask queue — so N concurrent
+ * `check()` calls on the same key (e.g. via `Promise.all`) could all read the same stale count
+ * before any of them wrote, each independently computing "count + 1" and each clobbering the
+ * others. Reproduced pre-fix: 20 concurrent calls against `maxAttempts: 3` came back 20-for-20
+ * ALLOWED, with a final persisted count of 1 — a complete bypass of the rate limit under
+ * concurrency. These tests fail if that regresses.
+ */
+describe('RateLimiter concurrency (T-R20): atomic increment cannot lose an update or over-admit', () => {
+  test('N concurrent check() calls on the same key persist exactly N attempts — no lost updates', async () => {
+    const bigConfig: RateLimitConfig = { maxAttempts: 1_000, windowMs: 60_000, baseLockoutMs: 1_000, maxLockoutMs: 10_000 };
+    const store = new InMemoryRateLimitStore();
+    const limiter = new RateLimiter(store, bigConfig);
+
+    const N = 50;
+    const results = await Promise.all(Array.from({ length: N }, () => limiter.check('concurrent-key')));
+
+    expect(results.every((r) => r.allowed)).toBe(true);
+    // The whole point: the STORE's persisted count reflects every one of the N concurrent hits,
+    // not just whichever writer happened to win a race.
+    expect(store.peek('concurrent-key')?.count).toBe(N);
+  });
+
+  test('a concurrent burst past maxAttempts is capped — no over-admission', async () => {
+    const store = new InMemoryRateLimitStore();
+    const limiter = new RateLimiter(store, CONFIG); // maxAttempts: 3
+    const N = 20;
+
+    const results = await Promise.all(Array.from({ length: N }, () => limiter.check('burst-key')));
+
+    const allowedCount = results.filter((r) => r.allowed).length;
+    // Exactly maxAttempts get through — the rest are denied (one threshold_exceeded, the remainder
+    // locked_out) — never more than the configured limit, regardless of concurrency.
+    expect(allowedCount).toBe(CONFIG.maxAttempts);
+    expect(results.filter((r) => !r.allowed)).toHaveLength(N - CONFIG.maxAttempts);
+    expect(store.peek('burst-key')?.count).toBeGreaterThan(CONFIG.maxAttempts);
   });
 });

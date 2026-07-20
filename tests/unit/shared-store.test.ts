@@ -21,11 +21,11 @@ import {
   InMemoryRateLimitStore,
   PostgresRateLimitStore,
   RateLimiter,
-  RateLimitConflictError,
   getLoginRateLimiter,
+  LOGIN_RATE_LIMIT,
+  MFA_VERIFY_RATE_LIMIT,
+  PASSWORD_RESET_RATE_LIMIT,
   type RateLimitConfig,
-  type RateLimitRecord,
-  type RateLimitStore,
 } from '../../src/services/security/rate-limiter';
 import {
   InMemorySessionActivityStore,
@@ -333,16 +333,36 @@ describe('PostgresRateLimitStore — fail-closed on store error (PROVE c)', () =
   });
 
   test('sustained CAS-conflict contention past the retry bound fails closed, not open (never silently allows through)', async () => {
-    class AlwaysConflictingStore implements RateLimitStore {
-      async get(): Promise<RateLimitRecord | undefined> {
-        return undefined;
+    // T-R20: `PostgresRateLimitStore.atomicUpdate()` owns its own bounded optimistic-concurrency
+    // retry loop internally now (it used to be `RateLimiter.check()`'s job). This table always
+    // reports "the row moved since you read it" — every `updateMany` call returns `{ count: 0 }`,
+    // simulating pathological, sustained contention on one key — proving `atomicUpdate()` itself
+    // exhausts its retry bound and throws, rather than spinning forever or silently overwriting.
+    class AlwaysConflictingTable {
+      async findUnique(): Promise<{
+        key: string;
+        count: number;
+        window_start: Date;
+        violation_count: number;
+        locked_until: Date | null;
+        version: number;
+      }> {
+        return { key: 'key', count: 0, window_start: new Date(0), violation_count: 0, locked_until: null, version: 1 };
       }
-      async put(): Promise<void> {
-        throw new RateLimitConflictError('key');
+      async create(): Promise<never> {
+        const conflict = new Error('Unique constraint failed on the fields: (`key`)') as Error & { code: string };
+        conflict.code = 'P2002';
+        throw conflict;
       }
-      async delete(): Promise<void> {}
+      async updateMany(): Promise<{ count: number }> {
+        return { count: 0 }; // every attempt "loses" the CAS — the row has always just moved.
+      }
+      async deleteMany(): Promise<{ count: number }> {
+        return { count: 0 };
+      }
     }
-    const limiter = new RateLimiter(new AlwaysConflictingStore(), CONFIG);
+    const store = new PostgresRateLimitStore({ rateLimitCounter: new AlwaysConflictingTable() });
+    const limiter = new RateLimiter(store, CONFIG);
     const result = await limiter.check('key');
     expect(result.allowed).toBe(false);
     if (result.allowed) throw new Error('unreachable');
@@ -416,6 +436,47 @@ describe('PostgresRateLimitStore — exact rate-limit semantics preserved (PROVE
       await limiter.check('login:account:abc');
     }
     expect((await limiter.check('login:ip:xyz')).allowed).toBe(true);
+  });
+
+  // The tests above all use a local `CONFIG` (maxAttempts: 3, 1-minute window) for speed/readability
+  // — deliberately convenient numbers, not the real §16.4 policy. That means none of them would
+  // catch someone accidentally changing `LOGIN_RATE_LIMIT`/`MFA_VERIFY_RATE_LIMIT`/
+  // `PASSWORD_RESET_RATE_LIMIT` in a way that broke Postgres/in-memory parity for the constants
+  // actually shipped to `options.ts`/the mfa/password-reset route handlers. This test closes that
+  // gap: it runs the exact EXPORTED constants against both stores and asserts identical outcomes.
+  test.each([
+    ['LOGIN_RATE_LIMIT', LOGIN_RATE_LIMIT],
+    ['MFA_VERIFY_RATE_LIMIT', MFA_VERIFY_RATE_LIMIT],
+    ['PASSWORD_RESET_RATE_LIMIT', PASSWORD_RESET_RATE_LIMIT],
+  ] as const)('exported %s config: Postgres and in-memory stores agree exactly (drift guard)', async (_name, exportedConfig) => {
+    const table = new FakeRateLimitTable();
+    const inMemLimiter = new RateLimiter(new InMemoryRateLimitStore(), exportedConfig);
+    const pgLimiter = new RateLimiter(new PostgresRateLimitStore({ rateLimitCounter: table }), exportedConfig);
+    const now = 0;
+
+    for (let i = 0; i < exportedConfig.maxAttempts; i++) {
+      const [a, b] = await Promise.all([
+        inMemLimiter.check('drift-guard-key', now),
+        pgLimiter.check('drift-guard-key', now),
+      ]);
+      expect(a.allowed).toBe(true);
+      expect(b.allowed).toBe(true);
+    }
+
+    const [inMemBlocked, pgBlocked] = await Promise.all([
+      inMemLimiter.check('drift-guard-key', now),
+      pgLimiter.check('drift-guard-key', now),
+    ]);
+    expect(inMemBlocked.allowed).toBe(false);
+    expect(pgBlocked.allowed).toBe(false);
+    if (inMemBlocked.allowed || pgBlocked.allowed) throw new Error('unreachable');
+    expect(inMemBlocked.reason).toBe('threshold_exceeded');
+    expect(pgBlocked.reason).toBe('threshold_exceeded');
+    // Both stores derive the exact same first-violation lockout from the exported config's own
+    // `baseLockoutMs` — if a future edit changes one constant but not the store logic driving it,
+    // this is the assertion that would catch the drift.
+    expect(pgBlocked.retryAfterMs).toBe(exportedConfig.baseLockoutMs);
+    expect(inMemBlocked.retryAfterMs).toBe(exportedConfig.baseLockoutMs);
   });
 });
 
