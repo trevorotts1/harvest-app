@@ -7,20 +7,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import styles from '../content.module.css';
-
-interface TemplateData {
-  key: string;
-  name: string;
-  contentType: string;
-  category: string | null;
-  launchKitPieceType: string | null;
-  copySkeleton: string;
-  imageConceptPrompt: string | null;
-  toneGuidance: string;
-  doctrineVerified: boolean;
-  defaultPersonalizationTier: string;
-  version: number;
-}
+import TemplateListSection, { type TemplateData } from './components/TemplateListSection';
 
 export default function TemplateLibraryPage() {
   const [templates, setTemplates] = useState<TemplateData[]>([]);
@@ -59,35 +46,7 @@ export default function TemplateLibraryPage() {
         {error && <p className={styles.errorState}>{error}</p>}
 
         {!loading && !error && (
-          <>
-            <div className={styles.filterRow}>
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={`${styles.filterChip} ${filter === c ? styles.filterChipActive : ''}`}
-                  onClick={() => setFilter(c)}
-                >
-                  {c.replace(/_/g, ' ')}
-                </button>
-              ))}
-            </div>
-            <div className={styles.itemList}>
-              {visible.map((t) => (
-                <div key={t.key} className={styles.item}>
-                  <div className={styles.itemHeader}>
-                    <p className={styles.headline}>{t.name}</p>
-                    <span className={styles.stateChip}>{t.contentType}</span>
-                  </div>
-                  <p className={styles.itemBody}>{t.copySkeleton}</p>
-                  {t.imageConceptPrompt && <p className={styles.itemMeta}>Image concept: {t.imageConceptPrompt}</p>}
-                  <p className={styles.itemMeta}>
-                    Tone: {t.toneGuidance} · Personalization: {t.defaultPersonalizationTier.replace(/_/g, ' ').toLowerCase()} · v{t.version} · doctrine-verified
-                  </p>
-                </div>
-              ))}
-            </div>
-          </>
+          <TemplateListSection categories={categories} filter={filter} visible={visible} onSelectFilter={setFilter} />
         )}
       </div>
     </div>

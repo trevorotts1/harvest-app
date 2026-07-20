@@ -18,9 +18,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import ApprovalInboxItem, { type InboxItemData } from './components/ApprovalInboxItem';
+import { inboxEmptyStateMessage, type InboxFilterKey as FilterKey } from './empty-state';
 import styles from './inbox.module.css';
-
-type FilterKey = 'AWAITING' | 'HELD' | 'APPROVED' | 'DECLINED' | 'ALL';
 
 const FILTERS: { key: FilterKey; label: string; stateParam?: string }[] = [
   { key: 'AWAITING', label: 'Awaiting' },
@@ -158,7 +157,7 @@ export default function ApprovalInboxPage() {
         )}
 
         {!loading && !error && items.length === 0 && (
-          <p className={styles.emptyState}>Nothing waiting on you right now — a good day.</p>
+          <p className={styles.emptyState}>{inboxEmptyStateMessage(filter)}</p>
         )}
 
         {!loading && !error && items.length > 0 && (
