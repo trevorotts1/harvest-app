@@ -23,11 +23,16 @@ import { agentRuntimeFunctions } from '@/services/agent-runtime/inngest-function
 // step reads their `cron` triggers at deploy/register time and its own scheduler fires this same
 // signed endpoint when each is due (the exact Vercel-native mechanism the agent-dispatch cron uses).
 import { messagingInngestFunctions } from '@/services/messaging/inngest/messaging-inngest-functions';
+// T-47 (WP10 payments): the payments-lane cron functions — the sponsor-lapse cascade (§15.3), the
+// sponsorship anniversary notices (§15.3), and the billing-lifecycle soft-suspension sweep (§15.4).
+// Registered here so Inngest's sync step reads their `cron` triggers at deploy/register time and its
+// scheduler fires this same signed endpoint when each is due (same Vercel-native mechanism as above).
+import { paymentInngestFunctions } from '@/services/payment/inngest/payment-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions],
+  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions, ...paymentInngestFunctions],
 });

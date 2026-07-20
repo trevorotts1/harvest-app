@@ -1,94 +1,270 @@
-// WP10: Payment & Subscription Service
+// WP10 — Subscription service (§15). Prisma-backed billing-state reads + lifecycle mutators, the
+// service the billing routes + Subscription UI consume.
+//
+// ██ MANDATED TIER PURGE (T-47) ██
+// This module previously carried the RETIRED v1.0.0 `PLAN_CONFIGS` with the void FREE/ESSENTIAL/
+// PRO/ELITE tiers and their void pricing, over an in-memory store. ALL of that is DELETED. Pricing
+// now comes exclusively from the three locked tiers (`tiers.ts`), and the store is the real
+// `Subscription`/`Sponsorship`/`PaymentMethod` Prisma models (§15.1). There is no retired-tier enum
+// and no void price anywhere in this file (qc-checklist WP10 checkpoint 1).
 
-import { SubscriptionTier, SubscriptionStatus, Subscription, PlanConfig } from '../../types/payment';
+import { SponsorshipState, SubscriptionStatus } from '@prisma/client';
 
-export const PLAN_CONFIGS: Record<SubscriptionTier, PlanConfig> = {
-  [SubscriptionTier.FREE]: {
-    tier: SubscriptionTier.FREE,
-    priceMonthly: 0,
-    priceYearly: 0,
-    features: ['Basic onboarding', 'Contact import (50 max)', 'Basic pipeline view'],
-  },
-  [SubscriptionTier.ESSENTIAL]: {
-    tier: SubscriptionTier.ESSENTIAL,
-    priceMonthly: 29,
-    priceYearly: 290,
-    features: ['All FREE features', 'AI agents', 'Messaging (500/mo)', '500 contacts'],
-  },
-  [SubscriptionTier.PRO]: {
-    tier: SubscriptionTier.PRO,
-    priceMonthly: 79,
-    priceYearly: 790,
-    features: ['All ESSENTIAL features', 'Unlimited contacts', 'Unlimited messaging', 'Pipeline analytics', 'Priority support'],
-  },
-  [SubscriptionTier.ELITE]: {
-    tier: SubscriptionTier.ELITE,
-    priceMonthly: 199,
-    priceYearly: 1990,
-    features: ['All PRO features', 'API access', 'Custom cadence', 'Team features', 'White-glove onboarding'],
-  },
-};
+import type {
+  BillingCycle,
+  BillingStateView,
+  PlanTier,
+} from '@/types/payment';
 
-const ALL_FEATURES = ['Basic onboarding', 'Contact import (50 max)', 'Basic pipeline view', 'AI agents', 'Messaging (500/mo)', '500 contacts', 'Unlimited contacts', 'Unlimited messaging', 'Pipeline analytics', 'Priority support', 'API access', 'Custom cadence', 'Team features', 'White-glove onboarding'];
+import { resolveBillingPhase } from './entitlement';
+import { resolveCancellationOutcome, type CancellationMode } from './cancellation';
+import { computeProration, type ProrationPreview } from './proration';
+import { LOCKED_TIERS, planCollectsPayment, priceCentsFor } from './tiers';
 
-const subscriptionStore: Record<string, Subscription> = {};
-
-export const subscriptionService = {
-  getSubscription(userId: string, isPrimerica: boolean = false): Subscription {
-    if (!subscriptionStore[userId]) {
-      // Default: FREE tier
-      subscriptionStore[userId] = {
-        userId,
-        tier: SubscriptionTier.FREE,
-        status: SubscriptionStatus.ACTIVE,
-        isPrimericaOrgLinked: isPrimerica,
-        currentPeriodStart: new Date().toISOString().split('T')[0],
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        features: isPrimerica ? [...ALL_FEATURES] : [...PLAN_CONFIGS[SubscriptionTier.FREE].features],
+/** The narrow Prisma slice this service reads/writes — DI-mockable in tests. */
+export interface SubscriptionServicePrisma {
+  subscription: {
+    findFirst(args: {
+      where: { user_id: string };
+      orderBy: { created_at: 'desc' };
+      select: {
+        id: true;
+        plan_tier: true;
+        billing_cycle: true;
+        status: true;
+        current_period_start: true;
+        current_period_end: true;
+        org_sponsored: true;
+        sponsor_user_id: true;
       };
-    }
-    return { ...subscriptionStore[userId] };
-  },
+    }): Promise<{
+      id: string;
+      plan_tier: string;
+      billing_cycle: string;
+      status: SubscriptionStatus;
+      current_period_start: Date | null;
+      current_period_end: Date | null;
+      org_sponsored: boolean;
+      sponsor_user_id: string | null;
+    } | null>;
+    update(args: {
+      where: { id: string };
+      data: Partial<{
+        plan_tier: string;
+        billing_cycle: string;
+        status: SubscriptionStatus;
+        current_period_end: Date;
+      }>;
+    }): Promise<unknown>;
+  };
+  sponsorship: {
+    findFirst(args: {
+      where: { member_user_id: string; state: { in: SponsorshipState[] } };
+      orderBy: { created_at: 'desc' };
+      select: { state: true; term_end: true; grace_until: true; sponsor_user_id: true };
+    }): Promise<{
+      state: SponsorshipState;
+      term_end: Date | null;
+      grace_until: Date | null;
+      sponsor_user_id: string;
+    } | null>;
+  };
+  paymentMethod: {
+    findFirst(args: {
+      where: { user_id: string; is_default: true };
+      select: { brand: true; last4: true };
+    }): Promise<{ brand: string | null; last4: string | null } | null>;
+  };
+}
 
-  changePlan(userId: string, newTier: SubscriptionTier, isPrimerica: boolean = false): Subscription {
-    const tiers = Object.values(SubscriptionTier);
-    if (!tiers.includes(newTier)) {
-      throw new Error(`Invalid tier: ${newTier}`);
-    }
-    const sub: Subscription = {
-      userId,
-      tier: newTier,
-      status: SubscriptionStatus.ACTIVE,
-      isPrimericaOrgLinked: isPrimerica,
-      currentPeriodStart: new Date().toISOString().split('T')[0],
-      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      features: isPrimerica ? [...ALL_FEATURES] : [...PLAN_CONFIGS[newTier].features],
+const ACTIVE_SPONSORSHIP_STATES: SponsorshipState[] = [
+  'ACTIVE',
+  'MEMBER_GRACE',
+  'SPONSOR_LAPSED',
+  'ANNIVERSARY_PENDING',
+];
+
+export class SubscriptionNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`No subscription found for user ${userId}.`);
+    this.name = 'SubscriptionNotFoundError';
+  }
+}
+
+export class SubscriptionService {
+  constructor(private prisma: SubscriptionServicePrisma) {}
+
+  /**
+   * The read the GET billing route + the Subscription UI consume. Assembles the honest
+   * `BillingStateView` — current tier, derived phase, sponsor identity/term, and payment method as
+   * brand+last4 ONLY (never a PAN — §15.7-10). A sponsored member's `payment_method` is always null
+   * (no card on file — §15.1 / uiux AC-5.8-2).
+   */
+  async getBillingState(userId: string, nowMs: number = Date.now()): Promise<BillingStateView> {
+    const [subscription, sponsorship] = await Promise.all([
+      this.prisma.subscription.findFirst({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          plan_tier: true,
+          billing_cycle: true,
+          status: true,
+          current_period_start: true,
+          current_period_end: true,
+          org_sponsored: true,
+          sponsor_user_id: true,
+        },
+      }),
+      this.prisma.sponsorship.findFirst({
+        where: { member_user_id: userId, state: { in: ACTIVE_SPONSORSHIP_STATES } },
+        orderBy: { created_at: 'desc' },
+        select: { state: true, term_end: true, grace_until: true, sponsor_user_id: true },
+      }),
+    ]);
+
+    const planTier = (subscription?.plan_tier as PlanTier) ?? 'free';
+    const isSponsored = subscription?.org_sponsored ?? !!sponsorship;
+
+    // A sponsored member NEVER has a card on file — do not even query for one (§15.1 / AC-5.8-2).
+    const paymentMethod = isSponsored
+      ? null
+      : await this.prisma.paymentMethod.findFirst({
+          where: { user_id: userId, is_default: true },
+          select: { brand: true, last4: true },
+        });
+
+    const phase = resolveBillingPhase(
+      {
+        plan_tier: planTier,
+        status: subscription?.status ?? null,
+        currentPeriodEndMs: subscription?.current_period_end?.getTime() ?? null,
+        sponsorshipState: sponsorship?.state ?? null,
+        sponsorshipGraceUntilMs: sponsorship?.grace_until?.getTime() ?? null,
+      },
+      nowMs
+    );
+
+    return {
+      user_id: userId,
+      plan_tier: planTier,
+      billing_cycle: (subscription?.billing_cycle as BillingCycle) ?? null,
+      status: subscription?.status ?? null,
+      phase,
+      current_period_end: subscription?.current_period_end?.toISOString() ?? null,
+      sponsor_user_id: sponsorship?.sponsor_user_id ?? subscription?.sponsor_user_id ?? null,
+      sponsorship_state: sponsorship?.state ?? null,
+      sponsorship_term_end: sponsorship?.term_end?.toISOString() ?? null,
+      sponsorship_grace_until: sponsorship?.grace_until?.toISOString() ?? null,
+      payment_method: paymentMethod
+        ? { brand: paymentMethod.brand, last4: paymentMethod.last4 }
+        : null,
     };
-    subscriptionStore[userId] = sub;
-    return { ...sub };
-  },
+  }
 
-  cancelSubscription(userId: string, isPrimerica: boolean = false): Subscription {
-    const current = this.getSubscription(userId, isPrimerica);
-    current.status = SubscriptionStatus.CANCELED;
-    subscriptionStore[userId] = current;
-    return { ...current };
-  },
+  /**
+   * Preview the exact proration for a mid-cycle tier change BEFORE confirm (§15.4 / AC-5.8-7). Reads
+   * the current subscription's period + price and the target tier's price. Pure computation via
+   * `computeProration`.
+   */
+  async previewPlanChange(
+    userId: string,
+    toPlan: PlanTier,
+    toCycle: BillingCycle,
+    nowMs: number = Date.now()
+  ): Promise<ProrationPreview> {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        plan_tier: true,
+        billing_cycle: true,
+        status: true,
+        current_period_start: true,
+        current_period_end: true,
+        org_sponsored: true,
+        sponsor_user_id: true,
+      },
+    });
+    if (!sub) throw new SubscriptionNotFoundError(userId);
 
-  reactivateSubscription(userId: string, isPrimerica: boolean = false): Subscription {
-    const current = this.getSubscription(userId, isPrimerica);
-    current.status = SubscriptionStatus.ACTIVE;
-    subscriptionStore[userId] = current;
-    return { ...current };
-  },
+    const fromPlan = sub.plan_tier as PlanTier;
+    const fromCycle = (sub.billing_cycle as BillingCycle) ?? 'monthly';
+    const fromCents = planCollectsPayment(fromPlan) ? priceCentsFor(fromPlan, fromCycle) : 0;
+    const toCents = planCollectsPayment(toPlan) ? priceCentsFor(toPlan, toCycle) : 0;
 
-  getPlanConfig(tier: SubscriptionTier): PlanConfig {
-    const config = PLAN_CONFIGS[tier];
-    if (!config) throw new Error(`Invalid tier: ${tier}`);
-    return { ...config };
-  },
+    const startMs = sub.current_period_start?.getTime() ?? nowMs;
+    const endMs = sub.current_period_end?.getTime() ?? nowMs;
 
-  resetStore() {
-    Object.keys(subscriptionStore).forEach(key => delete subscriptionStore[key]);
-  },
-};
+    return computeProration({ fromCents, toCents, periodStartMs: startMs, periodEndMs: endMs, changeMs: nowMs });
+  }
+
+  /**
+   * Record a plan change (§15.4 proration). The actual charge/credit is executed by Stripe; this
+   * updates the plan_tier/cycle on the live subscription. Returns the proration that was previewed.
+   */
+  async changePlan(
+    userId: string,
+    toPlan: PlanTier,
+    toCycle: BillingCycle,
+    nowMs: number = Date.now()
+  ): Promise<{ proration: ProrationPreview }> {
+    const proration = await this.previewPlanChange(userId, toPlan, toCycle, nowMs);
+    const sub = await this.prisma.subscription.findFirst({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        plan_tier: true,
+        billing_cycle: true,
+        status: true,
+        current_period_start: true,
+        current_period_end: true,
+        org_sponsored: true,
+        sponsor_user_id: true,
+      },
+    });
+    if (!sub) throw new SubscriptionNotFoundError(userId);
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { plan_tier: toPlan, billing_cycle: toCycle },
+    });
+    return { proration };
+  }
+
+  /**
+   * Cancel (§15.4 no-dark-pattern). Default `end_of_period` honors the paid-through date; access is
+   * kept until then and reactivation is possible within the retention window. Returns the outcome
+   * (access-until + reactivate-until dates) for the confirmation screen.
+   */
+  async cancel(userId: string, mode: CancellationMode = 'end_of_period', nowMs: number = Date.now()) {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        plan_tier: true,
+        billing_cycle: true,
+        status: true,
+        current_period_start: true,
+        current_period_end: true,
+        org_sponsored: true,
+        sponsor_user_id: true,
+      },
+    });
+    if (!sub) throw new SubscriptionNotFoundError(userId);
+
+    const outcome = resolveCancellationOutcome(mode, sub.current_period_end?.getTime() ?? null, nowMs);
+    await this.prisma.subscription.update({
+      where: { id: sub.id },
+      data: { status: SubscriptionStatus.CANCELED },
+    });
+    return outcome;
+  }
+}
+
+/** The three locked tiers, for a UI/route that needs to render the tier cards (uiux §5.8). */
+export function listLockedTiers() {
+  return [LOCKED_TIERS.free, LOCKED_TIERS.individual, LOCKED_TIERS.enterprise];
+}
