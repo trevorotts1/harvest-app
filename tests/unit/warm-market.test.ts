@@ -239,6 +239,50 @@ describe('Warm Market Engine', () => {
       // Never the raw ciphertext envelope.
       expect(summary.IDENTIFIED[0].firstName).not.toContain('ciphertext');
     });
+
+    // T-R10: the real `/api/contacts/pipeline` route (and the `/community` page it feeds) needs each
+    // contact's ACTUAL persisted is_recruit_target/is_client state to seed its flag toggles — not an
+    // assumed-false default. This fails if that passthrough ever regresses.
+    test('should carry the real isRecruitTarget/isClient flags through (T-R10)', async () => {
+      mockContactFindMany.mockResolvedValue([
+        {
+          ...encryptedContactRow({ id: 'c1', first_name: 'Flagged', last_name: 'Contact', pipeline_stage: 'IDENTIFIED' }),
+          is_recruit_target: true,
+          is_client: false,
+        },
+        {
+          ...encryptedContactRow({ id: 'c2', first_name: 'Unflagged', last_name: 'Contact', pipeline_stage: 'IDENTIFIED' }),
+          is_recruit_target: false,
+          is_client: true,
+        },
+      ]);
+
+      const summary = await pipelineService.getPipelineSummary(userId);
+      const flagged = summary.IDENTIFIED.find((c: any) => c.id === 'c1');
+      const unflagged = summary.IDENTIFIED.find((c: any) => c.id === 'c2');
+      expect(flagged).toMatchObject({ isRecruitTarget: true, isClient: false });
+      expect(unflagged).toMatchObject({ isRecruitTarget: false, isClient: true });
+    });
+
+    // T-R10 ownership teeth: `getPipelineSummary`'s ONLY filter is `where: { user_id: userId }` — a
+    // rep must never see another rep's contacts in their Community home. This test fails if that
+    // filter is ever dropped or widened (e.g. accidentally reintroducing a shared/demo fallback).
+    test('is scoped to exactly the given user — never returns another rep\'s contacts (T-R10)', async () => {
+      mockContactFindMany.mockImplementation(async ({ where }: { where: { user_id: string } }) => {
+        if (where.user_id !== 'rep-a') return [];
+        return [encryptedContactRow({ id: 'rep-a-contact', first_name: 'Owned', last_name: 'ByRepA', pipeline_stage: 'IDENTIFIED' })];
+      });
+
+      const summaryForRepA = await pipelineService.getPipelineSummary('rep-a');
+      expect(summaryForRepA.IDENTIFIED.map((c: any) => c.id)).toEqual(['rep-a-contact']);
+
+      const summaryForRepB = await pipelineService.getPipelineSummary('rep-b');
+      expect(summaryForRepB.IDENTIFIED).toHaveLength(0);
+      Object.values(summaryForRepB).forEach((stageContacts) => expect(stageContacts).toHaveLength(0));
+
+      expect(mockContactFindMany).toHaveBeenCalledWith({ where: { user_id: 'rep-a' } });
+      expect(mockContactFindMany).toHaveBeenCalledWith({ where: { user_id: 'rep-b' } });
+    });
   });
 
   describe('PipelineService — agent queue (§7.5 contact pipeline to agents)', () => {

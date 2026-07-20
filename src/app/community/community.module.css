@@ -223,3 +223,31 @@
   font-size: var(--type-caption-size);
   color: var(--color-caution-text);
 }
+
+/* ---- Empty / loading / error states (T-R10 — a rep with zero contacts sees a real empty state,
+   never demo contacts) — same convention as ../inbox/inbox.module.css. ---- */
+.emptyState,
+.loadingState,
+.errorState {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+}
+.errorState {
+  color: var(--color-danger-form-text);
+  background: var(--color-danger-form-bg);
+  border-color: var(--color-danger-form-text);
+}
+.retryButton {
+  margin-top: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  min-height: 36px;
+}

@@ -49,6 +49,15 @@ export class PipelineService {
    * The "Community home" horizontally-scrollable plots (§7.2) group contacts by pipeline stage.
    * FIX (T-23, decrypt fix): every PII field is decrypted via `decryptContactPII` before a contact
    * is grouped — the pre-fix code pushed the raw (ciphertext) row.
+   *
+   * Ownership: scoped to exactly `userId`'s own rows via the `where: { user_id: userId }` query —
+   * this is the ONLY filter, so a caller who is not this rep never sees another rep's contacts (T-R10,
+   * proven in tests/unit/warm-market.test.ts's "never returns another rep's contacts" test).
+   *
+   * T-R10: also carries the plain (non-PII) `isRecruitTarget`/`isClient` flags (T-28) through so the
+   * real `/api/contacts/pipeline` route (and the `/community` page it feeds) can render each
+   * contact's ACTUAL persisted flag state on load, instead of always starting from an assumed-false
+   * default.
    */
   async getPipelineSummary(userId: string) {
     const contacts = await this.prisma.contact.findMany({
@@ -83,6 +92,8 @@ export class PipelineService {
         industry: c.industry ?? null,
         pipelineStage: c.pipeline_stage,
         segmentScore: c.segment_score,
+        isRecruitTarget: c.is_recruit_target,
+        isClient: c.is_client,
       });
     });
 
