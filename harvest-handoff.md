@@ -56,11 +56,11 @@
 5. Maintain supervisor cron during build until teardown conditions are met
 
 ### Model Routing Summary (For Build Phase)
-- Orchestration: deepseek-v4-flash:cloud
-- PRD/Writing: deepseek-v4-flash:cloud (initial), kimi-k2.6:cloud (QC/revision)
-- Code generation: ollama glm-5.1 (thinking: High)
-- QC/Pressure testing: kimi-k2.6:cloud (thinking: High)
-- Fallback chain: gemini → minimax → kimi-k2.6
+- NOTE (superseded, §0.3 Claude-only doctrine): this section originally named a non-Claude
+  orchestration/writing/QC/fallback roster used only during the pre-build PRD-authoring phase.
+  Removed per T-R1 remediation — the build phase roster is Claude-only (Opus 4.8 / Sonnet 5 /
+  Haiku 4.5 / Fable), per harvest-master-spec.md §0.3. No substitution permitted, no fallback
+  outside the Claude roster.
 
 ### Key Architectural Decisions
 - **Critical Spine:** WP11 → WP01 → WP02 → WP04 → WP05
@@ -78,13 +78,13 @@
 - subagents.runTimeoutSeconds: 1800
 - bootstrapMaxChars: 100000
 - bootstrapTotalMaxChars: 300000
-- Model: ollama/kimi-k2.5:cloud → ollama/kimi-k2.6:cloud
+- Model: superseded — see Model Routing Summary note above (§0.3 Claude-only doctrine, T-R1)
 
 ### User-Shared Information That Must Be Remembered
 - Spaulding (Telegram ID: 6771245262) is the primary user
 - Trevor Otts (Telegram ID: 5252140759) is authorized for gateway restarts
-- Model swap: GPT 5.4 for PRD writing after Kimi 2.6 produced insufficient depth
-- All PRD documentation uses Kimi 2.6 cloud; code writing uses GLM 5.1; QC uses Kimi 2.6
+- Model routing history: superseded — see Model Routing Summary note above (§0.3 Claude-only
+  doctrine, T-R1); PRD-authoring-phase model swaps are no longer relevant to the build phase
 - Do NOT do the work myself — sub-agents do all work
 - Always prove sub-agent launch with session keys and purposes
 - QC must be immediate upon sub-agent completion, not delayed

@@ -57,7 +57,7 @@ Required for full database-backed behavior:
 
 Required only when enabling live integrations:
 
-- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY` (Claude-only AI agent layer — Haiku 4.5 / Sonnet 5 / Opus 4.8; see `.env.example`)
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PUBLISHABLE_KEY`
