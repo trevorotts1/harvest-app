@@ -73,6 +73,25 @@ export function computeGdprClock(input: ComputeGdprClockInput): GdprClock {
   }
 
   const startMs = new Date(input.clockStartedAt).getTime();
+
+  if (Number.isNaN(startMs)) {
+    // Defensive fail-safe: `clockStartedAt` was truthy but unparseable (e.g. a corrupt/garbage
+    // timestamp string) — this is a DIFFERENT case from the null/undefined "not started" branch
+    // above. Treat it the same as that branch (maximally urgent) rather than falling through into
+    // NaN arithmetic, which would silently produce `overDeadline: false` / "plenty of time" —
+    // fail-open would be the wrong direction for a regulatory deadline.
+    return {
+      applicable: true,
+      status: 'OPEN',
+      clockStartedAt: null,
+      deadline: null,
+      elapsedMs: null,
+      remainingMs: null,
+      overDeadline: true,
+      approachingDeadline: true,
+    };
+  }
+
   const deadlineMs = startMs + GDPR_NOTIFICATION_WINDOW_MS;
   const nowMs = now.getTime();
   const notifiedMs = input.notifiedAt ? new Date(input.notifiedAt).getTime() : null;
