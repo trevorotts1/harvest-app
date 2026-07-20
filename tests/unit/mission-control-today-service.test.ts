@@ -8,6 +8,7 @@ import {
   confirmAppointment,
   markAttendance,
 } from '../../src/services/mission-control/today.service';
+import { buildActionQueueZone } from '../../src/services/mission-control/zones/action-queue';
 import { createInMemoryMissionControlDb } from '../../src/services/mission-control/testing/in-memory-db';
 import type { MissionControlPrismaClient } from '../../src/services/mission-control/prisma-types';
 
@@ -273,5 +274,92 @@ describe('markAttendance — org-scoped ownership', () => {
     const db = fullSeed();
     const result = await markAttendance(USER, 'evt-1', null, 'attended', db);
     expect(result).toEqual({ ok: false, reason: 'not_found' });
+  });
+});
+
+// T-R12 (LOW/defensive, T-32 re-QC 9.4) — hardens the Action Queue's `review_flagged` classifier
+// (zones/action-queue.ts's `draftToItem`) to flag on ANY non-PASS `cfe_outcome`, not just 'FLAG',
+// in addition to the pre-existing `approval_state === 'HELD'` check. This is defense-in-depth: today
+// BLOCK always implies HELD by construction (agent-runtime.ts), so this widening is a no-op against
+// real data. But the test below constructs the invariant-drift scenario directly (a BLOCK draft that
+// is NOT HELD) — a shape the real pipeline should never produce, but which the classifier alone must
+// still refuse to mark actionable. It FAILS if `draftToItem`'s condition is reverted to the old
+// `cfe_outcome === 'FLAG' || approval_state === 'HELD'` check.
+describe('Action Queue classifier — review_flagged hardening (T-R12 defense-in-depth)', () => {
+  test('a BLOCK-outcome draft that is (hypothetically) NOT HELD is STILL classified review_flagged, never approve_draft', async () => {
+    const db = createInMemoryMissionControlDb({
+      draftMessages: [
+        {
+          id: 'draft-drift',
+          user_id: USER,
+          contact_id: 'contact-1',
+          channel: 'SMS_HANDOFF',
+          cfe_outcome: 'BLOCK',
+          approval_state: 'PENDING', // invariant-drift scenario: BLOCK should always be HELD, but isn't here.
+          approved_by: null,
+          approved_at: null,
+          created_at: NOW,
+        },
+      ],
+      contacts: [
+        { id: 'contact-1', user_id: USER, first_name: 'Maya', last_name: 'Johnson', pipeline_stage: 'INTRODUCED', is_client: false, updated_at: NOW, created_at: NOW },
+      ],
+    });
+
+    const zone = await buildActionQueueZone(db, USER);
+    const item = zone.items.find((i) => i.id === 'draft-drift');
+    expect(item?.kind).toBe('review_flagged');
+    // Never the approve_draft affordance, no matter what approval_state says.
+    expect(item?.kind).not.toBe('approve_draft');
+  });
+
+  test('a clean PASS-outcome, PENDING draft is UNAFFECTED — still classified approve_draft (no over-classification)', async () => {
+    const db = createInMemoryMissionControlDb({
+      draftMessages: [
+        {
+          id: 'draft-clean',
+          user_id: USER,
+          contact_id: 'contact-1',
+          channel: 'SMS_HANDOFF',
+          cfe_outcome: 'PASS',
+          approval_state: 'PENDING',
+          approved_by: null,
+          approved_at: null,
+          created_at: NOW,
+        },
+      ],
+      contacts: [
+        { id: 'contact-1', user_id: USER, first_name: 'Maya', last_name: 'Johnson', pipeline_stage: 'INTRODUCED', is_client: false, updated_at: NOW, created_at: NOW },
+      ],
+    });
+
+    const zone = await buildActionQueueZone(db, USER);
+    const item = zone.items.find((i) => i.id === 'draft-clean');
+    expect(item?.kind).toBe('approve_draft');
+  });
+
+  test('a FLAG-outcome, PENDING draft is still classified review_flagged (unchanged from before)', async () => {
+    const db = createInMemoryMissionControlDb({
+      draftMessages: [
+        {
+          id: 'draft-flag',
+          user_id: USER,
+          contact_id: 'contact-1',
+          channel: 'SMS_HANDOFF',
+          cfe_outcome: 'FLAG',
+          approval_state: 'PENDING',
+          approved_by: null,
+          approved_at: null,
+          created_at: NOW,
+        },
+      ],
+      contacts: [
+        { id: 'contact-1', user_id: USER, first_name: 'Maya', last_name: 'Johnson', pipeline_stage: 'INTRODUCED', is_client: false, updated_at: NOW, created_at: NOW },
+      ],
+    });
+
+    const zone = await buildActionQueueZone(db, USER);
+    const item = zone.items.find((i) => i.id === 'draft-flag');
+    expect(item?.kind).toBe('review_flagged');
   });
 });

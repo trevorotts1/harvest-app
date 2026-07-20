@@ -65,7 +65,14 @@ export async function buildActionQueueZone(
 }
 
 function draftToItem(d: DraftMessageRow, contact: ContactRow | undefined): QueueItem {
-  const kind: QueueItem['kind'] = d.cfe_outcome === 'FLAG' || d.approval_state === 'HELD' ? 'review_flagged' : 'approve_draft';
+  // T-R12 (defense-in-depth hardening): review_flagged on ANY non-PASS `cfe_outcome` — not just
+  // 'FLAG' — plus the pre-existing `approval_state === 'HELD'` check. Today BLOCK always implies
+  // HELD by construction (agent-runtime.ts's `bandToOutcome`/`held` derivation) and the service-
+  // layer `actOnQueueDraft` is separately fail-closed on `cfe_outcome !== 'PASS'` regardless of what
+  // this classifier decides — so this widening changes no behavior today. It exists so that if that
+  // BLOCK-implies-HELD invariant ever drifted, this UI classifier still could not surface a
+  // one-tap Approve affordance for a non-PASS draft: only a clean PASS is ever 'approve_draft'.
+  const kind: QueueItem['kind'] = d.cfe_outcome !== 'PASS' || d.approval_state === 'HELD' ? 'review_flagged' : 'approve_draft';
   return {
     id: d.id,
     kind,
