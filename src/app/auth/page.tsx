@@ -65,7 +65,12 @@ export default function AuthPage() {
         // for "no such user" and "wrong password"; this mirrors that at the UI layer too.
         setLoginError('Invalid email or password.');
       } else if (result?.ok) {
-        router.push('/dashboard');
+        // T-R28 (uiux AC-2-1 "Today is the default landing surface; every login lands on Today").
+        // This used to push straight to the pre-rebuild demo scaffold (hardcoded mock arrays,
+        // `#fragment` nav, no links to the five real destinations) — the retired route is now
+        // harmless even so, having been converted to a pure server redirect, but a fresh login
+        // should land directly on the real surface, not bounce through a retired stub.
+        router.push('/today');
       }
     } finally {
       setLoginPending(false);
@@ -130,7 +135,7 @@ export default function AuthPage() {
                 <button className="btn btn-primary" type="submit" disabled={loginPending}>
                   {loginPending ? 'Signing in…' : 'Sign in'}
                 </button>
-                <Link className="btn btn-secondary" href="/dashboard">Skip to dashboard</Link>
+                <Link className="btn btn-secondary" href="/today">Skip to Today</Link>
               </div>
             </form>
           ) : (
@@ -245,7 +250,7 @@ export default function AuthPage() {
             <div className="notice">Business-specific fields appear only after the business type or organization name makes them relevant. No real message, payment, or external account action happens in this demo.</div>
             <div className="actions">
               <button className="btn btn-primary" type="submit">Continue to onboarding</button>
-              <Link className="btn btn-secondary" href="/dashboard">Skip to dashboard</Link>
+              <Link className="btn btn-secondary" href="/today">Skip to Today</Link>
             </div>
           </form>
           )}

@@ -140,7 +140,9 @@ export default function OnboardingFlow({
   function advance() {
     const next = nextScreen(screen);
     if (next) setScreen(next);
-    else router.push('/dashboard'); // O-9 handoff lands on Today/Mission Control
+    // T-R28 (uiux AC-2-1): land directly on Today/Mission Control, not the retired `/dashboard`
+    // demo stub — this comment already said "lands on Today" before the route matched that.
+    else router.push('/today');
   }
 
   // T-21R (§6.10-10) — the ONLY call site that actually grants GDPR consent: hits the live,
@@ -171,7 +173,7 @@ export default function OnboardingFlow({
   if (trackKindForRole(role) === 'dense') {
     return (
       <main className={styles.onboarding}>
-        <UplineTrack role={role} licensingState={licensingState} onFinish={() => router.push('/dashboard')} />
+        <UplineTrack role={role} licensingState={licensingState} onFinish={() => router.push('/today')} />
       </main>
     );
   }
@@ -304,7 +306,7 @@ export default function OnboardingFlow({
         />
       )}
 
-      {screen === 'first48' && <First48Handoff onShowToday={() => router.push('/dashboard')} />}
+      {screen === 'first48' && <First48Handoff onShowToday={() => router.push('/today')} />}
     </main>
   );
 }

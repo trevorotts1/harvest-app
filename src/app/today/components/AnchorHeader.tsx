@@ -55,6 +55,13 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
         <a href="/grow" className={styles.approvalBadge} aria-label="Open the Orchard">
           Grow
         </a>
+        {/* T-R28 (uiux AC-2-1's five-destination nav check) — Community had a real page
+            (src/app/community/page.tsx) but no link anywhere in Today's component tree, unlike
+            Grow (above) and Learn (WP07Panel.tsx). Same ad-hoc header-link pattern as the rest of
+            this row. */}
+        <a href="/community" className={styles.approvalBadge} aria-label="Open Community">
+          Community
+        </a>
         {/* WP10 (T-47) — Me → Subscription entry (uiux §5.8). Plain nav link to the billing surface,
             matching the ad-hoc link pattern this header already uses for the Approval Inbox. */}
         <a href="/me/subscription" className={styles.approvalBadge} aria-label="Subscription and billing">
