@@ -121,6 +121,28 @@ describe('WP09 DashboardService — anti-surveillance + org-scoping', () => {
       );
     });
 
+    it('T-R24: getNeedsYouNow carries NO contact identifier — pre-join, the upline sees WHO is asking, never WHICH contact (mirrors handoff/pending\'s "never the contact id" contract)', async () => {
+      const now = new Date('2026-07-20T18:00:00Z');
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const prisma = makeMockPrisma({
+        handoffs: [
+          {
+            id: 'handoff-1',
+            user_id: 'rep-A',
+            contact_id: 'contact-secret-77',
+            trigger_reason: 'BUYING_SIGNAL',
+            state: 'INVITED',
+            invited_at: new Date(todayStart.getTime() + 3600_000),
+          },
+        ],
+      });
+      const service = new DashboardService(prisma);
+      const items = await service.getNeedsYouNow('upline-1', 'org-1', now);
+      expect(items).toHaveLength(1);
+      expect(Object.keys(items[0]).sort()).toEqual(['handoffId', 'invitedAt', 'repUserId', 'triggerReason']);
+      expect(JSON.stringify(items)).not.toContain('contact-secret-77');
+    });
+
     it('sortRoster("pace") groups by track status, never a numeric "worst performer" framing', async () => {
       const prisma = makeMockPrisma({
         users: [

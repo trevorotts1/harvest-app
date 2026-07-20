@@ -5,6 +5,7 @@
 import { OrgType, Role } from '@prisma/client';
 
 import { getOrgTreeView, recomputeAndPersistOrgTree, type TaprootingPrismaClient } from '../../src/services/taprooting/taprooting.service';
+import { OrgBranchViolation } from '../../src/services/onboarding/wp01/org-gate';
 
 interface Seed {
   users: { id: string; name: string; rank: string | null; org_type: OrgType }[];
@@ -111,6 +112,20 @@ describe('getOrgTreeView (§13.5 RBAC + org-gating)', () => {
       expect(after.result.ghosts).toEqual([]);
       expect(after.result.robChips.chips).toEqual([]);
     }
+  });
+
+  it('T-R24 defense-in-depth: assertNoPrimericaLeak is a LIVE catch, not merely "clean by construction" — a universal (EXTERNAL) viewer whose own `rank` string carries a leftover Primerica-gated term (e.g. a stale rank recorded before an org-switch archived it) is REFUSED, never silently returned', async () => {
+    // §17.1's own doc calls this "defense in depth on top of the branch check itself" — the branch
+    // check (assembleOrgTreeResult) never emits Primerica-only FIELDS for a universal user, so every
+    // existing fixture in this file is clean by construction and never actually exercises the scan.
+    // `rank` is a free-text column the branch check does NOT gate (it flows through unconditionally
+    // as `ownerRank` for either branch) — a real, plausible vector for a genuine leak (e.g. a rank
+    // string a Primerica org set before the user switched to EXTERNAL) that only the scanner catches.
+    const db = fakeDb({
+      users: [{ id: 'root', name: 'Jane Doe', rank: 'Primerica Senior Leader', org_type: OrgType.EXTERNAL }],
+      edges: [],
+    });
+    await expect(getOrgTreeView('root', Role.REP, undefined, db)).rejects.toThrow(OrgBranchViolation);
   });
 
   it('universal view truncates to 2 rings (direct/second-degree) — no lattice, per uiux §5.5', async () => {

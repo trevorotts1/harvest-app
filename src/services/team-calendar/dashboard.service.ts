@@ -150,15 +150,23 @@ export class DashboardService {
     return copy.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /** uiux §5.9 item 2 "Needs-you-now strip" — responded-today alerts bridging into a three-way. */
+  /** uiux §5.9 item 2 "Needs-you-now strip" — responded-today alerts bridging into a three-way.
+   *
+   * T-R24: deliberately does NOT carry a `contactId` (the raw `threeWayHandoff.contact_id`). The
+   * client (`/team` page) only ever renders `handoffId`/`triggerReason`/`repUserId` and its "Join
+   * the three-way" link navigates by `repUserId` alone (`/team/rep/{repUserId}`) — no consumer ever
+   * reads a contact id here, so this is a "who is asking" surface, same doctrine as the pre-join
+   * handoff/pending route (`getRepDrillIn`'s module doc, `handoff-pending-route.test.ts`'s "never
+   * the contact id anywhere in the payload" assertion): pre-join, an upline dashboard shows WHO
+   * needs them, never WHICH contact, minimizing the payload rather than shipping an unused id. */
   async getNeedsYouNow(uplineId: string, organizationId: string, now: Date = new Date()): Promise<
-    { handoffId: string; repUserId: string; contactId: string; triggerReason: string; invitedAt: string }[]
+    { handoffId: string; repUserId: string; triggerReason: string; invitedAt: string }[]
   > {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const rows = await this.prisma.threeWayHandoff.findMany({
       where: { upline_id: uplineId, organization_id: organizationId, state: 'INVITED', invited_at: { gte: todayStart } },
     });
-    return rows.map((r) => ({ handoffId: r.id, repUserId: r.user_id, contactId: r.contact_id, triggerReason: r.trigger_reason, invitedAt: r.invited_at.toISOString() }));
+    return rows.map((r) => ({ handoffId: r.id, repUserId: r.user_id, triggerReason: r.trigger_reason, invitedAt: r.invited_at.toISOString() }));
   }
 
   /** uiux §5.9 item 6 "Downline Leak indicators" — quiet, non-shaming, coaching-suggestion framed. */

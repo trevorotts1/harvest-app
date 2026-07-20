@@ -19,7 +19,7 @@ interface RosterRow {
 interface DashboardData {
   hasTeam: boolean;
   roster: RosterRow[];
-  needsYouNow: { handoffId: string; repUserId: string; contactId: string; triggerReason: string; invitedAt: string }[];
+  needsYouNow: { handoffId: string; repUserId: string; triggerReason: string; invitedAt: string }[];
   downlineLeak: { userId: string; daysSinceFieldActivity: number }[];
   fieldTrainerRatio: { appointmentsRun: number; completed: number; noShows: number; closeRate: number };
   teamAvailability: { bucketStart: string; busyCount: number; teamSize: number }[];

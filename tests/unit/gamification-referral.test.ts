@@ -23,7 +23,7 @@ function throwingModelClient(): AgentModelClient {
 }
 
 function makeReferralDb() {
-  const rows: { id: string; script_text: string; cfe_cleared: boolean; referred_contact_id: string | null }[] = [];
+  const rows: { id: string; referrer_user_id?: string; script_text: string; cfe_cleared: boolean; referred_contact_id: string | null }[] = [];
   let n = 0;
   return {
     rows,
@@ -39,8 +39,19 @@ function makeReferralDb() {
         if (row) Object.assign(row, data);
         return (row ?? { id: where.id, script_text: '', cfe_cleared: false, referred_contact_id: null }) as never;
       },
-      findFirst: async ({ where }: { where: { id: string; referrer_user_id: string } }) =>
-        (rows.some((r) => r.id === where.id) ? { id: where.id } : null) as never,
+      // ENFORCING mock (T-R24 fix — the prior version matched on `where.id` alone and silently
+      // ignored `where.referrer_user_id`, so a mutation dropping `referrer_user_id: userId` from
+      // recordReferredContact's where-clause was invisible to this suite: the mock behaved
+      // identically with or without that filter). Mirrors real Prisma `findFirst` semantics — a
+      // field is only filtered on when the caller's `where` actually includes it, so a production
+      // regression that OMITS `referrer_user_id` from the query genuinely widens what matches here
+      // too, exactly as it would against a live Postgres `WHERE id = ? AND referrer_user_id = ?`.
+      findFirst: async ({ where }: { where: { id: string; referrer_user_id?: string } }) => {
+        const row = rows.find((r) => r.id === where.id);
+        if (!row) return null as never;
+        if ('referrer_user_id' in where && row.referrer_user_id !== where.referrer_user_id) return null as never;
+        return { id: row.id } as never;
+      },
     },
   };
 }
@@ -97,8 +108,13 @@ describe('recordReferredContact — attribution + ownership scoping (§12.9-7 / 
   test('a referral belonging to a DIFFERENT rep returns null (ownership check — no cross-rep leak)', async () => {
     const db = makeReferralDb();
     await db.referral.create({ data: { referrer_user_id: 'other-rep', script_text: 'hi', cfe_cleared: true } });
+    // Deliberately the UNMODIFIED, ownership-ENFORCING mock (no findFirst override) — this is what
+    // gives the assertion teeth: if recordReferredContact's where-clause ever drops
+    // `referrer_user_id: userId`, this mock's own filtering (mirroring real Prisma) would let the
+    // row through and the test would go red, instead of the false-safety a hand-stubbed
+    // `findFirst: async () => null` would provide regardless of what the production code queries.
     const fullDb = {
-      referral: { ...db.referral, findFirst: async () => null }, // simulates the where-scoped query finding nothing for rep-1
+      referral: db.referral,
       contact: { create: async () => ({ id: 'x' }), findFirst: async () => null },
     };
     const result = await recordReferredContact(fullDb, 'rep-1', 'ref-1', null, { firstName: 'X', lastName: 'Y', relationshipType: 'family' });
