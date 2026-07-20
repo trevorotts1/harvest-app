@@ -23,11 +23,15 @@ import { agentRuntimeFunctions } from '@/services/agent-runtime/inngest-function
 // step reads their `cron` triggers at deploy/register time and its own scheduler fires this same
 // signed endpoint when each is due (the exact Vercel-native mechanism the agent-dispatch cron uses).
 import { messagingInngestFunctions } from '@/services/messaging/inngest/messaging-inngest-functions';
+// WP08 (§13.4): the daily taprooting milestone/stagnation sweep — same registration pattern as the
+// two imports above (Inngest's sync step reads this function's `cron` trigger at deploy/register
+// time; its own scheduler fires this signed endpoint when due).
+import { taprootingInngestFunctions } from '@/services/taprooting/inngest/taprooting-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions],
+  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions, ...taprootingInngestFunctions],
 });

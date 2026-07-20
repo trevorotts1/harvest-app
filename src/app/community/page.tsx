@@ -10,6 +10,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 
 import ContactCard, { type RecencyState } from './components/ContactCard';
 import PlotsRow, { type Plot } from './components/PlotsRow';
@@ -142,7 +143,14 @@ export default function CommunityPage() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <h1 className={styles.title}>Community</h1>
+        <div className={styles.headerRow}>
+          <h1 className={styles.title}>Community</h1>
+          {/* WP08 reachability wiring — the Orchard/Grow surface linked from an existing,
+              already-reached nav point (§13's "no orphaned components" mandate). */}
+          <Link href="/grow" className={styles.growLink}>
+            Grow →
+          </Link>
+        </div>
 
         <PlotsRow
           plots={plots}
