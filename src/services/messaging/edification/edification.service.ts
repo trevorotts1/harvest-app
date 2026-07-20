@@ -41,6 +41,10 @@ export class EdificationService {
       `I'd love for you to meet ${upline.displayName}${rankPhrase}. `
       + `They've helped a lot of families like yours, and I trust them completely. Okay if I introduce you?`;
 
+    // QC FIX (T-39 must-fix #2, §10.6): the call-script floor is 200-300 WORDS, not characters —
+    // this copy is deliberately written long enough to clear that floor with a comfortable margin
+    // on both ends (283 words with no rank, 287 with one — see edification.service.test.ts's word-
+    // count teeth test) while staying doctrine-clean (no forbidden §0.5 vocabulary).
     const callScript =
       `Before we go further, I want to introduce someone who means a lot to me: ${upline.displayName}`
       + `${rankPhrase}. When I first started, ${upline.displayName} was the person who showed me this was really about `
@@ -50,7 +54,13 @@ export class EdificationService {
       + `and you deserve straight answers from someone who has done this for years. `
       + `Everything they share is checkable, and there is never any pressure — if the timing or the fit isn't right for you, `
       + `that is completely okay, and we would both respect that. `
+      + `This isn't a script and it isn't a routine — it's just two people who happen to know a little more than I do, `
+      + `spending real time with you because they think you matter, not because anything is owed. `
+      + `I've watched ${upline.displayName} sit through hard questions from people who were unsure, and they never once got defensive; `
+      + `they just kept being honest, even when honest meant "this might not be the right fit for you," `
+      + `and that tells you more about their character than anything I could say on their behalf. `
       + `Seems like you value honesty and people who actually follow through, which is exactly why I think the two of you should talk. `
+      + `Take whatever time you need with this — there is no clock running and no wrong answer, whichever way you land. `
       + `If you're open to it, I'll bring ${upline.displayName} into the conversation so you can decide for yourself, on your terms.`;
 
     const scan = this.vocabulary.scan(`${sms}\n${callScript}`);

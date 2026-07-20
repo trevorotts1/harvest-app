@@ -7,6 +7,14 @@
 // a single combined handler — so this component can never itself couple the two flags together; the
 // write-path independence guarantee lives in the API route/service (T-28's carried-forward toggle
 // fix), and this component is written so it cannot violate it even by accident.
+//
+// T-39 QC FIX 1 (uiux §5.7) — every card links to `/community/{id}`, the contact-detail/conversation
+// route that mounts `ConversationTimeline`. Before this fix that route existed on no page at all, so
+// a rep had no way to open a contact's conversation from the Community list; this is the one added
+// affordance that makes it reachable. A plain `next/link` `<a>`, never nested inside the flag-toggle
+// `<button>`s above (sibling elements only), so it can never intercept their clicks.
+
+import Link from 'next/link';
 
 import styles from '../community.module.css';
 
@@ -119,6 +127,10 @@ export default function ContactCard({
       </div>
 
       {segmentTag && <span className={styles.segmentTag}>{segmentTag}</span>}
+
+      <Link href={`/community/${id}`} className={styles.viewConversationLink}>
+        View conversation →
+      </Link>
     </article>
   );
 }

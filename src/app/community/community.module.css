@@ -224,6 +224,19 @@
   color: var(--color-caution-text);
 }
 
+/* T-39 QC FIX 1 (uiux §5.7) — the Contact Card's link into the mounted conversation route. */
+.viewConversationLink {
+  align-self: flex-start;
+  color: var(--color-action);
+  font-weight: 700;
+  font-size: var(--type-caption-size);
+  text-decoration: none;
+}
+.viewConversationLink:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
 /* ---- Empty / loading / error states (T-R10 — a rep with zero contacts sees a real empty state,
    never demo contacts) — same convention as ../inbox/inbox.module.css. ---- */
 .emptyState,

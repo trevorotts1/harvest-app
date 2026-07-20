@@ -54,6 +54,11 @@ CREATE TABLE "OutreachSequenceStep" (
 );
 
 -- CreateTable
+-- QC FIX (T-39 must-fix #3): `joined_at`/`returned_at` are TIMESTAMPTZ(6), matching every sibling
+-- timestamp column on this table (`invited_at`/`return_deadline_at`/`created_at`/`updated_at`) and
+-- this schema's established convention of storing all DateTime columns tz-aware. T-39 is not yet
+-- merged, so this hand-authored migration is amended in place rather than adding a follow-up
+-- migration for what would otherwise be a same-PR typo.
 CREATE TABLE "ThreeWayHandoff" (
     "id"                 TEXT NOT NULL,
     "user_id"            TEXT NOT NULL,
@@ -64,8 +69,8 @@ CREATE TABLE "ThreeWayHandoff" (
     "trigger_reason"     TEXT NOT NULL,
     "state"              TEXT NOT NULL DEFAULT 'INVITED',
     "invited_at"         TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "joined_at"          TIMESTAMP(3),
-    "returned_at"        TIMESTAMP(3),
+    "joined_at"          TIMESTAMPTZ(6),
+    "returned_at"        TIMESTAMPTZ(6),
     "return_deadline_at" TIMESTAMPTZ(6) NOT NULL,
     "coached_next_step"  TEXT,
     "created_at"         TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -754,8 +754,8 @@ model ThreeWayHandoff {
   // INVITED | JOINED | RETURNED | CLOSED. RETURNED = the 24h no-join return-to-rep path (§10.9-8).
   state              String    @default("INVITED")
   invited_at         DateTime  @default(now()) @db.Timestamptz(6)
-  joined_at          DateTime?
-  returned_at        DateTime?
+  joined_at          DateTime? @db.Timestamptz(6)
+  returned_at        DateTime? @db.Timestamptz(6)
   // invited_at + 24h; a still-INVITED handoff past this returns to the rep with a coached next step.
   return_deadline_at DateTime  @db.Timestamptz(6)
   coached_next_step  String?
