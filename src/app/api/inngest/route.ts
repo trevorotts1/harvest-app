@@ -25,11 +25,21 @@ import { agentRuntimeFunctions } from '@/services/agent-runtime/inngest-function
 import { messagingInngestFunctions } from '@/services/messaging/inngest/messaging-inngest-functions';
 // T-45 (WP09 §14.1) — the calendar dual-sync cron tick (Google read+write / CalDAV read-only).
 import { teamCalendarInngestFunctions } from '@/services/team-calendar/calendar-sync-inngest';
+// T-41 (WP06 §11.1/§11.4/§11.5): the weekly content-batch cron, the scheduled-publish tick, and the
+// launch-kit auto-trigger sweep. Same registration convention as the two imports above — the real
+// logic lives in package-free, unit-testable modules (scheduled-jobs.ts); this endpoint only needs to
+// know their `cron` triggers exist so Inngest's sync step (this route's GET) picks them up.
+import { socialContentInngestFunctions } from '@/services/social-content/inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [...agentRuntimeFunctions, ...messagingInngestFunctions, ...teamCalendarInngestFunctions],
+  functions: [
+    ...agentRuntimeFunctions,
+    ...messagingInngestFunctions,
+    ...teamCalendarInngestFunctions,
+    ...socialContentInngestFunctions,
+  ],
 });

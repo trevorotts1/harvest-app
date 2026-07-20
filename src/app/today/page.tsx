@@ -146,6 +146,14 @@ export default function TodayPage() {
         <Link href="/shift" className={styles.primaryCta}>
           Start today&apos;s 30 minutes
         </Link>
+
+        {/* T-41 (WP06 §11.5 Unified Content Queue / §11.4 Launch Kit): the reachable entry point to
+            the social/blog/email content surface — mirrors the same plain-Link pattern the T-32 QC
+            fix used for the Approval Inbox badge (AnchorHeader.tsx) rather than reaching into the
+            mission-control zone service/types this build unit does not own. */}
+        <Link href="/content" className={styles.queueReviewLink}>
+          Content Queue — social, blog &amp; email drafts waiting for review
+        </Link>
       </div>
     </main>
   );
