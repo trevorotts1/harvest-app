@@ -81,5 +81,7 @@ export const config = {
     '/me/:path*',
     '/team/:path*',
     '/ritual/:path*',
+    // T-41 (WP06) — kept in sync with GATED_DOWNSTREAM_PAGE_PREFIXES (onboarding-gate-edge.ts).
+    '/content/:path*',
   ],
 };

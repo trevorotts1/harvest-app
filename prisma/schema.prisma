@@ -168,45 +168,45 @@ enum SponsorshipState {
 // ═══════════════════════════════════════════════════════════════════════
 
 model Organization {
-  id                     String   @id @default(uuid())
-  name                   String
-  type                   OrgType
-  white_label_theme      Json?    // enterprise Phase-2 hook
-  compliance_contact_id  String?  // escalation target for flagged content (§5.3, §5.5 48h escalation)
-  created_at             DateTime @default(now()) @db.Timestamptz(6)
-  users                  User[]
+  id                    String   @id @default(uuid())
+  name                  String
+  type                  OrgType
+  white_label_theme     Json? // enterprise Phase-2 hook
+  compliance_contact_id String? // escalation target for flagged content (§5.3, §5.5 48h escalation)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  users                 User[]
 }
 
 model User {
-  id                    String            @id @default(uuid())
-  email                 String            @unique
-  password_hash         String
-  name                  String
-  phone                 String?
-  role                  Role              @default(REP)
-  org_type              OrgType           @default(EXTERNAL)
-  solution_number        String?          // nullable, encrypted, Primerica only
-  upline_id             String?
-  upline                User?             @relation("UserUpline", fields: [upline_id], references: [id])
-  downlines             User[]            @relation("UserUpline")
-  access_tier           AccessTier        @default(FREE_ORG_LINKED)
-  intensity_setting     IntensitySetting  @default(MEDIUM)
-  commitment_score      Int               @default(0)
-  rank                  String?
-  anchor_statement      String?           // encrypted; from WP01 Flow C (Seven Whys anchor)
-  finra_u4_status       String?           // VALIDATED | PENDING | SUSPENDED | NOT_APPLICABLE
-  calendar_preferences  Json?
-  calendar_connected    Boolean           @default(false)
-  gdpr_consent          Boolean           @default(false)
-  onboarding_status     OnboardingStatus  @default(IN_PROGRESS)
-  mfa_enrolled          Boolean           @default(false)
-  mfa_methods           Json?
+  id                   String              @id @default(uuid())
+  email                String              @unique
+  password_hash        String
+  name                 String
+  phone                String?
+  role                 Role                @default(REP)
+  org_type             OrgType             @default(EXTERNAL)
+  solution_number      String? // nullable, encrypted, Primerica only
+  upline_id            String?
+  upline               User?               @relation("UserUpline", fields: [upline_id], references: [id])
+  downlines            User[]              @relation("UserUpline")
+  access_tier          AccessTier          @default(FREE_ORG_LINKED)
+  intensity_setting    IntensitySetting    @default(MEDIUM)
+  commitment_score     Int                 @default(0)
+  rank                 String?
+  anchor_statement     String? // encrypted; from WP01 Flow C (Seven Whys anchor)
+  finra_u4_status      String? // VALIDATED | PENDING | SUSPENDED | NOT_APPLICABLE
+  calendar_preferences Json?
+  calendar_connected   Boolean             @default(false)
+  gdpr_consent         Boolean             @default(false)
+  onboarding_status    OnboardingStatus    @default(IN_PROGRESS)
+  mfa_enrolled         Boolean             @default(false)
+  mfa_methods          Json?
   // T-12 (§16.4 session security): bumped on "sign out everywhere" and on a privilege/role
   // rotation event. Snapshotted into the JWT at sign-in (`securityVersionAtIssue`); a session
   // whose snapshot no longer matches the live value here is treated as revoked (src/lib/auth/
   // session-security.ts `evaluateSessionSecurity`), which is how a stateless JWT session supports
   // server-side revocation without a live session-token table.
-  security_version      Int               @default(0)
+  security_version     Int                 @default(0)
   // T-12 CRITICAL fix (§16.4 step-up MFA): a short-lived, SINGLE-USE server proof that a real
   // TOTP/recovery challenge just succeeded. POST /api/auth/mfa/step-up stamps this (server clock)
   // ONLY after `verifyMfaCode` passes; the jwt `update` callback (src/lib/auth/options.ts) is the
@@ -214,22 +214,22 @@ model User {
   // client `useSession().update()` payload can no longer self-certify step-up freshness (the
   // freshness signal now originates only from a server-verified challenge). Null when no
   // unconsumed proof is outstanding, which is the normal resting state.
-  mfa_stepped_up_at     DateTime?         @db.Timestamptz(6)
-  organization_id       String?
-  organization          Organization?     @relation(fields: [organization_id], references: [id])
-  onboarding_sessions   OnboardingSession[]
+  mfa_stepped_up_at    DateTime?           @db.Timestamptz(6)
+  organization_id      String?
+  organization         Organization?       @relation(fields: [organization_id], references: [id])
+  onboarding_sessions  OnboardingSession[]
   // Auth.js / NextAuth Prisma-adapter contract fields (T-04, §16.4). Nullable and unused by the
   // Credentials-provider + JWT-session flow this unit wires up; present so the adapter can be
   // handed to an OAuth provider (§6.3 Flow A: "auth: email/password or OAuth") in a later unit
   // without a further schema migration. emailVerified/image follow the adapter's exact expected
   // field names (camelCase), an intentional exception to this file's snake_case convention (§3
   // header note) because they are part of the Auth.js adapter contract, not app-owned columns.
-  emailVerified         DateTime?         @db.Timestamptz(6)
-  image                 String?
-  accounts              Account[]
-  sessions              Session[]
-  created_at            DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
+  emailVerified        DateTime?           @db.Timestamptz(6)
+  image                String?
+  accounts             Account[]
+  sessions             Session[]
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @updatedAt @db.Timestamptz(6)
 
   @@index([upline_id])
   @@index([organization_id])
@@ -248,19 +248,19 @@ model User {
 // zero further migration. VerificationToken supports a future email/magic-link provider.
 
 model Account {
-  id                 String   @id @default(uuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @db.Text
-  access_token       String?  @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?  @db.Text
-  session_state      String?
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@index([userId])
@@ -292,29 +292,29 @@ model VerificationToken {
 // dedup without exposing plaintext (§3, intro). Interaction history is per-rep and never
 // cross-rep visible (§3.4).
 model Contact {
-  id                  String           @id @default(uuid())
-  user_id             String
-  first_name          String
-  last_name           String           @default("")
-  phone               String?
-  email               String?
-  phone_hash          String?
-  email_hash          String?
-  notes               String?
-  relationship_type   String?
-  industry            String?          // additive: feeds the Hidden Earnings industry multiplier (§8)
-  segment_score       Int              @default(0) // 0–100
-  is_recruit_target   Boolean          @default(false)
-  is_client           Boolean          @default(false)
-  is_a_list           Boolean          @default(false)
-  pipeline_stage      PipelineStage    @default(IDENTIFIED)
-  last_contact_date   DateTime?        @db.Timestamptz(6)
-  source              String           @default("MANUAL")
-  import_batch_id     String?
-  do_not_contact      Boolean          @default(false)
-  agents_paused       Boolean          @default(false)
-  household_id        String?          // nullable; household intelligence (blueprint #17)
-  is_minor_flag       Boolean          @default(false)
+  id                       String               @id @default(uuid())
+  user_id                  String
+  first_name               String
+  last_name                String               @default("")
+  phone                    String?
+  email                    String?
+  phone_hash               String?
+  email_hash               String?
+  notes                    String?
+  relationship_type        String?
+  industry                 String? // additive: feeds the Hidden Earnings industry multiplier (§8)
+  segment_score            Int                  @default(0) // 0–100
+  is_recruit_target        Boolean              @default(false)
+  is_client                Boolean              @default(false)
+  is_a_list                Boolean              @default(false)
+  pipeline_stage           PipelineStage        @default(IDENTIFIED)
+  last_contact_date        DateTime?            @db.Timestamptz(6)
+  source                   String               @default("MANUAL")
+  import_batch_id          String?
+  do_not_contact           Boolean              @default(false)
+  agents_paused            Boolean              @default(false)
+  household_id             String? // nullable; household intelligence (blueprint #17)
+  is_minor_flag            Boolean              @default(false)
   // T-29R (WP03 §8.2 "Excluded: state-unlicensed" tier / §8.1 eligibility): the contact's own
   // jurisdiction — a two-letter US state postal code, e.g. "TX" — normalized/compared the same way
   // as LicensingRecord.jurisdiction (src/types/licensing.ts). Consumed ONLY by
@@ -336,9 +336,9 @@ model Contact {
   // cost of encrypting a Contact column that downstream consumers need to read/match on — encrypting
   // a field that carries none of the same re-identification risk as a name/phone/email would
   // reintroduce that exact regression for no compliance benefit.
-  jurisdiction        String?
-  linked_user_id      String?          // set when a contact becomes a platform user
-  memory_jogger_skip_count Int         @default(0) // T-23 (§7.4): a jogger that surfaces an already-Vaulted contact increments this and skips, instead of re-adding a duplicate
+  jurisdiction             String?
+  linked_user_id           String? // set when a contact becomes a platform user
+  memory_jogger_skip_count Int                  @default(0) // T-23 (§7.4): a jogger that surfaces an already-Vaulted contact increments this and skips, instead of re-adding a duplicate
   // T-38 (master-spec §10.4 recipient-timezone quiet hours): the contact's own IANA timezone id
   // (e.g. "America/Chicago"), used by SendComplianceGate/isWithinQuietHours to compute the
   // recipient's LOCAL 8 AM–9 PM send window — deliberately distinct from any rep-side notification
@@ -348,10 +348,10 @@ model Contact {
   // PLAINTEXT like industry/relationship_type/jurisdiction above — an IANA zone id is coarse
   // categorical/structural data, not an identifying credential, so it is not in this model's
   // encrypted-PII surface (first_name/last_name/phone/email/notes).
-  timezone            String?
-  created_at          DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime         @updatedAt @db.Timestamptz(6)
-  interactions        ContactInteraction[]
+  timezone                 String?
+  created_at               DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime             @updatedAt @db.Timestamptz(6)
+  interactions             ContactInteraction[]
 
   @@index([user_id])
   @@index([user_id, pipeline_stage])
@@ -363,14 +363,14 @@ model Contact {
 // Extended to reference Message and AgentRun (both plain scalar pointers, §3 new-entities table)
 // for the unified per-contact conversation timeline.
 model ContactInteraction {
-  id             String   @id @default(uuid())
-  contact_id     String
-  type           String   @default("NOTE")
-  notes          String   @default("")
-  message_id     String?
-  agent_run_id   String?
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
-  contact        Contact  @relation(fields: [contact_id], references: [id])
+  id           String   @id @default(uuid())
+  contact_id   String
+  type         String   @default("NOTE")
+  notes        String   @default("")
+  message_id   String?
+  agent_run_id String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  contact      Contact  @relation(fields: [contact_id], references: [id])
 
   @@index([contact_id])
   @@index([message_id])
@@ -407,8 +407,8 @@ model OnboardingSession {
 // here is the WP11 QC checklist's named critical-failure condition ("a mutable or unsigned audit
 // trail").
 model AuditEntry {
-  id              String     @id @default(uuid())
-  sequence        Int        @unique @default(autoincrement())
+  id              String          @id @default(uuid())
+  sequence        Int             @unique @default(autoincrement())
   user_id         String
   content_id      String?
   content_text    String
@@ -421,10 +421,10 @@ model AuditEntry {
   regulation      String
   reviewer_id     String?
   reviewer_action String?
-  role            Role       @default(REP)
+  role            Role            @default(REP)
   prev_hash       String?
-  entry_hash      String     @default("")
-  created_at      DateTime   @default(now()) @db.Timestamptz(6)
+  entry_hash      String          @default("")
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
 
   @@index([created_at])
   @@index([user_id, created_at])
@@ -475,11 +475,11 @@ model AuditCheckpoint {
 // is always the owning rep either way (for a contact-scoped row, the rep whose Vault the contact
 // belongs to), so existing per-user queries (`user_id, timestamp`) keep working unmodified.
 model ComplianceConsent {
-  id              String   @id @default(uuid())
-  user_id         String
-  contact_id      String?  // NEW (T-38): set only for per-contact (recipient) consent rows.
-  consent_type    String
-  given           Boolean
+  id           String   @id @default(uuid())
+  user_id      String
+  contact_id   String? // NEW (T-38): set only for per-contact (recipient) consent rows.
+  consent_type String
+  given        Boolean
   // NEW (T-38): durable version number for this (subject, consent_type) lineage. Pre-T-38 rows
   // (the GDPR bridge, src/lib/onboarding/gdpr-consent.ts) never wrote this column and relied on
   // WP11's in-process `ConsentManager` Map for versioning instead — that version number never
@@ -487,12 +487,9 @@ model ComplianceConsent {
   // NEW write from the T-38 messaging-consent ledger computes and persists the real next version
   // here so "versioned" is durable, not process-local. Existing rows default to 1 — harmless,
   // since nothing read this column before this unit.
-  version         Int      @default(1)
-  timestamp       DateTime @default(now()) @db.Timestamptz(6)
+  version      Int      @default(1)
+  timestamp    DateTime @default(now()) @db.Timestamptz(6)
 
-  @@index([timestamp])
-  @@index([user_id, timestamp])
-  @@index([contact_id, consent_type]) // NEW (T-38): the messaging-consent ledger's lookup path.
   // NEW (T-R17, remediation of a T-38 QC finding, §9.2): under a concurrent same-contact
   // messaging-consent write, two `captureConsent` calls could both read the same "current"
   // version and both insert with the SAME next version number — two rows silently sharing one
@@ -518,49 +515,52 @@ model ComplianceConsent {
   // more machinery for the same result here. See tests/unit/gdpr-consent.test.ts and
   // tests/unit/messaging-consent-ledger.test.ts for the regression/race proofs.
   @@unique([contact_id, consent_type, version])
+  @@index([timestamp])
+  @@index([user_id, timestamp])
+  @@index([contact_id, consent_type]) // NEW (T-38): the messaging-consent ledger's lookup path.
 }
 
 // Parameterized regulatory rules — a regulatory change is a config update, not a code change (§5.3).
 model ComplianceRule {
-  id              String   @id @default(uuid())
-  name            String
-  regulation      String
-  version         String
-  parameters      Json
-  is_active       Boolean  @default(true)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(uuid())
+  name       String
+  regulation String
+  version    String
+  parameters Json
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model ComplianceReviewQueue {
-  id              String   @id @default(uuid())
-  audit_entry_id  String   @unique
-  status          String   // PENDING, APPROVED, REJECTED, MODIFIED
-  upline_id       String
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id             String   @id @default(uuid())
+  audit_entry_id String   @unique
+  status         String // PENDING, APPROVED, REJECTED, MODIFIED
+  upline_id      String
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model ComplianceUplineReview {
-  id              String   @id @default(uuid())
-  audit_entry_id  String
-  reviewer_id     String
-  action          String
-  feedback        String?
-  timestamp       DateTime @default(now()) @db.Timestamptz(6)
+  id             String   @id @default(uuid())
+  audit_entry_id String
+  reviewer_id    String
+  action         String
+  feedback       String?
+  timestamp      DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model ComplianceException {
-  id              String   @id @default(uuid())
-  audit_entry_id  String
-  reason          String
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id             String   @id @default(uuid())
+  audit_entry_id String
+  reason         String
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model UserDataExport {
-  id              String   @id @default(uuid())
-  user_id         String
-  status          String   // PENDING, COMPLETED, FAILED
-  expires_at      DateTime @db.Timestamptz(6)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  id         String   @id @default(uuid())
+  user_id    String
+  status     String // PENDING, COMPLETED, FAILED
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 }
 
 // retained_fields + deletion_certificate_url are new (§3.2): the FINRA 2210/3110 legal-hold
@@ -570,7 +570,7 @@ model UserDataExport {
 model UserDataDeletion {
   id                       String    @id @default(uuid())
   user_id                  String
-  status                   String    // PENDING, COMPLETED, HELD, FAILED — HELD = blocked by an active LegalHold (§16.3)
+  status                   String // PENDING, COMPLETED, HELD, FAILED — HELD = blocked by an active LegalHold (§16.3)
   anonymized_fields        String[]
   retained_fields          String[]  @default([])
   deletion_certificate_url String?
@@ -586,15 +586,15 @@ model UserDataDeletion {
 // data-rights area; does not alter any model owned by the concurrent CFE build (AuditEntry,
 // ComplianceException, etc.).
 model LegalHold {
-  id          String    @id @default(uuid())
-  user_id     String
-  status      String    @default("ACTIVE") // ACTIVE | LIFTED
-  reason      String    // e.g. "FINRA regulatory inquiry", "active litigation"
-  placed_by   String    // user_id of the admin/RVP who placed the hold
-  placed_at   DateTime  @default(now()) @db.Timestamptz(6)
-  lifted_by   String?
-  lifted_at   DateTime? @db.Timestamptz(6)
-  note        String?
+  id        String    @id @default(uuid())
+  user_id   String
+  status    String    @default("ACTIVE") // ACTIVE | LIFTED
+  reason    String // e.g. "FINRA regulatory inquiry", "active litigation"
+  placed_by String // user_id of the admin/RVP who placed the hold
+  placed_at DateTime  @default(now()) @db.Timestamptz(6)
+  lifted_by String?
+  lifted_at DateTime? @db.Timestamptz(6)
+  note      String?
 
   @@index([user_id, status])
 }
@@ -607,32 +607,32 @@ model AgentDefinition {
   id                  String   @id @default(uuid())
   key                 String   @unique // e.g. "prospecting"
   display_name        String
-  default_model       String   // haiku_4_5 | sonnet_5 | opus_4_8 (Claude-only, §0.3/§4.4)
-  mode                String   // parallel | sequential
+  default_model       String // haiku_4_5 | sonnet_5 | opus_4_8 (Claude-only, §0.3/§4.4)
+  mode                String // parallel | sequential
   enabled             Boolean  @default(true)
-  prompt_template_ref  String?
+  prompt_template_ref String?
   created_at          DateTime @default(now()) @db.Timestamptz(6)
   updated_at          DateTime @updatedAt @db.Timestamptz(6)
 }
 
 // One execution of an agent job; feeds the Activity Ledger and the per-rep cost model (§4.5).
 model AgentRun {
-  id             String    @id @default(uuid())
-  agent_key      String
-  user_id        String
-  trigger        String
-  model_used     String    // haiku_4_5 | sonnet_5 | opus_4_8
-  input_summary  String?
-  output_ref     String?
-  token_input    Int       @default(0)
-  token_output   Int       @default(0)
-  cost_cents     Int       @default(0)
-  batched        Boolean   @default(false)
-  status         String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED | HELD
-  reasoning_log  String?   // plain-language, rep-visible (§4.1 #5)
-  started_at     DateTime? @db.Timestamptz(6)
-  finished_at    DateTime? @db.Timestamptz(6)
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  id            String    @id @default(uuid())
+  agent_key     String
+  user_id       String
+  trigger       String
+  model_used    String // haiku_4_5 | sonnet_5 | opus_4_8
+  input_summary String?
+  output_ref    String?
+  token_input   Int       @default(0)
+  token_output  Int       @default(0)
+  cost_cents    Int       @default(0)
+  batched       Boolean   @default(false)
+  status        String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED | HELD
+  reasoning_log String? // plain-language, rep-visible (§4.1 #5)
+  started_at    DateTime? @db.Timestamptz(6)
+  finished_at   DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
 
   @@index([user_id, created_at])
   @@index([agent_key])
@@ -647,16 +647,16 @@ model AgentRun {
 // persists the TRIPPED/CLEARED state so a kill-switch (manual or budget-auto-tripped) survives
 // across requests/instances and is toggleable via a session-gated, ownership-checked route.
 model AgentKillSwitch {
-  id          String    @id @default(uuid())
-  scope       String    // PLATFORM | ORG | REP
-  scope_id    String    // 'GLOBAL' for PLATFORM; Organization.id for ORG; User.id for REP
-  tripped     Boolean   @default(false)
-  reason      String?
-  tripped_by  String?   // user_id of the admin/rep who tripped it; null when auto-tripped (budget breach)
-  tripped_at  DateTime? @db.Timestamptz(6)
-  cleared_by  String?
-  cleared_at  DateTime? @db.Timestamptz(6)
-  updated_at  DateTime  @updatedAt @db.Timestamptz(6)
+  id         String    @id @default(uuid())
+  scope      String // PLATFORM | ORG | REP
+  scope_id   String // 'GLOBAL' for PLATFORM; Organization.id for ORG; User.id for REP
+  tripped    Boolean   @default(false)
+  reason     String?
+  tripped_by String? // user_id of the admin/rep who tripped it; null when auto-tripped (budget breach)
+  tripped_at DateTime? @db.Timestamptz(6)
+  cleared_by String?
+  cleared_at DateTime? @db.Timestamptz(6)
+  updated_at DateTime  @updatedAt @db.Timestamptz(6)
 
   @@unique([scope, scope_id])
   @@index([scope, scope_id, tripped])
@@ -670,7 +670,7 @@ model AgentKillSwitch {
 // approval must re-enter the CFE before send — enforced at the application layer via
 // edited_after_approval).
 model DraftMessage {
-  id                    String          @id @default(uuid())
+  id                    String         @id @default(uuid())
   user_id               String
   contact_id            String
   channel               MessageChannel
@@ -678,10 +678,10 @@ model DraftMessage {
   cfe_outcome           CFEOutcome?
   cfe_risk_score        Int?
   cfe_classifier_data   Json?
-  approval_state        String          @default("PENDING") // PENDING | APPROVED | DECLINED | HELD
+  approval_state        String         @default("PENDING") // PENDING | APPROVED | DECLINED | HELD
   approved_by           String?
-  approved_at           DateTime?       @db.Timestamptz(6)
-  edited_after_approval Boolean         @default(false)
+  approved_at           DateTime?      @db.Timestamptz(6)
+  edited_after_approval Boolean        @default(false)
   // T-33 (§9.2/uiux §5.6): the Approval Inbox decline-reason selector ("not my voice / wrong
   // person / wrong time / other" + optional note) — feeds agent learning per the uiux spec.
   // Additive, nullable; both are only ever set on a decline.
@@ -695,46 +695,46 @@ model DraftMessage {
   // null on a successful send/handoff. This is the "held for review — nothing was lost" (§5.2)
   // evidence the rep-facing timeline surfaces; it never causes a send by itself (deny-by-default).
   send_hold_reason      String?
-  created_at            DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime        @updatedAt @db.Timestamptz(6)
+  created_at            DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime       @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
   @@index([contact_id])
 }
 
 model MessageThread {
-  id               String          @id @default(uuid())
+  id               String         @id @default(uuid())
   user_id          String
   contact_id       String
   channel          MessageChannel
-  state            String          @default("ACTIVE") // ACTIVE | REACTIVATED | CLOSED
-  last_activity_at DateTime        @default(now()) @db.Timestamptz(6)
+  state            String         @default("ACTIVE") // ACTIVE | REACTIVATED | CLOSED
+  last_activity_at DateTime       @default(now()) @db.Timestamptz(6)
   messages         Message[]
 
   @@index([user_id, contact_id])
 }
 
 model Message {
-  id                 String            @id @default(uuid())
-  thread_id          String
-  thread             MessageThread     @relation(fields: [thread_id], references: [id])
-  direction          MessageDirection
-  source             MessageSource
-  channel            MessageChannel
-  body               String            // encrypted at rest
-  cfe_audit_id       String?           // link to AuditEntry.id
+  id                String           @id @default(uuid())
+  thread_id         String
+  thread            MessageThread    @relation(fields: [thread_id], references: [id])
+  direction         MessageDirection
+  source            MessageSource
+  channel           MessageChannel
+  body              String // encrypted at rest
+  cfe_audit_id      String? // link to AuditEntry.id
   // T-39 (T-R16 fold-in; uiux §4.7 agent-sent badge "sent by your agent · approved by you [date]").
   // The APPROVAL ATTRIBUTION denormalized onto the immutable sent record so the conversation
   // timeline can render the transparency/compliance badge without re-joining the (mutable, possibly-
   // pruned) DraftMessage. Both are carried from the DraftMessage's approved_by/approved_at at the
   // moment of send (an agent-sourced OUTBOUND message with these set is what earns the badge).
   // Additive, nullable: an inbound message, a system event, or a pre-T-39 row simply has them null.
-  approved_by        String?
-  approved_at        DateTime?         @db.Timestamptz(6)
-  sent_from          String?           // rep_number | platform_number | email_domain
-  delivery_status    String            @default("PENDING")
-  handoff_confirmed  Boolean           @default(false) // composer handoff confirmation (§10)
-  created_at         DateTime          @default(now()) @db.Timestamptz(6)
+  approved_by       String?
+  approved_at       DateTime?        @db.Timestamptz(6)
+  sent_from         String? // rep_number | platform_number | email_domain
+  delivery_status   String           @default("PENDING")
+  handoff_confirmed Boolean          @default(false) // composer handoff confirmation (§10)
+  created_at        DateTime         @default(now()) @db.Timestamptz(6)
 
   @@index([thread_id, created_at])
   @@index([cfe_audit_id])
@@ -753,19 +753,19 @@ model Message {
 // The doctrine-safe multi-touch cadence (§10.2): warm open → social proof → reflected qualities →
 // soft ask → low-pressure next step. Never a "NLP close". One row per contact per enrolled cadence.
 model OutreachSequence {
-  id                 String   @id @default(uuid())
+  id                 String                 @id @default(uuid())
   user_id            String
   contact_id         String
   // FAST_TRACK (5d) | STANDARD (14d) | NURTURE (30d) | RE_ENGAGEMENT (custom) — §10.2 sequence types.
   sequence_type      String
   // ACTIVE | PAUSED | STOPPED | COMPLETED. PAUSES on reply/opt-out/compliance-block (§10.8) — a
   // paused/stopped sequence never fires another step.
-  state              String   @default("ACTIVE")
+  state              String                 @default("ACTIVE")
   // Why the sequence is not ACTIVE: REPLY | OPT_OUT | COMPLIANCE_BLOCK | MANUAL (null while ACTIVE).
   pause_reason       String?
-  current_step_index Int      @default(0)
-  started_at         DateTime @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+  current_step_index Int                    @default(0)
+  started_at         DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime               @updatedAt @db.Timestamptz(6)
   steps              OutreachSequenceStep[]
 
   @@index([user_id])
@@ -802,9 +802,9 @@ model OutreachSequenceStep {
 // never surface to a different org's upline, a cross-line rep, or a rep who is not this rep's upline.
 model ThreeWayHandoff {
   id                 String    @id @default(uuid())
-  user_id            String    // the rep who owns the contact/thread
-  upline_id          String    // the rep's upline at trigger time (the human invited to bridge)
-  organization_id    String    // org gate — visibility never crosses organizations
+  user_id            String // the rep who owns the contact/thread
+  upline_id          String // the rep's upline at trigger time (the human invited to bridge)
+  organization_id    String // org gate — visibility never crosses organizations
   contact_id         String
   thread_id          String?
   // BUYING_SIGNAL | HARD_QUESTION | MANUAL — §10.6 triggers.
@@ -841,7 +841,7 @@ model Appointment {
   proposed_windows   Json?
   confirmed_start    DateTime? @db.Timestamptz(6)
   confirmed_end      DateTime? @db.Timestamptz(6)
-  governing_timezone String?   // the contact's timezone governs, per spec
+  governing_timezone String? // the contact's timezone governs, per spec
   status             String    @default("PROPOSED") // PROPOSED|CONFIRMED|RESCHEDULED|DECLINED|HELD|NO_SHOW
   slot_lock_id       String?   @unique
   created_at         DateTime  @default(now()) @db.Timestamptz(6)
@@ -855,10 +855,10 @@ model Appointment {
 model CalendarLink {
   id         String   @id @default(uuid())
   user_id    String
-  provider   String   // google | caldav_ios
+  provider   String // google | caldav_ios
   status     String   @default("CONNECTED") // CONNECTED | EXPIRED | REVOKED
   scope      String?
-  token_ref  String?  // pointer to the secret store — never a token value (§0.4)
+  token_ref  String? // pointer to the secret store — never a token value (§0.4)
   created_at DateTime @default(now()) @db.Timestamptz(6)
   updated_at DateTime @updatedAt @db.Timestamptz(6)
 
@@ -878,18 +878,18 @@ model CalendarLink {
 // This is *not* expressible in this file — do not remove the hand-appended SQL when regenerating
 // migrations from this schema.
 model Subscription {
-  id                     String              @id @default(uuid())
+  id                     String             @id @default(uuid())
   user_id                String
-  stripe_subscription_id String?             @unique
-  plan_tier              String              // free | individual | enterprise
-  billing_cycle          String              // monthly | annual
+  stripe_subscription_id String?            @unique
+  plan_tier              String // free | individual | enterprise
+  billing_cycle          String // monthly | annual
   status                 SubscriptionStatus
-  current_period_start   DateTime?           @db.Timestamptz(6)
-  current_period_end     DateTime?           @db.Timestamptz(6)
-  org_sponsored          Boolean             @default(false)
+  current_period_start   DateTime?          @db.Timestamptz(6)
+  current_period_end     DateTime?          @db.Timestamptz(6)
+  org_sponsored          Boolean            @default(false)
   sponsor_user_id        String?
-  created_at             DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime            @updatedAt @db.Timestamptz(6)
+  created_at             DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime           @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
 }
@@ -903,16 +903,16 @@ model Subscription {
 //   CREATE UNIQUE INDEX "sponsorship_one_active_per_member" ON "Sponsorship"("member_user_id")
 //     WHERE "state" = 'ACTIVE';
 model Sponsorship {
-  id                String           @id @default(uuid())
-  sponsor_user_id   String
-  member_user_id    String
-  organization_id   String
-  state             SponsorshipState
-  term_start        DateTime?        @db.Timestamptz(6)
-  term_end          DateTime?        @db.Timestamptz(6)
-  grace_until       DateTime?        @db.Timestamptz(6)
-  created_at        DateTime         @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime         @updatedAt @db.Timestamptz(6)
+  id              String           @id @default(uuid())
+  sponsor_user_id String
+  member_user_id  String
+  organization_id String
+  state           SponsorshipState
+  term_start      DateTime?        @db.Timestamptz(6)
+  term_end        DateTime?        @db.Timestamptz(6)
+  grace_until     DateTime?        @db.Timestamptz(6)
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime         @updatedAt @db.Timestamptz(6)
 
   @@index([sponsor_user_id])
   @@index([member_user_id])
@@ -935,14 +935,14 @@ model Invoice {
 
 // Stored Stripe payment-method ids only — no PANs ever touch this table (§0.4, §2.5).
 model PaymentMethod {
-  id                        String   @id @default(uuid())
-  user_id                   String
-  stripe_payment_method_id  String   @unique
-  brand                     String?
-  last4                     String?
-  is_default                Boolean  @default(false)
-  created_at                DateTime @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+  id                       String   @id @default(uuid())
+  user_id                  String
+  stripe_payment_method_id String   @unique
+  brand                    String?
+  last4                    String?
+  is_default               Boolean  @default(false)
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
 }
@@ -952,7 +952,7 @@ model PaymentMethod {
 model IdempotencyLog {
   id           String   @id @default(uuid())
   key          String   @unique
-  source       String   // e.g. stripe_webhook | agent_dispatch
+  source       String // e.g. stripe_webhook | agent_dispatch
   processed_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([source])
@@ -960,14 +960,14 @@ model IdempotencyLog {
 
 // Sponsor → downline revenue-share config (§15).
 model CommissionConfig {
-  id                     String    @id @default(uuid())
-  organization_id        String?
-  sponsor_user_id        String?
-  revenue_share_percent  Float     @default(0)
-  effective_start        DateTime  @default(now()) @db.Timestamptz(6)
-  effective_end          DateTime? @db.Timestamptz(6)
-  created_at             DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime  @updatedAt @db.Timestamptz(6)
+  id                    String    @id @default(uuid())
+  organization_id       String?
+  sponsor_user_id       String?
+  revenue_share_percent Float     @default(0)
+  effective_start       DateTime  @default(now()) @db.Timestamptz(6)
+  effective_end         DateTime? @db.Timestamptz(6)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @updatedAt @db.Timestamptz(6)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -978,17 +978,17 @@ model CommissionConfig {
 // the application layer, not generated columns, so the "what-if" simulator (P2, §1.6) can recompute
 // without a migration.
 model OrgTreeEdge {
-  id                    String   @id @default(uuid())
-  sponsor_id            String
-  recruit_id            String
-  edge_type             String   // upline_sponsor | crossline | downline_rep
-  is_recruit_confirmed  Boolean  @default(false)
-  leg_depth             Int      @default(0)
-  is_leg                Boolean  @default(false)
-  has_own_recruit       Boolean  @default(false)
-  health_index          Json?    // { grow, engage, wealth }
-  created_at            DateTime @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  id                   String   @id @default(uuid())
+  sponsor_id           String
+  recruit_id           String
+  edge_type            String // upline_sponsor | crossline | downline_rep
+  is_recruit_confirmed Boolean  @default(false)
+  leg_depth            Int      @default(0)
+  is_leg               Boolean  @default(false)
+  has_own_recruit      Boolean  @default(false)
+  health_index         Json? // { grow, engage, wealth }
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime @updatedAt @db.Timestamptz(6)
 
   @@unique([sponsor_id, recruit_id])
   @@index([sponsor_id])
@@ -1017,7 +1017,7 @@ model MomentumEvent {
   user_id    String
   event_type String
   points     Int
-  law        String   // grow | engage | wealth | cross
+  law        String // grow | engage | wealth | cross
   source_ref String?
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
@@ -1045,11 +1045,11 @@ model Milestone {
 // constraint is the schema-level guarantee that there is exactly one authoritative row per
 // identifier+channel to check against.
 model OptOutRegistry {
-  id              String   @id @default(uuid())
-  identifier_hash String   // phone or email hash
+  id              String         @id @default(uuid())
+  identifier_hash String // phone or email hash
   channel         MessageChannel
-  reason          String   // stop_reply | manual | wrong_person | minor
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  reason          String // stop_reply | manual | wrong_person | minor
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
 
   @@unique([identifier_hash, channel])
   @@index([identifier_hash])
@@ -1072,20 +1072,20 @@ model OptOutRegistry {
 // matching this schema's established convention (see the file-level design notes above) of avoiding
 // a back-reference array on Contact for every new import-adjacent entity.
 model ImportBatch {
-  id                    String            @id @default(uuid())
-  user_id               String
-  source                String            // ContactSource value (CSV | IOS_NATIVE | ANDROID_NATIVE | GOOGLE_OAUTH)
-  idempotency_key       String
-  status                ImportBatchStatus @default(IN_PROGRESS)
-  total_rows            Int               @default(0)
-  cursor                Int               @default(0) // next unprocessed row index — the resume point
-  imported_count        Int               @default(0)
-  merged_count          Int               @default(0)
-  minor_flagged_count   Int               @default(0)
-  error_rows            Json?             // [{ index, reason }]
-  created_at            DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at            DateTime          @updatedAt @db.Timestamptz(6)
-  completed_at          DateTime?         @db.Timestamptz(6)
+  id                  String            @id @default(uuid())
+  user_id             String
+  source              String // ContactSource value (CSV | IOS_NATIVE | ANDROID_NATIVE | GOOGLE_OAUTH)
+  idempotency_key     String
+  status              ImportBatchStatus @default(IN_PROGRESS)
+  total_rows          Int               @default(0)
+  cursor              Int               @default(0) // next unprocessed row index — the resume point
+  imported_count      Int               @default(0)
+  merged_count        Int               @default(0)
+  minor_flagged_count Int               @default(0)
+  error_rows          Json? // [{ index, reason }]
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime          @updatedAt @db.Timestamptz(6)
+  completed_at        DateTime?         @db.Timestamptz(6)
 
   @@unique([user_id, idempotency_key])
   @@index([user_id])
@@ -1096,35 +1096,35 @@ model ImportBatch {
 // intimate data in the product; use_in_outreach_consent gates whether the prompt-assembly layer
 // (§4.3) may ever insert them into outbound content — default false, opt-in only.
 model WhySession {
-  id                        String   @id @default(uuid())
-  user_id                   String
-  transcript                Json     // encrypted
-  resonance_score           Int      @default(0) // 0–100
-  anchor_statement          String?  // encrypted
-  why_photo_ref             String?  // encrypted pointer
-  use_in_outreach_consent   Boolean  @default(false)
-  created_at                DateTime @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime @updatedAt @db.Timestamptz(6)
+  id                      String   @id @default(uuid())
+  user_id                 String
+  transcript              Json // encrypted
+  resonance_score         Int      @default(0) // 0–100
+  anchor_statement        String? // encrypted
+  why_photo_ref           String? // encrypted pointer
+  use_in_outreach_consent Boolean  @default(false)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
 }
 
 // The three-layer method state (§8): Blank Canvas → Qualities Flip → Background Matching.
 model WarmMarketExercise {
-  id                             String   @id @default(uuid())
-  user_id                        String
-  blank_canvas_names             Json?
-  qualities                      Json?
-  background_context             Json?   // per contact
-  highlights                     Json?
-  match_results                  Json?
-  readiness_scores               Json?
-  mode                           String   @default("UNIVERSAL") // universal | primerica
-  blank_canvas_completed         Boolean  @default(false)
-  qualities_completed            Boolean  @default(false)
-  background_matching_completed  Boolean  @default(false)
-  created_at                     DateTime @default(now()) @db.Timestamptz(6)
-  updated_at                     DateTime @updatedAt @db.Timestamptz(6)
+  id                            String   @id @default(uuid())
+  user_id                       String
+  blank_canvas_names            Json?
+  qualities                     Json?
+  background_context            Json? // per contact
+  highlights                    Json?
+  match_results                 Json?
+  readiness_scores              Json?
+  mode                          String   @default("UNIVERSAL") // universal | primerica
+  blank_canvas_completed        Boolean  @default(false)
+  qualities_completed           Boolean  @default(false)
+  background_matching_completed Boolean  @default(false)
+  created_at                    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
 }
@@ -1145,14 +1145,14 @@ model CourseProgress {
 // ═══════════════════════════════════════════════════════════════════════
 
 model TeamEvent {
-  id              String   @id @default(uuid())
+  id              String       @id @default(uuid())
   organization_id String
-  owner_id        String   // RVP
-  type            String   // opportunity_night | training | team_call | big_event
-  starts_at       DateTime @db.Timestamptz(6)
-  rsvp_enabled    Boolean  @default(true)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  owner_id        String // RVP
+  type            String // opportunity_night | training | team_call | big_event
+  starts_at       DateTime     @db.Timestamptz(6)
+  rsvp_enabled    Boolean      @default(true)
+  created_at      DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime     @updatedAt @db.Timestamptz(6)
   attendance      Attendance[]
 
   @@index([organization_id])
@@ -1164,7 +1164,7 @@ model Attendance {
   event_id   String
   event      TeamEvent @relation(fields: [event_id], references: [id])
   user_id    String
-  state      String    // rsvp_yes | rsvp_no | attended | missed
+  state      String // rsvp_yes | rsvp_no | attended | missed
   created_at DateTime  @default(now()) @db.Timestamptz(6)
   updated_at DateTime  @updatedAt @db.Timestamptz(6)
 
@@ -1176,14 +1176,14 @@ model Attendance {
 // ═══════════════════════════════════════════════════════════════════════
 
 model QuoteLibrary {
-  id           String   @id @default(uuid())
-  text         String
-  attribution  String?
-  org_scope    String   @default("ALL") // all | primerica
-  cfe_cleared  Boolean  @default(false)
-  tags         String[]
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
-  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+  id          String   @id @default(uuid())
+  text        String
+  attribution String?
+  org_scope   String   @default("ALL") // all | primerica
+  cfe_cleared Boolean  @default(false)
+  tags        String[]
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1192,13 +1192,13 @@ model QuoteLibrary {
 
 // Append-only; no update path is exposed by design (mirrors AuditEntry's immutability posture).
 model SecurityEvent {
-  id                        String   @id @default(uuid())
-  user_id                   String?  // nullable for platform-level events
-  type                      String   // login_success|login_failure|mfa_challenge|password_reset|session_revoked|rate_limited|suspected_takeover|breach_incident
-  ip_hash                   String?
-  device_fingerprint_hash   String?
-  severity                  String   @default("INFO") // INFO | WARNING | CRITICAL
-  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  id                      String   @id @default(uuid())
+  user_id                 String? // nullable for platform-level events
+  type                    String // login_success|login_failure|mfa_challenge|password_reset|session_revoked|rate_limited|suspected_takeover|breach_incident
+  ip_hash                 String?
+  device_fingerprint_hash String?
+  severity                String   @default("INFO") // INFO | WARNING | CRITICAL
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([user_id, created_at])
   @@index([type, created_at])
@@ -1248,7 +1248,7 @@ model LoginHistoryRecord {
   device_fingerprint_hash String
   ip_hash                 String
   at                      DateTime @db.Timestamptz(6)
-  outcome                 String   // success | failure
+  outcome                 String // success | failure
   created_at              DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([user_id, at])
@@ -1266,15 +1266,15 @@ model LoginHistoryRecord {
 // enforced in application code (src/services/compliance/licensing/licensing-state-machine.ts),
 // not by this column's type.
 model LicensingRecord {
-  id              String    @id @default(uuid())
-  user_id         String
-  jurisdiction    String    // two-letter US state postal code, e.g. "TX"
-  state           String    // UNLICENSED | PRE_LICENSING | LICENSED | LICENSE_EXPIRED (§16.5)
-  license_number  String?   // encrypted at rest at the application layer; IBA/POL identifier
-  issued_at       DateTime? @db.Timestamptz(6)
-  expires_at      DateTime? @db.Timestamptz(6)
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+  id             String    @id @default(uuid())
+  user_id        String
+  jurisdiction   String // two-letter US state postal code, e.g. "TX"
+  state          String // UNLICENSED | PRE_LICENSING | LICENSED | LICENSE_EXPIRED (§16.5)
+  license_number String? // encrypted at rest at the application layer; IBA/POL identifier
+  issued_at      DateTime? @db.Timestamptz(6)
+  expires_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @updatedAt @db.Timestamptz(6)
 
   @@unique([user_id, jurisdiction])
   @@index([user_id])
@@ -1290,10 +1290,10 @@ model LicensingStateEvent {
   id           String   @id @default(uuid())
   user_id      String
   jurisdiction String
-  from_state   String   // the state transitioned FROM (§16.5 vocabulary)
-  to_state     String   // the state transitioned TO
-  action       String   // START_PRE_LICENSING | OBTAIN_LICENSE | EXPIRE_LICENSE | RENEW_LICENSE
-  actor_id     String   // who performed the transition (rep self, admin, or a system job)
+  from_state   String // the state transitioned FROM (§16.5 vocabulary)
+  to_state     String // the state transitioned TO
+  action       String // START_PRE_LICENSING | OBTAIN_LICENSE | EXPIRE_LICENSE | RENEW_LICENSE
+  actor_id     String // who performed the transition (rep self, admin, or a system job)
   actor_role   String?
   reason       String?
   created_at   DateTime @default(now()) @db.Timestamptz(6)
@@ -1328,8 +1328,8 @@ model IncidentEvent {
   /// Monotonic per-incident append order (1 = the DECLARED row). Assigned by IncidentService,
   /// never by the caller — mirrors AuditEntry.sequence's role in the T-10 store.
   sequence    Int
-  kind        String   // DECLARED | TRIAGED | CONTAINED | NOTIFIED | RESOLVED
-  actor_id    String?  // null on a system-declared (SecurityEvent-correlation) DECLARED row
+  kind        String // DECLARED | TRIAGED | CONTAINED | NOTIFIED | RESOLVED
+  actor_id    String? // null on a system-declared (SecurityEvent-correlation) DECLARED row
   actor_role  Role?
   payload     Json
   occurred_at DateTime @default(now()) @db.Timestamptz(6)
@@ -1379,17 +1379,17 @@ enum ReadinessTier {
 /// overlay context (rank, solution number) is read live from `User` at render time by
 /// `primerica-overlay.ts`, never duplicated here.
 model HarvestMethodState {
-  id                               String    @id @default(uuid())
-  user_id                          String    @unique
-  vault_count_at_blank_canvas      Int?      // count shown at Layer-1 entry (number only, no names, §8.1)
-  blank_canvas_completed_at        DateTime? @db.Timestamptz(6)
-  blank_canvas_seed_count          Int?      // size of the curated seed list produced
-  blank_canvas_soft_gate_confirmed Boolean   @default(false) // rep confirmed "stop at N<5" (§8.1 soft gate)
+  id                               String           @id @default(uuid())
+  user_id                          String           @unique
+  vault_count_at_blank_canvas      Int? // count shown at Layer-1 entry (number only, no names, §8.1)
+  blank_canvas_completed_at        DateTime?        @db.Timestamptz(6)
+  blank_canvas_seed_count          Int? // size of the curated seed list produced
+  blank_canvas_soft_gate_confirmed Boolean          @default(false) // rep confirmed "stop at N<5" (§8.1 soft gate)
   qualities_flip_selected_clusters QualityCluster[] @default([]) // the 2-3 clusters the rep picked as resonant (empty = not yet chosen)
-  qualities_flip_completed_at      DateTime? @db.Timestamptz(6)
-  background_matching_completed_at DateTime? @db.Timestamptz(6)
-  created_at                      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at                      DateTime  @updatedAt @db.Timestamptz(6)
+  qualities_flip_completed_at      DateTime?        @db.Timestamptz(6)
+  background_matching_completed_at DateTime?        @db.Timestamptz(6)
+  created_at                       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at                       DateTime         @updatedAt @db.Timestamptz(6)
 
   @@index([user_id])
 }
@@ -1401,24 +1401,24 @@ model HarvestMethodState {
 /// serializes this column directly; every rep-facing payload is built from `readiness_tier` only,
 /// via readiness-engine.ts's public projector, which asserts the raw score is absent before return.
 model ContactMethodProfile {
-  id                         String         @id @default(uuid())
+  id                         String           @id @default(uuid())
   user_id                    String
   contact_id                 String
-  is_seed                    Boolean        @default(false) // in the Layer-1 Blank Canvas seed list
-  needs_time                 Boolean        @default(false) // Layer 2 "need more time" -> slow-burn queue
+  is_seed                    Boolean          @default(false) // in the Layer-1 Blank Canvas seed list
+  needs_time                 Boolean          @default(false) // Layer 2 "need more time" -> slow-burn queue
   clusters                   QualityCluster[] @default([]) // assigned in Layer 2 (>=1 once reviewed; empty = not yet reviewed / needs_time)
-  career_stage               String?        // Layer 3 tile: transitioning | early | established | near_retirement
-  financial_situation        String?        // Layer 3 tile: building | stuck | just_starting | wealth_building
-  family_context             String?        // Layer 3 tile (chip value)
-  community_role             String?        // Layer 3 tile (chip value)
-  note                       String?        // Layer 3 optional note (<=500 chars pre-encryption), ciphertext envelope at rest
-  existing_licensee_flag     Boolean        @default(false) // §8.1 Layer 3 "flags immediate unsuitability e.g. an existing licensee" (soft exclusion, requires ack)
-  existing_licensee_acked_at DateTime?      @db.Timestamptz(6)
-  readiness_score            Int?           // 0-100, HIDDEN — see model header; never serialized raw (§8.2)
+  career_stage               String? // Layer 3 tile: transitioning | early | established | near_retirement
+  financial_situation        String? // Layer 3 tile: building | stuck | just_starting | wealth_building
+  family_context             String? // Layer 3 tile (chip value)
+  community_role             String? // Layer 3 tile (chip value)
+  note                       String? // Layer 3 optional note (<=500 chars pre-encryption), ciphertext envelope at rest
+  existing_licensee_flag     Boolean          @default(false) // §8.1 Layer 3 "flags immediate unsuitability e.g. an existing licensee" (soft exclusion, requires ack)
+  existing_licensee_acked_at DateTime?        @db.Timestamptz(6)
+  readiness_score            Int? // 0-100, HIDDEN — see model header; never serialized raw (§8.2)
   readiness_tier             ReadinessTier? // the ONLY readiness datum ever exposed to a rep-facing payload
-  queue_actioned_at          DateTime?      @db.Timestamptz(6)
-  created_at                 DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at                 DateTime       @updatedAt @db.Timestamptz(6)
+  queue_actioned_at          DateTime?        @db.Timestamptz(6)
+  created_at                 DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime         @updatedAt @db.Timestamptz(6)
 
   @@unique([user_id, contact_id])
   @@index([user_id])
@@ -1478,20 +1478,20 @@ model ShiftSession {
   session_date        String // rep-local YYYY-MM-DD; one shift session per rep per day
   mode                String    @default("STANDARD") // STANDARD | SHORT (uiux §5.3 short mode, cap 3)
   phase               String    @default("OPEN") // OPEN | WORK | CLOSE | DONE
-  stack_position       Int      @default(0)
-  skip_counts          Json     @default("{}")
-  accumulated_seconds  Int      @default(0) // frozen elapsed seconds from prior WORK spans (interrupted-resume)
-  last_resumed_at      DateTime? @db.Timestamptz(6) // set when phase enters WORK; null while not actively running
-  streak_count         Int      @default(0) // the rep's streak as of this session's close (§5.3, §12.5)
-  grace_day_used       Boolean  @default(false)
-  reflection_text      String?
+  stack_position      Int       @default(0)
+  skip_counts         Json      @default("{}")
+  accumulated_seconds Int       @default(0) // frozen elapsed seconds from prior WORK spans (interrupted-resume)
+  last_resumed_at     DateTime? @db.Timestamptz(6) // set when phase enters WORK; null while not actively running
+  streak_count        Int       @default(0) // the rep's streak as of this session's close (§5.3, §12.5)
+  grace_day_used      Boolean   @default(false)
+  reflection_text     String?
   // §5.3 Close: "recap (approvals, confirmations, logs)".
-  recap_approvals      Int      @default(0)
-  recap_confirmations  Int      @default(0)
-  recap_logs           Int      @default(0)
-  completed_at         DateTime? @db.Timestamptz(6)
-  created_at           DateTime @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime @updatedAt @db.Timestamptz(6)
+  recap_approvals     Int       @default(0)
+  recap_confirmations Int       @default(0)
+  recap_logs          Int       @default(0)
+  completed_at        DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @updatedAt @db.Timestamptz(6)
 
   @@unique([user_id, session_date])
   @@index([user_id])
@@ -1589,15 +1589,15 @@ model A2PCampaignRegistration {
 // see src/services/deliverability/gate.ts's isChannelDeliverable, the single fail-closed seam that
 // computes this, never re-derived ad hoc at a call site.
 model PlatformPhoneNumber {
-  id                        String               @id @default(uuid())
-  organization_id           String
-  phone_number              String // E.164
-  twilio_phone_number_sid   String?
-  campaign_registration_id  String?
-  status                    PlatformNumberStatus @default(UNPROVISIONED)
-  released_at               DateTime?            @db.Timestamptz(6)
-  created_at                DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at                DateTime             @updatedAt @db.Timestamptz(6)
+  id                       String               @id @default(uuid())
+  organization_id          String
+  phone_number             String // E.164
+  twilio_phone_number_sid  String?
+  campaign_registration_id String?
+  status                   PlatformNumberStatus @default(UNPROVISIONED)
+  released_at              DateTime?            @db.Timestamptz(6)
+  created_at               DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime             @updatedAt @db.Timestamptz(6)
 
   @@unique([phone_number])
   @@index([organization_id])
@@ -1606,15 +1606,15 @@ model PlatformPhoneNumber {
 
 // SPF/DKIM/DMARC status for one (org, sending domain) pair (§10.3 "email domain authentication").
 model EmailDomainAuthentication {
-  id              String                 @id @default(uuid())
+  id              String                @id @default(uuid())
   organization_id String
   sending_domain  String
-  spf_status      EmailAuthRecordStatus  @default(NOT_CONFIGURED)
-  dkim_status     EmailAuthRecordStatus  @default(NOT_CONFIGURED)
-  dmarc_status    EmailAuthRecordStatus  @default(NOT_CONFIGURED)
-  last_checked_at DateTime?              @db.Timestamptz(6)
-  created_at      DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime               @updatedAt @db.Timestamptz(6)
+  spf_status      EmailAuthRecordStatus @default(NOT_CONFIGURED)
+  dkim_status     EmailAuthRecordStatus @default(NOT_CONFIGURED)
+  dmarc_status    EmailAuthRecordStatus @default(NOT_CONFIGURED)
+  last_checked_at DateTime?             @db.Timestamptz(6)
+  created_at      DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime              @updatedAt @db.Timestamptz(6)
 
   @@unique([organization_id, sending_domain])
   @@index([organization_id])
@@ -1641,4 +1641,215 @@ model EmailWarmupPlan {
 
   @@unique([organization_id, sending_domain])
   @@index([organization_id])
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// T-41 (WP06 §11 "Social, Content & Launch Kit") — additive only. No existing model/column/enum
+// above this point is modified. New enums + models for the Unified Content Queue, the launch-kit
+// batch, the 20+ template library, and the 48h post-publish follow-up task.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// §11.1: exactly the three named platforms — Instagram (visual/carousel), Facebook (long-form +
+/// group-share), LinkedIn (professional thought-leadership). No other platform is in scope for v1.
+enum SocialPlatform {
+  INSTAGRAM
+  FACEBOOK
+  LINKEDIN
+}
+
+/// The three content forms the Unified Content Queue carries (§11.1/§11.3/§11.5). Launch-kit pieces
+/// also land in ContentItem (via launch_kit_id) tagged with the content type their own piece takes
+/// (SOCIAL_POST for the announcement, EMAIL for day-3/day-7, SOCIAL_POST-channel-agnostic "welcome"
+/// modeled as SOCIAL_POST with platform null — see LaunchKitPieceType).
+enum ContentType {
+  SOCIAL_POST
+  BLOG
+  EMAIL
+}
+
+/// §11.1 "Five doctrine-aligned categories". Launch-kit pieces use LaunchKitPieceType instead (a
+/// launch kit is its own doctrine-controlled shape, §11.4), so `category` is nullable on ContentItem
+/// and only ever set for weekly-batch content.
+enum ContentCategory {
+  COMMUNITY_SPOTLIGHT
+  VALUE_FIRST_EDUCATION
+  MOVEMENT_FRAMING
+  BEHIND_THE_HARVEST
+  EVENT_INTRODUCTION_ANNOUNCEMENT
+}
+
+/// §11.5 — the Unified Content Queue's six states, exactly as named in the spec. `BLOCKED` is
+/// terminal-until-regenerated (a CFE block or an unresolved doctrine-vocabulary violation); nothing
+/// in this queue ever reaches SCHEDULED/PUBLISHED without passing through COMPLIANCE_CHECK clean.
+enum ContentQueueState {
+  DRAFTING
+  COMPLIANCE_CHECK
+  READY_FOR_REVIEW
+  SCHEDULED
+  PUBLISHED
+  BLOCKED
+}
+
+/// §11.6 — the three personalization tiers a template/content item can be filled from.
+enum PersonalizationTier {
+  AUTOMATIC
+  AI_INFERRED
+  REP_PROVIDED
+}
+
+/// §11.4 — the four launch-kit components, generated as one coherent batch.
+enum LaunchKitPieceType {
+  WELCOME
+  ANNOUNCEMENT
+  DAY3_VALUE_EMAIL
+  DAY7_EVENT_INVITE
+}
+
+/// §11.4 — the three welcome-message variants ("3 variants: personal referral, event-attendee,
+/// base-member-introduced").
+enum WelcomeVariant {
+  PERSONAL_REFERRAL
+  EVENT_ATTENDEE
+  BASE_MEMBER_INTRODUCED
+}
+
+/// §11.4 — "Versions: V1 standard, V2 testimonial-anchored, V3 event-centric."
+enum LaunchKitVersion {
+  V1_STANDARD
+  V2_TESTIMONIAL_ANCHORED
+  V3_EVENT_CENTRIC
+}
+
+/// §11.4 — the whole-kit state machine. HELD_FOR_REVIEW is the whole-kit hold ("If a kit component
+/// triggers a compliance block, the whole kit holds for human review"); WITHDRAWN_TO_DRAFTS is the
+/// "if the new member withdraws, materials move to drafts" edge case.
+enum LaunchKitState {
+  DRAFTING
+  HELD_FOR_REVIEW
+  READY_FOR_REVIEW
+  APPROVED
+  WITHDRAWN_TO_DRAFTS
+}
+
+// The weekly content brief (§11.1 "drafts generated ... from a weekly content brief"; §11.3 "the
+// agent produces a weekly content crosswalk"). `context` is a plain-language summary snapshot (new
+// contacts, Mission Control priorities, upcoming events) — never raw contact PII; see
+// content-brief.service.ts for what is (and, deliberately, is not) written into it.
+model ContentBrief {
+  id         String   @id @default(uuid())
+  user_id    String
+  week_start DateTime @db.Timestamptz(6)
+  context    Json
+  crosswalk  String? // the weekly content crosswalk narrative (§11.3), set once the batch completes
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, week_start])
+}
+
+// §11.6 — the 20+ doctrine-verified template library. The in-code catalog
+// (src/services/social-content/templates.ts) is the source of truth (same "in-code map mirrored to a
+// DB row" convention as AgentDefinition/NINE_AGENTS); this table is what the Template Library page
+// and personalization-tier lookups read, and what a doctrine/compliance update revises (version++).
+model ContentTemplate {
+  id                    String              @id @default(uuid())
+  key                   String              @unique
+  name                  String
+  content_type          ContentType
+  category              ContentCategory?
+  launch_kit_piece_type LaunchKitPieceType?
+  copy_skeleton         String
+  image_concept_prompt  String?
+  platform_variants     Json?
+  tone_guidance         String
+  doctrine_verified     Boolean             @default(true)
+  version               Int                 @default(1)
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime            @updatedAt @db.Timestamptz(6)
+}
+
+// §11.4 — one launch-kit batch (the whole-kit hold/withdraw unit). `photo_url` is the rep's REAL
+// onboarding photo (User.image) — never a stock asset; null renders the same initials-avatar
+// fallback the onboarding identity step already uses when no photo was chosen (see
+// launch-kit.service.ts).
+model LaunchKit {
+  id                    String           @id @default(uuid())
+  user_id               String
+  new_member_contact_id String?
+  new_member_first_name String
+  welcome_variant       WelcomeVariant   @default(PERSONAL_REFERRAL)
+  version               LaunchKitVersion @default(V1_STANDARD)
+  state                 LaunchKitState   @default(DRAFTING)
+  photo_url             String?
+  triggered_at          DateTime         @db.Timestamptz(6)
+  generated_at          DateTime?        @db.Timestamptz(6)
+  held_reason           String?
+  withdrawn_at          DateTime?        @db.Timestamptz(6)
+  created_at            DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime         @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id])
+  @@index([new_member_contact_id])
+}
+
+// §11.5 — the Unified Content Queue row. Carries every content form (weekly-batch social/blog/email
+// AND launch-kit pieces via launch_kit_id) through the same six states, the same CFE fields
+// (mirroring DraftMessage's cfe_outcome/cfe_risk_score/cfe_classifier_data convention), and the same
+// inline-edit audit trail shape (edit_history) uiux §5.6 requires for the Approval Inbox — reused
+// here for the Content Queue's own bulk-approve + inline-edit trail (§11.8-4).
+model ContentItem {
+  id                    String              @id @default(uuid())
+  user_id               String
+  content_type          ContentType
+  category              ContentCategory?
+  platform              SocialPlatform?
+  launch_kit_id         String?
+  launch_kit_piece_type LaunchKitPieceType?
+  brief_id              String?
+  template_id           String?
+  personalization_tier  PersonalizationTier @default(AUTOMATIC)
+  headline              String?
+  body                  String
+  image_concept_prompt  String?
+  cta                   String?
+  state                 ContentQueueState   @default(DRAFTING)
+  cfe_outcome           CFEOutcome?
+  cfe_risk_score        Int?
+  cfe_classifier_data   Json?
+  vocab_clean           Boolean             @default(false)
+  vocab_violations      Json?
+  doctrine_notes        Json?
+  scheduled_for         DateTime?           @db.Timestamptz(6)
+  published_at          DateTime?           @db.Timestamptz(6)
+  publish_attempts      Int                 @default(0)
+  publish_hold_reason   String?
+  approved_by           String?
+  approved_at           DateTime?           @db.Timestamptz(6)
+  edited_after_approval Boolean             @default(false)
+  edit_history          Json?
+  decline_reason        String?
+  model_used            String? // sonnet_5 (§4.4) — traceability, mirrors AgentRun.model_used
+  created_at            DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime            @updatedAt @db.Timestamptz(6)
+
+  @@index([user_id, state])
+  @@index([user_id, content_type])
+  @@index([launch_kit_id])
+  @@index([scheduled_for])
+}
+
+// §11.5/§11.8-5 — "Every scheduled post gets a companion engagement-follow-up task in Mission
+// Control for the next 48 h (no post-and-forget)." Created the moment a ContentItem is marked
+// PUBLISHED (publishing.service.ts); surfaced on the Content Queue's own "Follow-ups" view (see
+// src/app/content/page.tsx) — this build unit does not modify the WP04 Mission Control zone code.
+model EngagementFollowUpTask {
+  id              String    @id @default(uuid())
+  user_id         String
+  content_item_id String
+  due_at          DateTime  @db.Timestamptz(6)
+  completed       Boolean   @default(false)
+  completed_at    DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id, completed])
+  @@index([content_item_id])
 }

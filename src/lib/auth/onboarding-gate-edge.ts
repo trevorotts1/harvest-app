@@ -34,6 +34,9 @@ export const GATED_DOWNSTREAM_PAGE_PREFIXES: readonly string[] = [
   '/me',
   '/team',
   '/ritual',
+  // T-41 (WP06 §11.5 Unified Content Queue + §11.4 Launch Kit review) — the same hard onboarding
+  // gate every other downstream surface gets. Kept in sync with src/middleware.ts's matcher.
+  '/content',
 ];
 
 export function isGatedDownstreamPage(pathname: string): boolean {
