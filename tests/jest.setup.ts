@@ -30,3 +30,13 @@ process.env.WHY_SESSION_ENCRYPTION_KEY =
 // grants no access to anything.
 process.env.CONTACT_ENCRYPTION_KEY =
   process.env.CONTACT_ENCRYPTION_KEY || 'G/eANyAndECpZB2O/RauSFnr4XupUIZjlzIAeNJjg+Q=';
+
+// Test-only AES-256 key (T-20, §3.2/§16.3 "solution number encrypted at rest") — a fixed, committed,
+// non-production literal so the suite has a deterministic 32-byte base64 key to encrypt/decrypt a
+// declared Primerica solution number against. getSolutionNumberEncryptionKey()
+// (src/services/onboarding/wp01/solution-number.ts) fails closed (throws) if
+// SOLUTION_NUMBER_ENCRYPTION_KEY is unset — needed by T-R9's DSAR-export decrypt path
+// (src/services/compliance/data-rights/data-rights.ts) in addition to the register route. Generated
+// the same way as the keys above — not a real secret, grants no access to anything.
+process.env.SOLUTION_NUMBER_ENCRYPTION_KEY =
+  process.env.SOLUTION_NUMBER_ENCRYPTION_KEY || 'yiEB0yjInIIcLS+qzNWbx01yi0WSt0h1YVWtIIsbzDQ=';

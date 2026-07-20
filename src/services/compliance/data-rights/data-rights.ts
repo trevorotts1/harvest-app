@@ -14,6 +14,18 @@ import {
   decryptRequiredField,
   getContactEncryptionKey,
 } from '../../warm-market/vault/vault-encryption';
+// T-R9 (§16.3, §3.2): `User.solution_number`/`User.anchor_statement` are AES-256-GCM ciphertext
+// envelopes at rest (the same `{ciphertext, iv, authTag, algorithm}` wire shape as Contact PII
+// above), written by two OTHER build units — the register route
+// (`encryptSolutionNumberForStorage`, keyed by `SOLUTION_NUMBER_ENCRYPTION_KEY`) and the Seven
+// Whys anchor-statement encrypt path (keyed by `WHY_SESSION_ENCRYPTION_KEY` — §16.3 "anchor
+// statements get the same encryption class as contact PII"). `processExport` decrypts both for
+// the same reason it decrypts Contact PII: raw ciphertext is unintelligible to the data subject
+// receiving their own export. Only each unit's NAME-only key accessor is imported here — no
+// dependency on either unit's business logic (format-check, TOTP, Seven Whys engine, etc.).
+import { decrypt } from '../encryption/encryption';
+import { getSolutionNumberEncryptionKey } from '../../onboarding/wp01/solution-number';
+import { getWhySessionEncryptionKey } from '../../onboarding/wp01/seven-whys/persistence';
 
 /**
  * Data Rights service for T-11 (master-spec §16.3).
@@ -296,6 +308,103 @@ function decryptContactForExport(contact: ContactRow, key: string): ContactRow {
     email: decryptExportOptionalField(contact.email, key),
     notes: decryptExportOptionalField(contact.notes, key),
   };
+}
+
+// ── T-R9 (§16.3 "the export must contain the data subject's actual data" + §16.4/§0.4 "no secret
+// ever leaves via a self-service channel") ─────────────────────────────────────────────────────
+// `processExport` used to serialize the raw `User` row returned by `prisma.user.findUnique` with
+// NO field selection at all — every column, exactly as stored, went straight into the DSAR
+// payload. Two defects, both closed by the two pieces below:
+//   1. `solution_number`/`anchor_statement` are AES-256-GCM ciphertext envelopes at rest (§3.2) —
+//      unintelligible to the data subject receiving their own export. `decryptExportEnvelopeField`
+//      decrypts each independently, mirroring `decryptContactForExport`'s per-field,
+//      independently-degrading pattern above (a corrupt field never crashes the export and never
+//      leaks the raw ciphertext string).
+//   2. `password_hash` (bcrypt) and `mfa_methods` (the encrypted TOTP secret + bcrypt
+//      recovery-code hashes — src/lib/auth/mfa.ts `MfaMethodRecord`) are SECRET/credential
+//      material that must never leave the server via a self-service export, encrypted or not —
+//      this is a security hole, not merely a readability defect, so it is not "decrypted for
+//      export" like #1, it is EXCLUDED outright. `mfa_enrolled` (a bare boolean enrollment flag,
+//      no secret payload) is fine to export and stays in.
+
+/**
+ * Explicit ALLOWLIST of `User` columns safe to include in a DSAR export — deny-by-default, not a
+ * denylist of the two known-bad fields above. The reason: a denylist protects only against fields
+ * that exist and are known-bad TODAY; the moment a future unit adds a new `User` column to
+ * `prisma/schema.prisma` (another secret, another third-party-linked id, anything), a denylist
+ * silently starts exporting it the instant `processExport` reads the row, because that's exactly
+ * the failure mode that caused this defect in the first place (forwarding the whole row
+ * unexamined). An allowlist instead requires someone to deliberately add the new field HERE,
+ * having thought about whether it belongs in a legal disclosure, before it ever reaches an export.
+ *
+ * Deliberately NOT on this allowlist:
+ *   - `password_hash`  — bcrypt hash of the account credential (T-R9; the security hole closed).
+ *   - `mfa_methods`     — encrypted TOTP secret + bcrypt recovery-code hashes (see header note).
+ *   - `emailVerified` / `image` — Auth.js Prisma-adapter contract fields (T-04) that are always
+ *     null under this app's live Credentials-provider + JWT-session flow (no OAuth provider is
+ *     wired up); left off rather than exporting dead scaffold columns.
+ * `solution_number`/`anchor_statement` ARE on this list but are overwritten below with their
+ * DECRYPTED value — the raw (ciphertext) column value is never what ends up in the export.
+ */
+const USER_EXPORT_ALLOWED_FIELDS = [
+  'id',
+  'email',
+  'name',
+  'phone',
+  'role',
+  'org_type',
+  'solution_number',
+  'upline_id',
+  'access_tier',
+  'intensity_setting',
+  'commitment_score',
+  'rank',
+  'anchor_statement',
+  'finra_u4_status',
+  'calendar_preferences',
+  'calendar_connected',
+  'gdpr_consent',
+  'onboarding_status',
+  'mfa_enrolled', // boolean enrollment STATE only — contrast `mfa_methods` (secret payload, excluded)
+  'organization_id',
+  'created_at',
+  'updated_at',
+] as const;
+
+/**
+ * Decrypts a `{ciphertext, iv, authTag, algorithm}` envelope (JSON-serialized into a String
+ * column — the same wire shape Contact PII uses, see `decryptContactForExport` above) for a DSAR
+ * export. Degrades to `DSAR_FIELD_DECRYPTION_UNAVAILABLE` on ANY failure (null/malformed JSON,
+ * wrong/rotated key, tampered ciphertext/authTag) — never throws, never returns the raw ciphertext
+ * string as if it were the subject's data.
+ */
+function decryptExportEnvelopeField(stored: string | null | undefined, key: string): string | null {
+  if (stored === null || stored === undefined) return null;
+  try {
+    const envelope = JSON.parse(stored) as { ciphertext: string; iv: string; authTag: string };
+    return decrypt(envelope, key);
+  } catch {
+    return DSAR_FIELD_DECRYPTION_UNAVAILABLE;
+  }
+}
+
+/**
+ * Builds the DSAR-export-safe view of a `User` row: the explicit allowlist above, with
+ * `solution_number`/`anchor_statement` decrypted to plaintext. `password_hash`/`mfa_methods` (and
+ * any other column not on the allowlist) are excluded BY CONSTRUCTION — this function never reads
+ * them off `user` at all, so there is no field to accidentally leave populated.
+ */
+function buildUserExportRecord(
+  user: UserRow,
+  keys: { solutionNumberKey: string; anchorStatementKey: string }
+): Record<string, unknown> {
+  const exported: Record<string, unknown> = {};
+  for (const field of USER_EXPORT_ALLOWED_FIELDS) {
+    exported[field] = user[field];
+  }
+  exported.solution_number = decryptExportEnvelopeField(user.solution_number, keys.solutionNumberKey);
+  exported.anchor_statement = decryptExportEnvelopeField(user.anchor_statement, keys.anchorStatementKey);
+  return exported;
 }
 
 function isoOf(value: Date | string): string {
@@ -804,8 +913,15 @@ export class DataRightsService {
     const decryptedContacts = contacts.map((contact) =>
       decryptContactForExport(contact, contactEncryptionKey)
     );
+    // T-R9 (§16.3/§16.4): never serialize the raw `User` row — decrypt solution_number/
+    // anchor_statement and exclude password_hash/mfa_methods via the explicit allowlist above.
+    // Keys are fetched here (in-handler, not module scope) so this stays key-less at import time.
+    const exportUser = buildUserExportRecord(user, {
+      solutionNumberKey: getSolutionNumberEncryptionKey(),
+      anchorStatementKey: getWhySessionEncryptionKey(),
+    });
 
-    const exportObject = { user, contacts: decryptedContacts };
+    const exportObject = { user: exportUser, contacts: decryptedContacts };
     const payload =
       format === 'json' ? JSON.stringify(exportObject, null, 2) : toCsv(exportObject);
 

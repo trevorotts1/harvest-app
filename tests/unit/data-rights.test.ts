@@ -12,6 +12,12 @@ import {
   encryptOptionalField,
   encryptRequiredField,
 } from '../../src/services/warm-market/vault/vault-encryption';
+// T-R9 (§16.3/§16.4): the User-object export tests below store `solution_number`/`anchor_statement`
+// the same way the register route and the Seven Whys write path actually persist them — real
+// AES-256-GCM ciphertext envelopes — via the SAME helpers those write paths use, so
+// `processExport`'s User-PII decrypt/exclude behavior is exercised for real, not assumed.
+import { encryptSolutionNumberForStorage } from '../../src/services/onboarding/wp01/solution-number';
+import { encrypt } from '../../src/services/compliance/encryption/encryption';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mock Prisma delegate (T-11 uses the same constructor-injection pattern as
@@ -384,6 +390,23 @@ const ENCRYPTED_BASE_CONTACTS: Row[] = BASE_CONTACTS.map((c) => ({
   email: encryptOptionalField(c.email as string | null | undefined),
   notes: encryptOptionalField(c.notes as string | null | undefined),
 }));
+
+// T-R9 (§16.3): mirrors ENCRYPTED_BASE_CONTACTS above — a SEPARATE, at-rest-shaped fixture for the
+// export lane only. BASE_USER (plaintext solution_number/anchor_statement) stays byte-untouched and
+// keeps backing every deletion test above/below; only this fixture needs real ciphertext.
+// `encryptSolutionNumberForStorage` is the exact function the register route's write path calls;
+// `anchor_statement` is encrypted with the identical envelope shape WhySession.anchor_statement uses
+// (same `encrypt()` primitive, keyed by WHY_SESSION_ENCRYPTION_KEY — §16.3 "anchor statements get
+// the same encryption class as contact PII").
+const RAW_USER_SOLUTION_NUMBER = '4821037';
+const RAW_USER_ANCHOR_STATEMENT = 'My family is why I show up before sunrise.';
+const ENCRYPTED_BASE_USER: Row = {
+  ...BASE_USER,
+  solution_number: encryptSolutionNumberForStorage(RAW_USER_SOLUTION_NUMBER),
+  anchor_statement: JSON.stringify(
+    encrypt(RAW_USER_ANCHOR_STATEMENT, process.env.WHY_SESSION_ENCRYPTION_KEY as string)
+  ),
+};
 
 const PENDING_DELETION: Row = {
   id: 'del-1',
@@ -1402,12 +1425,19 @@ describe('T-11 Data Rights — export', () => {
   // anything to do there regardless of what a contact's individual fields contain. A top-level
   // User field is where an attacker-controlled leading character actually reaches its own cell.
   test('CSV export guards against formula injection: a value starting with =, +, -, or @ is emitted with a leading single quote', async () => {
+    // T-R9: `anchor_statement` is now decrypted before serializing (see the export describe block
+    // below), so the malicious payload here must be a REAL encrypted envelope whose DECRYPTED
+    // plaintext is the formula-injection string — proving the CSV guard still applies to the
+    // decrypted value, not merely to whatever was stored at rest.
+    const maliciousAnchorStatement = '@example.com is not an email — it is a formula-injection payload';
     const maliciousUser: Row = {
       ...BASE_USER,
       name: '=1+1', // classic leading-'=' formula-injection payload as a display name
       phone: '+15555550100', // a REAL, everyday example: intl. phone numbers legitimately start with '+'
       rank: '-1+cmd|calc',
-      anchor_statement: '@example.com is not an email — it is a formula-injection payload',
+      anchor_statement: JSON.stringify(
+        encrypt(maliciousAnchorStatement, process.env.WHY_SESSION_ENCRYPTION_KEY as string)
+      ),
     };
     const prisma = makeMockPrisma({
       user: maliciousUser,
@@ -1438,6 +1468,131 @@ describe('T-11 Data Rights — export', () => {
 
     // A value that does NOT start with a formula-trigger character is NOT prefixed.
     expect(valueFor('user.email')).toBe('real.rep@example.com');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// T-R9 (§16.3, §16.4): `processExport` previously serialized the raw `User` row with NO field
+// selection — every column, exactly as stored. Two defects, proved closed below:
+//   (a) solution_number/anchor_statement ciphertext -> readable plaintext (real encrypt->export
+//       round trip; fails if the decrypt step is removed).
+//   (b) password_hash + MFA secret material excluded from the export entirely (fails if the
+//       exclusion is removed — mutation test: adding password_hash back to the allowlist breaks it).
+//   (c) a corrupt/undecryptable User field degrades to a safe placeholder — no crash, no leak.
+// (d) — deletion/legal-hold/carve-out regression — is covered by the untouched describe blocks
+// elsewhere in this file (BASE_USER/BASE_CONTACTS, not ENCRYPTED_BASE_USER, still back every one).
+// ─────────────────────────────────────────────────────────────────────────
+describe('T-R9 Data Rights — DSAR export decrypts User PII and excludes secret material (§16.3/§16.4)', () => {
+  // (a) THE PROOF: solution_number/anchor_statement come back as the data subject's actual
+  // readable values, not the ciphertext envelope. Sanity-checks the fixture first so this is a
+  // genuine decrypt, not an accidental echo of already-plaintext input — this assertion is only
+  // true if `processExport` actually decrypts; against the pre-fix code (which serialized `user`
+  // raw) `parsed.user.solution_number`/`anchor_statement` would be the JSON-stringified
+  // `{ciphertext, iv, authTag, algorithm}` envelope, not the plaintext values asserted below.
+  test('(a) processExport decrypts User solution_number/anchor_statement into readable data (round-trips encrypt -> export -> decrypt)', async () => {
+    expect(String(ENCRYPTED_BASE_USER.solution_number)).not.toContain(RAW_USER_SOLUTION_NUMBER);
+    expect(String(ENCRYPTED_BASE_USER.anchor_statement)).not.toContain(RAW_USER_ANCHOR_STATEMENT);
+
+    const prisma = makeMockPrisma({
+      user: ENCRYPTED_BASE_USER,
+      contacts: ENCRYPTED_BASE_CONTACTS,
+      export: { id: 'exp-r9-a', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
+    });
+    const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
+    const service = new DataRightsService(prisma, legalHold);
+
+    const { payload } = await service.processExport('exp-r9-a', 'json');
+    const parsed = JSON.parse(payload);
+
+    expect(parsed.user.solution_number).toBe(RAW_USER_SOLUTION_NUMBER);
+    expect(parsed.user.anchor_statement).toBe(RAW_USER_ANCHOR_STATEMENT);
+    // Never the raw ciphertext string, under any key name the envelope might have been nested at.
+    expect(payload).not.toContain((JSON.parse(ENCRYPTED_BASE_USER.solution_number as string) as any).ciphertext);
+    expect(payload).not.toContain((JSON.parse(ENCRYPTED_BASE_USER.anchor_statement as string) as any).ciphertext);
+  });
+
+  // (b) THE PROOF: password_hash and ALL MFA secret material are absent from the export, while
+  // mfa_enrolled (a bare boolean, no secret payload) is present. This test FAILS if the exclusion
+  // is removed: uncomment `password_hash: user.password_hash` (or spread the raw row) in
+  // `buildUserExportRecord` (data-rights.ts) and `parsed.user.password_hash` stops being
+  // `undefined` / the bcrypt hash literal starts appearing in the payload string.
+  test('(b) processExport excludes password_hash and MFA secret material (TOTP secret + recovery-code hashes) from the export', async () => {
+    const REAL_BCRYPT_HASH = '$2b$12$reAlBcryptHashOfTheirRealPasswordAbCdEfGhIjKlMnOpQrSt';
+    // Realistic MfaMethodRecord[] shape (src/lib/auth/mfa.ts) — an encrypted TOTP secret envelope
+    // AND bcrypt recovery-code hashes, exactly what a real enrolled User.mfa_methods row holds.
+    const totpSecretEnvelope = encrypt('JBSWY3DPEHPK3PXP', process.env.MFA_ENCRYPTION_KEY as string);
+    const RECOVERY_CODE_HASH = '$2b$10$rEcOvEryCoDeHaShLiTeRaLfOrTeStOnLyXxXxXxXxXxXxXxXxXx';
+    const userWithMfa: Row = {
+      ...ENCRYPTED_BASE_USER,
+      password_hash: REAL_BCRYPT_HASH,
+      mfa_enrolled: true,
+      mfa_methods: [
+        { type: 'totp', enrolledAt: '2026-01-01T00:00:00.000Z', secret: totpSecretEnvelope },
+        { type: 'recovery_codes', generatedAt: '2026-01-01T00:00:00.000Z', codeHashes: [RECOVERY_CODE_HASH] },
+      ],
+    };
+
+    const prisma = makeMockPrisma({
+      user: userWithMfa,
+      contacts: ENCRYPTED_BASE_CONTACTS,
+      export: { id: 'exp-r9-b', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
+    });
+    const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
+    const service = new DataRightsService(prisma, legalHold);
+
+    const { payload } = await service.processExport('exp-r9-b', 'json');
+    const parsed = JSON.parse(payload);
+
+    // The secret-bearing fields are gone — not merely nulled, absent from the object entirely.
+    expect(parsed.user.password_hash).toBeUndefined();
+    expect(parsed.user.mfa_methods).toBeUndefined();
+    expect('password_hash' in parsed.user).toBe(false);
+    expect('mfa_methods' in parsed.user).toBe(false);
+    // Belt-and-suspenders: none of the actual secret literals appear ANYWHERE in the serialized
+    // payload string, not just absent from the `user` object shape.
+    expect(payload).not.toContain(REAL_BCRYPT_HASH);
+    expect(payload).not.toContain(RECOVERY_CODE_HASH);
+    expect(payload).not.toContain(totpSecretEnvelope.ciphertext);
+
+    // The exclusion is scoped to SECRET material, not MFA state generally — `mfa_enrolled` (a bare
+    // boolean, no secret payload) is still present, proving this isn't an over-broad "drop
+    // anything mfa-*" rule that would also swallow harmless state.
+    expect(parsed.user.mfa_enrolled).toBe(true);
+  });
+
+  // (c) THE PROOF: a corrupt/undecryptable User PII field degrades to the same safe placeholder
+  // Contact PII uses — never crashes the export, never leaks the raw ciphertext — and does so
+  // per-field: the OTHER User field, and the rest of the export, are unaffected.
+  test('(c) a corrupt/undecryptable User field degrades to a safe placeholder — no crash, no ciphertext leak, other fields unaffected', async () => {
+    // Tamper a REAL envelope's ciphertext (flip trailing bytes) so AES-256-GCM's auth-tag check
+    // fails at decrypt time — a genuine "unable to authenticate data" failure, not a contrived one.
+    const tamperedSolutionNumberEnvelope = {
+      ...(JSON.parse(ENCRYPTED_BASE_USER.solution_number as string) as Record<string, string>),
+    };
+    tamperedSolutionNumberEnvelope.ciphertext = `${tamperedSolutionNumberEnvelope.ciphertext.slice(0, -4)}XXXX`;
+    const corruptUser: Row = {
+      ...ENCRYPTED_BASE_USER,
+      solution_number: JSON.stringify(tamperedSolutionNumberEnvelope),
+    };
+
+    const prisma = makeMockPrisma({
+      user: corruptUser,
+      contacts: ENCRYPTED_BASE_CONTACTS,
+      export: { id: 'exp-r9-c', user_id: 'user-1', status: 'PENDING', expires_at: new Date(), created_at: new Date() },
+    });
+    const legalHold = new LegalHoldService(new InMemoryLegalHoldRepository());
+    const service = new DataRightsService(prisma, legalHold);
+
+    // Must not throw — a corrupt User field must never crash the whole export.
+    const { payload } = await service.processExport('exp-r9-c', 'json');
+    const parsed = JSON.parse(payload);
+
+    expect(parsed.user.solution_number).toBe(DSAR_FIELD_DECRYPTION_UNAVAILABLE);
+    expect(String(parsed.user.solution_number)).not.toContain(tamperedSolutionNumberEnvelope.ciphertext);
+    // The OTHER encrypted User field still decrypts fine — degradation is per-field.
+    expect(parsed.user.anchor_statement).toBe(RAW_USER_ANCHOR_STATEMENT);
+    // The rest of the export (Contact PII) is unaffected by the User-field corruption.
+    expect(parsed.contacts[0].first_name).toBe('Jane');
   });
 });
 
