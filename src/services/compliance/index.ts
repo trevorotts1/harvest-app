@@ -36,6 +36,11 @@ export {
   OWN_ONLY_SCOPE_RESOLVER,
   computeEntryHash,
   verifyChain,
+  deepFreeze,
+  computeCheckpointHash,
+  verifyAnchoring,
+  InMemoryAuditCheckpointRepository,
+  PrismaAuditCheckpointRepository,
 } from './audit';
 export type {
   AuditEntryRecord,
@@ -46,4 +51,7 @@ export type {
   ActivityLedgerQuery,
   DownlineScopeResolver,
   ChainVerificationResult,
+  AuditCheckpoint,
+  AuditCheckpointRepository,
+  AnchoringVerificationResult,
 } from './audit';

@@ -6,6 +6,7 @@ export {
   PrismaAuditRepository,
   deriveRegulationTag,
   mapChannelForPersistence,
+  deepFreeze,
 } from './audit-service';
 export type {
   AuditEntryRecord,
@@ -17,6 +18,22 @@ export type {
 
 export { computeEntryHash, verifyChain, stableStringify, GENESIS_PREV_HASH } from './hash-chain';
 export type { HashableEntryFields, ChainedEntry, ChainVerificationResult } from './hash-chain';
+
+// T-R4 (WP11 audit hardening): external anchoring / tail-truncation detection. Public surface.
+export {
+  computeCheckpointHash,
+  verifyAnchoring,
+  InMemoryAuditCheckpointRepository,
+  PrismaAuditCheckpointRepository,
+} from './anchoring';
+export type {
+  AuditCheckpoint,
+  HashableCheckpointFields,
+  AuditCheckpointRepository,
+  AuditCheckpointPrismaDelegate,
+  AnchoringVerificationResult,
+  AnchoringQueryableStore,
+} from './anchoring';
 
 export { NoopCFEAuditSink, InMemoryCFEAuditSink } from './audit-sink';
 export type { CFEAuditSink } from './audit-sink';
