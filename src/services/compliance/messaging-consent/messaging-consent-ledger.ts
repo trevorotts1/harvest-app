@@ -38,6 +38,36 @@ export const MESSAGING_TCPA_CONSENT_TYPE = 'messaging_tcpa_sms_platform';
 
 export type MessagingConsentSource = 'sms_keyword' | 'web_form' | 'manual_entry' | 'api';
 
+/**
+ * T-R17 (remediation of a T-38 QC finding — §9.2): "current consent" MUST be unambiguous even if
+ * two rows ever end up sharing a `version` (the DB `@@unique([contact_id, consent_type, version])`
+ * added alongside this fix, prisma/schema.prisma, is the primary defense against that ever
+ * happening for a real per-contact race — but this ordering must not itself rely on that alone;
+ * an orderBy with only `version: 'desc'` has no defined tiebreak, so which of two same-version rows
+ * a plain `findFirst` returns is a DB-implementation detail, not a guarantee). `timestamp` breaks a
+ * version tie (the row actually written later is "more current"); `id` is the final, always-unique
+ * absolute tiebreak so ordering is deterministic even for two rows inserted in the same instant.
+ */
+const CURRENT_CONSENT_ORDER_BY = [
+  { version: 'desc' as const },
+  { timestamp: 'desc' as const },
+  { id: 'desc' as const },
+];
+
+/** A concurrent `captureConsent` call already claimed this exact (contact_id, consent_type,
+ *  version) tuple — the DB `@@unique` (prisma/schema.prisma) is what makes this race detectable at
+ *  all, instead of two rows silently landing on the same version. Same duck-typed Prisma-error
+ *  convention as `src/services/agent-runtime/store.ts`'s `markProcessed`. */
+function isUniqueConstraintViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002';
+}
+
+/** Bounded retry count for the version-race in `captureConsent` — high enough that a real
+ *  concurrent burst on one contact resolves cleanly, low enough that a genuine, non-race DB outage
+ *  (which would keep throwing a DIFFERENT error, and so exit this loop immediately anyway; only a
+ *  P2002 keeps retrying) still surfaces quickly rather than looping unboundedly. */
+const MAX_VERSION_RACE_ATTEMPTS = 5;
+
 export interface MessagingConsentRecord {
   id: string;
   user_id: string;
@@ -76,7 +106,7 @@ export interface MessagingConsentPrismaClient {
     }>;
     findFirst(args: {
       where: { contact_id: string; consent_type: string };
-      orderBy: { version: 'desc' };
+      orderBy: Array<{ version: 'desc' } | { timestamp: 'desc' } | { id: 'desc' }>;
     }): Promise<{
       id: string;
       user_id: string;
@@ -88,7 +118,7 @@ export interface MessagingConsentPrismaClient {
     } | null>;
     findMany(args: {
       where: { contact_id: string; consent_type: string };
-      orderBy: { version: 'desc' };
+      orderBy: Array<{ version: 'desc' } | { timestamp: 'desc' } | { id: 'desc' }>;
     }): Promise<
       {
         id: string;
@@ -129,34 +159,55 @@ export class MessagingConsentLedger {
     given: boolean,
     opts: { source?: MessagingConsentSource; metadata?: Record<string, unknown> } = {}
   ): Promise<MessagingConsentRecord> {
-    const existing = await this.client.complianceConsent.findFirst({
-      where: { contact_id: contactId, consent_type: MESSAGING_TCPA_CONSENT_TYPE },
-      orderBy: { version: 'desc' },
-    });
-    const version = existing ? existing.version + 1 : 1;
+    // T-R17: bounded retry against the DB @@unique([contact_id, consent_type, version]). Two
+    // concurrent captureConsent calls for the same contact can both read the same "current"
+    // version below and both attempt the same next version number; the DB constraint lets exactly
+    // one of those INSERTs succeed and rejects the other (P2002) instead of silently persisting
+    // both under one version number. The loser re-reads the (now-updated) current version and
+    // retries — from the caller's perspective this still just "resolves to a valid, uniquely
+    // versioned row," never a race-induced duplicate.
+    let lastError: unknown;
+    for (let attempt = 0; attempt < MAX_VERSION_RACE_ATTEMPTS; attempt++) {
+      const existing = await this.client.complianceConsent.findFirst({
+        where: { contact_id: contactId, consent_type: MESSAGING_TCPA_CONSENT_TYPE },
+        orderBy: CURRENT_CONSENT_ORDER_BY,
+      });
+      const version = existing ? existing.version + 1 : 1;
 
-    const row = await this.client.complianceConsent.create({
-      data: {
-        user_id: userId,
-        contact_id: contactId,
-        consent_type: MESSAGING_TCPA_CONSENT_TYPE,
-        given,
-        version,
-        timestamp: new Date(),
-      },
-    });
+      try {
+        const row = await this.client.complianceConsent.create({
+          data: {
+            user_id: userId,
+            contact_id: contactId,
+            consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+            given,
+            version,
+            timestamp: new Date(),
+          },
+        });
 
-    return {
-      id: row.id,
-      user_id: row.user_id,
-      contact_id: row.contact_id as string,
-      consent_type: row.consent_type,
-      given: row.given,
-      version: row.version,
-      timestamp: row.timestamp.toISOString(),
-      source: opts.source ?? 'manual_entry',
-      metadata: opts.metadata ?? null,
-    };
+        return {
+          id: row.id,
+          user_id: row.user_id,
+          contact_id: row.contact_id as string,
+          consent_type: row.consent_type,
+          given: row.given,
+          version: row.version,
+          timestamp: row.timestamp.toISOString(),
+          source: opts.source ?? 'manual_entry',
+          metadata: opts.metadata ?? null,
+        };
+      } catch (err) {
+        if (!isUniqueConstraintViolation(err)) throw err;
+        lastError = err;
+        // Another writer won this version number between our read and our write — loop and
+        // re-read the now-current version.
+      }
+    }
+    // Only reachable if MAX_VERSION_RACE_ATTEMPTS consecutive attempts all lost the race — an
+    // extraordinarily hot single contact, not a normal outcome. Surface the real DB error rather
+    // than masking it.
+    throw lastError;
   }
 
   /** Revokes (records `given: false` for) `contactId`'s messaging consent — a new versioned row,
@@ -177,7 +228,7 @@ export class MessagingConsentLedger {
     try {
       const latest = await this.client.complianceConsent.findFirst({
         where: { contact_id: contactId, consent_type: MESSAGING_TCPA_CONSENT_TYPE },
-        orderBy: { version: 'desc' },
+        orderBy: CURRENT_CONSENT_ORDER_BY,
       });
       return latest?.given === true;
     } catch {
@@ -199,7 +250,7 @@ export class MessagingConsentLedger {
     try {
       const rows = await this.client.complianceConsent.findMany({
         where: { contact_id: contactId, consent_type: MESSAGING_TCPA_CONSENT_TYPE },
-        orderBy: { version: 'desc' },
+        orderBy: CURRENT_CONSENT_ORDER_BY,
       });
       return rows.map((row) => ({
         id: row.id,

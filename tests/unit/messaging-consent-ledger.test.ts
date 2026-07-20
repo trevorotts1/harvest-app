@@ -9,6 +9,16 @@
 // an in-process Map), versioned (each write increments), timestamped, and that a prior bug
 // (`getHistory` returning only the latest record despite claiming "full version history") is
 // fixed.
+//
+// T-R17 (remediation of a T-38 QC finding, §9.2 — consent-version race): additionally proves (a)
+// the multi-key orderBy (`version` desc, `timestamp` desc, `id` desc) is what makes "current
+// consent" deterministic even when two rows share a version — this fake client's `findFirst` /
+// `findMany` implement a REAL multi-key sort (not a version-only shortcut) so these tests exercise
+// the exact orderBy the ledger sends, not a pre-baked substitute; (b) the fake `create` enforces
+// the SAME semantics as the DB `@@unique([contact_id, consent_type, version])` added alongside
+// this fix — including Postgres's NULL-is-distinct default, so a `contact_id: null` row (the WP11
+// onboarding-consent shape) never collides with another `contact_id: null` row — and that
+// `captureConsent`'s bounded retry recovers a real race instead of throwing it at the caller.
 
 import {
   MessagingConsentLedger,
@@ -26,6 +36,33 @@ interface FakeRow {
   timestamp: Date;
 }
 
+/** A fake Prisma unique-constraint violation, matching the duck-typed shape
+ *  `messaging-consent-ledger.ts`'s `isUniqueConstraintViolation` checks for (`err.code === 'P2002'`
+ *  — the same convention as `src/services/agent-runtime/store.ts`). */
+class FakeUniqueConstraintError extends Error {
+  code = 'P2002';
+  constructor() {
+    super('Unique constraint failed on the fields: (`contact_id`,`consent_type`,`version`)');
+  }
+}
+
+/** Multi-key comparator mirroring exactly what Prisma sends the DB for
+ *  `orderBy: [{version:'desc'},{timestamp:'desc'},{id:'desc'}]` — each key breaks ties in the
+ *  previous key, `id` (a strict total order in this fake, like a real DB primary key) as the final
+ *  absolute tiebreak. A version-only sort would leave same-version rows in whatever order the
+ *  underlying array happens to be in (stable sort) — exactly the ambiguity T-R17 fixes. */
+function sortByCurrentConsentOrder(rows: FakeRow[]): FakeRow[] {
+  // Fake ids are `cc-<N>`; compare the numeric suffix (not lexicographically — "cc-10" < "cc-2"
+  // as strings, which would misrepresent a real DB primary key's total order once N reaches double
+  // digits) so `id desc` behaves like a real, monotonic absolute tiebreak.
+  const idNum = (id: string) => Number(id.split('-')[1]);
+  return [...rows].sort((a, b) => {
+    if (a.version !== b.version) return b.version - a.version;
+    if (a.timestamp.getTime() !== b.timestamp.getTime()) return b.timestamp.getTime() - a.timestamp.getTime();
+    return idNum(b.id) - idNum(a.id);
+  });
+}
+
 function makeFakeLedgerClient() {
   const rows: FakeRow[] = [];
   let nextId = 0;
@@ -33,20 +70,34 @@ function makeFakeLedgerClient() {
   const client: MessagingConsentPrismaClient = {
     complianceConsent: {
       create: jest.fn(async ({ data }) => {
+        // Model the DB `@@unique([contact_id, consent_type, version])`: Postgres's default
+        // NULL-is-distinct semantics mean this NEVER fires for `contact_id: null` (WP11's shape) —
+        // only a real, matching, non-null contact_id collides.
+        if (
+          data.contact_id !== null &&
+          rows.some(
+            (r) =>
+              r.contact_id === data.contact_id &&
+              r.consent_type === data.consent_type &&
+              r.version === data.version
+          )
+        ) {
+          throw new FakeUniqueConstraintError();
+        }
         const row: FakeRow = { id: `cc-${nextId++}`, ...data };
         rows.push(row);
         return row;
       }),
       findFirst: jest.fn(async ({ where }) => {
-        const matches = rows
-          .filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type)
-          .sort((a, b) => b.version - a.version);
+        const matches = sortByCurrentConsentOrder(
+          rows.filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type)
+        );
         return matches[0] ?? null;
       }),
       findMany: jest.fn(async ({ where }) => {
-        return rows
-          .filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type)
-          .sort((a, b) => b.version - a.version);
+        return sortByCurrentConsentOrder(
+          rows.filter((r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type)
+        );
       }),
     },
   };
@@ -174,5 +225,265 @@ describe('MessagingConsentLedger.getHistory (bug fix: FULL version history, not 
     };
     const ledger = new MessagingConsentLedger(client);
     expect(await ledger.getHistory('any-contact')).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// T-R17 — remediation of a T-38 QC finding (§9.2): consent-version race.
+// ═══════════════════════════════════════════════════════════════════════
+
+describe('T-R17 (a): deterministic ordering when two rows share a version', () => {
+  test('hasMessagingConsent picks the row with the LATER timestamp, not whichever the DB scan happens to return first', async () => {
+    const { client, rows } = makeFakeLedgerClient();
+
+    // Both rows share version 1 (the exact race this unit fixes: two concurrent captureConsent
+    // calls both computing "next version = 1" before either write was visible to the other). The
+    // stale grant is pushed into the backing array FIRST; the TRUE latest event, by real
+    // wall-clock time — a revoke — is pushed SECOND.
+    rows.push({
+      id: 'cc-0',
+      user_id: 'rep-1',
+      contact_id: 'contact-race',
+      consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+      given: true, // the stale grant — earlier in real time, and FIRST in array/insertion order
+      version: 1,
+      timestamp: new Date('2026-07-20T10:00:00.000Z'),
+    });
+    rows.push({
+      id: 'cc-1',
+      user_id: 'rep-1',
+      contact_id: 'contact-race',
+      consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+      given: false, // the real latest event: a revoke — later in real time, SECOND in array order
+      version: 1,
+      timestamp: new Date('2026-07-20T10:00:05.000Z'),
+    });
+
+    // TEETH, made concrete: a version-ONLY comparator (the pre-fix `orderBy: {version:'desc'}`,
+    // with no tiebreak) sorts these two tied rows by array order alone — a JS stable sort leaves
+    // ties exactly where they started — and would surface the STALE grant as "current".
+    const naiveVersionOnlySort = [...rows].sort((a, b) => b.version - a.version);
+    expect(naiveVersionOnlySort[0]).toMatchObject({ given: true }); // the WRONG "current" row
+
+    // The REAL ledger, using the actual multi-key orderBy, must NOT reproduce that wrong answer.
+    const ledger = new MessagingConsentLedger(client);
+    expect(await ledger.hasMessagingConsent('contact-race')).toBe(false);
+  });
+
+  test('a true tie (same version AND same timestamp) still resolves deterministically via the id tiebreak, regardless of array/scan order', async () => {
+    const tiedTimestamp = new Date('2026-07-20T10:00:00.000Z');
+    const rowLow: FakeRow = {
+      id: 'cc-0',
+      user_id: 'rep-1',
+      contact_id: 'contact-tie',
+      consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+      given: true,
+      version: 1,
+      timestamp: tiedTimestamp,
+    };
+    const rowHigh: FakeRow = {
+      id: 'cc-1',
+      user_id: 'rep-1',
+      contact_id: 'contact-tie',
+      consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+      given: false,
+      version: 1,
+      timestamp: tiedTimestamp,
+    };
+
+    // Same two rows, opposite array order — a real DB gives no scan-order guarantee for ties, so
+    // "current consent" must not depend on which order the two rows happen to come back in.
+    const { client: clientA } = makeFakeLedgerClient();
+    clientA.complianceConsent.findFirst = jest.fn(async ({ where }) => {
+      const matches = [rowLow, rowHigh].filter(
+        (r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type
+      );
+      return sortByCurrentConsentOrder(matches)[0] ?? null;
+    });
+
+    const { client: clientB } = makeFakeLedgerClient();
+    clientB.complianceConsent.findFirst = jest.fn(async ({ where }) => {
+      const matches = [rowHigh, rowLow].filter(
+        (r) => r.contact_id === where.contact_id && r.consent_type === where.consent_type
+      );
+      return sortByCurrentConsentOrder(matches)[0] ?? null;
+    });
+
+    const ledgerA = new MessagingConsentLedger(clientA);
+    const ledgerB = new MessagingConsentLedger(clientB);
+
+    const resultA = await ledgerA.hasMessagingConsent('contact-tie');
+    const resultB = await ledgerB.hasMessagingConsent('contact-tie');
+
+    // Both orderings must agree — `id desc` (cc-1 > cc-0) always wins, independent of array order.
+    expect(resultA).toBe(resultB);
+    expect(resultA).toBe(false); // rowHigh (cc-1, given: false) is the deterministic "current" row
+  });
+});
+
+describe('T-R17 (b): the per-contact DB unique prevents a duplicate (contact_id, consent_type, version)', () => {
+  test('a raw duplicate create for the SAME non-null contact_id + consent_type + version is rejected (models the DB @@unique)', async () => {
+    const { client } = makeFakeLedgerClient();
+
+    await client.complianceConsent.create({
+      data: {
+        user_id: 'rep-1',
+        contact_id: 'contact-dupe',
+        consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+        given: true,
+        version: 1,
+        timestamp: new Date(),
+      },
+    });
+
+    await expect(
+      client.complianceConsent.create({
+        data: {
+          user_id: 'rep-1',
+          contact_id: 'contact-dupe',
+          consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+          given: true,
+          version: 1, // SAME (contact_id, consent_type, version) tuple — must be rejected
+          timestamp: new Date(),
+        },
+      })
+    ).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  test('captureConsent RECOVERS from a real version race: a stale read that would have collided retries and lands on the correct next version', async () => {
+    const { client, rows } = makeFakeLedgerClient();
+
+    // Simulate the race directly: a concurrent writer's version-1 row is already durably
+    // committed, but THIS call's first read is stale (as if it ran just before that commit became
+    // visible) and sees nothing yet.
+    rows.push({
+      id: 'cc-0',
+      user_id: 'rep-2',
+      contact_id: 'contact-race-2',
+      consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+      given: true,
+      version: 1,
+      timestamp: new Date('2026-07-20T10:00:00.000Z'),
+    });
+
+    let findFirstCalls = 0;
+    const realFindFirst = client.complianceConsent.findFirst;
+    client.complianceConsent.findFirst = jest.fn(async (args) => {
+      findFirstCalls += 1;
+      if (findFirstCalls === 1) return null; // stale: the concurrent writer's row isn't visible yet
+      return (realFindFirst as typeof client.complianceConsent.findFirst)(args);
+    });
+
+    const ledger = new MessagingConsentLedger(client);
+    const record = await ledger.captureConsent('rep-2', 'contact-race-2', false, { source: 'api' });
+
+    // TEETH: without the DB @@unique + retry, this stale first read would have computed
+    // version = 1 and either silently duplicated the pre-existing version-1 row (the exact T-38 QC
+    // finding) or thrown outright. With the fix, the first create() attempt collides (P2002), the
+    // ledger retries, its SECOND read sees the real current state, and the call still succeeds —
+    // landing on version 2, never a second version-1 row.
+    expect(record.version).toBe(2);
+    expect(rows.filter((r) => r.contact_id === 'contact-race-2')).toHaveLength(2);
+    expect(rows.filter((r) => r.contact_id === 'contact-race-2' && r.version === 1)).toHaveLength(1);
+    expect(client.complianceConsent.create).toHaveBeenCalledTimes(2); // 1 collision + 1 success
+  });
+
+  test('a non-collision error is NOT swallowed/retried — only P2002 triggers a retry', async () => {
+    const { client } = makeFakeLedgerClient();
+    client.complianceConsent.create = jest.fn(async () => {
+      throw new Error('connection reset');
+    });
+
+    const ledger = new MessagingConsentLedger(client);
+    await expect(ledger.captureConsent('rep-1', 'contact-1', true)).rejects.toThrow('connection reset');
+    expect(client.complianceConsent.create).toHaveBeenCalledTimes(1); // no retry loop for a non-race error
+  });
+});
+
+describe('T-R17 (c): WP11 onboarding consent (contact_id = null) is NOT constrained by the new unique — regression guard', () => {
+  test('multiple contact_id:null rows sharing the SAME consent_type + version coexist (Postgres NULL-is-distinct) — the real WP11 shape', async () => {
+    const { client, rows } = makeFakeLedgerClient();
+
+    // This is exactly what src/lib/onboarding/gdpr-consent.ts's grantGdprConsent/revokeGdprConsent
+    // write: contact_id is never set (-> NULL), and version is never set either (-> the schema
+    // default, 1, on EVERY row — WP11's real versioning lives in ConsentManager's in-process Map,
+    // not this column). Multiple grant/revoke events for the SAME user therefore already produce
+    // multiple (contact_id: null, consent_type: 'gdpr', version: 1) rows today, and must go on
+    // doing so after this migration.
+    const gdprRowShape = {
+      user_id: 'user-onboarding-1',
+      contact_id: null as unknown as string, // cast only to satisfy the per-contact-typed fake signature
+      consent_type: 'gdpr',
+      given: true,
+      version: 1,
+      timestamp: new Date(),
+    };
+
+    await client.complianceConsent.create({ data: gdprRowShape });
+    await client.complianceConsent.create({ data: { ...gdprRowShape, given: false } }); // revoke
+    await client.complianceConsent.create({ data: { ...gdprRowShape, given: true } }); // re-grant
+
+    // TEETH: if the unique constraint were a plain `@@unique` WITHOUT Postgres's NULL-distinct
+    // default (or modeled wrong in this fake), the second create above would have thrown P2002 —
+    // it must not. All three rows persist.
+    expect(rows.filter((r) => r.contact_id === null && r.consent_type === 'gdpr')).toHaveLength(3);
+  });
+
+  test('a null-contact row and a real-contact row never collide with each other even at the same version', async () => {
+    const { client, rows } = makeFakeLedgerClient();
+
+    await client.complianceConsent.create({
+      data: {
+        user_id: 'user-1',
+        contact_id: null as unknown as string,
+        consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+        given: true,
+        version: 1,
+        timestamp: new Date(),
+      },
+    });
+
+    // Same consent_type, same version, but a REAL contact_id — must succeed; the null row above is
+    // not "using up" version 1 for this (or any) contact.
+    await expect(
+      client.complianceConsent.create({
+        data: {
+          user_id: 'user-1',
+          contact_id: 'contact-real',
+          consent_type: MESSAGING_TCPA_CONSENT_TYPE,
+          given: true,
+          version: 1,
+          timestamp: new Date(),
+        },
+      })
+    ).resolves.toMatchObject({ version: 1 });
+
+    expect(rows).toHaveLength(2);
+  });
+});
+
+describe('T-R17 (d): hasMessagingConsent is still fail-closed after the ordering change', () => {
+  test('no record -> false; a read failure -> false; only a confirmed given:true current record -> true', async () => {
+    const { client } = makeFakeLedgerClient();
+    const ledger = new MessagingConsentLedger(client);
+
+    expect(await ledger.hasMessagingConsent('contact-none')).toBe(false);
+
+    await ledger.captureConsent('rep-1', 'contact-yes', true);
+    expect(await ledger.hasMessagingConsent('contact-yes')).toBe(true);
+
+    await ledger.revokeConsent('rep-1', 'contact-yes');
+    expect(await ledger.hasMessagingConsent('contact-yes')).toBe(false);
+
+    const failingClient: MessagingConsentPrismaClient = {
+      complianceConsent: {
+        create: jest.fn(),
+        findFirst: jest.fn(async () => {
+          throw new Error('pool exhausted');
+        }),
+        findMany: jest.fn(),
+      },
+    };
+    expect(await new MessagingConsentLedger(failingClient).hasMessagingConsent('contact-x')).toBe(false);
   });
 });
