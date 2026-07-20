@@ -1,14 +1,19 @@
 // WP10 — Production wiring (§15). Assembles the REAL Prisma-backed stores + handlers the routes and
 // Inngest cron use. Mirrors src/services/messaging/send/production-wiring.ts: everything is
 // constructed LAZILY, per call, so a key-less/DB-less `next build` never constructs a Prisma client
-// or reads a secret at module scope (build-safety / invariant #2). NOT imported by the Jest suite
-// (the pure logic modules are tested directly with mocks); this is the composition root only.
+// or reads a secret at module scope (build-safety / invariant #2). Most of the pure logic modules
+// are tested directly with mocks and never need this file — but T-47R adds
+// tests/unit/chargeback-live-path.test.ts, which DOES import `buildStripeWebhookHandlers` /
+// `buildDisputeStore` / `buildBillingAuditReader` directly (with `@/lib/prisma` module-mocked) to
+// prove the chargeback path end to end through this REAL composition root, not just the
+// unit-tested `handleDisputeCreated` helper in isolation.
 
 import { SponsorshipState, SubscriptionStatus } from '@prisma/client';
 
 import { prisma } from '@/lib/prisma';
 import { PrismaAuditRepository } from '@/services/compliance/audit/audit-service';
 
+import { handleDisputeCreated } from './chargeback';
 import type { BillingAuditReader, AuditEvidenceRow, DisputeStore } from './chargeback';
 import type { BillingNotification, BillingNotificationSink } from './notifications';
 import { nextSubscriptionStatus } from './billing-lifecycle';
@@ -267,7 +272,11 @@ export function buildStripeWebhookHandlers(): StripeWebhookHandlers {
     // `checkout.session.completed` → activate the paid subscription for the user, link the Stripe id
     // (§15.5 "checkout.session.completed webhook provisions"). Reconciles the user's live row to
     // individual/ACTIVE (a sponsored member converting keeps their history; org_sponsored flips off).
-    async onCheckoutCompleted({ userId, stripeSubscriptionId }) {
+    //
+    // T-47R: also PERSISTS the Stripe customer id (the checkout session always carries one — it is
+    // the id `charge.dispute.created` will later carry too). This is the only live write path for
+    // `stripe_customer_id`; `onDisputeCreated` below reads it back to resolve a dispute to a user.
+    async onCheckoutCompleted({ userId, stripeSubscriptionId, stripeCustomerId }) {
       if (!userId) return;
       const sub = await db.subscription.findFirst({
         where: { user_id: userId },
@@ -275,11 +284,12 @@ export function buildStripeWebhookHandlers(): StripeWebhookHandlers {
         select: { id: true },
       });
       // The checkout session itself carries no period end — the subsequent invoice.payment_succeeded
-      // webhook sets the authoritative period dates. Here we activate + link the Stripe id.
+      // webhook sets the authoritative period dates. Here we activate + link the Stripe ids.
       const data = {
         plan_tier: 'individual',
         status: SubscriptionStatus.ACTIVE,
         stripe_subscription_id: stripeSubscriptionId,
+        stripe_customer_id: stripeCustomerId,
         org_sponsored: false,
       };
       if (sub) {
@@ -332,13 +342,48 @@ export function buildStripeWebhookHandlers(): StripeWebhookHandlers {
       });
     },
 
-    // `charge.dispute.created` → chargeback handling (§15.5). Resolving the disputed user requires a
-    // customer→user map the current schema does not carry (only stripe_subscription_id is stored);
-    // when the dispute event does not carry a resolvable subscription, this is a fail-safe no-op
-    // here — the dispute LOGIC (status→DISPUTED, evidence pack, outbound suspension) is fully wired
-    // and unit-tested via handleDisputeCreated with mocks. See build-report DEVIATION note.
-    async onDisputeCreated() {
-      // Intentionally minimal in production wiring; see note above.
+    // `charge.dispute.created` → chargeback handling (§15.5 / §15.7-8). T-47R: resolves the
+    // disputed Stripe CUSTOMER id to a live subscription/user via `stripe_customer_id` (persisted
+    // by `onCheckoutCompleted` above), then calls the already-built, already-unit-tested
+    // `handleDisputeCreated` (chargeback.ts) — status → DISPUTED (entitlement.ts then denies
+    // `outbound` while retaining `read`), the audit-trail evidence pack, and the support alert.
+    //
+    // FAIL-SAFE, not silent: a dispute event that cannot be resolved (no customer id on the event,
+    // or no subscription row carries that customer id — e.g. the checkout that created it predates
+    // this migration, or a data gap) is LOGGED LOUDLY (`console.error`, a distinct tag from the
+    // routine `[billing-notification]` log line) and returns without throwing — Stripe is
+    // acknowledged (no infinite retry storm over an unresolvable id) but the miss is never quietly
+    // dropped; it is visible to anyone watching production logs/alerting for exactly this signal,
+    // so a genuinely resolvable dispute that hits this branch due to a bug is never hidden.
+    async onDisputeCreated({ stripeCustomerId, disputeId }) {
+      if (!stripeCustomerId) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[chargeback-unresolved]',
+          JSON.stringify({ disputeId, reason: 'dispute_event_missing_stripe_customer_id' })
+        );
+        return;
+      }
+      const sub = await db.subscription.findFirst({
+        where: { stripe_customer_id: stripeCustomerId },
+        orderBy: { created_at: 'desc' },
+        select: { user_id: true },
+      });
+      if (!sub) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[chargeback-unresolved]',
+          JSON.stringify({ disputeId, stripeCustomerId, reason: 'no_subscription_for_stripe_customer_id' })
+        );
+        return;
+      }
+      await handleDisputeCreated({
+        userId: sub.user_id,
+        disputeId,
+        store: buildDisputeStore(),
+        auditReader: buildBillingAuditReader(),
+        sink: buildProductionNotificationSink(),
+      });
     },
   };
 }
