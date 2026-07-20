@@ -15,6 +15,13 @@ import {
   type ChainVerificationResult,
   type ChainedEntry,
 } from './hash-chain';
+import {
+  computeCheckpointHash,
+  verifyAnchoring,
+  type AuditCheckpoint,
+  type AuditCheckpointRepository,
+  type AnchoringVerificationResult,
+} from './anchoring';
 
 /**
  * The immutable, append-only, hash-chained audit store for WP11 (T-10, master-spec §5.6/§5.7/
@@ -37,6 +44,26 @@ import {
  *
  * Tamper evidence (§5.6 "immutable, cryptographically signed"): see `./hash-chain.ts` for the
  * hash-chain design (`entry_hash` over content + `prev_hash`) and its honest limitations.
+ *
+ * T-R4 hardening (WP11 audit hardening — additive, layered on top of everything above, nothing
+ * below removed or changed in behavior for any existing writer/reader):
+ *   - **DB-level immutability.** The migration for this build adds a Postgres trigger
+ *     (`prevent_audit_mutation()`) that RAISEs on any UPDATE or DELETE against the `AuditEntry`
+ *     table (INSERT is untouched). This is a second, independent enforcement layer beneath the
+ *     app-level one two bullets up — even a future bug that adds a raw `prisma.auditEntry.update`
+ *     call, or a compromised path that talks to Postgres directly, still cannot mutate/delete a
+ *     row; the database itself refuses.
+ *   - **External anchoring / tail-truncation detection.** The hash chain's one honest gap — it
+ *     cannot detect deletion of the chain's TAIL (the most-recently-appended rows, with nothing
+ *     appended after them to show a broken link) — is closed by `./anchoring.ts`: a periodic
+ *     checkpoint anchors the current chain head (`getChainTail()`'s `sequence`/`entry_hash`) plus
+ *     a row count into a separate, equally DB-trigger-immutable `AuditCheckpoint` table.
+ *     `AuditService.verifyAnchoring()` re-checks the store against the latest checkpoint and flags
+ *     a mismatch as tail truncation.
+ *   - **Deeply frozen returned rows.** Every row `query`/`getById` hands back — from EITHER
+ *     repository, in-memory or Prisma-backed — is deep-frozen (`deepFreeze` below), not just
+ *     top-level `Object.freeze`'d, so a consumer can't mutate a nested field (e.g.
+ *     `classifier_data`) in place either.
  */
 
 export interface AuditEntryRecord {
@@ -111,7 +138,7 @@ export class InMemoryAuditRepository implements AuditRepository {
       // "mutable audit trail" QC critical-failure condition, so this throws rather than upserting.
       throw new Error(`AuditRepository.append: an entry with id '${entry.id}' already exists — audit rows are append-only and cannot be overwritten`);
     }
-    const frozen = Object.freeze({ ...entry });
+    const frozen = deepFreeze({ ...entry });
     this.entries.set(entry.id, frozen);
     this.tail = { sequence: entry.sequence, entry_hash: entry.entry_hash };
   }
@@ -216,7 +243,11 @@ export interface AuditEntryPrismaDelegate {
 }
 
 function fromPrismaRow(row: any): AuditEntryRecord {
-  return {
+  // T-R4: deep-frozen, matching `InMemoryAuditRepository`'s posture — a consumer of the
+  // Prisma-backed production repository must get exactly the same "cannot mutate this in place"
+  // guarantee a consumer of the in-memory/test repository already gets (see `deepFreeze` below and
+  // the module doc comment's "T-R4 hardening" section).
+  return deepFreeze({
     id: row.id,
     sequence: row.sequence,
     user_id: row.user_id,
@@ -235,7 +266,26 @@ function fromPrismaRow(row: any): AuditEntryRecord {
     regulation: row.regulation,
     reviewer_id: row.reviewer_id ?? null,
     reviewer_action: row.reviewer_action ?? null,
-  };
+  });
+}
+
+/**
+ * Recursively `Object.freeze`s `value` and every plain-object/array value reachable from it — a
+ * shallow `Object.freeze` only locks the top-level keys; a nested object (e.g. `classifier_data`,
+ * or a `classifier_results` array) would otherwise remain mutable in place. Used for every
+ * `AuditEntryRecord` handed back by either repository's `query`/`getById` (T-R4 hardening — see the
+ * module doc comment above). Safe to call on values already (partially) frozen.
+ */
+export function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== 'object') return value;
+  if (!Object.isFrozen(value)) Object.freeze(value);
+  for (const key of Object.getOwnPropertyNames(value)) {
+    const child = (value as unknown as Record<string, unknown>)[key];
+    if (child !== null && typeof child === 'object' && !Object.isFrozen(child)) {
+      deepFreeze(child);
+    }
+  }
+  return value;
 }
 
 /**
@@ -351,7 +401,19 @@ export interface RecordAuditEventInput {
 }
 
 export class AuditService {
-  constructor(private repository: AuditRepository) {}
+  /**
+   * `checkpointRepository` is OPTIONAL and additive (T-R4): every existing call site that
+   * constructs `new AuditService(repository)` with a single argument keeps working unchanged.
+   * Passing a checkpoint repository additionally enables `createCheckpoint()`/`verifyAnchoring()`;
+   * omitting it just means those two methods aren't usable yet (they throw a clear, named error
+   * rather than silently no-op'ing — see below), exactly like a not-yet-wired-in
+   * `DownlineScopeResolver` in `activity-ledger.ts` defaults to the safe/inert case rather than a
+   * hidden no-op.
+   */
+  constructor(
+    private repository: AuditRepository,
+    private checkpointRepository?: AuditCheckpointRepository
+  ) {}
 
   /**
    * THE integration point (§5.7): every producer's event, normalized to `RecordAuditEventInput`,
@@ -468,6 +530,88 @@ export class AuditService {
   async verifyStoredChain(filters: AuditQueryFilters = {}): Promise<ChainVerificationResult> {
     const rows = await this.repository.query(filters);
     return verifyChain(rows as ChainedEntry[]);
+  }
+
+  /**
+   * T-R4: takes a new external-anchoring checkpoint of the current chain head (`getChainTail()`'s
+   * `sequence`/`entry_hash`) plus the current total row count, hashes it (`computeCheckpointHash`),
+   * and persists it through the (append-only, DB-immutable) `AuditCheckpointRepository`. Intended
+   * to be called periodically (e.g. a scheduled job) — each call adds a new checkpoint; it never
+   * updates a previous one. Returns `null` if the store is empty (nothing to anchor yet) rather
+   * than anchoring a vacuous/null head.
+   *
+   * Throws if no `checkpointRepository` was supplied to the constructor — this is a configuration
+   * error to surface loudly, not something to silently skip.
+   */
+  async createCheckpoint(): Promise<AuditCheckpoint | null> {
+    if (!this.checkpointRepository) {
+      throw new Error(
+        'AuditService.createCheckpoint: no AuditCheckpointRepository was configured — pass one to the constructor to enable anchoring'
+      );
+    }
+    const tail = await this.repository.getChainTail();
+    if (!tail) return null;
+
+    const allRows = await this.repository.query({});
+    const created_at = new Date().toISOString();
+    const hashable = {
+      sequence: tail.sequence,
+      head_entry_hash: tail.entry_hash,
+      entry_count: allRows.length,
+      created_at,
+    };
+    const checkpoint_hash = computeCheckpointHash(hashable);
+    const checkpoint: AuditCheckpoint = {
+      id: randomUUID(),
+      ...hashable,
+      checkpoint_hash,
+    };
+    await this.checkpointRepository.save(checkpoint);
+    return checkpoint;
+  }
+
+  /**
+   * T-R4: verifies the current store against the latest anchored checkpoint, detecting
+   * tail-truncation (rows deleted from the end of the chain, which `verifyStoredChain`'s
+   * `prev_hash`/`entry_hash` re-derivation alone cannot see — see `./anchoring.ts`'s module doc).
+   * `{ valid: true, checkpoint: null }` means no checkpoint has ever been taken yet.
+   *
+   * Throws if no `checkpointRepository` was configured (same rationale as `createCheckpoint`).
+   */
+  async verifyAnchoring(): Promise<AnchoringVerificationResult> {
+    if (!this.checkpointRepository) {
+      throw new Error(
+        'AuditService.verifyAnchoring: no AuditCheckpointRepository was configured — pass one to the constructor to enable anchoring'
+      );
+    }
+    const [checkpoint, allRows, tail] = await Promise.all([
+      this.checkpointRepository.getLatest(),
+      this.repository.query({}),
+      this.repository.getChainTail(),
+    ]);
+    return verifyAnchoring(
+      { currentEntries: allRows.map((r) => ({ sequence: r.sequence, entry_hash: r.entry_hash })), currentTail: tail },
+      checkpoint
+    );
+  }
+
+  /**
+   * T-R4 combined proof surface: a single call that reports BOTH tamper-evidence failure modes —
+   * (a) a broken hash-chain link anywhere in the chain (`verifyStoredChain`, catches mutation of
+   * any past row or a mid-chain deletion) and (b) tail-truncation since the last anchored
+   * checkpoint (`verifyAnchoring`, catches deletion of the chain's most-recent row(s)). `valid` is
+   * true only if both individually report valid.
+   */
+  async verifyIntegrity(): Promise<{
+    valid: boolean;
+    chain: ChainVerificationResult;
+    anchoring: AnchoringVerificationResult | { valid: true; reason: null; checkpoint: null };
+  }> {
+    const chain = await this.verifyStoredChain();
+    const anchoring = this.checkpointRepository
+      ? await this.verifyAnchoring()
+      : ({ valid: true, reason: null, checkpoint: null } as const);
+    return { valid: chain.valid && anchoring.valid, chain, anchoring };
   }
 }
 

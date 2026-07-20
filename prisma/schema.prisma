@@ -431,6 +431,39 @@ model AuditEntry {
   @@index([content_id])
 }
 
+// T-R4 (WP11 audit hardening — external anchoring / tail-truncation detection, master-spec §16.1
+// "immutability (append-only, signed audit)"): a hash chain alone cannot detect truncation of the
+// TAIL of the chain — deleting the most-recently-appended row(s) with nothing appended after them
+// leaves no broken `prev_hash` link for `verifyChain` to catch (see the "honest limitation"
+// documented in `src/services/compliance/audit/hash-chain.ts`). This table is the externally
+// anchored checkpoint that closes that gap: a periodic job (`AuditService.createCheckpoint` /
+// `src/services/compliance/audit/anchoring.ts`) snapshots the current chain head
+// (`AuditEntry.sequence`/`entry_hash`, from `getChainTail()`) plus the total row count, and signs
+// (SHA-256-hashes) that snapshot into `checkpoint_hash`. A later `AuditService.verifyAnchoring()`
+// re-reads the chain and confirms the row at the checkpointed `sequence` still exists with the
+// same `head_entry_hash` and that the current row count hasn't shrunk below `entry_count` — either
+// mismatch proves the tail was truncated (or the checkpoint record itself was corrupted, caught by
+// recomputing `checkpoint_hash`) since that checkpoint was taken. Append-only and immutable at the
+// DB level the same way `AuditEntry` is (see the `prevent_audit_mutation()` trigger in this
+// migration) — a checkpoint is itself compliance evidence and must not be alterable either.
+model AuditCheckpoint {
+  id              String   @id @default(uuid())
+  // The anchored chain head's AuditEntry.sequence at checkpoint time (getChainTail().sequence).
+  sequence        Int
+  // The anchored chain head's AuditEntry.entry_hash at checkpoint time (getChainTail().entry_hash).
+  head_entry_hash String
+  // Total row count in the store at checkpoint time — independent corroboration of `sequence`
+  // (both should agree when the chain is gapless; a mismatch is itself a signal worth surfacing).
+  entry_count     Int
+  // SHA-256 over { sequence, head_entry_hash, entry_count, created_at } (stable-serialized) — the
+  // checkpoint's own tamper-evidence, so a corrupted/edited checkpoint row is self-detectable too.
+  checkpoint_hash String
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@index([sequence])
+}
+
 // T-38 additions (master-spec §10.4 TCPA consent ledger; §16.2 "TCPA | ... | Per-contact consent"):
 // `contact_id` + `version` are purely additive (both nullable/defaulted, no backfill required).
 // This model originally tracked only platform-USER-level consent (profile/contacts/calendar/
