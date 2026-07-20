@@ -15,49 +15,62 @@
  * prisma/migrations/20260721100000_t_r25_org_switch_event for the fix; this guard exists so the
  * next gap of this shape fails the build instead of shipping silently.
  *
- * HOW IT WORKS: runs `prisma migrate diff --from-migrations prisma/migrations
- * --to-schema-datamodel prisma/schema.prisma --exit-code` against a shadow database (Prisma
- * replays the entire migration chain into the shadow db, then diffs the resulting schema against
- * schema.prisma). Exit code 0 = no drift (pass). Exit code 2 = real, structural drift (fail the
- * build, print the missing/extra SQL). Anything that looks like the shadow database simply being
- * unreachable is treated as "cannot verify in this environment" and does NOT fail the build — see
- * CLEAN-ENV BEHAVIOR below.
+ * HOW IT WORKS — AND WHY THE SHADOW DB URL MUST NEVER BE A REAL DATABASE: runs `prisma migrate
+ * diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --exit-code`
+ * against a shadow database. This is DESTRUCTIVE to whatever the shadow URL points at: Prisma
+ * resets/replays the *entire* migration chain into that database from scratch to compute the diff.
+ * If the shadow URL happens to point at a database that already has data in it, that data is
+ * wiped. This guard MUST ONLY ever be pointed at a disposable/throwaway Postgres instance that
+ * exists solely for this check — it must NEVER be pointed at DATABASE_URL or any database holding
+ * real data. (T-R25R: an earlier version of this guard fell back to DATABASE_URL when no dedicated
+ * shadow var was set, which meant an ordinary dev box or build pipeline with only DATABASE_URL
+ * configured — the common case — would have this guard silently replay/reset migrations into the
+ * real application database on every `npm run build`, even on the no-drift path. QC reproduced
+ * real data loss from this. That fallback has been removed — see resolveShadowUrl() below.)
  *
- * SHADOW DATABASE URL resolution (first one set wins):
- *   1. MIGRATION_DRIFT_SHADOW_DATABASE_URL — guard-specific override, use this to point at a
- *      disposable Postgres instance without touching DATABASE_URL/SHADOW_DATABASE_URL.
+ * Exit code 0 from `prisma migrate diff` = no drift (pass). Exit code 2 = real, structural drift
+ * (fail the build, print the missing/extra SQL). Anything that looks like the shadow database
+ * simply being unreachable is treated as "cannot verify in this environment" and does NOT fail the
+ * build — see CLEAN-ENV BEHAVIOR below.
+ *
+ * SHADOW DATABASE URL resolution (first one set wins) — DATABASE_URL is NEVER used:
+ *   1. MIGRATION_DRIFT_SHADOW_DATABASE_URL — guard-specific override. This is the intended way to
+ *      enable this check: point it at a disposable Postgres instance created just for this guard
+ *      (e.g. spun up fresh in CI and torn down after), never at a database anyone cares about.
  *   2. SHADOW_DATABASE_URL — the conventional Prisma shadow-db env var name, if already set for
- *      `prisma migrate dev`.
- *   3. DATABASE_URL — reused as a last resort. In this repo's CI (.github/workflows/ci.yml),
- *      DATABASE_URL is a placeholder connection string with nothing actually listening on it, so
- *      this resolves to a URL that then fails to connect — which is exactly the clean-env-safe
- *      "skip" path below, not a false failure.
- *   The shadow database itself is never mutated persistently: Prisma creates the objects from the
- *   migration chain inside it to compute the diff and does not require (or preserve) any prior
- *   state there — point this at any disposable/throwaway Postgres database, never at a database
- *   holding real data.
+ *      `prisma migrate dev`. Same rule applies: must be disposable, not a real database.
+ *   If NEITHER is set, this guard SKIPS (exits 0) with a message explaining how to enable it. It
+ *   deliberately does NOT fall back to DATABASE_URL under any circumstance — DATABASE_URL points
+ *   at the real application database in essentially every environment that sets it, and this
+ *   guard's underlying `prisma migrate diff --from-migrations` operation resets/replays into
+ *   whatever URL it's given. As defense-in-depth, if the resolved shadow URL is textually equal to
+ *   DATABASE_URL (e.g. someone sets SHADOW_DATABASE_URL=$DATABASE_URL), the guard also refuses and
+ *   skips rather than running the destructive diff against it — see the DATABASE_URL-equality
+ *   check in main() below.
  *
- * CLEAN-ENV BEHAVIOR: this guard requires a real, reachable Postgres server to replay migrations
- * into (that's inherent to `prisma migrate diff --from-migrations`, not something this script can
- * avoid). Lots of this repo's build/CI environments intentionally have no live Postgres
- * (DATABASE_URL unset or a placeholder — see other hand-authored-migration headers in
- * prisma/migrations/ for why). When no shadow URL is configured at all, OR the configured one is
- * unreachable (connection refused, host not found, auth/does-not-exist errors, timeout), this
- * guard prints a clear `SKIPPED` message and exits 0 — it does NOT false-fail the build for an
- * environment problem. It only exits non-zero for a REAL diff (exit code 2 from the underlying
- * prisma command) or a genuinely unexpected prisma error that isn't a connectivity issue.
+ * CLEAN-ENV BEHAVIOR: this guard requires a real, reachable, disposable Postgres server to replay
+ * migrations into (that's inherent to `prisma migrate diff --from-migrations`, not something this
+ * script can avoid). Lots of this repo's build/CI environments intentionally have no dedicated
+ * shadow Postgres configured. When no shadow URL is configured at all, OR the configured one
+ * resolves to DATABASE_URL, OR the configured one is unreachable (connection refused, host not
+ * found, auth/does-not-exist errors, timeout), this guard prints a clear `SKIPPED` message and
+ * exits 0 — it does NOT false-fail the build for an environment problem, and it does NOT run the
+ * destructive diff against a database it isn't certain is disposable. It only exits non-zero for a
+ * REAL diff (exit code 2 from the underlying prisma command) or a genuinely unexpected prisma error
+ * that isn't a connectivity issue.
  */
 import { spawnSync } from 'node:child_process';
 
 const GUARD_NAME = 'guard:migration-drift';
 
 function resolveShadowUrl() {
-  return (
-    process.env.MIGRATION_DRIFT_SHADOW_DATABASE_URL ||
-    process.env.SHADOW_DATABASE_URL ||
-    process.env.DATABASE_URL ||
-    null
-  );
+  // NOTE: DATABASE_URL is intentionally NOT part of this chain. See the header comment — falling
+  // back to DATABASE_URL turns this guard's inherently destructive shadow-db replay into an
+  // accidental wipe of the real application database whenever no dedicated shadow var is set,
+  // which is the common case on dev boxes and in build pipelines that only configure
+  // DATABASE_URL. Only a var whose entire purpose is "this is a shadow/throwaway database" may be
+  // used here.
+  return process.env.MIGRATION_DRIFT_SHADOW_DATABASE_URL || process.env.SHADOW_DATABASE_URL || null;
 }
 
 // Prisma error codes (and generic Node/OS network errors) that mean "couldn't reach/use the
@@ -114,7 +127,28 @@ function fail(message, detail) {
 function main() {
   const shadowUrl = resolveShadowUrl();
   if (!shadowUrl) {
-    skip('no MIGRATION_DRIFT_SHADOW_DATABASE_URL, SHADOW_DATABASE_URL, or DATABASE_URL set in this environment.');
+    skip(
+      'no MIGRATION_DRIFT_SHADOW_DATABASE_URL or SHADOW_DATABASE_URL set in this environment. ' +
+        'This guard never falls back to DATABASE_URL (its replay-migrations diff is destructive to ' +
+        'whatever URL it is given). To enable this check, set MIGRATION_DRIFT_SHADOW_DATABASE_URL ' +
+        'to a THROWAWAY/disposable Postgres connection string that exists solely for this guard — ' +
+        'never a real/shared database, and never DATABASE_URL.'
+    );
+    return;
+  }
+
+  // Defense-in-depth: even if a dedicated shadow var is set, refuse to run the destructive diff
+  // if it happens to resolve to the exact same URL as DATABASE_URL (e.g. someone set
+  // SHADOW_DATABASE_URL=$DATABASE_URL). This is the one database we can positively identify as
+  // "real, not disposable" without a live connection, so it's an easy, cheap check to keep here
+  // regardless of how MIGRATION_DRIFT_SHADOW_DATABASE_URL / SHADOW_DATABASE_URL end up configured.
+  if (process.env.DATABASE_URL && shadowUrl === process.env.DATABASE_URL) {
+    skip(
+      'the resolved shadow database URL is identical to DATABASE_URL. This guard replays/resets ' +
+        'migrations into the shadow URL, which would destroy the real application database — ' +
+        'refusing to run. Point MIGRATION_DRIFT_SHADOW_DATABASE_URL (or SHADOW_DATABASE_URL) at a ' +
+        'separate, disposable Postgres instance instead.'
+    );
     return;
   }
 
