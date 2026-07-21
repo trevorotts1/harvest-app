@@ -52,6 +52,15 @@ export const NEAR_MISS_PROPOSAL_COUNT = 3;
  * Resolves the local minute-of-day (0-1439) for `at` in IANA timezone `timezone`, DST-correct via
  * `Intl.DateTimeFormat`. Returns `null` for a missing/unrecognized timezone — callers fail closed
  * (never propose into a window whose working-hours legality cannot be determined).
+ *
+ * T-57 BLOCKER-B8 DECISION (documented, not routed through the locale layer) — the `'en-US'` below
+ * is NEVER rendered to a rep or contact; it is purely an internal computation this function uses to
+ * pull numeric hour/minute PARTS out of `Intl.DateTimeFormat`'s `formatToParts`, which are then
+ * `parseInt`'d back into plain numbers a few lines down. Any locale that renders `hour12: false`
+ * numerals in a `parseInt`-safe form would produce the identical `number` result — this is a
+ * technical extraction, not user-facing date/time formatting (contrast `src/lib/i18n/format.ts`,
+ * which exists precisely for the latter). Routing this through the rep's locale would add a
+ * dependency for zero behavioral or user-visible benefit, so it stays fixed.
  */
 export function resolveLocalMinuteOfDay(timezone: string | null | undefined, at: Date): number | null {
   if (!timezone || timezone.trim() === '') return null;

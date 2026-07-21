@@ -15,6 +15,8 @@
   "src/app/dashboard/contact-upload-demo.tsx::jsx-text::0::Phone",
   "src/app/dashboard/contact-upload-demo.tsx::jsx-text::0::Email",
   "src/app/dashboard/contact-upload-demo.tsx::jsx-text::0::Industry",
+  "src/app/dashboard/contact-upload-demo.tsx::jsx-ternary-branch::0::Importing…",
+  "src/app/dashboard/contact-upload-demo.tsx::jsx-ternary-branch::0::Import contacts",
   "src/app/design-tokens/page.tsx::jsx-text::0::Living Field Design System",
   "src/app/design-tokens/page.tsx::jsx-text::0::Token reference",
   "src/app/design-tokens/page.tsx::jsx-text::0::Six hue ramps, semantic tokens for Golden Hour and Pre-Dawn, a 1.25 modular type…",

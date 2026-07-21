@@ -67,7 +67,7 @@ export default function AuthPage() {
         // Generic message regardless of failure reason (§16.4: never reveal whether an email
         // exists) — NextAuth's CredentialsProvider `authorize()` already returns `null` uniformly
         // for "no such user" and "wrong password"; this mirrors that at the UI layer too.
-        setLoginError('Invalid email or password.');
+        setLoginError(t('auth.invalidCredentials'));
       } else if (result?.ok) {
         // uiux AC-2-1: "Today is the default landing surface; every login lands on Today." MAJOR-M1 /
         // §2.3 item 3 / §2.4: a PURE upline (UPLINE/RVP) instead lands on the team view of Today
@@ -109,7 +109,7 @@ export default function AuthPage() {
 
         <div className="form-body">
           <span className="badge">{t('auth.demoAccessBadge')}</span>
-          <h2 style={{ marginTop: 14 }}>{mode === 'register' ? 'Create your demo profile' : 'Welcome back'}</h2>
+          <h2 style={{ marginTop: 14 }}>{mode === 'register' ? t('auth.registerHeading') : t('auth.loginHeading')}</h2>
           <div className="actions" style={{ marginTop: 0, marginBottom: 22 }}>
             <button className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('register')}>{t('auth.registerTab')}</button>
             <button className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('login')}>{t('auth.loginTab')}</button>
@@ -146,7 +146,7 @@ export default function AuthPage() {
               ) : null}
               <div className="actions">
                 <button className="btn btn-primary" type="submit" disabled={loginPending}>
-                  {loginPending ? 'Signing in…' : 'Sign in'}
+                  {loginPending ? t('auth.signingInCta') : t('auth.signInCta')}
                 </button>
                 <Link className="btn btn-secondary" href="/today">{t('auth.skipToToday')}</Link>
               </div>

@@ -285,13 +285,13 @@ export default function TodayPage() {
         {isOffline && (
           <p className={styles.offlineBanner} role="status">
             {t('today.offlineBanner')}
-            {queueLength > 0 ? t('today.offlineBannerQueuedSuffix', { count: queueLength, plural: queueLength === 1 ? '' : 's' }) : ''}
+            {queueLength > 0 ? t('today.offlineBannerQueuedSuffix', { count: queueLength }) : ''}
             {t('today.offlineBannerTailQueueAction')}
           </p>
         )}
         {!isOffline && syncing && (
           <p className={styles.offlineBanner} role="status">
-            {t('today.syncingBanner', { count: syncing.total, plural: syncing.total === 1 ? '' : 's' })}
+            {t('today.syncingBanner', { count: syncing.total })}
           </p>
         )}
         {!isOffline && !syncing && syncNotice && (

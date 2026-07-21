@@ -36,6 +36,40 @@ function interpolate(template: string, vars?: TVars): string {
 }
 
 /**
+ * T-57 BLOCKER-B4 fix — CLDR-style plural CATEGORY selection, not a bare English "+s" suffix.
+ * `en` and `es` both use CLDR's simplest two-category plural system — `"one"` for exactly 1,
+ * `"other"` for everything else (0, fractions, negatives, 2+) — so one shared rule is correct for
+ * both locales; there is no "es needs a third category" case to special-case here. This is
+ * deliberately NOT "does the word end in a vowel" or any other word-shape heuristic — CLDR's plural
+ * RULES are about the NUMBER, never the word; which literal word/suffix each category renders as is
+ * the catalog AUTHOR's job (`key_one` / `key_other`), not this function's.
+ */
+export type PluralCategory = 'one' | 'other';
+
+export function pluralCategory(_locale: Locale, count: number): PluralCategory {
+  return count === 1 ? 'one' : 'other';
+}
+
+/**
+ * T-57 BLOCKER-B4 fix — resolves `key` to its plural-category variant (`${key}_one` /
+ * `${key}_other`) when `vars.count` is a number AND that variant actually exists (in the requested
+ * locale OR the default-locale fallback) — otherwise returns `key` unchanged, so every existing,
+ * non-pluralized call site (the vast majority of `t()` calls, including ones that happen to pass an
+ * unrelated `count` var for interpolation only) keeps resolving exactly as before. This is what
+ * lets `today.offlineBannerQueuedSuffix_one` / `_other` each carry a FULL, independently-authored
+ * phrase per language — e.g. ES `_other` = "...acciones..." (irregular: -ón → -ones, accent
+ * dropped) — rather than the old bare-English `plural: count === 1 ? '' : 's'` call-site pattern,
+ * which could only ever mechanically append "s" and produced "accións" for 2+, not "acciones".
+ */
+function resolvePluralKey(catalogs: Record<Locale, CatalogTree>, locale: Locale, key: string, vars?: TVars): string {
+  if (!vars || typeof vars.count !== 'number') return key;
+  const candidate = `${key}_${pluralCategory(locale, vars.count)}`;
+  const existsInRequested = getPath(catalogs[locale], candidate) !== undefined;
+  const existsInDefault = getPath(catalogs[DEFAULT_LOCALE], candidate) !== undefined;
+  return existsInRequested || existsInDefault ? candidate : key;
+}
+
+/**
  * Looks up `key` (dotted path, e.g. `"today.primaryCta"`) in `locale`'s catalog, from an arbitrary
  * `catalogs` map. This is the pure, unit-testable core `t()` (below) wraps around the real,
  * shipped `CATALOGS` singleton — kept as a separate export so `tests/unit/i18n-catalog.test.ts` can
@@ -43,7 +77,8 @@ function interpolate(template: string, vars?: TVars): string {
  * than mutating the real shared `CATALOGS` module singleton (which every other consumer/test in the
  * process also reads).
  *
- * Fallback order (never renders blank/undefined — §17.7): (1) the requested locale, (2)
+ * Fallback order (never renders blank/undefined — §17.7): (0) — if `vars.count` is a number — the
+ * plural-category variant of `key` (see `resolvePluralKey`), (1) the requested locale, (2)
  * `DEFAULT_LOCALE` (English) if the key is missing there, (3) the bare key itself as an absolute
  * last resort (a visibly-wrong-but-non-blank string, so a missing-key bug is obvious in the UI
  * rather than invisible). A missing key in a non-default locale is a real gap the catalog build
@@ -51,15 +86,16 @@ function interpolate(template: string, vars?: TVars): string {
  * forbidden term" — see `scripts/guard-i18n.mjs`), but a lookup miss must never crash a render.
  */
 export function tFrom(catalogs: Record<Locale, CatalogTree>, locale: Locale, key: string, vars?: TVars): string {
-  const direct = getPath(catalogs[locale], key);
+  const resolvedKey = resolvePluralKey(catalogs, locale, key, vars);
+  const direct = getPath(catalogs[locale], resolvedKey);
   if (direct !== undefined) return interpolate(direct, vars);
 
   if (locale !== DEFAULT_LOCALE) {
-    const fallback = getPath(catalogs[DEFAULT_LOCALE], key);
+    const fallback = getPath(catalogs[DEFAULT_LOCALE], resolvedKey);
     if (fallback !== undefined) {
       if (process.env.NODE_ENV !== 'production') {
         // eslint-disable-next-line no-console
-        console.warn(`[i18n] missing "${key}" in locale "${locale}" — falling back to "${DEFAULT_LOCALE}".`);
+        console.warn(`[i18n] missing "${resolvedKey}" in locale "${locale}" — falling back to "${DEFAULT_LOCALE}".`);
       }
       return interpolate(fallback, vars);
     }
@@ -67,7 +103,7 @@ export function tFrom(catalogs: Record<Locale, CatalogTree>, locale: Locale, key
 
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line no-console
-    console.warn(`[i18n] missing catalog key "${key}" in every locale.`);
+    console.warn(`[i18n] missing catalog key "${resolvedKey}" in every locale.`);
   }
   return key;
 }

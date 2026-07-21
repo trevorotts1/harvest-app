@@ -9,6 +9,6 @@ export {
   detectLocaleFromAcceptLanguage,
   resolveLocale,
 } from './locale';
-export { t, tFrom, CATALOGS, flattenCatalog, type CatalogTree, type TVars } from './catalog';
+export { t, tFrom, CATALOGS, flattenCatalog, pluralCategory, type CatalogTree, type TVars, type PluralCategory } from './catalog';
 export { computeGrowthReport, type GrowthReport, type KeyGrowth } from './growth';
 export { formatDate, formatDateTime, formatNumber, formatCurrencyUSD } from './format';

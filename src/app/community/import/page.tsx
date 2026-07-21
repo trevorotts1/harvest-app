@@ -23,7 +23,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent, type DragEvent } from 'react';
 
 import {
   ImportPreviewTable,
@@ -45,10 +45,10 @@ export default function CommunityImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  // T-57 C5 (uiux §6.3 "Full" desktop parity) — the shared "a CSV file was chosen" path, extracted
+  // so the original file-picker `onChange` AND the new drag-and-drop zone below drive the exact
+  // same preview/idempotency-key logic — never a second, hand-copied selection flow.
+  async function processFile(file: File) {
     setOutcome(null);
     setError(null);
     setFileName(file.name);
@@ -60,6 +60,32 @@ export default function CommunityImportPage() {
         ? crypto.randomUUID()
         : `csv-import-${Date.now()}-${Math.random().toString(36).slice(2)}`
     );
+  }
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  }
+
+  // T-57 C5 — drag-and-drop drop target. See OnboardingFlow.tsx's identical pattern/rationale
+  // (CSS-gated hint, harmless handlers on touch devices) for why this is unconditionally wired.
+  const [dragActive, setDragActive] = useState(false);
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(true);
+  }
+
+  function handleDragLeave() {
+    setDragActive(false);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) void processFile(file);
   }
 
   async function handleImport() {
@@ -116,6 +142,20 @@ export default function CommunityImportPage() {
               className={styles.hiddenFileInput}
             />
           </label>
+
+          {/* T-57 C5 (uiux §6.3 "Full" desktop parity) — drag-and-drop, additive alongside the file
+              picker above (never a replacement). CSS-gated to pointer-capable/wide viewports — see
+              community.module.css's `.csvDropZone` for the same rationale as OnboardingFlow.tsx's
+              identical pattern. */}
+          <div
+            className={styles.csvDropZone}
+            data-drag-active={dragActive}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {t('community.import.dragDropHint')}
+          </div>
 
           {preview && <ImportPreviewTable preview={preview} />}
 

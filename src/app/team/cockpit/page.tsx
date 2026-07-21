@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDate } from '@/lib/i18n/format';
 
 interface SponsorSeat {
   memberUserId: string;
@@ -31,7 +32,7 @@ type CockpitState = { kind: 'loading' } | { kind: 'ready'; seats: SponsorSeat[];
 type EnterpriseState = { kind: 'hidden' } | { kind: 'ready'; seats: EnterpriseSeat[]; narrative: { narrativeText: string } | null };
 
 export default function SponsorCockpitPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [cockpit, setCockpit] = useState<CockpitState>({ kind: 'loading' });
   const [enterprise, setEnterprise] = useState<EnterpriseState>({ kind: 'hidden' });
 
@@ -100,7 +101,7 @@ export default function SponsorCockpitPage() {
                 <div>{t('team.cockpit.statusLabel')} {seat.activationStatus} ({seat.sponsorshipState})</div>
                 <div>{t('team.cockpit.seatCostLabel')}{(seat.seatCostCents / 100).toFixed(2)}</div>
                 <div>{t('team.cockpit.recruitsActivatedLabel')} {seat.recruitsActivated} {t('team.cockpit.appointmentsGeneratedLabel')} {seat.appointmentsGenerated}</div>
-                {seat.renewalDate && <div>{t('team.cockpit.renewsLabel')} {new Date(seat.renewalDate).toLocaleDateString()}</div>}
+                {seat.renewalDate && <div>{t('team.cockpit.renewsLabel')} {formatDate(locale, seat.renewalDate)}</div>}
                 <p style={{ fontStyle: 'italic' }}>{seat.roiNote}</p>
               </div>
             ))}

@@ -8,7 +8,8 @@
 
 import styles from '../today.module.css';
 import type { CalendarEventItem, CalendarZoneData, ZoneResult } from '@/services/mission-control/types';
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
 
 export interface CalendarStripProps {
   result: ZoneResult<CalendarZoneData>;
@@ -19,7 +20,7 @@ export interface CalendarStripProps {
 }
 
 export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineEventIds }: CalendarStripProps) {
-  const t = useT();
+  const { locale, t } = useLocale();
 
   if (result.status === 'error') {
     return (
@@ -56,7 +57,7 @@ export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineE
           <li key={e.id} className={styles.calendarRow}>
             <div>
               <strong>{e.type.replaceAll('_', ' ')}</strong>
-              <span className={styles.queueMeta}>{new Date(e.startsAt).toLocaleString()}</span>
+              <span className={styles.queueMeta}>{formatDateTime(locale, e.startsAt)}</span>
             </div>
             {e.attendanceState === 'attended' || e.attendanceState === 'missed' ? (
               <span className={styles.attendanceMarked}>{e.attendanceState === 'attended' ? t('today.calendarStrip.attendedCta') : t('today.calendarStrip.missedCta')}</span>

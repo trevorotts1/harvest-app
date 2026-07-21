@@ -71,7 +71,7 @@ export default function LearnPage() {
       {streak && (
         <section className="card panel" style={{ marginTop: 18 }}>
           <span className="badge">
-            {t('learn.streakBadge', { count: streak.currentStreakDays, plural: streak.currentStreakDays === 1 ? '' : 's' })}
+            {t('learn.streakBadge', { count: streak.currentStreakDays })}
           </span>
           <div style={{ display: 'flex', gap: 6, marginTop: 12 }} aria-label={t('learn.streakBar.ariaLabel')}>
             {streak.last7Days.map((day) => (

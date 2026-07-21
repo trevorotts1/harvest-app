@@ -7,7 +7,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDate } from '@/lib/i18n/format';
 import { NamesInPlayPanel, PipelineStatesPanel } from './components/RepDataPanels';
 
 interface DrillIn {
@@ -24,7 +25,7 @@ interface DrillIn {
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: DrillIn } | { kind: 'not_found' } | { kind: 'failed' };
 
 export default function RepDrillInPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const params = useParams<{ userId: string }>();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
@@ -75,7 +76,7 @@ export default function RepDrillInPage() {
           <span className="badge">{t('team.rep.milestonesBadge')}</span>
           <ul>
             {data.milestones.map((m) => (
-              <li key={m.key}>{m.key.replace(/_/g, ' ')} — {new Date(m.achievedAtIso).toLocaleDateString()}</li>
+              <li key={m.key}>{m.key.replace(/_/g, ' ')} — {formatDate(locale, m.achievedAtIso)}</li>
             ))}
           </ul>
         </section>

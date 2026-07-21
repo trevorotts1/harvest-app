@@ -13,7 +13,8 @@
 
 import { useState } from 'react';
 
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
 
 export interface PendingBridgeData {
   id: string;
@@ -35,7 +36,7 @@ export interface PendingBridgeItemProps {
 }
 
 export default function PendingBridgeItem({ item, onJoin }: PendingBridgeItemProps) {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
@@ -62,8 +63,8 @@ export default function PendingBridgeItem({ item, onJoin }: PendingBridgeItemPro
         <strong>{item.repName}</strong> {t('inbox.item.separator')} {reasonLabel}
         <br />
         <span style={{ color: 'var(--muted)' }}>
-          {t('team.bridges.item.invitedLabel')} {new Date(item.invitedAt).toLocaleString()} {t('team.bridges.item.returnsToThemAtLabel')}{' '}
-          {new Date(item.returnDeadlineAt).toLocaleString()} {t('team.bridges.item.ifYouDontJoin')}
+          {t('team.bridges.item.invitedLabel')} {formatDateTime(locale, item.invitedAt)} {t('team.bridges.item.returnsToThemAtLabel')}{' '}
+          {formatDateTime(locale, item.returnDeadlineAt)} {t('team.bridges.item.ifYouDontJoin')}
         </span>
         {error && (
           <p className="notice notice-danger" role="alert" style={{ marginTop: 8 }}>

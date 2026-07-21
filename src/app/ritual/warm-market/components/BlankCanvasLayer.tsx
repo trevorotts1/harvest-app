@@ -76,7 +76,13 @@ export default function BlankCanvasLayer({
             key={i}
             role="listitem"
             className={`${styles.dot} ${entry ? (entry.matched ? styles.dotFilled : styles.dotUnmatched) : ''}`}
-            title={entry ? (entry.matched ? `${entry.typedName} — matched in your Vault` : `${entry.typedName} — add?`) : 'Open position'}
+            title={
+              entry
+                ? entry.matched
+                  ? t('ritual.blankCanvas.dotTitleMatched', { name: entry.typedName })
+                  : t('ritual.blankCanvas.dotTitleUnmatched', { name: entry.typedName })
+                : t('ritual.blankCanvas.dotTitleOpen')
+            }
           >
             {entry ? entry.typedName.charAt(0).toUpperCase() : ''}
           </div>
@@ -104,7 +110,7 @@ export default function BlankCanvasLayer({
         {entries.map((entry, i) => (
           <li key={i} className={styles.enteredChip}>
             {entry.typedName}
-            {entry.matched ? ' ✓' : ' (add?)'}
+            {entry.matched ? t('ritual.blankCanvas.enteredMatchedSuffix') : t('ritual.blankCanvas.enteredUnmatchedSuffix')}
           </li>
         ))}
       </ul>

@@ -10,7 +10,7 @@
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 import { useLocale } from '@/app/locale-context';
 import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
@@ -169,29 +169,27 @@ export default function OnboardingFlow({
       const response = await fetch('/api/onboarding/consent', { method: 'POST' });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}) as { error?: string });
-        setConsentError(body.error ?? 'Could not record your consent — please try again.');
+        setConsentError(body.error ?? t('onboarding.gdprConsent.failedGeneric'));
         return;
       }
       advance();
     } catch {
-      setConsentError('Could not record your consent — please try again.');
+      setConsentError(t('onboarding.gdprConsent.failedGeneric'));
     } finally {
       setConsentSubmitting(false);
     }
   }
 
-  // T-R30 (parity GAP 1) — the O-7 "Import a CSV" button's real handler: fired from the hidden
-  // `<input type="file">` ref'd below, this reads the selected file as text and POSTs it to the
-  // REAL onboarding-time Vault ingestion route (session-gated, NOT onboarding-complete-gated — see
-  // that route's own file header for why it can't be `/api/contacts/import`). `contactCount` is set
-  // from the route's actual `importedCount + mergedCount` — never a fake constant. A failed import
-  // never advances the screen and never fabricates a count; the rep can retry or fall back to
-  // "Add one at a time".
-  async function handleCsvFileSelected(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = ''; // allow re-selecting the same filename on a retry
-    if (!file) return;
-
+  // T-R30 (parity GAP 1) — the O-7 "Import a CSV" real handler, extracted from the ORIGINAL file-
+  // input `onChange` (below) so BOTH the file-input path AND the T-57 C5 drag-and-drop zone (the
+  // desktop/pointer-capable "Full" parity affordance, uiux §6.3) share exactly one read+POST+
+  // idempotency-key path — never a second, hand-copied import flow that could drift from the real
+  // one. Reads the selected/dropped file as text and POSTs it to the REAL onboarding-time Vault
+  // ingestion route (session-gated, NOT onboarding-complete-gated — see that route's own file header
+  // for why it can't be `/api/contacts/import`). `contactCount` is set from the route's actual
+  // `importedCount + mergedCount` — never a fake constant. A failed import never advances the screen
+  // and never fabricates a count; the rep can retry or fall back to "Add one at a time".
+  async function processCsvFile(file: File) {
     setCsvError(null);
     setCsvImporting(true);
     if (!csvIdempotencyKeyRef.current) {
@@ -210,7 +208,7 @@ export default function OnboardingFlow({
       });
       const body = await response.json().catch(() => ({}) as { error?: string });
       if (!response.ok) {
-        setCsvError((body as { error?: string }).error ?? 'Could not import that file — please try again.');
+        setCsvError((body as { error?: string }).error ?? t('onboarding.contactImport.denied.importFailedGeneric'));
         return;
       }
       // This attempt is done — a later, separate file selection mints a fresh idempotency key.
@@ -219,10 +217,42 @@ export default function OnboardingFlow({
       setContactCount((result.importedCount ?? 0) + (result.mergedCount ?? 0));
       advance();
     } catch {
-      setCsvError('Could not import that file — please try again.');
+      setCsvError(t('onboarding.contactImport.denied.importFailedGeneric'));
     } finally {
       setCsvImporting(false);
     }
+  }
+
+  async function handleCsvFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // allow re-selecting the same filename on a retry
+    if (!file) return;
+    await processCsvFile(file);
+  }
+
+  // T-57 C5 (uiux §6.3 "Full" desktop parity) — the drag-and-drop CSV drop zone. The affordance
+  // itself is CSS-gated to pointer-capable/wide viewports (`.csvDropZone`'s `display: none` default,
+  // lifted only under `(hover: hover) and (pointer: fine) and (min-width: 860px)` in
+  // onboarding.module.css) — a touch-only/narrow viewport never sees the hint text, matching this
+  // codebase's canonical ≥860 breakpoint (uiux §2.2) for "desktop-class" affordances. The handlers
+  // below are harmless to attach unconditionally: a touch device simply never fires `dragover`/
+  // `drop` events, so there is no functional difference, only a hidden hint on narrow viewports.
+  const [csvDragActive, setCsvDragActive] = useState(false);
+
+  function handleCsvDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setCsvDragActive(true);
+  }
+
+  function handleCsvDragLeave() {
+    setCsvDragActive(false);
+  }
+
+  function handleCsvDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setCsvDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) void processCsvFile(file);
   }
 
   // Dense upline/RVP track (Flow B/D): one shell, density not cinema — no vision splash, no reveal.
@@ -344,6 +374,22 @@ export default function OnboardingFlow({
             csvImporting={csvImporting}
             csvError={csvError}
           />
+          {/* T-57 C5 (uiux §6.3 "Full" desktop parity) — drag-and-drop CSV zone, additive alongside
+              the "Import a CSV" button above (never a replacement — the button is the only CSV path
+              on touch/narrow viewports, where this hint is CSS-hidden). Only meaningful once the CSV
+              path is actually offered (the 'denied' beat, mirroring ContactImportStep's own gating
+              of the "Import a CSV" button to that same beat). */}
+          {importBeat === 'denied' && (
+            <div
+              className={styles.csvDropZone}
+              data-drag-active={csvDragActive}
+              onDragOver={handleCsvDragOver}
+              onDragLeave={handleCsvDragLeave}
+              onDrop={handleCsvDrop}
+            >
+              {t('onboarding.contactImport.denied.dragDropHint')}
+            </div>
+          )}
           {/* Visually hidden (not display:none, so the ref's programmatic .click() stays reliable
               cross-browser) — triggered ONLY by the "Import a CSV" button above via csvInputRef. */}
           <input

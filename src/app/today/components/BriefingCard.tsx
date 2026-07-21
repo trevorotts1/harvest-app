@@ -6,16 +6,22 @@ import { useCallback, useEffect, useState } from 'react';
 
 import styles from '../today.module.css';
 import type { BriefingZoneData, ZoneResult } from '@/services/mission-control/types';
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
+import type { TVars } from '@/lib/i18n/catalog';
+import type { Locale } from '@/lib/i18n/locale';
 
 export interface BriefingCardProps {
   result: ZoneResult<BriefingZoneData>;
 }
 
-function freshnessLabel(iso: string | null): string | null {
+// T-57 BLOCKER-B3 fix — was a bare `toLocaleTimeString(undefined, ...)` (silently followed the
+// BROWSER's own locale, never the rep's in-app EN/ES choice) with a hardcoded English "as of "
+// prefix. Now routes the TIME through `formatDateTime` (the real `Intl` layer, keyed to the rep's
+// locale) and the wrapping phrase through the catalog.
+function freshnessLabel(locale: Locale, iso: string | null, t: (key: string, vars?: TVars) => string): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  return `as of ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+  return t('today.briefingCard.freshnessLabel', { time: formatDateTime(locale, iso, { hour: 'numeric', minute: '2-digit' }) });
 }
 
 // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 items 5 + 6) — "Briefing" narration script, verbatim:
@@ -24,7 +30,17 @@ function freshnessLabel(iso: string | null): string | null {
 // lead-in (composed per-agent, not per-utterance), so that prefix is stripped before joining —
 // otherwise a rep with 2+ agent lines would hear "While you slept: ... While you slept: ..."
 // repeated once per line instead of the spec's single, one-time lead-in.
-const LEADING_WHILE_YOU_SLEPT_RE = /^while you slept:\s*/i;
+//
+// T-57 BLOCKER-B5 fix — this regex used to match ONLY the English lead-in. `briefing.ts`
+// (`src/services/mission-control/zones/briefing.ts`, a service file NOT owned by this fixer — see
+// the T-57 R4 remediation notes) composes every `line.text` server-side and is, today, itself
+// English-only with no locale awareness at all (a separate, larger gap: it is dynamic AI-agent-run
+// narrative composition, not a simple catalog string, and out of this residual i18n sweep's scope).
+// Widening this alternation to ALSO strip the Spanish lead-in is therefore a no-op against today's
+// actual input (the Spanish branch never matches anything `briefing.ts` currently emits) but keeps
+// this component from ever double-announcing a foreign-language prefix if/when that upstream
+// service becomes locale-aware — forward-compatible, zero behavior change today.
+const LEADING_WHILE_YOU_SLEPT_RE = /^(?:while you slept|mientras dormías):\s*/i;
 
 function stripLeadingWhileYouSlept(text: string): string {
   return text.replace(LEADING_WHILE_YOU_SLEPT_RE, '');
@@ -34,30 +50,31 @@ function stripLeadingWhileYouSlept(text: string): string {
  *  line's text, "While you slept:" said once). Shared by the sr-only narration script below AND
  *  the "listen" (TTS) transcript, so §6.1 item 6's "transcript = the visible text, always" holds
  *  by construction, not by two copies that can drift. Exported (same convention as ClosePhase's
- *  `recapLine` / ShiftView's `applyOptimisticAction`) so this invariant is directly unit-testable. */
-export function briefingVisibleNarrative(lines: BriefingZoneData['lines']): string {
+ *  `recapLine` / ShiftView's `applyOptimisticAction`) so this invariant is directly unit-testable.
+ *
+ *  T-57 BLOCKER-B5 fix — takes `t` explicitly (rather than reading a hardcoded English wrapper
+ *  phrase) so the ONE wrapping phrase this component itself authors is genuinely locale-aware; the
+ *  per-line agent narrative content substituted into it is a separate, out-of-scope upstream
+ *  concern (see `LEADING_WHILE_YOU_SLEPT_RE`'s comment above). */
+export function briefingVisibleNarrative(lines: BriefingZoneData['lines'], t: (key: string, vars?: TVars) => string): string {
   const joined = lines.map((l) => stripLeadingWhileYouSlept(l.text)).join(' ');
-  return `While you slept: ${joined}`;
+  return t('today.briefingCard.whileYouSleptNarrative', { joined });
 }
 
 /** The full §6.1 item 5 screen-reader script — the visible narrative plus the VoiceOver/TalkBack-
  *  specific "Double-tap any line for receipts." instruction, which is deliberately NOT spoken by
  *  the "listen" TTS affordance (it names a screen-reader gesture, not something a sighted listener
  *  following the visible transcript needs read aloud). */
-export function briefingSrUtterance(lines: BriefingZoneData['lines']): string {
-  return `${briefingVisibleNarrative(lines)} Double-tap any line for receipts.`;
+export function briefingSrUtterance(lines: BriefingZoneData['lines'], t: (key: string, vars?: TVars) => string): string {
+  return t('today.briefingCard.srUtteranceTemplate', { narrative: briefingVisibleNarrative(lines, t) });
 }
-
-export const FIRST_DAY_LINE = "Your field is planted — your agents haven't run yet. Nothing to report, nothing lost.";
-export const AGENTS_RESTING_LINE = 'Your agents are resting — everything is saved.';
-export const EMPTY_LINE = 'A quiet night — your agents found nothing that needed you.';
 
 function hasSpeechSynthesis(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
 export default function BriefingCard({ result }: BriefingCardProps) {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 6) — "TTS briefing: the 'listen' affordance plays the
   // briefing as audio (system TTS in v1) — an accessibility feature that seeds the Phase-2 Voice
@@ -105,20 +122,23 @@ export default function BriefingCard({ result }: BriefingCardProps) {
   }
 
   const { state, freshnessStamp, lines } = result.data;
-  const stamp = freshnessLabel(freshnessStamp);
+  const stamp = freshnessLabel(locale, freshnessStamp, t);
+  const firstDayLine = t('today.briefingCard.firstDayLine');
+  const agentsRestingLine = t('today.briefingCard.agentsRestingLine');
+  const emptyLine = t('today.briefingCard.emptyLine');
 
   // §6.1 item 6: the transcript is ALWAYS the visible text — one switch, matching the one below
   // that decides what actually renders on screen for each state.
   const transcript =
     state === 'ready'
       ? lines.length > 0
-        ? briefingVisibleNarrative(lines)
+        ? briefingVisibleNarrative(lines, t)
         : null
       : state === 'first_day'
-        ? FIRST_DAY_LINE
+        ? firstDayLine
         : state === 'agents_resting'
-          ? AGENTS_RESTING_LINE
-          : EMPTY_LINE;
+          ? agentsRestingLine
+          : emptyLine;
 
   return (
     <section className={styles.zoneCard} data-zone="briefing" data-briefing-state={state}>
@@ -133,16 +153,16 @@ export default function BriefingCard({ result }: BriefingCardProps) {
             aria-pressed={isSpeaking}
           >
             <span aria-hidden="true">{isSpeaking ? '⏸' : '🔊'}</span>
-            {isSpeaking ? 'Stop' : 'Listen'}
+            {isSpeaking ? t('today.briefingCard.stopCta') : t('today.briefingCard.listenCta')}
           </button>
         )}
       </div>
 
-      {state === 'first_day' && <p className={styles.narrativeLine}>{FIRST_DAY_LINE}</p>}
-      {state === 'agents_resting' && <p className={styles.narrativeLine}>{AGENTS_RESTING_LINE}</p>}
-      {state === 'empty' && <p className={styles.narrativeLine}>{EMPTY_LINE}</p>}
+      {state === 'first_day' && <p className={styles.narrativeLine}>{firstDayLine}</p>}
+      {state === 'agents_resting' && <p className={styles.narrativeLine}>{agentsRestingLine}</p>}
+      {state === 'empty' && <p className={styles.narrativeLine}>{emptyLine}</p>}
       {state === 'ready' && lines.length > 0 && (
-        <p className={styles.srOnly}>{briefingSrUtterance(lines)}</p>
+        <p className={styles.srOnly}>{briefingSrUtterance(lines, t)}</p>
       )}
       {state === 'ready' &&
         lines.map((line, i) => (
@@ -168,7 +188,7 @@ export default function BriefingCard({ result }: BriefingCardProps) {
               <ul className={styles.receiptsList}>
                 {line.receipts.map((r) => (
                   <li key={r.agentRunId}>
-                    {r.agentDisplayName} · {r.action} · {new Date(r.when).toLocaleString()}
+                    {r.agentDisplayName} · {r.action} · {formatDateTime(locale, r.when)}
                     {r.cfeBand ? ` · CFE ${r.cfeBand}` : ''}
                   </li>
                 ))}

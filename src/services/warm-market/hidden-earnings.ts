@@ -286,6 +286,20 @@ export function assertSafeHarborPresent(
   return result;
 }
 
+// T-57 BLOCKER-B8 DECISION (documented, not routed through the locale layer) — this module's ONLY
+// two consumers of `formatUsd` are `buildScreenReaderUtterance` (feeds the currently-unconsumed-by-
+// any-.tsx `/api/contacts/hidden-earnings` route's JSON payload — grep confirms zero live UI callers
+// today) and `composeHiddenEarningsOutreachLine` (contact-facing OUTREACH copy, CFE-gated,
+// `routeHiddenEarningsToOutreach`). Both compose sentences AROUND the mandatory, compliance-verbatim
+// `SAFE_HARBOR_LINE`/`SAFE_HARBOR_LINE_SPOKEN`/`GROWTH_PATH_HEADLINE`/`GROWTH_PATH_BODY` — every one
+// of which is a FIXED ENGLISH STRING by design (this file's own header: "Verbatim; never
+// paraphrased" — §4.13/§0.5). Making just the currency figure locale-variant while the sentence
+// wrapped around it stays English-fixed would produce a mixed-language Frankenstein string, not a
+// genuine translation — worse than the status quo, not better. The REP-facing surface that actually
+// needs (and gets) locale-aware currency is `HiddenEarningsReveal.tsx` (uiux §5.1 O-8), which
+// already routes its OWN, independent `formatUsd` through `formatCurrencyUSD(locale, value)` (see
+// that component) — this engine-level `formatUsd` never feeds that component at all. `'en-US'`
+// stays fixed here deliberately, matching the fixed-English prose it is always composed inside.
 function formatUsd(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

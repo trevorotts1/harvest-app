@@ -70,7 +70,7 @@ export default function ComplianceReviewPage() {
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          setError(body?.error ?? 'This item could not be adjudicated.');
+          setError(body?.error ?? t('team.complianceReview.adjudicateFailedGeneric'));
           setBusyId(null);
           return;
         }
@@ -79,11 +79,11 @@ export default function ComplianceReviewPage() {
           prev.kind === 'ready' ? { kind: 'ready', items: prev.items.filter((it) => it.queueId !== queueId) } : prev
         );
       } catch {
-        setError('Network error — try again.');
+        setError(t('team.complianceReview.networkErrorGeneric'));
       }
       setBusyId(null);
     },
-    []
+    [t]
   );
 
   if (state.kind === 'loading') {
@@ -128,7 +128,7 @@ export default function ComplianceReviewPage() {
       </section>
 
       {state.items.map((item) => {
-        const name = item.contact ? `${item.contact.firstName} ${item.contact.lastName}` : 'a contact';
+        const name = item.contact ? `${item.contact.firstName} ${item.contact.lastName}` : t('team.complianceReview.contactFallback');
         const busy = busyId === item.queueId;
         return (
           <section key={item.queueId} className="card panel">
@@ -154,7 +154,7 @@ export default function ComplianceReviewPage() {
                 disabled={busy}
                 onClick={() => void adjudicate(item.queueId, 'APPROVE')}
               >
-                {busy ? 'Working…' : 'Approve for send'}
+                {busy ? t('team.complianceReview.workingCta') : t('team.complianceReview.approveForSendCta')}
               </button>
               <button
                 type="button"
