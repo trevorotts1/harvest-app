@@ -1722,6 +1722,8 @@
     "QUEUE_KIND_INVALID": "Ese tipo de elemento de la cola no es compatible.",
     "EVENT_ID_REQUIRED": "Selecciona un evento antes de continuar.",
     "ATTENDANCE_STATE_INVALID": "Elige Asistió o No asistió para este evento.",
-    "EVENT_NOT_FOUND": "No se pudo encontrar este evento para tu organización."
+    "EVENT_NOT_FOUND": "No se pudo encontrar este evento para tu organización.",
+    "NOT_OWNED": "Ese elemento no te pertenece.",
+    "REQUIRES_REVIEW": "Este borrador fue marcado por la revisión de cumplimiento y no se puede aprobar desde tu Turno — edítalo o revísalo en la Bandeja de aprobación."
   }
 }

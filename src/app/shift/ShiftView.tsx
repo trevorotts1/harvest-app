@@ -102,13 +102,47 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
+/** A failed `postJson` throw carries the route's machine `code` (and `currentState`, where the
+ *  route sets one) as extra properties on the `Error` — never as its `.message`. This is the
+ *  "surface the code, not the prose" half of the T-57 RE-GATE ROUND-3 (B [a7133fce]) fix: every
+ *  Work-phase action (`handleAction` -> `/api/shift/action`) shares this one POST helper, so
+ *  fixing it here means `DraftApprovalCard`'s approve/decline handlers (the other half of the fix)
+ *  can resolve a real, localized display string via `errorDisplay` for ANY Work-phase action
+ *  refusal — not just the two codes that prompted this fix (`NOT_OWNED`/`REQUIRES_REVIEW`) — the
+ *  instant a future route teaches this endpoint a new `code`. */
+export interface CodedActionError extends Error {
+  code?: string;
+  currentState?: string;
+}
+
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`POST ${url} failed (${res.status})`);
+  if (!res.ok) {
+    // Read the failure body so the route's machine `code` survives this generic helper instead of
+    // being discarded into an opaque "POST ... failed (status)" message. The raw `error` prose
+    // (always English on this route, see api/shift/action/route.ts) is deliberately NEVER read
+    // here for display — callers resolve a DISPLAY string from `code` via `errorDisplay`,
+    // mirroring `inbox/page.tsx`'s handleApprove/handleDecline and this file's own
+    // `makeEditHandler` (which reads `code` directly since it does its own fetch).
+    let code: string | undefined;
+    let currentState: string | undefined;
+    try {
+      const data = (await res.json()) as { code?: unknown; currentState?: unknown };
+      code = typeof data.code === 'string' ? data.code : undefined;
+      currentState = typeof data.currentState === 'string' ? data.currentState : undefined;
+    } catch {
+      // Body wasn't JSON (or already consumed) — fall through with no code; the catch site still
+      // resolves a safe, localized `errors.generic` display, never English/technical prose.
+    }
+    const err: CodedActionError = new Error(`POST ${url} failed (${res.status})`);
+    err.code = code;
+    err.currentState = currentState;
+    throw err;
+  }
   return res.json();
 }
 
