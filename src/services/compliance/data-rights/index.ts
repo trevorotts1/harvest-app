@@ -1,6 +1,10 @@
 export { DataRightsService } from './data-rights';
 export type { DataRightsPrismaClient } from './data-rights';
 
+// T-R29 (compliance-reachability build) — the production composition root the new
+// `src/app/api/data-rights/**` routes construct per-request. See production.ts's doc comment.
+export { buildProductionDataRightsService } from './production';
+
 export { RetentionService, retentionService } from './retention';
 export type { RetentionRecordRef, PastRetentionResult } from './retention';
 
@@ -36,4 +40,8 @@ export type {
   UserDataExportRecord,
   MinimizationSurface,
 } from '../../../types/data-rights';
-export { RETENTION_SCHEDULE, MINIMIZATION_ALLOWLIST } from '../../../types/data-rights';
+export {
+  RETENTION_SCHEDULE,
+  MINIMIZATION_ALLOWLIST,
+  DELETION_CONFIRMATION_COOLING_OFF_HOURS,
+} from '../../../types/data-rights';

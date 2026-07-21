@@ -60,6 +60,13 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
         <a href="/me/subscription" className={styles.approvalBadge} aria-label="Subscription and billing">
           Subscription
         </a>
+        {/* T-R29 (compliance-reachability build, master-spec §16.3/§9 GDPR/CCPA data rights) — Me →
+            Data & Privacy entry. T-51 found the data-rights export/deletion center built but
+            unreachable (no route, no UI); this is the reachability fix, same ad-hoc nav-link
+            pattern as Subscription above (no "Me" index page exists yet for either to live on). */}
+        <a href="/me/data-rights" className={styles.approvalBadge} aria-label="Data and privacy — export or delete your data">
+          Data & Privacy
+        </a>
       </div>
 
       <div className={styles.headerBody}>

@@ -1,0 +1,204 @@
+/* T-R29 (compliance-reachability build) — Me -> Data & Privacy (master-spec §16.3/§9, uiux "Me").
+   Semantic tokens only (LFDS), matching src/app/me/subscription/subscription.module.css's proven
+   token set — themes light/dark, passes verify-contrast + guard-no-opacity-on-text: text never
+   uses `opacity` or a translucent `color`; card backgrounds use the opaque
+   `--surface-1-solid-fallback`. */
+
+.page {
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  min-height: 100vh;
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-6);
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-title-size);
+  font-weight: 700;
+  margin: 0;
+}
+
+.subhead {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.stateCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  font-weight: 700;
+  margin: 0;
+}
+
+.body {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.meta {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+.btnRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.actionBtn {
+  min-height: var(--touch-target-min);
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-action);
+  color: var(--on-action);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.actionBtn:disabled {
+  cursor: not-allowed;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.dangerBtn {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--color-blocked-fill);
+  border-radius: var(--radius-control);
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.dangerBtn:disabled {
+  cursor: not-allowed;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border-color: var(--line);
+}
+
+.secondaryBtn {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+}
+
+.banner {
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+}
+
+.bannerCaution {
+  background: var(--color-caution-bg);
+  color: var(--color-caution-text);
+  border-color: var(--color-caution-text);
+}
+
+.bannerBlocked {
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+}
+
+.bannerQuiet {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--line);
+}
+
+.bannerTitle {
+  font-weight: 700;
+  margin: 0;
+  font-size: var(--type-body-lg-size);
+}
+
+.bannerBody {
+  margin: 0;
+  font-size: var(--type-body-size);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+
+.checkboxRow input {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+}
+
+.codeInput {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-lg-size);
+  padding: var(--space-2) var(--space-3);
+  max-width: 160px;
+  letter-spacing: 0.2em;
+}
+
+.fieldLabel {
+  color: var(--text-primary);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+  margin: 0;
+}
+
+.list {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.loading {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  padding: var(--space-6);
+}
