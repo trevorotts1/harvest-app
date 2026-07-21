@@ -1,0 +1,51 @@
+/* T-57 R3b (E-M4, uiux §4.9) — Me -> Intensity. Semantic tokens only; no opacity/translucent color
+   on text; no text-overflow/line-clamp. `IntensityDial` itself (reused verbatim from onboarding)
+   carries its own styling from onboarding.module.css — this file only frames the page shell + the
+   effective-immediately confirmation banner around it. */
+
+.page {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  min-height: 100vh;
+  display: grid;
+  gap: var(--space-5);
+}
+.header {
+  margin-bottom: 0;
+}
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0 0 var(--space-2);
+}
+.subhead {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.loading {
+  color: var(--text-secondary);
+}
+.dialFrame {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+}
+.notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.noticeFailed {
+  color: var(--color-danger-form-text);
+}

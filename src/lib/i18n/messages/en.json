@@ -43,7 +43,110 @@
     "subscriptionDesc": "Your plan and billing.",
     "dataRightsTitle": "Data & Privacy",
     "dataRightsDesc": "Export or delete your data.",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "notifications": {
+      "heading": "Notifications",
+      "subhead": "Choose when and how often we reach you. Replies, milestones, and account security always come through.",
+      "loading": "Loading your notification settings…",
+      "loadFailed": "We couldn't load your notification settings. Try again in a moment.",
+      "activity": {
+        "heading": "Recent activity",
+        "quietSoFar": "Quiet so far.",
+        "hint": "Nothing has come through yet — once something does, it'll show up here.",
+        "itemLabel": {
+          "morningBriefing": "Morning Briefing",
+          "middayMotivation": "Midday Motivation",
+          "eveningRecap": "Evening Recap",
+          "actionAlert": "Action alert",
+          "inactivityNudge": "Check-in nudge",
+          "milestoneCelebration": "Milestone celebration",
+          "approvalWaiting": "Drafts waiting",
+          "billingSecurity": "Billing & security"
+        }
+      },
+      "morningBriefing": {
+        "title": "Morning Briefing",
+        "desc": "While you slept: your overnight summary and top priority.",
+        "timeLabel": "Send at"
+      },
+      "midday": {
+        "title": "Midday Motivation",
+        "desc": "A quote tied to your anchor, timed for the middle of your day."
+      },
+      "evening": {
+        "title": "Evening Recap",
+        "desc": "What you got done today, and tomorrow's focus."
+      },
+      "quietHours": {
+        "title": "Your quiet hours",
+        "desc": "These are your own hours for non-urgent notifications — separate from the quiet hours we keep for the people you reach out to.",
+        "startLabel": "Starts",
+        "endLabel": "Ends"
+      },
+      "timezone": {
+        "title": "Timezone",
+        "desc": "We use this to time your briefings and quiet hours correctly."
+      },
+      "alwaysOn": {
+        "title": "Always on",
+        "desc": "Replies and appointments, milestone celebrations, and anything about your billing or account security matter too much to miss, so they're never muted here."
+      },
+      "toggle": {
+        "on": "On",
+        "off": "Off"
+      },
+      "saveNotice": {
+        "saved": "Saved.",
+        "failed": "Couldn't save that. Try again."
+      }
+    },
+    "intensity": {
+      "hubTitle": "Intensity",
+      "hubDesc": "How much your agents do each day.",
+      "heading": "Intensity",
+      "subhead": "How much your agents do on your behalf each day. Change it any time — it takes effect immediately.",
+      "loading": "Loading your intensity setting…",
+      "loadFailed": "We couldn't load your intensity setting. Try again in a moment.",
+      "saveNotice": {
+        "saved": "Updated — effective immediately.",
+        "failed": "Couldn't save that. Try again."
+      }
+    },
+    "security": {
+      "hubTitle": "Security",
+      "hubDesc": "Two-factor authentication and session controls.",
+      "heading": "Security",
+      "subhead": "Keep your account protected.",
+      "mfa": {
+        "sectionTitle": "Two-factor authentication",
+        "body": "Add a second step at sign-in using an authenticator app — required for uplines, RVPs, and admins, and available to anyone.",
+        "loading": "Checking your two-factor status…",
+        "statusOn": "Two-factor authentication is on.",
+        "statusOff": "Two-factor authentication is off.",
+        "startEnrollCta": "Set up two-factor authentication",
+        "enrollFailed": "Couldn't start setup. Nothing was changed — try again.",
+        "scanInstructions": "Scan this with your authenticator app, then enter the code it shows you.",
+        "recoveryCodesIntro": "Save these recovery codes somewhere safe — each works once, if you ever lose access to your authenticator.",
+        "codeLabel": "6-digit code",
+        "confirmCta": "Confirm",
+        "verifyFailed": "That code didn't verify — check your authenticator app and try again."
+      },
+      "signOutEverywhere": {
+        "sectionTitle": "Sign out everywhere",
+        "body": "Ends every signed-in session on every device, including this one. Confirm your password to continue.",
+        "passwordLabel": "Current password",
+        "cta": "Sign out everywhere",
+        "working": "Signing out everywhere…",
+        "done": "Signed out everywhere. You'll be redirected to sign in again.",
+        "incorrectPassword": "That password isn't right. Try again.",
+        "failedGeneric": "Couldn't sign out everywhere. Try again."
+      }
+    },
+    "persona": {
+      "switcherAria": "Switch between My Business and My Team",
+      "myBusiness": "My Business",
+      "myTeam": "My Team"
+    }
   },
   "accessibility": {
     "heading": "Accessibility",
