@@ -1,0 +1,188 @@
+/* T-57 R3b (E-M10 + §16.4 sign-out-everywhere) — Me -> Security. Semantic tokens only; no
+   opacity/translucent color on text; no text-overflow/line-clamp; every interactive element keeps
+   the 44px touch-target floor. Pattern mirrors me/accessibility + me/data-rights. */
+
+.page {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  min-height: 100vh;
+  display: grid;
+  gap: var(--space-5);
+}
+.header {
+  margin-bottom: 0;
+}
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0 0 var(--space-2);
+}
+.subhead {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.loading {
+  color: var(--text-secondary);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+}
+.sectionTitle {
+  font-weight: 700;
+  margin: 0;
+  font-size: var(--type-body-size);
+}
+.sectionDesc {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+.body {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+.statusDotOn {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-action);
+  flex-shrink: 0;
+}
+.statusDotOff {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--soil-300);
+  flex-shrink: 0;
+}
+
+.btnRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.actionBtn {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--color-action);
+  color: var(--on-action);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-5);
+  cursor: pointer;
+}
+.actionBtn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.dangerBtn {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--color-danger-form-text);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-5);
+  cursor: pointer;
+}
+.dangerBtn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.dangerBtn:disabled {
+  cursor: not-allowed;
+}
+.secondaryBtn {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-5);
+  cursor: pointer;
+}
+.secondaryBtn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.fieldLabel {
+  display: block;
+  font-weight: 700;
+  font-size: var(--type-caption-size);
+  margin-bottom: var(--space-1);
+}
+.codeInput,
+.passwordInput {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+  font-family: inherit;
+  width: 100%;
+  max-width: 280px;
+}
+.codeInput:focus-visible,
+.passwordInput:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.otpauthBox {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: var(--space-3);
+  word-break: break-all;
+  font-family: monospace;
+  font-size: var(--type-caption-size);
+}
+
+.recoveryCodeList {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-2);
+  font-family: monospace;
+}
+
+.notice {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.noticeFailed {
+  color: var(--color-danger-form-text);
+}
+.noticeSuccess {
+  color: var(--text-primary);
+  font-weight: 700;
+}

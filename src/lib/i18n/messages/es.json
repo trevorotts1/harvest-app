@@ -43,7 +43,110 @@
     "subscriptionDesc": "Tu plan y facturación.",
     "dataRightsTitle": "Datos y privacidad",
     "dataRightsDesc": "Exporta o elimina tus datos.",
-    "comingSoon": "Próximamente"
+    "comingSoon": "Próximamente",
+    "notifications": {
+      "heading": "Notificaciones",
+      "subhead": "Elige cuándo y con qué frecuencia te contactamos. Las respuestas, los logros y la seguridad de la cuenta siempre llegan.",
+      "loading": "Cargando tu configuración de notificaciones…",
+      "loadFailed": "No pudimos cargar tu configuración de notificaciones. Intenta de nuevo en un momento.",
+      "activity": {
+        "heading": "Actividad reciente",
+        "quietSoFar": "Todo tranquilo por ahora.",
+        "hint": "Todavía no ha llegado nada — en cuanto llegue algo, aparecerá aquí.",
+        "itemLabel": {
+          "morningBriefing": "Resumen matutino",
+          "middayMotivation": "Motivación de mediodía",
+          "eveningRecap": "Resumen nocturno",
+          "actionAlert": "Alerta de actividad",
+          "inactivityNudge": "Aviso de seguimiento",
+          "milestoneCelebration": "Celebración de logro",
+          "approvalWaiting": "Borradores en espera",
+          "billingSecurity": "Facturación y seguridad"
+        }
+      },
+      "morningBriefing": {
+        "title": "Resumen matutino",
+        "desc": "Mientras dormías: tu resumen nocturno y tu prioridad principal.",
+        "timeLabel": "Enviar a las"
+      },
+      "midday": {
+        "title": "Motivación de mediodía",
+        "desc": "Una frase ligada a tu ancla, programada para la mitad de tu día."
+      },
+      "evening": {
+        "title": "Resumen nocturno",
+        "desc": "Lo que lograste hoy, y el enfoque de mañana."
+      },
+      "quietHours": {
+        "title": "Tu horario de silencio",
+        "desc": "Este es tu propio horario para notificaciones no urgentes — distinto del horario de silencio que respetamos con las personas a las que contactas.",
+        "startLabel": "Comienza",
+        "endLabel": "Termina"
+      },
+      "timezone": {
+        "title": "Zona horaria",
+        "desc": "La usamos para programar bien tus resúmenes y tu horario de silencio."
+      },
+      "alwaysOn": {
+        "title": "Siempre activas",
+        "desc": "Las respuestas y citas, las celebraciones de logros, y todo lo relacionado con tu facturación o la seguridad de tu cuenta son demasiado importantes para perdérselas, así que nunca se silencian aquí."
+      },
+      "toggle": {
+        "on": "Activado",
+        "off": "Desactivado"
+      },
+      "saveNotice": {
+        "saved": "Guardado.",
+        "failed": "No se pudo guardar. Intenta de nuevo."
+      }
+    },
+    "intensity": {
+      "hubTitle": "Intensidad",
+      "hubDesc": "Cuánto hacen tus agentes cada día.",
+      "heading": "Intensidad",
+      "subhead": "Cuánto hacen tus agentes en tu nombre cada día. Cámbiala cuando quieras — el efecto es inmediato.",
+      "loading": "Cargando tu nivel de intensidad…",
+      "loadFailed": "No pudimos cargar tu nivel de intensidad. Intenta de nuevo en un momento.",
+      "saveNotice": {
+        "saved": "Actualizado — con efecto inmediato.",
+        "failed": "No se pudo guardar. Intenta de nuevo."
+      }
+    },
+    "security": {
+      "hubTitle": "Seguridad",
+      "hubDesc": "Autenticación en dos pasos y control de sesiones.",
+      "heading": "Seguridad",
+      "subhead": "Mantén tu cuenta protegida.",
+      "mfa": {
+        "sectionTitle": "Autenticación en dos pasos",
+        "body": "Agrega un paso adicional al iniciar sesión con una app de autenticación — obligatorio para uplines, RVP y administradores, y disponible para cualquiera.",
+        "loading": "Verificando tu estado de autenticación en dos pasos…",
+        "statusOn": "La autenticación en dos pasos está activada.",
+        "statusOff": "La autenticación en dos pasos está desactivada.",
+        "startEnrollCta": "Configurar autenticación en dos pasos",
+        "enrollFailed": "No pudimos iniciar la configuración. No se cambió nada — intenta de nuevo.",
+        "scanInstructions": "Escanea esto con tu app de autenticación y luego ingresa el código que te muestre.",
+        "recoveryCodesIntro": "Guarda estos códigos de recuperación en un lugar seguro — cada uno funciona una sola vez, por si alguna vez pierdes acceso a tu app de autenticación.",
+        "codeLabel": "Código de 6 dígitos",
+        "confirmCta": "Confirmar",
+        "verifyFailed": "Ese código no se verificó — revisa tu app de autenticación e intenta de nuevo."
+      },
+      "signOutEverywhere": {
+        "sectionTitle": "Cerrar sesión en todas partes",
+        "body": "Termina toda sesión activa en todos los dispositivos, incluido este. Confirma tu contraseña para continuar.",
+        "passwordLabel": "Contraseña actual",
+        "cta": "Cerrar sesión en todas partes",
+        "working": "Cerrando sesión en todas partes…",
+        "done": "Sesión cerrada en todas partes. Serás redirigido para iniciar sesión de nuevo.",
+        "incorrectPassword": "Esa contraseña no es correcta. Intenta de nuevo.",
+        "failedGeneric": "No pudimos cerrar sesión en todas partes. Intenta de nuevo."
+      }
+    },
+    "persona": {
+      "switcherAria": "Cambiar entre Mi Negocio y Mi Equipo",
+      "myBusiness": "Mi Negocio",
+      "myTeam": "Mi Equipo"
+    }
   },
   "accessibility": {
     "heading": "Accesibilidad",

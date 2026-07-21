@@ -1,0 +1,220 @@
+/* T-57 R3b (MAJOR-D3, uiux §6.5/§6.6) — Me -> Notifications. Semantic tokens only; no
+   opacity/translucent color on text (guard:no-opacity-on-text); no text-overflow/line-clamp
+   (guard:i18n growth-tolerance); every interactive element keeps the 44px touch-target floor
+   (guard:touch-target). Pattern mirrors me/accessibility + me/data-rights. */
+
+.page {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  min-height: 100vh;
+  display: grid;
+  gap: var(--space-5);
+}
+.header {
+  margin-bottom: 0;
+}
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0 0 var(--space-2);
+}
+.subhead {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.loading {
+  color: var(--text-secondary);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+}
+.sectionTitle {
+  font-weight: 700;
+  margin: 0;
+  font-size: var(--type-body-size);
+}
+.sectionDesc {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
+/* ── Recent activity / "quiet so far" (§6.6) ───────────────────────────── */
+.activityList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.activityRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+}
+.activityRow:first-child {
+  border-top: none;
+}
+.activityLabel {
+  font-weight: 700;
+}
+.activityMeta {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  flex-shrink: 0;
+}
+.quietSoFar {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  padding: var(--space-3) 0;
+}
+.quietSoFarBody {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ── Preference rows (toggle + optional time input) ────────────────────── */
+.prefRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.prefRow:first-of-type {
+  border-top: none;
+}
+.prefText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.prefTitle {
+  font-weight: 700;
+  margin: 0;
+}
+.prefDesc {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+.prefControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.timeField {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.timeLabel {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+.timeInput {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-2);
+  font-family: inherit;
+}
+.timeInput:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.selectField {
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-2);
+  font-family: inherit;
+}
+.selectField:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target-min);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-weight: 700;
+  cursor: pointer;
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.toggleKnob {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--soil-300);
+  transition: transform var(--dur-tick) var(--ease-organic), background var(--dur-tick) var(--ease-organic);
+}
+.toggleOn {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+}
+.toggleOn .toggleKnob {
+  background: var(--on-action);
+  transform: translateX(20px);
+}
+.toggleState {
+  font-size: var(--type-caption-size);
+}
+
+.notice {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+.noticeFailed {
+  color: var(--color-danger-form-text);
+}
+
+/* ── Always-on / unmutable notice (§12.6) ──────────────────────────────── */
+.alwaysOnList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}

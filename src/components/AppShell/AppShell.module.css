@@ -237,3 +237,42 @@
     line-height: 1.2;
   }
 }
+
+/* ==========================================================================
+   T-57 R3b (M9, uiux §2.3 item 2 / §4.10) — the DUAL-role persona switcher.
+   "My Business" / "My Team", a pinned two-segment pill at the top of the content column (renders
+   nothing for any non-DUAL role — see PersonaSwitcher.tsx). Semantic tokens only; no
+   opacity/translucent color on text; each segment keeps the 44px touch-target floor.
+   ========================================================================== */
+.personaSwitcher {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: inline-flex;
+  align-self: flex-start;
+  margin: var(--space-3) var(--gutter-mobile) 0;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+}
+.personaSegment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: var(--type-caption-size);
+}
+.personaSegment:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.personaSegmentActive {
+  background: var(--color-action);
+  color: var(--on-action);
+}

@@ -69,6 +69,17 @@ export function landsOnTeamView(role: Role | string | undefined | null): boolean
 }
 
 /**
+ * T-57 R3b (M9, uiux §2.3 item 2 / AC-2-4): the persona switcher ("My Business" / "My Team") is
+ * DUAL-only. Every other role — including the upline-class roles `canSeeTeam` also covers — never
+ * sees it: a pure UPLINE/RVP has no second persona to switch into (they already land on the team
+ * view of Today by default, `landsOnTeamView`), and REP/ADMIN have no team persona at all.
+ * Fail-closed: an unrecognized/missing role returns `false`, same posture as `canSeeTeam`.
+ */
+export function isDualPersonaUser(role: Role | string | undefined | null): boolean {
+  return role === 'DUAL';
+}
+
+/**
  * Which routes render WITHOUT the shell (uiux §2.2): the marketing landing (its own nav), identity
  * capture (`/auth`), the retired demo scaffold + dev token gallery, and the full-screen focus
  * surfaces the spec explicitly names — "the bar hides on full-screen rituals (§5.4), the Shift focus

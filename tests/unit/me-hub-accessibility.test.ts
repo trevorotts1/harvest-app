@@ -43,21 +43,23 @@ describe('Me hub (uiux §2.1 / §5.8)', () => {
     expect(html).toContain('href="/me/data-rights"');
   });
 
-  test('hosts a Notifications placeholder for the later wave (R3b) — a non-navigating "coming soon" card, never a dead link', () => {
+  test('T-57 R3b: links to every Me sub-surface this build adds — Notifications is now a real link (was a coming-soon placeholder), plus Intensity and Security', () => {
     const html = renderToStaticMarkup(createElement(MePage, {}));
-    // The placeholder is present and marked coming-soon...
-    expect(html).toContain('data-me-item="/me/notifications"');
-    expect(textOf(html)).toContain('Coming soon');
-    // ...but is NOT a live <a href> to the not-yet-built page.
-    expect(html).not.toContain('href="/me/notifications"');
+    expect(html).toContain('href="/me/notifications"');
+    expect(html).toContain('href="/me/intensity"');
+    expect(html).toContain('href="/me/security"');
+    // No hub item is ever a non-navigating placeholder anymore.
+    expect(html).not.toContain('cardDisabled');
   });
 
   test('renders genuinely Spanish titles under an ES locale (not a silent EN fallback)', () => {
     const text = textOf(renderEs(MePage));
-    for (const label of ['Accesibilidad', 'Idioma', 'Suscripción', 'Datos y privacidad', 'Notificaciones', 'Próximamente']) {
+    for (const label of ['Accesibilidad', 'Idioma', 'Suscripción', 'Datos y privacidad', 'Notificaciones', 'Intensidad', 'Seguridad']) {
       expect(text).toContain(label);
     }
     expect(text).not.toContain('Accessibility');
+    // T-57 R3b: no hub item renders as a "coming soon" placeholder anymore.
+    expect(text).not.toContain('Próximamente');
   });
 });
 
