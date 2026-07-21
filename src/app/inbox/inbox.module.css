@@ -362,3 +362,76 @@
   font-size: var(--type-caption-size);
   color: var(--color-growth);
 }
+
+/* ---- T-09 (§5.5 AC-1) ClassifierAdjudicationDrawer — layout + solid tokens only (no opacity, no
+   sub-1-alpha color on any text-bearing rule, so the no-opacity-on-text / contrast guards stay
+   green); text colors reuse the already-contrast-validated --text-primary/--text-secondary. ---- */
+.adjudicationDrawer {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2) var(--space-3);
+}
+.adjudicationSummary {
+  cursor: pointer;
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.adjudicationBody {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.adjudicationHeading {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.classifierList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.classifierRow {
+  display: grid;
+  grid-template-columns: 8rem 1fr 2.5rem;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+.classifierName {
+  color: var(--text-primary);
+}
+.classifierTrack {
+  height: 6px;
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.classifierFill {
+  display: block;
+  height: 100%;
+  background: var(--color-caution-text);
+}
+.classifierPct {
+  text-align: right;
+  color: var(--text-primary);
+}
+.recommendationBlock {
+  display: grid;
+  gap: var(--space-1);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+}
+.suggestedRewrite {
+  margin: 0;
+  white-space: pre-wrap;
+  background: var(--surface-2);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-primary);
+}

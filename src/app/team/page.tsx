@@ -92,6 +92,13 @@ export default function TeamDashboardPage() {
 
   return (
     <div className="stack">
+      {/* T-09 (§5.5 AC-3b) — reachable affordance into the upline's CFE FLAG adjudication queue. */}
+      <section className="card panel">
+        <span className="badge">Compliance review</span>
+        <p style={{ marginTop: 8 }}>Flagged drafts from your team awaiting your review.</p>
+        <Link className="btn btn-secondary" href="/team/compliance-review">Open compliance review</Link>
+      </section>
+
       {data.needsYouNow.length > 0 && (
         <section className="card panel">
           <span className="badge">Needs you now</span>

@@ -552,21 +552,70 @@ model ComplianceRule {
   created_at DateTime @default(now()) @db.Timestamptz(6)
 }
 
+// T-09 (master-spec §5.5 CFE adjudication + human loop; §8.7.1 "Flag (11–70): Hold in queue; route
+// for Upline / Principal review"; §8.1.1 FINRA 3110 "Principal Review Triggers"). This model was
+// declared in the original schema but NEVER wired to a route/service — this unit consumes it. A
+// FLAG-banded, PENDING DraftMessage on ORG-GATED content (the drafting rep has an upline within an
+// org) becomes actionable by that rep's UPLINE (RBAC §16.6 row 4 `compliance_audit.approve`), not
+// merely visible. All added fields are additive/nullable so the (empty, previously-unused) table
+// migrates drift-clean. `audit_entry_id` (already @unique) links the queue row to the immutable
+// AuditEntry recorded when the item ENTERS review (the §8.7.1 "linked to the original classification
+// record" evidence); `draft_id` (@unique) is the practical key the adjudication service upserts on.
 model ComplianceReviewQueue {
-  id             String   @id @default(uuid())
-  audit_entry_id String   @unique
-  status         String // PENDING, APPROVED, REJECTED, MODIFIED
+  id             String @id @default(uuid())
+  audit_entry_id String @unique
+  // PENDING → awaiting upline; APPROVED/REJECTED/MODIFIED → an upline decision landed; ESCALATED →
+  // the 48h SLA fired and it was escalated to Organization.compliance_contact_id (§5.5); HELD → the
+  // 48h SLA fired but the org had NO compliance contact to escalate to, so it stays held, NEVER
+  // auto-cleared (fail-closed §5.2). ESCALATED and HELD both leave the underlying draft not-approved.
+  status         String // PENDING | APPROVED | REJECTED | MODIFIED | ESCALATED | HELD
   upline_id      String
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  // The DraftMessage under review + the rep who owns it (denormalized so org-scoping + SLA
+  // escalation never have to re-derive them). Nullable/additive for the empty legacy table.
+  draft_id       String? @unique
+  rep_id         String?
+  risk_score     Int?
+  // §5.5 AC-2/AC-7 ADVISORY recommendation — produced by Sonnet 5 (standard FLAG adjudication) or
+  // Opus 4.8 (classifier-conflict / novel-pattern escalation), Claude-only via the agent-runtime.
+  // ADVISORY ONLY: the human still decides; these NEVER auto-approve or weaken the gate. Absent
+  // (null) when no ANTHROPIC key / the cost kill-switch denied the call (fail-safe, never an
+  // auto-clear). `suggested_rewrite` is itself CFE-gated before it is ever stored (a rewrite is
+  // contact-bound content).
+  recommended_action      String?
+  suggested_rewrite       String?
+  recommendation_model    String? // sonnet_5 | opus_4_8
+  escalation_reason       String? // classifier_conflict | novel_pattern (why Opus was invoked, AC-7)
+  // §5.5 AC-5 48-hour SLA. `sla_deadline_at` = created_at + 48h; the scheduled sweep escalates a
+  // still-PENDING row past its deadline. `escalated_to_contact_id` = the Organization.compliance_
+  // contact_id that was notified (null on the un-escalatable HELD path).
+  sla_deadline_at         DateTime? @db.Timestamptz(6)
+  escalated_at            DateTime? @db.Timestamptz(6)
+  escalated_to_contact_id String?
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([upline_id, status])
+  @@index([status, sla_deadline_at])
+  @@index([rep_id])
 }
 
+// T-09 (§5.5 AC-3b; §8.7.1 "Audit Trail: every human review action ... appended to the immutable CFE
+// audit log and linked to the original classification record"). One row per UPLINE adjudication
+// decision. `audit_entry_id` links to the immutable AuditEntry written for THIS decision (so the
+// decision itself is auditable, not only the item's entry into the queue). `queue_id`/`draft_id`
+// are additive links back to what was reviewed.
 model ComplianceUplineReview {
   id             String   @id @default(uuid())
   audit_entry_id String
+  queue_id       String?
+  draft_id       String?
   reviewer_id    String
-  action         String
+  action         String // APPROVE | REJECT | MODIFY
   feedback       String?
   timestamp      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([queue_id])
+  @@index([reviewer_id, timestamp])
 }
 
 model ComplianceException {

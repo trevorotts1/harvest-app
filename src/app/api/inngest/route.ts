@@ -43,6 +43,10 @@ import { gamificationInngestFunctions } from '@/services/gamification/gamificati
 // Registered here so Inngest's sync step reads their `cron` triggers at deploy/register time and its
 // scheduler fires this same signed endpoint when each is due (same Vercel-native mechanism as above).
 import { paymentInngestFunctions } from '@/services/payment/inngest/payment-inngest-functions';
+// T-09 (WP11 §5.5 AC-5): the CFE-adjudication FLAG-queue 48-hour SLA escalation cron. Registered
+// here so Inngest's sync step reads its `cron` trigger at deploy/register time and its scheduler
+// fires this same signed endpoint when due (same Vercel-native mechanism as every import above).
+import { complianceAdjudicationInngestFunctions } from '@/services/compliance/adjudication/adjudication-inngest-functions';
 
 // Per-request (reads the signing key at invocation, not at build) — never statically prerendered.
 export const dynamic = 'force-dynamic';
@@ -57,5 +61,6 @@ export const { GET, POST, PUT } = serve({
     ...taprootingInngestFunctions,
     ...gamificationInngestFunctions,
     ...paymentInngestFunctions,
+    ...complianceAdjudicationInngestFunctions,
   ],
 });
