@@ -195,6 +195,123 @@ describe('scripts/guard-no-literals-in-components.mjs', () => {
     expect(result.stderr).toMatch(/A brand new literal nobody grandfathered/);
   });
 
+  // T-57 BLOCKER-B5 fix — the extended AST walk: ternary string-literal branches, template-literal
+  // content attributes, and string literals passed to setState-shaped calls.
+  test('TEETH (T-57 B5): a ternary JSX-child string-literal branch (`{cond ? \'A\' : \'B\'}`) FAILS the build', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'Toggle.tsx'),
+      `export function Toggle({ on }: { on: boolean }) {\n  return <button>{on ? 'Stop the timer' : 'Start the timer'}</button>;\n}\n`
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/jsx-ternary-branch/);
+    expect(result.stderr).toMatch(/Stop the timer/);
+    expect(result.stderr).toMatch(/Start the timer/);
+  });
+
+  test('TEETH (T-57 B5): a ternary on a content attribute (aria-label) FAILS the build', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'AriaToggle.tsx'),
+      `export function AriaToggle({ open }: { open: boolean }) {\n  return <button aria-label={open ? 'Close the panel' : 'Open the panel'} />;\n}\n`
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/jsx-ternary-branch/);
+    expect(result.stderr).toMatch(/Close the panel/);
+  });
+
+  test('a ternary on a NON-content attribute (className) is never flagged — a technical class-name toggle is not copy', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'ClassToggle.tsx'),
+      `export function ClassToggle({ active }: { active: boolean }) {\n  return <div className={active ? 'btn-primary' : 'btn-secondary'} />;\n}\n`
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(0);
+  });
+
+  test('a ternary picking between fixed WAI-ARIA enum tokens (aria-current="page") is never flagged — the real false positive this repo hit', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'NavLink.tsx'),
+      "export function NavLink({ active, label }: { active: boolean; label: string }) {\n  return <a aria-current={active ? 'page' : undefined}>{label}</a>;\n}\n"
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(0);
+  });
+
+  test('TEETH (T-57 B5): a template-literal content attribute (aria-label with a substitution) FAILS the build', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'Avatar.tsx'),
+      "export function Avatar({ initials }: { initials: string }) {\n  return <div aria-label={`Initials avatar: ${initials}`} />;\n}\n"
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/attr-template:aria-label/);
+    expect(result.stderr).toMatch(/Initials avatar:/);
+  });
+
+  test('TEETH (T-57 B5): a wordy string literal passed to a setState-shaped call FAILS the build', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'LoginForm.tsx'),
+      [
+        "import { useState } from 'react';",
+        'export function LoginForm() {',
+        '  const [error, setError] = useState<string | null>(null);',
+        "  const onSubmit = () => setError('Invalid email or password.');",
+        '  return <button onClick={onSubmit}>{error}</button>;',
+        '}',
+        '',
+      ].join('\n')
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/setstate-literal/);
+    expect(result.stderr).toMatch(/Invalid email or password\./);
+  });
+
+  test('a single-token setState argument (an enum/mode key, no space) is never flagged — avoids false-positiving on every mode setter', () => {
+    const scratch = makeScratchSrc();
+    dir = scratch.dir;
+    writeFileSync(
+      path.join(scratch.srcRoot, 'ModeSwitch.tsx'),
+      [
+        "import { useState } from 'react';",
+        'export function ModeSwitch() {',
+        "  const [mode, setMode] = useState('register');",
+        "  return <button onClick={() => setMode('login')}>{mode}</button>;",
+        '}',
+        '',
+      ].join('\n')
+    );
+    writeBaseline(scratch.baselinePath, []);
+
+    const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+    expect(result.status).toBe(0);
+  });
+
   test('.test.tsx files are excluded from the scan (test fixtures/mocks are not shipped UI copy)', () => {
     const scratch = makeScratchSrc();
     dir = scratch.dir;

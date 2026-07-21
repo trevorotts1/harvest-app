@@ -515,3 +515,28 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* T-57 C5 (uiux §6.3 "Full" desktop parity) — the drag-and-drop CSV zone. Hidden by default: the
+   drop TARGET stays functional on any device (a touch surface simply never fires the drag events
+   that would use it), but the discoverability HINT only makes sense where drag-and-drop is a real
+   interaction pattern — pointer-capable AND wide enough to be a "desktop" surface, matching this
+   app's canonical ≥860 breakpoint (uiux §2.2) rather than a bespoke one. */
+.csvDropZone {
+  display: none;
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-control);
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+}
+.csvDropZone[data-drag-active='true'] {
+  border-color: var(--color-action);
+  background: var(--surface-2);
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 860px) {
+  .csvDropZone {
+    display: block;
+  }
+}

@@ -6,7 +6,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
 
 interface BroadcastEvent {
   id: string;
@@ -37,7 +38,7 @@ interface LinkStatus {
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: CalendarData } | { kind: 'failed' };
 
 export default function TeamCalendarPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [links, setLinks] = useState<LinkStatus[]>([]);
   const [canCreate, setCanCreate] = useState(false);
@@ -171,7 +172,7 @@ export default function TeamCalendarPage() {
         <ul>
           {data.broadcastEvents.map((e) => (
             <li key={e.id}>
-              {e.type.replace(/_/g, ' ')} — {new Date(e.starts_at).toLocaleString()} {t('team.calendar.attendanceLabel')} {e.myAttendanceState}
+              {e.type.replace(/_/g, ' ')} — {formatDateTime(locale, e.starts_at)} {t('team.calendar.attendanceLabel')} {e.myAttendanceState}
             </li>
           ))}
           {data.broadcastEvents.length === 0 && <li>{t('team.calendar.noUpcomingEvents')}</li>}
@@ -202,10 +203,10 @@ export default function TeamCalendarPage() {
         <span className="badge">{t('team.calendar.agendaBadge')}</span>
         <ul>
           {data.personalAgenda.appointments.map((a) => (
-            <li key={a.id}>{t('team.calendar.closingAppointmentPrefix')} {a.status} — {a.startsAt ? new Date(a.startsAt).toLocaleString() : t('team.calendar.proposedFallback')}</li>
+            <li key={a.id}>{t('team.calendar.closingAppointmentPrefix')} {a.status} — {a.startsAt ? formatDateTime(locale, a.startsAt) : t('team.calendar.proposedFallback')}</li>
           ))}
           {data.personalAgenda.coachingSessions.map((c) => (
-            <li key={c.id}>{t('team.calendar.coachingSessionPrefix')} {c.status} — {c.startsAt ? new Date(c.startsAt).toLocaleString() : t('team.calendar.proposedFallback')}</li>
+            <li key={c.id}>{t('team.calendar.coachingSessionPrefix')} {c.status} — {c.startsAt ? formatDateTime(locale, c.startsAt) : t('team.calendar.proposedFallback')}</li>
           ))}
           {data.personalAgenda.appointments.length === 0 && data.personalAgenda.coachingSessions.length === 0 && <li>{t('team.calendar.noAgendaItems')}</li>}
         </ul>

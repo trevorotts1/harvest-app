@@ -171,6 +171,11 @@
     "emailLabel": "Correo electrónico",
     "passwordLabel": "Contraseña",
     "skipToToday": "Saltar a Hoy",
+    "registerHeading": "Crea tu perfil de demostración",
+    "loginHeading": "Bienvenido de nuevo",
+    "signingInCta": "Iniciando sesión…",
+    "signInCta": "Iniciar sesión",
+    "invalidCredentials": "Correo electrónico o contraseña incorrectos.",
     "nameLabel": "Nombre",
     "roleLabel": "Rol",
     "roleOptionRep": "Rep/Usuario",
@@ -233,9 +238,11 @@
     "loadFailed": "No pudimos cargar Hoy — tu trabajo está seguro.",
     "retry": "Reintentar",
     "offlineBanner": "Sin conexión — mostrando tu campo guardado",
-    "offlineBannerQueuedSuffix": " ({count} acción{plural} en espera)",
+    "offlineBannerQueuedSuffix_one": " ({count} acción en espera)",
+    "offlineBannerQueuedSuffix_other": " ({count} acciones en espera)",
     "offlineBannerTailQueueAction": ". Todo lo que apruebes, rechaces, confirmes o marques se sincronizará cuando vuelvas a estar en línea.",
-    "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}…",
+    "syncingBanner_one": "De vuelta en línea — sincronizando {count} elemento…",
+    "syncingBanner_other": "De vuelta en línea — sincronizando {count} elementos…",
     "primaryCta": "Comienza tus 30 minutos de hoy",
     "contentQueueLink": "Cola de contenido — publicaciones, blog y borradores de correo esperando revisión",
     "momentum": {
@@ -251,6 +258,9 @@
       "wealth": "Riqueza"
     },
     "criteriaHeading": "Los diez criterios que alimentan tu vergel",
+    "anchorHeader": {
+      "momentumTrendAria": "Tendencia de impulso de 7 días: {values}"
+    },
     "actionQueue": {
       "badge": "Hoy",
       "badgeZeroMinutes": "Hoy: 0 minutos",
@@ -296,7 +306,7 @@
       "learnBody": "Curso, referidos y acompañamiento",
       "growBadge": "Cultivar",
       "growBody": "Tu tarjeta de compromiso de metas",
-      "momentumBadge": "Momentum",
+      "momentumBadge": "Impulso",
       "momentumBody": "Los diez criterios, completos"
     },
     "ratioCards": {
@@ -306,7 +316,15 @@
       "fieldTrainerRatioTitle": "Proporción del Entrenador de Campo"
     },
     "briefingCard": {
-      "whileYouSlept": "Mientras dormías"
+      "whileYouSlept": "Mientras dormías",
+      "whileYouSleptNarrative": "Mientras dormías: {joined}",
+      "srUtteranceTemplate": "{narrative} Toca dos veces cualquier línea para ver el detalle.",
+      "firstDayLine": "Tu campo está sembrado — tus agentes aún no han trabajado. Nada que informar, nada perdido.",
+      "agentsRestingLine": "Tus agentes están descansando — todo está guardado.",
+      "emptyLine": "Una noche tranquila — tus agentes no encontraron nada que necesitara tu atención.",
+      "freshnessLabel": "a las {time}",
+      "stopCta": "Detener",
+      "listenCta": "Escuchar"
     },
     "pipelineGlance": {
       "heading": "Pipeline"
@@ -401,7 +419,7 @@
       "invitedLine": "{name} fue invitado a esta conversación.",
       "joinedLine": "{name} se unió a la conversación.",
       "returnedLine": "De vuelta a ti — {name} no pudo unirse a tiempo.",
-      "coachingLabel": "Coaching"
+      "coachingLabel": "Acompañamiento"
     },
     "csvImport": {
       "previewAriaLabel": "Vista previa de mapeo de columnas CSV",
@@ -430,7 +448,8 @@
       "chooseFileCta": "Elegir archivo CSV",
       "importingCta": "Importando…",
       "importContactsCta": "Importar contactos",
-      "importFailedGeneric": "No se pudo importar ese archivo — intenta de nuevo."
+      "importFailedGeneric": "No se pudo importar ese archivo — intenta de nuevo.",
+      "dragDropHint": "Arrastra un archivo CSV aquí, o usa el botón de arriba."
     },
     "agentBadge": {
       "sentFromRepNumber": "enviado desde tu número",
@@ -517,8 +536,10 @@
       },
       "summaryBasePrimerica": "Huerto",
       "summaryBaseUniversal": "Anillos de red",
-      "summaryMembers": "{count} miembro(s) real(es)",
-      "summaryGhosts": ", {count} puesto(s) futuro(s) abierto(s)",
+      "summaryMembers_one": "{count} miembro real",
+      "summaryMembers_other": "{count} miembros reales",
+      "summaryGhosts_one": ", {count} puesto futuro abierto",
+      "summaryGhosts_other": ", {count} puestos futuros abiertos",
       "nodeTitleTemplate": "{name}, nivel {level}, {tint}"
     },
     "treeList": {
@@ -646,9 +667,11 @@
     "growLink": "Cultivar →",
     "subtitle": "Cada mensaje redactado por tus agentes espera aquí tu revisión — nada se envía sin tu aprobación.",
     "offlineBanner": "Sin conexión — mostrando tu campo guardado",
-    "offlineBannerQueuedSuffix": " ({count} acción{plural} en espera)",
+    "offlineBannerQueuedSuffix_one": " ({count} acción en espera)",
+    "offlineBannerQueuedSuffix_other": " ({count} acciones en espera)",
     "offlineBannerTailEdit": ". Todo lo que apruebes, rechaces o edites se sincronizará y volverá a revisar el cumplimiento cuando vuelvas a estar en línea.",
-    "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}…",
+    "syncingBanner_one": "De vuelta en línea — sincronizando {count} elemento…",
+    "syncingBanner_other": "De vuelta en línea — sincronizando {count} elementos…",
     "loading": "Cargando la bandeja de aprobación…",
     "loadError": "No se pudo cargar la bandeja de aprobación. Inténtalo de nuevo.",
     "retry": "Reintentar",
@@ -876,7 +899,8 @@
     "loadingCourse": "Preparando tu curso…",
     "loadFailed": "No pudimos cargar el curso en este momento — tu progreso está seguro.",
     "retry": "Reintentar",
-    "streakBadge": "Racha — {count} día{plural}",
+    "streakBadge_one": "Racha — {count} día",
+    "streakBadge_other": "Racha — {count} días",
     "graceDayAvailable": "Tienes un día de gracia disponible esta semana si lo necesitas — a veces la vida se complica.",
     "referralScripts": {
       "badge": "Guiones de referidos",
@@ -896,6 +920,13 @@
     "courseModulesBadge": "Módulos del curso"
   },
   "billing": {
+    "proration": {
+      "dueTodaySummary_one": "{amount} a pagar hoy (prorrateado por {count} día restante).",
+      "dueTodaySummary_other": "{amount} a pagar hoy (prorrateado por {count} días restantes).",
+      "creditAppliedSummary_one": "{amount} de crédito aplicado a tu cuenta (prorrateado por {count} día restante).",
+      "creditAppliedSummary_other": "{amount} de crédito aplicado a tu cuenta (prorrateado por {count} días restantes).",
+      "noChargeSummary": "Sin cargo ni crédito hoy."
+    },
     "loading": "Cargando tu plan…",
     "heading": "Suscripción",
     "subhead": "Tu plan, en términos claros. Sin sorpresas ni letra pequeña.",
@@ -1012,7 +1043,9 @@
         "lede": "Agrega personas por CSV o una a la vez — te lo preguntaremos de nuevo más adelante.",
         "importingCta": "Importando…",
         "importCsvCta": "Importar un CSV",
-        "addManuallyCta": "Agregar una a la vez"
+        "addManuallyCta": "Agregar una a la vez",
+        "importFailedGeneric": "No se pudo importar ese archivo — intenta de nuevo, por favor.",
+        "dragDropHint": "Arrastra un archivo CSV aquí, o usa el botón de arriba."
       },
       "permission": {
         "headline": "Incorporando tu comunidad…",
@@ -1024,6 +1057,7 @@
       "headline": "Completemos tus datos",
       "photoAddedAria": "Foto agregada",
       "photoAddedCaption": "Foto agregada",
+      "initialsAvatarAria": "Avatar de iniciales: {initials}",
       "takePhotoCta": "Tomar una foto",
       "chooseFromLibraryCta": "Elegir de la biblioteca",
       "skipPhotoCta": "Omitir foto",
@@ -1091,7 +1125,8 @@
     "gdprConsent": {
       "headline": "Tus datos, tu consentimiento",
       "lede": "Una última cosa antes de terminar de configurar tu negocio — necesitamos tu consentimiento para procesar tus datos personales.",
-      "notPreSelectedCaption": "No está preseleccionado — esta es tu elección explícita. Revocable en cualquier momento."
+      "notPreSelectedCaption": "No está preseleccionado — esta es tu elección explícita. Revocable en cualquier momento.",
+      "failedGeneric": "No se pudo registrar tu consentimiento — intenta de nuevo, por favor."
     },
     "intensityDial": {
       "headline": "¿Con qué intensidad deben trabajar tus agentes mientras vives tu vida?",
@@ -1170,7 +1205,12 @@
       "softGateQuestion": "¿Seguro que quieres detenerte en {count}? La mayoría de las personas encuentra más una vez que empieza.",
       "keepAddingCta": "Seguir agregando",
       "confirmSoftGateCta": "Sí, esa es mi lista",
-      "finishCta": "Esa es mi lista"
+      "finishCta": "Esa es mi lista",
+      "dotTitleMatched": "{name} — encontrado en tu Vault",
+      "dotTitleUnmatched": "{name} — ¿agregar?",
+      "dotTitleOpen": "Puesto abierto",
+      "enteredMatchedSuffix": " ✓",
+      "enteredUnmatchedSuffix": " (¿agregar?)"
     },
     "qualitiesFlip": {
       "sectionAria": "Giro de cualidades — Capa 2 de 3",
@@ -1213,13 +1253,20 @@
     },
     "warmMarketRitual": {
       "offlineBannerLine1": "Estás sin conexión — las Capas 1 y 2 siguen funcionando. Tu progreso está guardado en este dispositivo",
-      "offlineBannerQueuedSuffix": " ({count} elemento{plural} en espera)",
+      "offlineBannerQueuedSuffix_one": " ({count} elemento en espera)",
+      "offlineBannerQueuedSuffix_other": " ({count} elementos en espera)",
       "offlineBannerLine2": " y se sincronizará, con una nueva revisión de cumplimiento, cuando vuelvas a estar en línea.",
-      "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}...",
+      "syncingBanner_one": "De vuelta en línea — sincronizando {count} elemento...",
+      "syncingBanner_other": "De vuelta en línea — sincronizando {count} elementos...",
       "loadingRitual": "Cargando tu ritual...",
       "handoffSending": "Entregando tus coincidencias a tu agente…",
       "handoffDone": "Listo — tu agente está redactando las primeras introducciones. Revisa tu Bandeja de aprobación pronto.",
-      "handoffError": "No pudimos entregar esto a tu agente en este momento — no se perdió nada. Intenta de nuevo."
+      "handoffError": "No pudimos entregar esto a tu agente en este momento — no se perdió nada. Intenta de nuevo.",
+      "loadFailedError": "No pudimos cargar tu ritual — no se perdió nada de lo escrito. Intenta de nuevo.",
+      "saveLayer1FailedError": "No pudimos guardar la Capa 1 — no se perdió nada de lo escrito. Intenta de nuevo.",
+      "saveLayer2FailedError": "No pudimos guardar la Capa 2 — no se perdió nada de lo escrito. Intenta de nuevo.",
+      "saveLayer3FailedError": "No pudimos guardar la Capa 3 — no se perdió nada de lo escrito. Intenta de nuevo.",
+      "acknowledgeFailedError": "No pudimos registrar esa confirmación. Intenta de nuevo."
     }
   },
   "team": {
@@ -1251,13 +1298,13 @@
       "sortOption": {
         "name": "Nombre",
         "pace": "Ritmo",
-        "momentum": "Momentum"
+        "momentum": "Impulso"
       },
-      "rosterCaption": "Plantilla del equipo con estado de ritmo y nivel de momentum",
+      "rosterCaption": "Plantilla del equipo con estado de ritmo y nivel de impulso",
       "tableHeader": {
         "rep": "Rep",
         "pace": "Ritmo",
-        "momentum": "Momentum"
+        "momentum": "Impulso"
       },
       "noDataMomentum": "Conociendo tu comunidad",
       "viewCta": "Ver",
@@ -1392,7 +1439,12 @@
       "toLabel": "Para",
       "escalatedBadge": "Escalado · SLA de 48 h",
       "flaggedBadge": "Marcado",
-      "reject": "Rechazar"
+      "reject": "Rechazar",
+      "workingCta": "Procesando…",
+      "approveForSendCta": "Aprobar para enviar",
+      "adjudicateFailedGeneric": "No se pudo resolver este elemento.",
+      "networkErrorGeneric": "Error de red — intenta de nuevo.",
+      "contactFallback": "un contacto"
     }
   },
   "composer": {

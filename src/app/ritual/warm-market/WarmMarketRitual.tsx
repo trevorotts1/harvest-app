@@ -313,7 +313,7 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
         // rejecting mid-flight) — never worse than the generic error unless there's truly nothing
         // cached to fall back to.
         if (loadRitualViewCache() || initialDraft) hydrateFromCacheOrFreshStart();
-        else setError('We could not load your ritual — nothing typed was lost. Try again.');
+        else setError(t('ritual.warmMarketRitual.loadFailedError'));
       }
     })();
 
@@ -372,7 +372,7 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
       setSoftGateOpen(false);
       setStage(MethodLayer.QUALITIES_FLIP);
     } catch {
-      setError('We could not save Layer 1 — nothing typed was lost. Try again.');
+      setError(t('ritual.warmMarketRitual.saveLayer1FailedError'));
     }
   }
 
@@ -437,7 +437,7 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
       await postJson('/api/harvest-method/qualities-flip', body);
       advanceToBackgroundMatching();
     } catch {
-      setError('We could not save Layer 2 — nothing typed was lost. Try again.');
+      setError(t('ritual.warmMarketRitual.saveLayer2FailedError'));
     }
   }
 
@@ -487,7 +487,7 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
       setQueue(queueBody.queue ?? []);
       setStage('COMPLETE');
     } catch {
-      setError('We could not save Layer 3 — nothing typed was lost. Try again.');
+      setError(t('ritual.warmMarketRitual.saveLayer3FailedError'));
     }
   }
 
@@ -496,7 +496,7 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
       await postJson('/api/harvest-method/action-complete', { contactId });
       setQueue((prev) => prev.map((i) => (i.contactId === contactId ? { ...i, needsAcknowledgment: false } : i)));
     } catch {
-      setError('We could not record that acknowledgment. Try again.');
+      setError(t('ritual.warmMarketRitual.acknowledgeFailedError'));
     }
   }
 
@@ -554,13 +554,13 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
         {isOffline && (
           <p className={styles.offlineBanner} role="status">
             {t('ritual.warmMarketRitual.offlineBannerLine1')}
-            {queueLength > 0 ? t('ritual.warmMarketRitual.offlineBannerQueuedSuffix', { count: queueLength, plural: queueLength === 1 ? '' : 's' }) : ''}
+            {queueLength > 0 ? t('ritual.warmMarketRitual.offlineBannerQueuedSuffix', { count: queueLength }) : ''}
             {t('ritual.warmMarketRitual.offlineBannerLine2')}
           </p>
         )}
         {!isOffline && syncing && (
           <p className={styles.offlineBanner} role="status">
-            {t('ritual.warmMarketRitual.syncingBanner', { count: syncing.total, plural: syncing.total === 1 ? '' : 's' })}
+            {t('ritual.warmMarketRitual.syncingBanner', { count: syncing.total })}
           </p>
         )}
         {!isOffline && !syncing && syncFailure && (

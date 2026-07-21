@@ -171,6 +171,11 @@
     "emailLabel": "Email",
     "passwordLabel": "Password",
     "skipToToday": "Skip to Today",
+    "registerHeading": "Create your demo profile",
+    "loginHeading": "Welcome back",
+    "signingInCta": "Signing in…",
+    "signInCta": "Sign in",
+    "invalidCredentials": "Invalid email or password.",
     "nameLabel": "Name",
     "roleLabel": "Role",
     "roleOptionRep": "Rep/User",
@@ -233,9 +238,11 @@
     "loadFailed": "We couldn't load Today — your work is safe.",
     "retry": "Retry",
     "offlineBanner": "Offline — showing your saved field",
-    "offlineBannerQueuedSuffix": " ({count} action{plural} queued)",
+    "offlineBannerQueuedSuffix_one": " ({count} action queued)",
+    "offlineBannerQueuedSuffix_other": " ({count} actions queued)",
     "offlineBannerTailQueueAction": ". Anything you approve, decline, confirm, or mark will sync when you're back.",
-    "syncingBanner": "Back online — syncing {count} item{plural}…",
+    "syncingBanner_one": "Back online — syncing {count} item…",
+    "syncingBanner_other": "Back online — syncing {count} items…",
     "primaryCta": "Start today's 30 minutes",
     "contentQueueLink": "Content Queue — social, blog & email drafts waiting for review",
     "momentum": {
@@ -251,6 +258,9 @@
       "wealth": "Wealth"
     },
     "criteriaHeading": "The ten criteria feeding your Grove",
+    "anchorHeader": {
+      "momentumTrendAria": "7 day momentum trend: {values}"
+    },
     "actionQueue": {
       "badge": "Today",
       "badgeZeroMinutes": "Today: 0 minutes",
@@ -306,7 +316,15 @@
       "fieldTrainerRatioTitle": "Field Trainer's Ratio"
     },
     "briefingCard": {
-      "whileYouSlept": "While you slept"
+      "whileYouSlept": "While you slept",
+      "whileYouSleptNarrative": "While you slept: {joined}",
+      "srUtteranceTemplate": "{narrative} Double-tap any line for receipts.",
+      "firstDayLine": "Your field is planted — your agents haven't run yet. Nothing to report, nothing lost.",
+      "agentsRestingLine": "Your agents are resting — everything is saved.",
+      "emptyLine": "A quiet night — your agents found nothing that needed you.",
+      "freshnessLabel": "as of {time}",
+      "stopCta": "Stop",
+      "listenCta": "Listen"
     },
     "pipelineGlance": {
       "heading": "Pipeline"
@@ -430,7 +448,8 @@
       "chooseFileCta": "Choose CSV file",
       "importingCta": "Importing…",
       "importContactsCta": "Import contacts",
-      "importFailedGeneric": "Could not import that file — please try again."
+      "importFailedGeneric": "Could not import that file — please try again.",
+      "dragDropHint": "Drag a CSV file here, or use the button above."
     },
     "agentBadge": {
       "sentFromRepNumber": "sent from your number",
@@ -517,8 +536,10 @@
       },
       "summaryBasePrimerica": "Orchard",
       "summaryBaseUniversal": "Network rings",
-      "summaryMembers": "{count} real member{plural}",
-      "summaryGhosts": ", {count} open future position{plural}",
+      "summaryMembers_one": "{count} real member",
+      "summaryMembers_other": "{count} real members",
+      "summaryGhosts_one": ", {count} open future position",
+      "summaryGhosts_other": ", {count} open future positions",
       "nodeTitleTemplate": "{name}, level {level}, {tint}"
     },
     "treeList": {
@@ -646,9 +667,11 @@
     "growLink": "Grow →",
     "subtitle": "Every agent-drafted message waits here for your review — nothing sends without your approval.",
     "offlineBanner": "Offline — showing your saved field",
-    "offlineBannerQueuedSuffix": " ({count} action{plural} queued)",
+    "offlineBannerQueuedSuffix_one": " ({count} action queued)",
+    "offlineBannerQueuedSuffix_other": " ({count} actions queued)",
     "offlineBannerTailEdit": ". Anything you approve, decline, or edit will sync and re-check compliance when you're back.",
-    "syncingBanner": "Back online — syncing {count} item{plural}…",
+    "syncingBanner_one": "Back online — syncing {count} item…",
+    "syncingBanner_other": "Back online — syncing {count} items…",
     "loading": "Loading the approval inbox…",
     "loadError": "Could not load the approval inbox. Try again.",
     "retry": "Retry",
@@ -876,7 +899,8 @@
     "loadingCourse": "Gathering your course…",
     "loadFailed": "We couldn't load the course right now — your progress is safe.",
     "retry": "Retry",
-    "streakBadge": "Streak — {count} day{plural}",
+    "streakBadge_one": "Streak — {count} day",
+    "streakBadge_other": "Streak — {count} days",
     "graceDayAvailable": "A grace day is available this week if you need it — life happens.",
     "referralScripts": {
       "badge": "Referral scripts",
@@ -896,6 +920,13 @@
     "courseModulesBadge": "Course modules"
   },
   "billing": {
+    "proration": {
+      "dueTodaySummary_one": "{amount} due today (prorated for {count} day remaining).",
+      "dueTodaySummary_other": "{amount} due today (prorated for {count} days remaining).",
+      "creditAppliedSummary_one": "{amount} credit applied to your account (prorated for {count} day remaining).",
+      "creditAppliedSummary_other": "{amount} credit applied to your account (prorated for {count} days remaining).",
+      "noChargeSummary": "No charge or credit today."
+    },
     "loading": "Loading your plan…",
     "heading": "Subscription",
     "subhead": "Your plan, in plain terms. No surprises, no fine print.",
@@ -1012,7 +1043,9 @@
         "lede": "Add people by CSV or one at a time — we’ll ask again later.",
         "importingCta": "Importing…",
         "importCsvCta": "Import a CSV",
-        "addManuallyCta": "Add one at a time"
+        "addManuallyCta": "Add one at a time",
+        "importFailedGeneric": "Could not import that file — please try again.",
+        "dragDropHint": "Drag a CSV file here, or use the button above."
       },
       "permission": {
         "headline": "Bringing in your community…",
@@ -1024,6 +1057,7 @@
       "headline": "Let’s get your details",
       "photoAddedAria": "Photo added",
       "photoAddedCaption": "Photo added",
+      "initialsAvatarAria": "Initials avatar: {initials}",
       "takePhotoCta": "Take a photo",
       "chooseFromLibraryCta": "Choose from library",
       "skipPhotoCta": "Skip photo",
@@ -1091,7 +1125,8 @@
     "gdprConsent": {
       "headline": "Your data, your consent",
       "lede": "One last thing before we finish setting up your business — we need your consent to process your personal data.",
-      "notPreSelectedCaption": "Not pre-selected — this is your explicit choice. Revocable any time."
+      "notPreSelectedCaption": "Not pre-selected — this is your explicit choice. Revocable any time.",
+      "failedGeneric": "Could not record your consent — please try again."
     },
     "intensityDial": {
       "headline": "How hard should your agents work while you live your life?",
@@ -1170,7 +1205,12 @@
       "softGateQuestion": "Are you sure you want to stop at {count}? Most people find more once they start.",
       "keepAddingCta": "Keep adding",
       "confirmSoftGateCta": "Yes, that’s my list",
-      "finishCta": "That’s my list"
+      "finishCta": "That’s my list",
+      "dotTitleMatched": "{name} — matched in your Vault",
+      "dotTitleUnmatched": "{name} — add?",
+      "dotTitleOpen": "Open position",
+      "enteredMatchedSuffix": " ✓",
+      "enteredUnmatchedSuffix": " (add?)"
     },
     "qualitiesFlip": {
       "sectionAria": "Qualities Flip — Layer 2 of 3",
@@ -1213,13 +1253,20 @@
     },
     "warmMarketRitual": {
       "offlineBannerLine1": "You’re offline — Layers 1 and 2 still work. Your progress is saved on this device",
-      "offlineBannerQueuedSuffix": " ({count} item{plural} queued)",
+      "offlineBannerQueuedSuffix_one": " ({count} item queued)",
+      "offlineBannerQueuedSuffix_other": " ({count} items queued)",
       "offlineBannerLine2": " and will sync, with a compliance re-check, when you’re back.",
-      "syncingBanner": "Back online — syncing {count} item{plural}...",
+      "syncingBanner_one": "Back online — syncing {count} item...",
+      "syncingBanner_other": "Back online — syncing {count} items...",
       "loadingRitual": "Loading your ritual...",
       "handoffSending": "Handing your matches to your agent…",
       "handoffDone": "Done — your agent is drafting first introductions. Check your Approval Inbox soon.",
-      "handoffError": "We couldn't hand this to your agent just now — nothing was lost. Try again."
+      "handoffError": "We couldn't hand this to your agent just now — nothing was lost. Try again.",
+      "loadFailedError": "We could not load your ritual — nothing typed was lost. Try again.",
+      "saveLayer1FailedError": "We could not save Layer 1 — nothing typed was lost. Try again.",
+      "saveLayer2FailedError": "We could not save Layer 2 — nothing typed was lost. Try again.",
+      "saveLayer3FailedError": "We could not save Layer 3 — nothing typed was lost. Try again.",
+      "acknowledgeFailedError": "We could not record that acknowledgment. Try again."
     }
   },
   "team": {
@@ -1392,7 +1439,12 @@
       "toLabel": "To",
       "escalatedBadge": "Escalated · 48h SLA",
       "flaggedBadge": "Flagged",
-      "reject": "Reject"
+      "reject": "Reject",
+      "workingCta": "Working…",
+      "approveForSendCta": "Approve for send",
+      "adjudicateFailedGeneric": "This item could not be adjudicated.",
+      "networkErrorGeneric": "Network error — try again.",
+      "contactFallback": "a contact"
     }
   },
   "composer": {

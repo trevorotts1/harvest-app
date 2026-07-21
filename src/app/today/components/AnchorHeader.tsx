@@ -77,7 +77,7 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
             <span className={styles.momentumBand}>{bandLabel}</span>
           </button>
 
-          <div className={styles.sparkline} role="img" aria-label={`7 day momentum trend: ${momentum.sparkline.join(', ')}`}>
+          <div className={styles.sparkline} role="img" aria-label={t('today.anchorHeader.momentumTrendAria', { values: momentum.sparkline.join(', ') })}>
             {momentum.sparkline.map((v, i) => (
               <span key={i} className={styles.sparklineBar} style={{ height: `${Math.max(6, v)}%` }} />
             ))}

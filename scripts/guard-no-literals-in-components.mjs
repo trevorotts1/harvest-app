@@ -4,8 +4,8 @@
  * externalized from day one (no literals in components — A LINT RULE)") — this is that lint rule.
  *
  * WHAT IT DOES: parses every `.tsx` file under `src/` with the real TypeScript compiler API (this
- * repo already depends on `typescript` for `tsc --noEmit`; no new dependency) and flags two shapes
- * of hardcoded, user-facing string literal that bypass the i18n catalog (`t()` /
+ * repo already depends on `typescript` for `tsc --noEmit`; no new dependency) and flags these
+ * shapes of hardcoded, user-facing string literal that bypass the i18n catalog (`t()` /
  * `src/lib/i18n/catalog.ts`):
  *
  *   (1) JSX TEXT — a raw text child of an element (`<p>Hello</p>`) that contains real, "wordy" text
@@ -18,6 +18,35 @@
  *       as (1), just spelled with braces. `{t('x')}` / `{someVar}` / `{fn('x')}` are NOT flagged —
  *       only a DIRECT string literal as the entire expression is (i.e. `expr.expression` is itself
  *       a `StringLiteral`, not a call/identifier/etc).
+ *   (4) T-57 BLOCKER-B5 fix — TERNARY STRING-LITERAL BRANCHES (`{cond ? 'A' : 'B'}`): a
+ *       ConditionalExpression sitting DIRECTLY as a JsxExpression's `.expression` (this covers both
+ *       a JSX child, `{cond ? 'A' : 'B'}`, and a content-attribute value, `aria-label={cond ? 'A' :
+ *       'B'}` — both are the same `JsxExpression` node shape in the TS AST) whose `whenTrue`/
+ *       `whenFalse` branch (parens-unwrapped) is a plain string literal. Deliberately scoped to
+ *       DIRECT JsxExpression children — a ternary buried inside a template-literal substitution
+ *       (`` className={`btn ${cond ? 'a' : 'b'}`} ``, a technical class-name toggle, not copy) sits
+ *       one level deeper (inside a `TemplateExpression`/`TemplateSpan`) and is correctly NOT matched
+ *       by this shape, avoiding a className-toggle false-positive.
+ *   (5) T-57 BLOCKER-B5 fix — TEMPLATE-LITERAL CONTENT ATTRIBUTES: the previous scanner only ever
+ *       looked at a content attribute (`placeholder`/`alt`/`title`/`aria-label`) written as a plain
+ *       `StringLiteral` (`aria-label="Foo"`); it had no visibility at all into the exact same
+ *       attribute written as a template literal (`` aria-label={`Foo ${name}`} `` or even a
+ *       substitution-free `` aria-label={`Foo`} ``) — a real, live blind spot (BLOCKER-B5). This
+ *       shape inspects the STATIC text of a template literal initializer on a content attribute (the
+ *       head + every span's literal text, i.e. everything that ISN'T a `${…}` substitution) for real
+ *       wordy prose.
+ *   (6) T-57 BLOCKER-B5 fix — STRING LITERALS PASSED TO SETSTATE-SHAPED CALLS: a `CallExpression`
+ *       whose callee is a bare identifier matching `/^set[A-Z]/` (the `const [x, setX] =
+ *       useState(...)` naming convention used throughout this codebase) with a direct `StringLiteral`
+ *       argument that is both wordy AND contains at least one space — e.g. `setLoginError('Invalid
+ *       email or password.')`. The space requirement is deliberate: single-token setState arguments
+ *       in this codebase are overwhelmingly internal state/enum keys (`setMode('register')`,
+ *       `setFilter('ALL')`), never real prose — real user-facing sentences passed to a setter
+ *       virtually always contain a space. Requiring one keeps this shape from false-positiving on
+ *       every mode/state-key setter in the app while still catching the real, multi-word error/toast
+ *       strings BLOCKER-B5/B6 exist to surface (an enum-key false negative here is an acceptable
+ *       trade — a human/QC pass, or a future tightening, still catches it; a wave of enum-key false
+ *       positives would make the guard's real signal unusable).
  *
  * BASELINE ALLOWLIST (mirrors `guard-no-opacity-on-text.mjs`'s `KNOWN_PRE_EXISTING_EXEMPTIONS`
  * pattern exactly): full pre-existing component-string coverage across this whole app is a large,
@@ -134,6 +163,27 @@ const CONTENT_ATTRS = new Set(['placeholder', 'alt', 'title', 'aria-label']);
 // ─────────────────────────────────────────────────────────────────────────────
 // The scanner — one file in, its violations out.
 // ─────────────────────────────────────────────────────────────────────────────
+/** Strips one layer of `ParenthesizedExpression` wrapping (`('A')` → `'A'`) — a ternary branch is
+ *  sometimes deliberately parenthesized for readability; the literal underneath is what matters. */
+function unwrapParens(node) {
+  let current = node;
+  while (ts.isParenthesizedExpression(current)) current = current.expression;
+  return current;
+}
+
+/** The concatenated STATIC text of a template literal (`NoSubstitutionTemplateLiteral` or
+ *  `TemplateExpression`) — every `${…}` substitution is dropped entirely (dynamic, unreviewable
+ *  here), leaving only the literal text authored around them. A space joins adjacent static spans
+ *  so `` `Hello ${name}!` ``'s "Hello" and "!" don't accidentally fuse into "Hello!" and dodge the
+ *  wordy-text check by losing their natural word boundary. */
+function staticTemplateText(node) {
+  if (ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  if (ts.isTemplateExpression(node)) {
+    return [node.head.text, ...node.templateSpans.map((s) => s.literal.text)].join(' ');
+  }
+  return '';
+}
+
 function scanFile(filePath) {
   const relPath = path.relative(REPORT_ROOT, filePath).split(path.sep).join('/');
   const text = readFileSync(filePath, 'utf8');
@@ -153,16 +203,66 @@ function scanFile(filePath) {
       }
     } else if (ts.isJsxAttribute(node)) {
       const name = node.name.getText(sourceFile);
-      if (CONTENT_ATTRS.has(name) && node.initializer && ts.isStringLiteral(node.initializer)) {
-        const value = node.initializer.text;
-        if (isWordyUserFacingText(value)) {
-          raw.push({ kind: `attr:${name}`, snippet: snippetOf(value), line: lineOf(node) });
+      if (CONTENT_ATTRS.has(name) && node.initializer) {
+        if (ts.isStringLiteral(node.initializer)) {
+          const value = node.initializer.text;
+          if (isWordyUserFacingText(value)) {
+            raw.push({ kind: `attr:${name}`, snippet: snippetOf(value), line: lineOf(node) });
+          }
+        } else if (
+          ts.isJsxExpression(node.initializer) &&
+          node.initializer.expression &&
+          (ts.isTemplateExpression(node.initializer.expression) ||
+            ts.isNoSubstitutionTemplateLiteral(node.initializer.expression))
+        ) {
+          // Shape (5) — a template-literal content attribute, e.g. `aria-label={`Foo ${name}`}`.
+          // Handled here (not the generic JsxExpression branch below) because this needs the
+          // attribute NAME to stay content-attr-scoped, exactly like the plain-string-literal case
+          // just above — a template literal on `className`/`href`/etc is still not copy.
+          const value = staticTemplateText(node.initializer.expression);
+          if (isWordyUserFacingText(value)) {
+            raw.push({ kind: `attr-template:${name}`, snippet: snippetOf(value), line: lineOf(node) });
+          }
         }
       }
     } else if (ts.isJsxExpression(node)) {
       const expr = node.expression;
       if (expr && ts.isStringLiteral(expr) && isWordyUserFacingText(expr.text)) {
         raw.push({ kind: 'jsx-expr-literal', snippet: snippetOf(expr.text), line: lineOf(node) });
+      } else if (expr && ts.isConditionalExpression(expr)) {
+        // Shape (4) — ternary string-literal branches, `{cond ? 'A' : 'B'}`. Covers both a JSX
+        // CHILD and a content-attribute value (`aria-label={cond ? 'A' : 'B'}` is the same
+        // JsxExpression node shape) — but when this JsxExpression IS an attribute initializer, it's
+        // only in-scope when that attribute is one of CONTENT_ATTRS, exactly like (2)/(5) above. A
+        // JSX child ternary is unconditionally in-scope (no attribute name to check) because
+        // rendering straight into JSX content is copy by construction. Without this attribute-name
+        // guard, a ternary picking between two ARIA-vocabulary tokens on a STATE attribute —
+        // `aria-current={active ? 'page' : undefined}` is the exact real-world case this repo hit —
+        // would false-positive: `'page'` passes the wordy-text heuristic but is a fixed WAI-ARIA
+        // enum value, not authored prose, same category as `className`'s own literal class tokens.
+        const parent = node.parent;
+        const isAttributeValue = ts.isJsxAttribute(parent) && parent.initializer === node;
+        const inScope = !isAttributeValue || CONTENT_ATTRS.has(parent.name.getText(sourceFile));
+        if (inScope) {
+          for (const branch of [expr.whenTrue, expr.whenFalse]) {
+            const unwrapped = unwrapParens(branch);
+            if (ts.isStringLiteral(unwrapped) && isWordyUserFacingText(unwrapped.text)) {
+              raw.push({ kind: 'jsx-ternary-branch', snippet: snippetOf(unwrapped.text), line: lineOf(node) });
+            }
+          }
+        }
+      }
+    } else if (ts.isCallExpression(node)) {
+      // Shape (6) — a string-literal argument to a setState-shaped call, e.g.
+      // `setLoginError('Invalid email or password.')`. See this file's header for the
+      // "must contain a space" rationale (excludes single-token state/enum-key setters).
+      const callee = node.expression;
+      if (ts.isIdentifier(callee) && /^set[A-Z]/.test(callee.text)) {
+        for (const arg of node.arguments) {
+          if (ts.isStringLiteral(arg) && arg.text.includes(' ') && isWordyUserFacingText(arg.text)) {
+            raw.push({ kind: 'setstate-literal', snippet: snippetOf(arg.text), line: lineOf(node) });
+          }
+        }
       }
     }
     ts.forEachChild(node, visit);

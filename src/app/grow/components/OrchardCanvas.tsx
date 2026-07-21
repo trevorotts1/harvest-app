@@ -67,10 +67,10 @@ function buildSummary(
     return list.reduce((sum, n) => sum + 1 + countAll(n.children), 0);
   })(nodes);
   const base = t(branch === 'primerica' ? 'grow.orchardCanvas.summaryBasePrimerica' : 'grow.orchardCanvas.summaryBaseUniversal');
-  const members = t('grow.orchardCanvas.summaryMembers', { count, plural: count === 1 ? '' : 's' });
+  const members = t('grow.orchardCanvas.summaryMembers', { count });
   const ghostPart =
     branch === 'primerica'
-      ? t('grow.orchardCanvas.summaryGhosts', { count: ghosts.length, plural: ghosts.length === 1 ? '' : 's' })
+      ? t('grow.orchardCanvas.summaryGhosts', { count: ghosts.length })
       : '';
   return `${base}: ${members}${ghostPart}.`;
 }

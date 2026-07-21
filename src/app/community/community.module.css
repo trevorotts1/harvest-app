@@ -348,6 +348,29 @@
   background: var(--surface-3);
   color: var(--text-disabled);
 }
+/* T-57 C5 (uiux §6.3 "Full" desktop parity) — the drag-and-drop CSV zone. See OnboardingFlow's
+   identical `.csvDropZone` (onboarding.module.css) for the full rationale: the drop TARGET stays
+   functional on any device, but the discoverability hint is CSS-gated to pointer-capable/wide
+   viewports (this app's canonical ≥860 breakpoint, uiux §2.2). */
+.csvDropZone {
+  display: none;
+  margin-top: var(--space-2);
+  padding: var(--space-4);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-control);
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+}
+.csvDropZone[data-drag-active='true'] {
+  border-color: var(--color-action);
+  background: var(--surface-2);
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 860px) {
+  .csvDropZone {
+    display: block;
+  }
+}
 .previewTableWrap {
   overflow-x: auto;
   border: 1px solid var(--line);

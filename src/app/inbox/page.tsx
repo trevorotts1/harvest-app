@@ -295,13 +295,13 @@ export default function ApprovalInboxPage() {
         {isOffline && (
           <p className={styles.offlineBanner} role="status">
             {t('inbox.offlineBanner')}
-            {queueLength > 0 ? t('inbox.offlineBannerQueuedSuffix', { count: queueLength, plural: queueLength === 1 ? '' : 's' }) : ''}
+            {queueLength > 0 ? t('inbox.offlineBannerQueuedSuffix', { count: queueLength }) : ''}
             {t('inbox.offlineBannerTailEdit')}
           </p>
         )}
         {!isOffline && syncing && (
           <p className={styles.offlineBanner} role="status">
-            {t('inbox.syncingBanner', { count: syncing.total, plural: syncing.total === 1 ? '' : 's' })}
+            {t('inbox.syncingBanner', { count: syncing.total })}
           </p>
         )}
         {!isOffline && !syncing && syncNotice && (

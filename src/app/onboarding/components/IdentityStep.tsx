@@ -62,7 +62,7 @@ export default function IdentityStep({
             <span className={styles.caption}>{t('onboarding.identity.photoAddedCaption')}</span>
           </div>
         ) : (
-          <div className={styles.avatarInitials} role="img" aria-label={`Initials avatar: ${initials}`}>
+          <div className={styles.avatarInitials} role="img" aria-label={t('onboarding.identity.initialsAvatarAria', { initials })}>
             {initials}
           </div>
         )}

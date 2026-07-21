@@ -12,7 +12,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import styles from './content.module.css';
-import { useT } from '@/app/locale-context';
+import { useLocale, useT } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
 
 type QueueState = 'DRAFTING' | 'COMPLIANCE_CHECK' | 'READY_FOR_REVIEW' | 'SCHEDULED' | 'PUBLISHED' | 'BLOCKED';
 
@@ -62,7 +63,7 @@ const STATE_CLASS: Record<QueueState, string> = {
 };
 
 export default function ContentQueuePage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [filter, setFilter] = useState<FilterKey>('ALL');
   const [items, setItems] = useState<ContentItemData[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpTask[]>([]);
@@ -259,7 +260,7 @@ export default function ContentQueuePage() {
           <div className={styles.itemList}>
             {followUps.map((task) => (
               <div key={task.id} className={styles.item}>
-                <p className={styles.itemMeta}>{t('content.queue.followupDuePrefix')} {new Date(task.due_at).toLocaleString()}</p>
+                <p className={styles.itemMeta}>{t('content.queue.followupDuePrefix')} {formatDateTime(locale, task.due_at)}</p>
                 <div className={styles.itemFooter}>
                   <button type="button" className={styles.actionButton} onClick={() => completeFollowUp(task.id)}>
                     {t('content.queue.markDoneCta')}
@@ -297,7 +298,7 @@ export default function ContentQueuePage() {
 
                 {!item.vocab_clean && <p className={styles.violationNote}>{t('content.queue.vocabViolationNote')}</p>}
                 {item.publish_hold_reason && <p className={styles.violationNote}>{t('content.queue.holdReasonLabel')} {item.publish_hold_reason}</p>}
-                {item.scheduled_for && <p className={styles.itemMeta}>{t('content.queue.scheduledForLabel')} {new Date(item.scheduled_for).toLocaleString()}</p>}
+                {item.scheduled_for && <p className={styles.itemMeta}>{t('content.queue.scheduledForLabel')} {formatDateTime(locale, item.scheduled_for)}</p>}
 
                 <div className={styles.itemFooter}>
                   {item.state === 'READY_FOR_REVIEW' && (
