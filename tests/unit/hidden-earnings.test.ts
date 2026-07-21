@@ -5,7 +5,7 @@
 // NaN/$0." Each `TEETH` test states what regression it would catch and demonstrates the guard
 // actually firing (not just that the happy path looks right).
 
-import { OrgType } from '@prisma/client';
+import { OrgType, Role } from '@prisma/client';
 
 import { OrgBranchViolation } from '@/services/onboarding/wp01/org-gate';
 import {
@@ -151,7 +151,7 @@ describe('(b) 0, 1, 2, 3 contacts → growth-path state, never NaN/$0/Infinity',
     for (const bad of [NaN, Infinity, -Infinity, -5, -0.0001]) {
       const result = computeHiddenEarnings({ contactCount: bad, orgType: OrgType.EXTERNAL });
       expect(result.kind).toBe('growth_path');
-      expect(Number.isNaN((result as any).estimatedMonthlyValueUsd)).toBe(false);
+      expect(Number.isNaN((result as unknown as { estimatedMonthlyValueUsd?: number }).estimatedMonthlyValueUsd)).toBe(false);
       expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity/);
     }
   });
@@ -324,12 +324,12 @@ describe('CFE gating: earnings content headed to outreach/send is fail-closed CF
     };
   }
 
-  const userContext = { user_id: 'u1', role: 'REP' } as const;
+  const userContext = { user_id: 'u1', role: Role.REP };
 
   test('a released CFE verdict yields allowed:true and returns the composed, safe-harbor-carrying text', async () => {
     const result = computeHiddenEarnings({ contactCount: 42, orgType: OrgType.EXTERNAL });
     const cfe = { evaluateContent: jest.fn().mockResolvedValue(verdict({})) };
-    const decision = await routeHiddenEarningsToOutreach(result, cfe, userContext as any);
+    const decision = await routeHiddenEarningsToOutreach(result, cfe, userContext);
     expect(decision.allowed).toBe(true);
     if (decision.allowed) {
       expect(decision.text).toContain(SAFE_HARBOR_LINE);
@@ -342,7 +342,7 @@ describe('CFE gating: earnings content headed to outreach/send is fail-closed CF
     const cfe = {
       evaluateContent: jest.fn().mockResolvedValue(verdict({ held: true, released: false, band: 'blocked' })),
     };
-    const decision = await routeHiddenEarningsToOutreach(result, cfe, userContext as any);
+    const decision = await routeHiddenEarningsToOutreach(result, cfe, userContext);
     expect(decision.allowed).toBe(false);
     if (!decision.allowed) expect(decision.reason).toBe('cfe_held');
   });
@@ -352,7 +352,7 @@ describe('CFE gating: earnings content headed to outreach/send is fail-closed CF
     const cfe = {
       evaluateContent: jest.fn().mockResolvedValue(verdict({ held: false, released: false, band: 'blocked' })),
     };
-    const decision = await routeHiddenEarningsToOutreach(result, cfe, userContext as any);
+    const decision = await routeHiddenEarningsToOutreach(result, cfe, userContext);
     expect(decision.allowed).toBe(false);
     if (!decision.allowed) expect(decision.reason).toBe('cfe_blocked');
   });
@@ -360,7 +360,7 @@ describe('CFE gating: earnings content headed to outreach/send is fail-closed CF
   test('TEETH: if a CFE outage caused `evaluateContent` to reject, this function propagates the rejection rather than falling back to allowed:true (no silent bypass)', async () => {
     const result = computeHiddenEarnings({ contactCount: 42, orgType: OrgType.EXTERNAL });
     const cfe = { evaluateContent: jest.fn().mockRejectedValue(new Error('cfe down')) };
-    await expect(routeHiddenEarningsToOutreach(result, cfe, userContext as any)).rejects.toThrow('cfe down');
+    await expect(routeHiddenEarningsToOutreach(result, cfe, userContext)).rejects.toThrow('cfe down');
   });
 });
 

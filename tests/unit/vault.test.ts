@@ -25,6 +25,8 @@ import {
   ModalityNotAllowedError,
   VaultService,
   type VaultPrismaClient,
+  type ImportBatchRow,
+  type ContactRow,
 } from '../../src/services/warm-market/vault/vault.service';
 
 // ── In-memory fake Prisma ──────────────────────────────────────────────────────────────────────
@@ -33,67 +35,67 @@ import {
 // sequencing (find → create/update → find again) instead of a brittle chain of
 // `mockResolvedValueOnce` calls that would silently pass regardless of what queries actually ran.
 function createFakeVaultPrisma() {
-  const contacts = new Map<string, any>();
-  const batchesByKey = new Map<string, any>();
-  const batchesById = new Map<string, any>();
-  const optOuts = new Map<string, any>();
-  const interactions: any[] = [];
+  const contacts = new Map<string, Record<string, unknown>>();
+  const batchesByKey = new Map<string, Record<string, unknown>>();
+  const batchesById = new Map<string, Record<string, unknown>>();
+  const optOuts = new Map<string, Record<string, unknown>>();
+  const interactions: Record<string, unknown>[] = [];
   let contactSeq = 0;
   let batchSeq = 0;
 
   const prisma: VaultPrismaClient = {
     importBatch: {
-      findUnique: async ({ where }: any) => {
+      findUnique: async ({ where }) => {
         const key = `${where.user_id_idempotency_key.user_id}::${where.user_id_idempotency_key.idempotency_key}`;
-        return batchesByKey.get(key) ?? null;
+        return (batchesByKey.get(key) as unknown as ImportBatchRow) ?? null;
       },
-      create: async ({ data }: any) => {
+      create: async ({ data }) => {
         const id = `batch-${++batchSeq}`;
         const row = { id, ...data };
         batchesByKey.set(`${data.user_id}::${data.idempotency_key}`, row);
         batchesById.set(id, row);
-        return row;
+        return row as unknown as ImportBatchRow;
       },
-      update: async ({ where, data }: any) => {
-        const row = batchesById.get(where.id);
+      update: async ({ where, data }) => {
+        const row = batchesById.get(where.id)!;
         Object.assign(row, data);
-        return row;
+        return row as unknown as ImportBatchRow;
       },
     },
     contact: {
-      findFirst: async ({ where }: any) => {
+      findFirst: async ({ where }: { where: { user_id: string; OR?: Array<{ phone_hash?: string; email_hash?: string }> } }) => {
         for (const c of contacts.values()) {
           if (c.user_id !== where.user_id) continue;
           const or = where.OR ?? [];
           const matches = or.some(
-            (cond: any) =>
+            (cond) =>
               (cond.phone_hash && c.phone_hash === cond.phone_hash) ||
               (cond.email_hash && c.email_hash === cond.email_hash)
           );
-          if (matches) return c;
+          if (matches) return c as unknown as ContactRow;
         }
         return null;
       },
-      create: async ({ data }: any) => {
+      create: async ({ data }) => {
         const id = `contact-${++contactSeq}`;
         const row = { id, ...data };
         contacts.set(id, row);
-        return row;
+        return row as unknown as ContactRow;
       },
-      update: async ({ where, data }: any) => {
-        const row = contacts.get(where.id);
+      update: async ({ where, data }) => {
+        const row = contacts.get(where.id)!;
         Object.assign(row, data);
-        return row;
+        return row as unknown as ContactRow;
       },
     },
     contactInteraction: {
-      create: async ({ data }: any) => {
+      create: async ({ data }) => {
         interactions.push(data);
         return data;
       },
     },
     optOutRegistry: {
-      upsert: async ({ create }: any) => {
+      upsert: async ({ create }) => {
         const key = `${create.identifier_hash}::${create.channel}`;
         if (!optOuts.has(key)) optOuts.set(key, create);
         return optOuts.get(key);
@@ -122,8 +124,8 @@ describe('VaultService — four ingestion modalities land a normalized Contact r
     const [stored] = [...contacts.values()];
     expect(stored.phone_hash).toBe(hmacForMatch('5551112222'));
     expect(stored.email_hash).toBe(hmacForMatch('jane.csv@example.com'));
-    expect(decryptRequiredField(stored.first_name)).toBe('Jane');
-    expect(decryptRequiredField(stored.last_name)).toBe('CSV');
+    expect(decryptRequiredField(stored.first_name as string)).toBe('Jane');
+    expect(decryptRequiredField(stored.last_name as string)).toBe('CSV');
   });
 
   // T-29R2 (WP03 gate remediation follow-up, §8.2 eligibility) — the CSV capture path proof: this is
@@ -225,8 +227,8 @@ describe('VaultService — four ingestion modalities land a normalized Contact r
     expect(result.importedCount).toBe(1);
     const [stored] = [...contacts.values()];
     // Emoji/nickname names tolerated (§7.6) — no crash, no stripping.
-    expect(decryptRequiredField(stored.first_name)).toBe('Ana');
-    expect(decryptRequiredField(stored.last_name)).toBe('Ríos 😊');
+    expect(decryptRequiredField(stored.first_name as string)).toBe('Ana');
+    expect(decryptRequiredField(stored.last_name as string)).toBe('Ríos 😊');
   });
 
   test('Android native modality: lands a row when clientPlatform=android; refused otherwise', async () => {
@@ -294,11 +296,11 @@ describe('PII encrypted at rest via the WP11 AES-256-GCM service (§7.1, §16.4)
     }
 
     // Round-trips exactly via the WP11 decrypt path — proving it's real ciphertext, not e.g. base64.
-    expect(decryptRequiredField(stored.first_name)).toBe('Secret');
-    expect(decryptRequiredField(stored.last_name)).toBe('Person');
-    expect(decryptOptionalField(stored.phone)).toBe('5551234567');
-    expect(decryptOptionalField(stored.email)).toBe('secret@example.com');
-    expect(decryptOptionalField(stored.notes)).toBe('a very sensitive detail');
+    expect(decryptRequiredField(stored.first_name as string)).toBe('Secret');
+    expect(decryptRequiredField(stored.last_name as string)).toBe('Person');
+    expect(decryptOptionalField(stored.phone as string | null | undefined)).toBe('5551234567');
+    expect(decryptOptionalField(stored.email as string | null | undefined)).toBe('secret@example.com');
+    expect(decryptOptionalField(stored.notes as string | null | undefined)).toBe('a very sensitive detail');
 
     // Match/dedupe key is the keyed HMAC (never the plaintext, never the ciphertext).
     expect(stored.phone_hash).toBe(hmacForMatch('5551234567'));
@@ -370,7 +372,7 @@ describe('Import idempotency (§18.5 "re-running the same import creates no dupl
 
     expect(contacts.size).toBe(1);
     const [merged] = [...contacts.values()];
-    expect(decryptOptionalField(merged.email)).toBe('carla3@example.com'); // filled in from the second source
+    expect(decryptOptionalField(merged.email as string | null | undefined)).toBe('carla3@example.com'); // filled in from the second source
     expect(interactions.some((i) => String(i.notes).includes('Cross-source duplicate merged'))).toBe(true);
   });
 });
@@ -382,7 +384,7 @@ describe('Import resumability under partial failure (§18.5 "leaves a resumable 
 
     const realCreate = prisma.contact.create;
     let attempts = 0;
-    (prisma.contact as any).create = async (args: any) => {
+    prisma.contact.create = async (args) => {
       attempts++;
       if (attempts === 3) throw new Error('simulated transient DB outage');
       return realCreate(args);
@@ -410,7 +412,7 @@ describe('Import resumability under partial failure (§18.5 "leaves a resumable 
     const vault = new VaultService(prisma);
     const rows = [{ name: 'Valid Row' }, { name: '' }, { name: 'Also Valid' }];
 
-    const result = await vault.importBatch('user-1', ContactSource.CSV, rows as any, {
+    const result = await vault.importBatch('user-1', ContactSource.CSV, rows, {
       idempotencyKey: 'validation-1',
     });
 

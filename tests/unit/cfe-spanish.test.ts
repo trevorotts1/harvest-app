@@ -104,7 +104,7 @@ describe('Spanish CFE — classified + gated through the SAME pipeline as Englis
     });
     try {
       const engine = new ComplianceFilterEngine({
-        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchSpy as any }),
+        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchSpy }),
       });
       const v = await engine.evaluateContent({
         content: 'Hola, ¿cómo estás? Quería contarte algo sobre mi negocio.',

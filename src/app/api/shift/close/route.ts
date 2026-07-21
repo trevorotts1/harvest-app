@@ -27,7 +27,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     const service = new ShiftService();
     const view = await service.close(identity.userId, reflectionText as string | undefined);
     return NextResponse.json(view);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 });

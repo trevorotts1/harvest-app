@@ -60,14 +60,6 @@ function fakeSession(overrides: Partial<Session['user']> = {}): Session {
   } as Session;
 }
 
-function seedOnboarding(status: OnboardingStatus | null, organizationId: string | null = 'org-live-1') {
-  mockedUserFindUnique.mockResolvedValue(
-    status === null
-      ? null
-      : { onboarding_status: status, onboarding_sessions: [{ current_step: 'REGISTER' }], organization_id: organizationId }
-  );
-}
-
 function getRequest(headers: Record<string, string> = {}): NextRequest {
   return new NextRequest('http://localhost/api/messaging/handoff/pending', { headers });
 }

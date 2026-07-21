@@ -16,6 +16,7 @@ import {
   type AuditCheckpoint,
   type AuditCheckpointPrismaDelegate,
   type RecordAuditEventInput,
+  type ChainedEntry,
 } from '@/services/compliance/audit';
 
 /**
@@ -40,6 +41,16 @@ import {
  *       (proven independently by their own suites, which still import the same `audit-service.ts`
  *       unmodified in its non-additive parts).
  */
+
+/** `classifier_data` is an opaque `Record<string, unknown>` JSON blob at the type level (its shape
+ *  is genuinely caller-defined) — this narrows it to the specific test-fixture shape the freeze
+ *  proofs below actually poke at, rather than reading through `any` at each access. */
+interface TestClassifierData {
+  nested?: { deeper: string[] };
+  scores?: { INCOME_CLAIM: number };
+  results?: Array<{ tag: string }>;
+  [key: string]: unknown;
+}
 
 function baseCfeInput(overrides: Partial<RecordAuditEventInput> = {}): RecordAuditEventInput {
   return {
@@ -139,7 +150,7 @@ describe('T-R4 (b): hash-chain verify still detects a tampered past entry', () =
     const tampered = rows.map((r) => ({ ...r }));
     tampered[0].content_text = 'TAMPERED';
 
-    const result = verifyChain(tampered as any);
+    const result = verifyChain(tampered as unknown as ChainedEntry[]);
     expect(result.valid).toBe(false);
     expect(result.reason).toMatch(/entry_hash mismatch/);
 
@@ -272,15 +283,16 @@ describe('T-R4 (d): returned audit rows are deeply frozen (in-memory AND Prisma-
 
     expect(Object.isFrozen(entry)).toBe(true);
     expect(Object.isFrozen(entry!.classifier_data)).toBe(true);
-    const nested = (entry!.classifier_data as any).nested;
+    const classifierData = entry!.classifier_data as TestClassifierData;
+    const nested = classifierData.nested!;
     expect(Object.isFrozen(nested)).toBe(true);
     expect(Object.isFrozen(nested.deeper)).toBe(true);
 
     expect(() => {
-      (entry!.classifier_data as any).nested.deeper.push('c');
+      nested.deeper.push('c');
     }).toThrow();
     expect(() => {
-      (entry!.classifier_data as any).newKey = 'x';
+      classifierData.newKey = 'x';
     }).toThrow();
   });
 
@@ -316,13 +328,14 @@ describe('T-R4 (d): returned audit rows are deeply frozen (in-memory AND Prisma-
     const byId = await repo.getById('row-1');
     expect(Object.isFrozen(byId)).toBe(true);
     expect(Object.isFrozen(byId!.classifier_data)).toBe(true);
-    expect(Object.isFrozen((byId!.classifier_data as any).results)).toBe(true);
-    expect(Object.isFrozen((byId!.classifier_data as any).results[0])).toBe(true);
+    const classifierData = byId!.classifier_data as TestClassifierData;
+    expect(Object.isFrozen(classifierData.results)).toBe(true);
+    expect(Object.isFrozen(classifierData.results![0])).toBe(true);
     expect(() => {
-      (byId as any).risk_score = 0;
+      (byId as unknown as Record<string, unknown>).risk_score = 0;
     }).toThrow();
     expect(() => {
-      (byId!.classifier_data as any).scores.INCOME_CLAIM = 0;
+      classifierData.scores!.INCOME_CLAIM = 0;
     }).toThrow();
 
     const queried = await repo.query({});

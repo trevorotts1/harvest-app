@@ -16,7 +16,7 @@ export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => 
     const service = new MethodStateService();
     const state = await service.getState(identity.userId);
     return NextResponse.json(state);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 });

@@ -18,7 +18,7 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { createElement } from 'react';
+import { createElement, type ElementType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import enCatalog from '@/lib/i18n/messages/en.json';
@@ -42,7 +42,7 @@ import type {
   ZoneResult,
 } from '@/services/mission-control/types';
 
-const render = (el: any, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
+const render = (el: ElementType, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
 
 const REPO_ROOT = path.join(__dirname, '..', '..');

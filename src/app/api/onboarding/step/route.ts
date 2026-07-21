@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OnboardingStep, OnboardingSession, STEP_ORDER, MIN_COMMITMENT_SCORE } from '@/types/onboarding';
-import { onboardingService } from '@/services/onboarding/service';
+import { onboardingService, type OnboardingStepPayload } from '@/services/onboarding/service';
 
 // In-memory store for tests
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Business rule validation
-    const validation = onboardingService.validateStep(session as OnboardingSession, step, data as any);
+    const validation = onboardingService.validateStep(session as OnboardingSession, step, data as OnboardingStepPayload);
 
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       currentStep: session.current_step,
       completed: session.completed,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

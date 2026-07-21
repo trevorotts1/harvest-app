@@ -31,11 +31,18 @@ import {
 
 export { MissingClaudeCredentialError };
 
-type FetchLike = (url: string, init: any) => Promise<{
+type FetchLike = (url: string, init: RequestInit) => Promise<{
   ok: boolean;
   status: number;
   text: () => Promise<string>;
 }>;
+
+/** Loosely-typed Anthropic Messages API response body — fields are validated with `typeof`
+ *  narrowing at each read site rather than trusted structurally. */
+interface MessagesResponseBody {
+  content?: Array<{ type?: string; text?: string }>;
+  [key: string]: unknown;
+}
 
 export interface HaikuSegmentationClientOptions {
   /** Env-var NAME the key is read from (never its value, §0.4). */
@@ -85,7 +92,7 @@ export class HaikuSegmentationClient implements SegmentationClient {
       throw new MissingClaudeCredentialError(this.apiKeyEnvVar);
     }
 
-    const fetchFn: FetchLike | undefined = this.fetchImpl ?? (globalThis as any).fetch;
+    const fetchFn: FetchLike | undefined = this.fetchImpl ?? (globalThis.fetch as FetchLike | undefined);
     if (!fetchFn) {
       // No transport available — treat as unavailable, fail closed. Never silently degrade to a
       // non-Claude provider or a fabricated default.
@@ -120,12 +127,13 @@ export class HaikuSegmentationClient implements SegmentationClient {
         throw new SegmentationError(`Haiku segmentation request failed with status ${res.status}.`);
       }
       raw = await res.text();
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
+    } catch (err) {
+      const errName = err instanceof Error ? err.name : undefined;
+      if (errName === 'AbortError') {
         throw new SegmentationTimeoutError(this.timeoutMs);
       }
       if (err instanceof SegmentationError) throw err;
-      throw new SegmentationError(`Haiku segmentation transport error: ${err?.name ?? 'unknown'}`);
+      throw new SegmentationError(`Haiku segmentation transport error: ${errName ?? 'unknown'}`);
     } finally {
       clearTimeout(timer);
     }
@@ -134,7 +142,7 @@ export class HaikuSegmentationClient implements SegmentationClient {
   }
 
   private parse(raw: string): SegmentationResult {
-    let json: any;
+    let json: MessagesResponseBody;
     try {
       json = JSON.parse(raw);
     } catch {
@@ -142,10 +150,10 @@ export class HaikuSegmentationClient implements SegmentationClient {
     }
 
     // Extract the structured JSON payload from the Messages API content blocks.
-    let payload: any = json;
+    let payload: MessagesResponseBody = json;
     if (Array.isArray(json?.content)) {
       const textBlock = json.content.find(
-        (b: any) => b && b.type === 'text' && typeof b.text === 'string'
+        (b): b is { type: string; text: string } => !!b && b.type === 'text' && typeof b.text === 'string'
       );
       if (!textBlock) {
         throw new SegmentationError('Haiku segmentation response contained no text block.');
@@ -157,21 +165,30 @@ export class HaikuSegmentationClient implements SegmentationClient {
       }
     }
 
-    const relationshipType = payload?.relationship_type;
+    // A degenerate JSON body (e.g. the literal `"null"`) or a text block whose JSON parses to
+    // `null` reaches here as `payload === null` — guard before any field read so that case throws
+    // the SAME domain error as a payload merely missing the fields, never a raw TypeError.
+    if (payload === null || typeof payload !== 'object') {
+      throw new SegmentationError('Haiku segmentation verdict missing a valid relationship_type.');
+    }
+
+    const relationshipType = payload.relationship_type;
     if (
       typeof relationshipType !== 'string' ||
       !(Object.values(RelationshipType) as string[]).includes(relationshipType)
     ) {
       throw new SegmentationError('Haiku segmentation verdict missing a valid relationship_type.');
     }
-    if (typeof payload?.confidence !== 'number' || !Number.isFinite(payload.confidence)) {
+    const confidence = payload.confidence;
+    if (typeof confidence !== 'number' || !Number.isFinite(confidence)) {
       throw new SegmentationError('Haiku segmentation verdict missing a valid confidence.');
     }
 
+    const rationale = payload.rationale;
     return {
       relationshipType: relationshipType as RelationshipType,
-      confidence: Math.max(0, Math.min(1, payload.confidence)),
-      rationale: typeof payload.rationale === 'string' ? payload.rationale : undefined,
+      confidence: Math.max(0, Math.min(1, confidence)),
+      rationale: typeof rationale === 'string' ? rationale : undefined,
     };
   }
 }

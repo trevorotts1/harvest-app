@@ -26,8 +26,15 @@ import {
 
 type FetchLike = (
   url: string,
-  init: any
+  init: RequestInit
 ) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>;
+
+/** Minimal shape of the Anthropic Messages API response body actually consumed by `parse` below. */
+interface AnthropicMessagesResponseBody {
+  content?: Array<{ type?: string; text?: string }>;
+  text?: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
 
 export interface AnthropicRuntimeClientOptions {
   /** Env-var NAME the key is read from (never its value, §0.4). */
@@ -70,7 +77,7 @@ export class AnthropicRuntimeClient implements AgentModelClient {
       throw new AgentModelError(`Refusing to call a non-Claude model id for tier '${req.tier}'.`);
     }
 
-    const fetchFn: FetchLike | undefined = this.fetchImpl ?? (globalThis as any).fetch;
+    const fetchFn: FetchLike | undefined = this.fetchImpl ?? (globalThis.fetch as FetchLike | undefined);
     if (!fetchFn) {
       throw new AgentModelError('No fetch implementation available for the Anthropic runtime client.');
     }
@@ -110,12 +117,13 @@ export class AnthropicRuntimeClient implements AgentModelClient {
         throw new AgentModelError(`Anthropic request failed with status ${res.status}.`);
       }
       raw = await res.text();
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
+    } catch (err) {
+      const errName = err instanceof Error ? err.name : undefined;
+      if (errName === 'AbortError') {
         throw new AgentModelTimeoutError(this.timeoutMs);
       }
       if (err instanceof AgentModelError) throw err;
-      throw new AgentModelError(`Anthropic transport error: ${err?.name ?? 'unknown'}`);
+      throw new AgentModelError(`Anthropic transport error: ${errName ?? 'unknown'}`);
     } finally {
       clearTimeout(timer);
     }
@@ -124,7 +132,7 @@ export class AnthropicRuntimeClient implements AgentModelClient {
   }
 
   private parse(raw: string, req: AgentGenerationRequest, modelId: string): AgentGenerationResult {
-    let json: any;
+    let json: AnthropicMessagesResponseBody;
     try {
       json = JSON.parse(raw);
     } catch {
@@ -134,7 +142,7 @@ export class AnthropicRuntimeClient implements AgentModelClient {
     let text = '';
     if (Array.isArray(json?.content)) {
       const textBlock = json.content.find(
-        (b: any) => b && b.type === 'text' && typeof b.text === 'string'
+        (b): b is { type: string; text: string } => !!b && b.type === 'text' && typeof b.text === 'string'
       );
       if (!textBlock) {
         throw new AgentModelError('Anthropic response contained no text block.');
@@ -151,8 +159,8 @@ export class AnthropicRuntimeClient implements AgentModelClient {
       text,
       modelId,
       tier: req.tier,
-      tokenInput: Number.isFinite(usage.input_tokens) ? usage.input_tokens : 0,
-      tokenOutput: Number.isFinite(usage.output_tokens) ? usage.output_tokens : 0,
+      tokenInput: Number.isFinite(usage.input_tokens) ? (usage.input_tokens as number) : 0,
+      tokenOutput: Number.isFinite(usage.output_tokens) ? (usage.output_tokens as number) : 0,
       batched: Boolean(req.batched),
     };
   }

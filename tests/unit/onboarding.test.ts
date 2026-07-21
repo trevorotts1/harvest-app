@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { OnboardingService } from '../../src/services/onboarding/service';
-import { OnboardingStep, Role, OrgType, AccessTier, ROLE_VISIBILITY } from '../../src/types/onboarding';
+import { OnboardingStep, Role, OrgType, AccessTier, ROLE_VISIBILITY, type OnboardingSession } from '../../src/types/onboarding';
 // T-19 QC CRITICAL fix regression tests: exercise the ACTUAL live route handler (not just the
 // service function it used to call), since the defect was in the route's wiring, not only in
 // `OnboardingService.determineAccessTier` — see the `POST /api/onboarding/complete` describe block
@@ -55,7 +55,7 @@ describe('OnboardingService', () => {
     });
 
     test('validateStep no longer numeric-gates the SEVEN_WHYS step — the T-18 engine owns that gate', () => {
-      const session = { role: Role.REP, org_type: OrgType.EXTERNAL, current_step: OnboardingStep.SEVEN_WHYS } as any;
+      const session = { role: Role.REP, org_type: OrgType.EXTERNAL, current_step: OnboardingStep.SEVEN_WHYS } as unknown as OnboardingSession;
       // A "low-scoring" seven_whys payload that the retired numeric gate would have REJECTED now
       // passes this legacy validator untouched (the real gate is the invisible T-18 resonance).
       const result = service.validateStep(session, OnboardingStep.SEVEN_WHYS, {
@@ -78,7 +78,7 @@ describe('OnboardingService', () => {
 
   describe('Progression and business rules', () => {
     test('getNextStep follows role-specific order', () => {
-      const mockSession = { role: Role.REP, current_step: OnboardingStep.REGISTER } as any;
+      const mockSession = { role: Role.REP, current_step: OnboardingStep.REGISTER } as unknown as OnboardingSession;
       expect(service.getNextStep(mockSession)).toBe(OnboardingStep.ACCOUNT_TYPE);
     });
 
@@ -88,7 +88,7 @@ describe('OnboardingService', () => {
       for (const role of [Role.REP, Role.UPLINE, Role.RVP, Role.DUAL, Role.ADMIN]) {
         const steps = service.getStepsForRole(role);
         expect(steps[steps.length - 1]).toBe(OnboardingStep.CONSENT_CAPTURE);
-        const mockSession = { role, current_step: OnboardingStep.CONSENT_CAPTURE } as any;
+        const mockSession = { role, current_step: OnboardingStep.CONSENT_CAPTURE } as unknown as OnboardingSession;
         expect(service.getNextStep(mockSession)).toBeNull(); // nothing comes after it
       }
     });
@@ -99,7 +99,7 @@ describe('OnboardingService', () => {
   // pass (wrongly) against the pre-fix `validateStep`, which had NO branch for CONSENT_CAPTURE at all
   // — any payload, consented or not, was accepted.
   describe('validateStep gates OnboardingStep.CONSENT_CAPTURE on explicit gdpr_consent (T-21R)', () => {
-    const baseSession = { role: Role.REP, org_type: OrgType.EXTERNAL, current_step: OnboardingStep.CONSENT_CAPTURE } as any;
+    const baseSession = { role: Role.REP, org_type: OrgType.EXTERNAL, current_step: OnboardingStep.CONSENT_CAPTURE } as unknown as OnboardingSession;
 
     test('gdpr_consent: true is ACCEPTED', () => {
       const result = service.validateStep(baseSession, OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: true });
@@ -132,7 +132,7 @@ describe('OnboardingService', () => {
       role: Role.REP,
       org_type: OrgType.PRIMERICA,
       current_step: OnboardingStep.ROLE_ORG_CONTEXT,
-    } as any;
+    } as unknown as OnboardingSession;
 
     test('6-digit solution number is REJECTED at the ROLE_ORG_CONTEXT step', () => {
       const result = service.validateStep(baseSession, OnboardingStep.ROLE_ORG_CONTEXT, {

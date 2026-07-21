@@ -12,13 +12,13 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { createElement } from 'react';
+import { createElement, type ElementType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import ContactCard from '@/app/community/components/ContactCard';
 import PlotsRow, { A_LIST_PLOT_KEY } from '@/app/community/components/PlotsRow';
 
-const render = (el: any, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
+const render = (el: ElementType, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
 
 const REPO_ROOT = path.join(__dirname, '..', '..');

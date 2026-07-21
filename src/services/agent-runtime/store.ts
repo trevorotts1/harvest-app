@@ -125,9 +125,10 @@ export class PrismaAgentRuntimeStore implements AgentRuntimeStore {
   async markProcessed(key: string, source: string): Promise<void> {
     try {
       await this.db.idempotencyLog.create({ data: { key, source } });
-    } catch (err: any) {
+    } catch (err) {
       // A concurrent writer already claimed it (P2002) — that is exactly the dedup we want; swallow.
-      if (err?.code !== 'P2002') throw err;
+      const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: unknown }).code : undefined;
+      if (code !== 'P2002') throw err;
     }
   }
 

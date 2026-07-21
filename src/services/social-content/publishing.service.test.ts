@@ -33,13 +33,13 @@ function makeFakeDb(seed: ContentItemRow[]) {
   let idCounter = 0;
   const client = {
     contentItem: {
-      async findMany({ where }: any) {
+      async findMany({ where }: { where: Record<string, unknown> }) {
         return rows.filter((r) => (!where.state || r.state === where.state) && (!where.user_id || r.user_id === where.user_id));
       },
-      async findFirst({ where }: any) {
+      async findFirst({ where }: { where: { id: string; user_id: string } }) {
         return rows.find((r) => r.id === where.id && r.user_id === where.user_id) ?? null;
       },
-      async update({ where, data }: any) {
+      async update({ where, data }: { where: { id: string }; data: Record<string, unknown> }) {
         const row = rows.find((r) => r.id === where.id);
         if (!row) throw new Error('not found');
         Object.assign(row, data);
@@ -47,7 +47,7 @@ function makeFakeDb(seed: ContentItemRow[]) {
       },
     },
     engagementFollowUpTask: {
-      async create({ data }: any) {
+      async create({ data }: { data: Record<string, unknown> }) {
         const row = { id: `f-${++idCounter}`, completed: false, completed_at: null, created_at: new Date(), ...data } as EngagementFollowUpRow;
         followUps.push(row);
         return row;
@@ -55,10 +55,10 @@ function makeFakeDb(seed: ContentItemRow[]) {
       async findMany() {
         return followUps;
       },
-      async findFirst({ where }: any) {
+      async findFirst({ where }: { where: { id: string; user_id: string } }) {
         return followUps.find((f) => f.id === where.id && f.user_id === where.user_id) ?? null;
       },
-      async update({ where, data }: any) {
+      async update({ where, data }: { where: { id: string }; data: Record<string, unknown> }) {
         const row = followUps.find((f) => f.id === where.id)!;
         Object.assign(row, data);
         return row;

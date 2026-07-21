@@ -13,6 +13,7 @@ import {
   type AuditEntryRecord,
   type DownlineScopeResolver,
   type RecordAuditEventInput,
+  type ChainedEntry,
 } from '@/services/compliance/audit';
 import type { CFEAuditEvent } from '@/types/compliance';
 import type { LicensingAuditEvent } from '@/types/licensing';
@@ -106,7 +107,7 @@ describe('hash chain tamper evidence — mutation and deletion detection (proof 
     tampered[1].content_text = 'TAMPERED — this was never the original content';
     tampered[1].risk_score = 999;
 
-    const result = verifyChain(tampered as any);
+    const result = verifyChain(tampered as unknown as ChainedEntry[]);
     expect(result.valid).toBe(false);
     expect(result.brokenEntryId).toBe(rows[1].id);
     expect(result.reason).toMatch(/entry_hash mismatch/);
@@ -126,7 +127,7 @@ describe('hash chain tamper evidence — mutation and deletion detection (proof 
     // Simulate a deleted row: remove the middle entry (row B) from the set handed to
     // verifyChain — analogous to a row vanishing from the underlying table.
     const withDeletion = [rows[0], rows[2]];
-    const result = verifyChain(withDeletion as any);
+    const result = verifyChain(withDeletion as unknown as ChainedEntry[]);
 
     expect(result.valid).toBe(false);
     // Detected either via the sequence gap (1 -> 3, skipping 2) or the broken prev_hash link —
@@ -185,7 +186,7 @@ describe('append-only enforcement — no update/delete API exists (proof c)', ()
     expect(entry).not.toBeNull();
     expect(Object.isFrozen(entry)).toBe(true);
     expect(() => {
-      (entry as any).risk_score = 999;
+      (entry as unknown as Record<string, unknown>).risk_score = 999;
     }).toThrow();
     // Confirm the throw actually prevented the mutation (didn't silently no-op then throw for an
     // unrelated reason) by re-fetching and checking it's unchanged.

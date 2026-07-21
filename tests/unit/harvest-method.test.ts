@@ -89,8 +89,8 @@ export function createFakeMethodPrisma() {
     },
     contactMethodProfile: {
       findMany: async ({ where }) => {
-        const all = [...profiles.values()].filter((p) => p.user_id === (where as any).user_id);
-        if ((where as any).is_seed !== undefined) return all.filter((p) => p.is_seed === (where as any).is_seed);
+        const all = [...profiles.values()].filter((p) => p.user_id === where.user_id);
+        if (where.is_seed !== undefined) return all.filter((p) => p.is_seed === where.is_seed);
         return all;
       },
       findUnique: async ({ where }) => profiles.get(`${where.user_id_contact_id.user_id}::${where.user_id_contact_id.contact_id}`) ?? null,

@@ -58,11 +58,18 @@ export interface SevenWhysConversationClient {
   composeAnchor(req: SevenWhysAnchorRequest): Promise<SevenWhysAnchorResult>;
 }
 
-type FetchLike = (url: string, init: any) => Promise<{
+type FetchLike = (url: string, init: RequestInit) => Promise<{
   ok: boolean;
   status: number;
   text: () => Promise<string>;
 }>;
+
+/** Loosely-typed Anthropic Messages API response body — fields are validated with `typeof`
+ *  narrowing at each read site rather than trusted structurally. */
+interface MessagesResponseBody {
+  content?: Array<{ type?: string; text?: string }>;
+  [key: string]: unknown;
+}
 
 export interface SonnetConversationClientOptions {
   /** Env-var NAME the key is read from (never its value, §0.4). */
@@ -135,13 +142,19 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     const raw = await this.call(SYSTEM_PROMPT, userContent, SEVEN_WHYS_TURN_JSON_SCHEMA);
     const payload = this.parseJsonBlock(raw);
 
-    if (typeof payload?.question !== 'string' || typeof payload?.depth_signal !== 'number') {
+    // `payload` is `null` for a degenerate JSON body (e.g. the literal `"null"`) or a text block
+    // whose JSON parses to `null` — `?.` here reproduces base behavior (throw the SAME domain error
+    // as a payload merely missing the fields) instead of a raw TypeError.
+    const question = payload?.question;
+    const depthSignal = payload?.depth_signal;
+    if (typeof question !== 'string' || typeof depthSignal !== 'number') {
       throw new SevenWhysConversationError('Sonnet conversation turn missing required fields.');
     }
+    const acknowledgment = payload?.acknowledgment;
     return {
-      acknowledgment: typeof payload.acknowledgment === 'string' ? payload.acknowledgment : null,
-      question: payload.question,
-      depthSignal: clampUnit(payload.depth_signal),
+      acknowledgment: typeof acknowledgment === 'string' ? acknowledgment : null,
+      question,
+      depthSignal: clampUnit(depthSignal),
     };
   }
 
@@ -149,10 +162,12 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     const userContent = JSON.stringify({ transcript: req.transcript });
     const raw = await this.call(ANCHOR_SYSTEM_PROMPT, userContent, SEVEN_WHYS_ANCHOR_JSON_SCHEMA);
     const payload = this.parseJsonBlock(raw);
-    if (typeof payload?.anchor_statement !== 'string' || payload.anchor_statement.length === 0) {
+    // See the matching comment in converse(): `payload` may be `null` for a degenerate JSON body.
+    const anchorStatement = payload?.anchor_statement;
+    if (typeof anchorStatement !== 'string' || anchorStatement.length === 0) {
       throw new SevenWhysConversationError('Sonnet anchor composition returned no statement.');
     }
-    return { anchorStatement: payload.anchor_statement };
+    return { anchorStatement };
   }
 
   private async call(system: string, userContent: string, schema: unknown): Promise<string> {
@@ -162,7 +177,7 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
       throw new MissingClaudeCredentialError(this.apiKeyEnvVar);
     }
 
-    const fetchFn: FetchLike | undefined = this.fetchImpl ?? (globalThis as any).fetch;
+    const fetchFn: FetchLike | undefined = this.fetchImpl ?? (globalThis.fetch as FetchLike | undefined);
     if (!fetchFn) {
       throw new SevenWhysConversationError('No fetch implementation available for Sonnet client.');
     }
@@ -199,13 +214,14 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
         );
       }
       raw = await res.text();
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
+    } catch (err) {
+      const errName = err instanceof Error ? err.name : undefined;
+      if (errName === 'AbortError') {
         throw new SevenWhysTimeoutError(this.timeoutMs);
       }
       if (err instanceof SevenWhysConversationError) throw err;
       throw new SevenWhysConversationError(
-        `Sonnet conversation transport error: ${err?.name ?? 'unknown'}`
+        `Sonnet conversation transport error: ${errName ?? 'unknown'}`
       );
     } finally {
       clearTimeout(timer);
@@ -213,8 +229,11 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     return raw;
   }
 
-  private parseJsonBlock(raw: string): any {
-    let json: any;
+  private parseJsonBlock(raw: string): MessagesResponseBody | null {
+    // `JSON.parse` of a degenerate body (e.g. the literal `"null"`) legitimately yields `null` —
+    // the return type says so explicitly so callers must read fields via `?.` rather than assume
+    // an object is always present.
+    let json: MessagesResponseBody | null;
     try {
       json = JSON.parse(raw);
     } catch {
@@ -222,7 +241,7 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     }
     if (Array.isArray(json?.content)) {
       const textBlock = json.content.find(
-        (b: any) => b && b.type === 'text' && typeof b.text === 'string'
+        (b): b is { type: string; text: string } => !!b && b.type === 'text' && typeof b.text === 'string'
       );
       if (!textBlock) {
         throw new SevenWhysConversationError('Sonnet response contained no text block.');

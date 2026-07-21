@@ -94,7 +94,7 @@ describe('CFE fail-closed (§5.2)', () => {
 
     try {
       const engine = new ComplianceFilterEngine({
-        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchSpy as any }),
+        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchSpy }),
       });
 
       const v = await engine.evaluateContent(input('Just checking in!'));
@@ -280,7 +280,7 @@ describe('Haiku confidence-range validation (§5.2 hardening)', () => {
     ['Infinity', 1e999], // JSON.parse('1e999') === Infinity
   ])('parse() throws ClaudeClassifierError on out-of-range confidence (%s)', async (_label, conf) => {
     await withKey(async () => {
-      const client = new HaikuClassifierClient({ fetchImpl: fetchReturning(conf) as any });
+      const client = new HaikuClassifierClient({ fetchImpl: fetchReturning(conf) });
       await expect(
         client.classify({ classifier: 'INSURANCE', systemPrompt: 's', content: 'x' })
       ).rejects.toBeInstanceOf(ClaudeClassifierError);
@@ -290,7 +290,7 @@ describe('Haiku confidence-range validation (§5.2 hardening)', () => {
   it('an out-of-range confidence from Haiku → engine HOLDS closed (fail-closed, not released)', async () => {
     await withKey(async () => {
       const engine = new ComplianceFilterEngine({
-        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchReturning(9) as any }),
+        classifierClient: new HaikuClassifierClient({ fetchImpl: fetchReturning(9) }),
       });
       const v = await engine.evaluateContent({
         content: 'x',

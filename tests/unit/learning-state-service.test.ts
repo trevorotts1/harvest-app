@@ -4,6 +4,7 @@
 // in-memory fake Prisma delegate — no live database required.
 
 import { LearningStateService, type LearningStatePrismaClient } from '@/services/learning-state/learning-state.service';
+import type { PipelineStageLike } from '@/services/learning-state/ratios';
 
 function makeFakePrisma(opts: {
   contacts?: { id: string; user_id: string; pipeline_stage: string }[];
@@ -16,7 +17,7 @@ function makeFakePrisma(opts: {
   const prisma: LearningStatePrismaClient = {
     contact: {
       async findMany({ where }) {
-        return contacts.filter((c) => c.user_id === where.user_id).map((c) => ({ id: c.id, pipeline_stage: c.pipeline_stage as any }));
+        return contacts.filter((c) => c.user_id === where.user_id).map((c) => ({ id: c.id, pipeline_stage: c.pipeline_stage as PipelineStageLike }));
       },
     },
     appointment: {

@@ -43,8 +43,9 @@ function runGuard(srcRoot: string, baselinePath: string): { status: number; stdo
       },
     });
     return { status: 0, stdout, stderr: '' };
-  } catch (err: any) {
-    return { status: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
+  } catch (err) {
+    const e = err as { status?: number; stdout?: string; stderr?: string };
+    return { status: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
   }
 }
 
@@ -218,9 +219,10 @@ describe('scripts/guard-no-literals-in-components.mjs — against the REAL repo 
         cwd: REPO_ROOT,
         encoding: 'utf8',
       });
-    } catch (err: any) {
-      status = err.status ?? 1;
-      stdout = err.stdout ?? '';
+    } catch (err) {
+      const e = err as { status?: number; stdout?: string };
+      status = e.status ?? 1;
+      stdout = e.stdout ?? '';
     }
     expect(status).toBe(0);
     expect(stdout).toMatch(/no NEW hardcoded literals found\. OK\./);

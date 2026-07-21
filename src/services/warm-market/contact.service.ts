@@ -13,8 +13,8 @@ import { PipelineStage, RelationshipStrength } from '../../types/warm-market';
 export class ContactService {
   constructor(private prisma: PrismaClient = new PrismaClient()) {}
 
-  scoreContact(contact: any): RelationshipStrength {
-    return contact.interactions?.length > 5 ? 80 : 20;
+  scoreContact(contact: { interactions?: unknown[] }): RelationshipStrength {
+    return (contact.interactions?.length ?? 0) > 5 ? 80 : 20;
   }
 
   async calculateHiddenEarnings(contactId: string): Promise<number> {

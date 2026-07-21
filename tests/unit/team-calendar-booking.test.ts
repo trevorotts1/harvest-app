@@ -6,7 +6,7 @@
 
 import { randomUUID } from 'crypto';
 
-import { BookingService, type BookingPrismaClient, type AppointmentRow, type CoachingSessionRow } from '../../src/services/team-calendar/booking.service';
+import { BookingService, type BookingPrismaClient, type AppointmentRow, type CoachingSessionRow, type AgentDispatch } from '../../src/services/team-calendar/booking.service';
 import { AgentKey } from '../../src/services/agent-runtime';
 
 /** A small, generic `where`-clause matcher covering the shapes booking.service.ts actually issues
@@ -135,7 +135,7 @@ const CONNECTED_LINKS = [
 const CONTACT_ET = { id: 'contact-1', user_id: 'rep-1', first_name: 'ciphertext', timezone: 'America/New_York', interactions: [] };
 
 describe('WP09 BookingService', () => {
-  const fakeDispatch = jest.fn(async (input: Parameters<BookingService['proposeClosingAppointment']> extends never ? never : any) => ({
+  const fakeDispatch = jest.fn(async (input: Parameters<AgentDispatch>[0]) => ({
     agentKey: input.agentKey,
     outcome: 'surfaced' as const,
     runId: 'run-1',
