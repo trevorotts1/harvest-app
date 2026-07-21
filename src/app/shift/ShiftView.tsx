@@ -33,6 +33,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
 import type { LearningStateView, ShiftCardAction, ShiftPhase, ShiftStateView } from '@/types/learning-state';
 import ClosePhase from './components/ClosePhase';
 import DoneScreen from './components/DoneScreen';
@@ -120,6 +121,7 @@ export interface ShiftViewProps {
 }
 
 export default function ShiftView({ mode = 'standard', initialShift, initialLearningState }: ShiftViewProps) {
+  const t = useT();
   const [shift, setShift] = useState<ShiftStateView | null>(initialShift ?? null);
   const [learningState, setLearningState] = useState<LearningStateView | null>(initialLearningState ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -140,13 +142,13 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
           setLearningState(l);
         }
       } catch {
-        if (!cancelled) setError('Could not load your shift. Retry.');
+        if (!cancelled) setError(t('shift.loadError'));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [initialShift, mode]);
+  }, [initialShift, mode, t]);
 
   useEffect(() => {
     function goOnline() {
@@ -217,12 +219,7 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
   return (
     <div className={styles.shell}>
       <div className={styles.focusShell}>
-        {isOffline ? (
-          <p className={styles.offlineBanner}>
-            You&rsquo;re offline — actions are queued and will sync (with a compliance re-check) when you&rsquo;re
-            back.
-          </p>
-        ) : null}
+        {isOffline ? <p className={styles.offlineBanner}>{t('shift.offlineBanner')}</p> : null}
 
         {shift.phase === 'OPEN' ? (
           <OpenPhase

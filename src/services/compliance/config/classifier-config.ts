@@ -58,6 +58,18 @@ export const CLASSIFIER_CONFIG: Record<Classifier, ClassifierConfig> = {
       { pattern: /earn\s*\$?\d/i, weight: 0.6, label: 'earn_dollar' },
       { pattern: /(?:passive|residual)\s*(?:income|earnings?|revenue)/i, weight: 0.7, label: 'passive_income' },
       { pattern: /(?:extra|additional|supplemental)\s*(?:income|money|earnings?)/i, weight: 0.4, label: 'extra_income' },
+      // T-53 (master-spec §17.5): Spanish parity patterns for the LOCAL (no-key) deterministic
+      // client, so `LocalDeterministicClassifierClient` — the dev/test fallback for this
+      // classifier — isn't blind to Spanish income claims the way a purely-English pattern set
+      // would be. Illustrative, not exhaustive (same standing note as the English rows above); the
+      // production path (real Haiku 4.5 via `HaikuClassifierClient`) needs no such patterns at all
+      // — Haiku is multilingual and classifies Spanish content directly.
+      { pattern: /ingresos?\s*garantizados?/i, weight: 1.0, label: 'es_ingreso_garantizado' },
+      { pattern: /ganancias?\s*garantizadas?/i, weight: 1.0, label: 'es_ganancia_garantizada' },
+      { pattern: /libertad\s*financiera/i, weight: 0.8, label: 'es_libertad_financiera' },
+      { pattern: /(?:renuncia|deja|dejar)\s*(?:a\s*)?tu\s*trabajo/i, weight: 0.75, label: 'es_deja_tu_trabajo' },
+      { pattern: /ingresos?\s*ilimitados?/i, weight: 0.85, label: 'es_ingreso_ilimitado' },
+      { pattern: /\$\d[\d,]*\s*(?:al|por)\s*(?:mes|año|semana|día)/i, weight: 0.9, label: 'es_dollar_timeframe' },
     ],
   },
   TESTIMONIAL: {
@@ -95,6 +107,12 @@ export const CLASSIFIER_CONFIG: Record<Classifier, ClassifierConfig> = {
       { pattern: /2\s*hour\s*ceo/i, weight: 0.75, label: 'brand_2hourceo' },
       { pattern: /(?:sponsor|upline|downline)/i, weight: 0.65, label: 'sponsor_framing' },
       { pattern: /(?:business\s*opportunity)/i, weight: 0.7, label: 'business_opportunity' },
+      // T-53 (master-spec §17.5): Spanish parity patterns — see the INCOME_CLAIM classifier's own
+      // T-53 comment above for why these exist (local/dev-fallback parity only).
+      { pattern: /[uú]nete\s*a\s*mi\s*equipo/i, weight: 0.85, label: 'es_join_team' },
+      { pattern: /s[eé]\s*tu\s*propio\s*jefe/i, weight: 0.8, label: 'es_own_boss' },
+      { pattern: /potencial\s*ilimitado/i, weight: 0.8, label: 'es_unlimited_potential' },
+      { pattern: /oportunidad\s*de\s*negocio/i, weight: 0.7, label: 'es_business_opportunity' },
     ],
   },
   INSURANCE: {

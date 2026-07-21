@@ -67,6 +67,84 @@ export const FORBIDDEN_TERMS: ForbiddenTermRule[] = [
   { term: /\byou\s*will\s*earn\b/i, forbidden: 'you will earn', replacement: 'potential (with the FTC safe-harbor line attached)' },
 ];
 
+/**
+ * T-53 (master-spec §17.5 / uiux §6.2): the Spanish column of the same doctrine forbidden-vocabulary
+ * table — "the doctrine copy-lint ... runs on both languages — the forbidden-vocabulary list has a
+ * Spanish column, and the CFE's Spanish classifiers gate Spanish outreach exactly as English."
+ * `VocabularyClassifier.scan()` doesn't need a language parameter to enforce this: it just applies
+ * EVERY rule in its list to the content, and an English regex essentially never matches genuine
+ * Spanish prose (and vice versa), so simply adding these rows to the classifier's DEFAULT rule set
+ * (see `FORBIDDEN_TERMS_ALL` below) extends doctrine enforcement to Spanish content with no new
+ * language-detection logic anywhere in the CFE pipeline — a Spanish community introduction is
+ * vocabulary-gated by the exact same code path as an English one.
+ *
+ * Kept as a SEPARATE export (not merged into `FORBIDDEN_TERMS` above) because
+ * `tests/unit/vocabulary-classifier.test.ts` asserts `FORBIDDEN_TERMS` has EXACTLY 14 rows (the
+ * pre-existing English table) — that test is this file's own regression guard for the English
+ * doctrine list and must keep passing unmodified per this build's "preserve all existing EN
+ * behavior + tests" invariant.
+ *
+ * Translated by MEANING per uiux §6.2 ("vision-voice lines are translated by meaning, not
+ * literally"), and — like the English "closing"/"selling" rows — the higher-false-positive terms
+ * ("cerrar", "vender") are OBJECT-GATED so common, unrelated Spanish UI/product phrases are never
+ * caught: "cerrar sesión" (log out), "cerrar la tienda" (close the shop), "cerrar el mes" (close
+ * the books) all stay clean, mirroring the English rule's own "close of business" / "close rate" /
+ * "closed the deal on her apartment" exemptions.
+ */
+export const FORBIDDEN_TERMS_ES: ForbiddenTermRule[] = [
+  { term: /\bprospectos?\b/i, forbidden: 'prospecto', replacement: 'miembro de la comunidad / contacto de mercado cálido' },
+  // NOTE: Spanish pluralizes "potencial" -> "potenciales" (adds "-es", not just "-s") — the pattern
+  // is `potencial(?:es)?`, NOT `potenciales?` (which would require the misspelled "potenciale" and
+  // silently never match the singular "potencial" at all; caught by this file's own test suite).
+  { term: /\bclientes?\s+potencial(?:es)?\b/i, forbidden: 'cliente potencial', replacement: 'miembro de la comunidad / contacto' },
+  { term: /\b(?:discurso|presentaci[oó]n)\s+de\s+ventas?\b/i, forbidden: 'presentación de ventas', replacement: 'introducción comunitaria / invitación' },
+  { term: /\bcitas?\s+de\s+ventas?\b/i, forbidden: 'cita de ventas', replacement: 'introducción comunitaria' },
+  // "vender/venta" — object-gated exactly like the English "selling" row: only when the thing being
+  // sold is a PERSON, marked either by the "a [persona]" prepositional-object construction (the
+  // grammatical way Spanish marks a personal direct object here — "vender a este contacto") or by
+  // the extraction-framed noun itself (oportunidad/trato/sueño/negocio). Deliberately does NOT use
+  // the bare clitic pronouns le/les/lo/la: those attach directly to the verb in real Spanish
+  // ("venderle", "venderlo" — one word, no space) rather than appearing as a separate following
+  // token the way this rule would need to match them, AND — even attached — "venderle" alone is
+  // routinely legitimate commerce ("venderle una póliza a tu cliente", sell a client a policy),
+  // unlike the English "selling them" which has no product complement. So this rule only fires on
+  // the unambiguous personal-direct-object pattern, same discipline as the English "sell them/him/
+  // her" row. Ordinary "vender" (sell a product, a house, an idea) stays clean.
+  {
+    term: /\bvend(?:er|iendo|ió|en)\s+a\s+(?:él|ella|ellos|ellas)\b|\bvend(?:er|iendo|ió|en)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b|\bvend(?:er|iendo|ió|en)\s+(?:la\s+)?(?:oportunidad|el\s+trato|el\s+sue[nñ]o|el\s+negocio)\b/i,
+    forbidden: 'vender (a una persona)',
+    replacement: 'invitar, presentar, dar la bienvenida, incorporar',
+  },
+  // "cerrar" — object-gated exactly like the English "closing" row: only when the direct object of
+  // "cerrar/cerrando/cerró" is an explicit personal noun via "a [persona]" (a él/a ella/a ellos/a
+  // este contacto/a ese prospecto), or "cerrar el trato/la venta CON esa persona" — the same two
+  // shapes the English rule uses. Bare clitics (le/les) are excluded for the same real-grammar
+  // reason as the "vender" rule above. Plain "cerrar sesión" (log out), "cerrar la tienda", "cerrar
+  // el mes/los libros" never match — there is no personal object at all, let alone this shape.
+  {
+    term: /\bcerr(?:ar|ando|ó)\s+a\s+(?:él|ella|ellos|ellas)\b|\bcerr(?:ar|ando|ó)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b|\bcerr(?:ar|ando|ó)\s+(?:el\s+trato|la\s+venta)\s+con\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b/i,
+    forbidden: 'cerrar (a una persona)',
+    replacement: 'invitar, presentar, dar la bienvenida, incorporar',
+  },
+  { term: /\bembudo\b/i, forbidden: 'embudo', replacement: 'proceso de introducción / proceso de cosecha' },
+  { term: /\bconversi[oó]n\b/i, forbidden: 'conversión', replacement: 'paso de compromiso / finalización de la introducción' },
+  // Same pluralization note as "potencial" above: "seguidor" -> "seguidores" adds "-es".
+  { term: /\bseguidor(?:es)?\b/i, forbidden: 'seguidores', replacement: 'miembro de la comunidad / miembro base / suscriptor' },
+  { term: /\bp[uú]blico\s+objetivo\b/i, forbidden: 'público objetivo', replacement: 'comunidad / equipo / base' },
+  { term: /\breclut(?:ar|amiento|ando|ados?|as)\b/i, forbidden: 'reclutar', replacement: 'invitar / auspiciar / sumar' },
+  { term: /\bcontacto\s+en\s+fr[ií]o\b/i, forbidden: 'contacto en frío', replacement: 'introducción comunitaria (siempre requiere un contexto cálido)' },
+  { term: /\bingresos?\s+garantizados?\b/i, forbidden: 'ingreso garantizado', replacement: 'potencial (con la cláusula de exención de la FTC adjunta)' },
+  { term: /\b(?:vas\s+a\s+ganar|ganar[aá]s)\b/i, forbidden: 'vas a ganar / ganarás', replacement: 'potencial (con la cláusula de exención de la FTC adjunta)' },
+];
+
+/**
+ * The union the CFE (and every other `new VocabularyClassifier()` caller — the WP06 doctrine guard,
+ * the harvest-method doctrine notes) uses by DEFAULT: both languages' forbidden-vocabulary rows.
+ * `FORBIDDEN_TERMS` above stays English-only and unchanged for the pre-existing test's exact-count
+ * assertion; this is the "both languages" surface every real caller actually gets.
+ */
+export const FORBIDDEN_TERMS_ALL: ForbiddenTermRule[] = [...FORBIDDEN_TERMS, ...FORBIDDEN_TERMS_ES];
+
 export interface VocabularyViolation {
   forbidden: string;
   replacement: string;
@@ -81,7 +159,12 @@ export interface VocabularyScan {
 export class VocabularyClassifier {
   private readonly rules: ForbiddenTermRule[];
 
-  constructor(rules: ForbiddenTermRule[] = FORBIDDEN_TERMS) {
+  // T-53: defaults to BOTH languages (§17.5/§6.2 "the doctrine copy-lint ... runs on both
+  // languages") — defined below `FORBIDDEN_TERMS_ES` so the identifier is in scope at this point in
+  // the module. Every existing bare `new VocabularyClassifier()` call site (this file's own
+  // engine.ts default, the WP06 social-content doctrine guard, the harvest-method doctrine notes)
+  // now vocab-lints Spanish content too, with zero call-site changes — that is the point.
+  constructor(rules: ForbiddenTermRule[] = FORBIDDEN_TERMS_ALL) {
     this.rules = rules;
   }
 

@@ -23,6 +23,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
 import styles from './data-rights.module.css';
 import StepUpPrompt from './components/StepUpPrompt';
 import { useStepUpAction, type StepUpAttemptResult } from './components/useStepUpAction';
@@ -50,6 +51,7 @@ async function readGateCode(res: Response): Promise<'MFA_ENROLLMENT_REQUIRED' | 
 }
 
 export default function DataRightsPage() {
+  const t = useT();
   const [load, setLoad] = useState<Load>('loading');
   const [deletionRecord, setDeletionRecord] = useState<UserDataDeletionRecord | null>(null);
   const [certificate, setCertificate] = useState<DeletionCertificate | null>(null);
@@ -169,17 +171,14 @@ export default function DataRightsPage() {
   return (
     <main className={styles.page}>
       <header>
-        <h1 className={styles.heading}>Data & Privacy</h1>
-        <p className={styles.subhead}>Your data is yours. Export a full copy, or ask us to delete it — GDPR/CCPA, plain terms.</p>
+        <h1 className={styles.heading}>{t('dataRights.heading')}</h1>
+        <p className={styles.subhead}>{t('dataRights.subhead')}</p>
       </header>
 
       {/* ── Export ── */}
       <section className={styles.stateCard} aria-label="Export your data">
-        <h2 className={styles.sectionTitle}>Export your data</h2>
-        <p className={styles.body}>
-          Download a copy of your profile, contacts, and account data in a readable format. Never
-          includes your password or any security credential.
-        </p>
+        <h2 className={styles.sectionTitle}>{t('dataRights.export.sectionTitle')}</h2>
+        <p className={styles.body}>{t('dataRights.export.body')}</p>
         {exportNotice && (
           <div className={`${styles.banner} ${styles.bannerQuiet}`} role="status">
             <p className={styles.bannerBody}>{exportNotice}</p>
@@ -189,7 +188,7 @@ export default function DataRightsPage() {
           <div className={styles.btnRow}>
             {exportAction.errorMessage && <p className={styles.body}>{exportAction.errorMessage}</p>}
             <label className={styles.fieldLabel} htmlFor="export-format">
-              Format
+              {t('dataRights.export.formatLabel')}
             </label>
             <select
               id="export-format"
@@ -201,7 +200,7 @@ export default function DataRightsPage() {
               <option value="csv">CSV</option>
             </select>
             <button type="button" className={styles.actionBtn} onClick={() => void exportAction.run()}>
-              Download my data
+              {t('dataRights.export.downloadCta')}
             </button>
           </div>
         ) : (
@@ -220,12 +219,8 @@ export default function DataRightsPage() {
 
       {/* ── Deletion ── */}
       <section className={styles.stateCard} aria-label="Delete your account and data">
-        <h2 className={styles.sectionTitle}>Delete your account and data</h2>
-        <p className={styles.body}>
-          This permanently removes your profile, contacts, messages, and Seven Whys history.
-          Communications required for regulatory recordkeeping are retained, never sold or reused —
-          your deletion certificate lists exactly what was kept and why.
-        </p>
+        <h2 className={styles.sectionTitle}>{t('dataRights.deletion.sectionTitle')}</h2>
+        <p className={styles.body}>{t('dataRights.deletion.body')}</p>
 
         {!deletionRecord && (
           <>
@@ -233,7 +228,7 @@ export default function DataRightsPage() {
               <div className={styles.btnRow}>
                 {requestAction.errorMessage && <p className={styles.body}>{requestAction.errorMessage}</p>}
                 <button type="button" className={styles.dangerBtn} onClick={() => void requestAction.run()}>
-                  Request account deletion
+                  {t('dataRights.deletion.requestCta')}
                 </button>
               </div>
             ) : (

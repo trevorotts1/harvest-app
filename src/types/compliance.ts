@@ -75,10 +75,24 @@ export interface UserContext {
   content_id?: string;
 }
 
+/**
+ * T-53 (master-spec §17.5 / uiux §6.2): the language `content` is WRITTEN in — "a Spanish
+ * community introduction is CFE-gated exactly as an English one is". Only affects which SAFE_HARBOR
+ * disclaimer text (below) is selected when a disclaimer must be injected; the classifier pass and
+ * vocabulary lint are language-agnostic by construction (Haiku is multilingual; the vocabulary
+ * classifier's default rule set already covers both languages, see vocabulary.ts's
+ * `FORBIDDEN_TERMS_ALL`). Independent of the REP's own `Me -> Language` workspace preference
+ * (src/lib/i18n) — a rep can work in English and introduce in Spanish (uiux §6.2).
+ */
+export type ContentLanguage = 'en' | 'es';
+
 export interface CFEInput {
   content: string;
   channel: Channel;
   userContext: UserContext;
+  /** Defaults to 'en' when omitted — every pre-T-53 caller keeps compiling and behaving exactly as
+   *  before (English disclaimers, unchanged). */
+  language?: ContentLanguage;
 }
 
 export interface ClassifierResult {
@@ -177,6 +191,21 @@ export const SAFE_HARBOR_DISCLAIMERS = {
   opportunity: 'This is a business opportunity, not an employment offer. Success requires effort, dedication, and skill development. Individual results vary.',
   insurance: 'Insurance recommendations are general in nature and do not constitute personalized financial advice. Consult a licensed professional for guidance specific to your situation.',
   referral: 'Referrals are voluntary and should not be incentivized beyond what is permitted by applicable regulations.',
+} as const;
+
+/**
+ * T-53 (master-spec §17.5 / uiux §6.2): the Spanish safe-harbor disclaimer set — same legal content
+ * as `SAFE_HARBOR_DISCLAIMERS` above, translated by meaning (not literally), so a Spanish-language
+ * income/testimonial/opportunity/insurance/referral disclosure is never silently injected in
+ * English into otherwise-Spanish outbound content. Selected by `evaluateClassifierRules` (§5.3)
+ * based on `CFEInput.language` (defaults to 'en', i.e. the table above, when unset).
+ */
+export const SAFE_HARBOR_DISCLAIMERS_ES = {
+  income: 'Los resultados individuales varían. Los ejemplos de ingresos no son garantía de ganancias futuras. Tus resultados dependen de tu esfuerzo, tus habilidades y las condiciones del mercado.',
+  testimonial: 'Las experiencias compartidas son resultados individuales y no son típicas. Los resultados varían según el esfuerzo individual, las condiciones del mercado y otros factores.',
+  opportunity: 'Esto es una oportunidad de negocio, no una oferta de empleo. El éxito requiere esfuerzo, dedicación y desarrollo de habilidades. Los resultados individuales varían.',
+  insurance: 'Las recomendaciones de seguros son de carácter general y no constituyen asesoría financiera personalizada. Consulta a un profesional con licencia para obtener orientación específica para tu situación.',
+  referral: 'Los referidos son voluntarios y no deben incentivarse más allá de lo permitido por las regulaciones aplicables.',
 } as const;
 
 // Pre-generation compliance constraints for agent prompt templates

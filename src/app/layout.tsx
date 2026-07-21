@@ -3,6 +3,7 @@ import Script from 'next/script';
 import './tokens.css';
 import './globals.css';
 import { THEME_INIT_SCRIPT } from './theme-init-script';
+import { LOCALE_INIT_SCRIPT } from './locale-init-script';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
@@ -25,6 +26,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         */}
         <Script id="lfds-theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}
+        </Script>
+        {/*
+          T-53 (i18n, master-spec §17.5 / uiux §6.2): applies a saved locale override to
+          `<html lang>` before hydration, so a returning rep who chose Español never sees a flash
+          of the wrong `lang` attribute — same rationale/pattern as the theme-init script above.
+        */}
+        <Script id="lfds-locale-init" strategy="beforeInteractive">
+          {LOCALE_INIT_SCRIPT}
         </Script>
       </head>
       <body>

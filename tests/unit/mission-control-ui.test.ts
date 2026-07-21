@@ -21,6 +21,7 @@ import path from 'node:path';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import enCatalog from '@/lib/i18n/messages/en.json';
 import Grove from '@/app/today/components/Grove';
 import AnchorHeader from '@/app/today/components/AnchorHeader';
 import BriefingCard from '@/app/today/components/BriefingCard';
@@ -487,7 +488,13 @@ describe('(e) Today primary CTA → /shift wiring (T-35R, master-spec §9.8 / ui
   });
 
   test('the CTA renders the expected label text', () => {
-    expect(ctaMatch?.[0]).toMatch(/Start today(?:&apos;|')s 30 minutes/);
+    // T-53 (i18n, master-spec §17.5 / uiux §6.2): the CTA's literal text now lives in the i18n
+    // catalog (`today.primaryCta`, src/lib/i18n/messages/en.json) rather than inline in this
+    // file's JSX, so the source-level assertion checks (a) the CTA calls through that catalog key,
+    // and (b) the EN catalog's value for that key is still the exact original label — i.e. the
+    // rendered EN behavior is unchanged even though the source shape moved.
+    expect(ctaMatch?.[0]).toMatch(/t\(\s*['"]today\.primaryCta['"]\s*\)/);
+    expect(enCatalog.today.primaryCta).toBe("Start today's 30 minutes");
   });
 
   test('/shift is itself a gated downstream page — a not-yet-onboarded rep following the CTA still lands in onboarding first', () => {

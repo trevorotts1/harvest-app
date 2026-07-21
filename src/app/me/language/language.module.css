@@ -1,0 +1,74 @@
+/* T-53 (master-spec §17.5 / uiux §6.2) — Me -> Language. Semantic tokens only (LFDS), matching
+   ../subscription/subscription.module.css's conventions so it passes verify-contrast +
+   guard-no-opacity-on-text (no `opacity`, no translucent `color`, opaque card backgrounds). Options
+   are a `flex-wrap: wrap` row, not a two-column grid — the uiux §6.2 growth-tolerance rule ("every
+   component must survive +35% string growth without truncation") applies here as directly as
+   anywhere: "Español" sits in the same control as "English" and must never be clipped. */
+
+.page {
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  min-height: 100vh;
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-6);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-title-size);
+  font-weight: 700;
+  margin: 0;
+}
+
+.subhead {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.stateCard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.optionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.optionBtn {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  white-space: normal;
+}
+
+.optionBtnActive {
+  border-color: var(--color-action);
+  background: var(--color-action);
+  color: var(--on-action);
+}
+
+.notice {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}

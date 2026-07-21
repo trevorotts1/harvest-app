@@ -191,6 +191,14 @@ model User {
   downlines            User[]              @relation("UserUpline")
   access_tier          AccessTier          @default(FREE_ORG_LINKED)
   intensity_setting    IntensitySetting    @default(MEDIUM)
+  // T-53 (master-spec §17.5 / uiux §6.2 i18n): the rep's language setting, "lives in Me →
+  // Language and is independent of outreach language" — additive, nullable (existing rows have no
+  // opinion; null is read as "not set", and the app falls back to Accept-Language detection, then
+  // the platform default 'en'). Free-text-ish `String?` rather than an enum on purpose: only 'en'/
+  // 'es' are supported today (src/lib/i18n/locale.ts's SUPPORTED_LOCALES is the actual source of
+  // truth for what's valid), but a locale code is config, not schema — adding a third locale later
+  // should never require a migration. Application-layer validation (isLocale()) is the real gate.
+  locale               String?
   commitment_score     Int                 @default(0)
   rank                 String?
   anchor_statement     String? // encrypted; from WP01 Flow C (Seven Whys anchor)

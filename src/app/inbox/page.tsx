@@ -33,6 +33,7 @@ import Link from 'next/link';
 
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
+import { useT } from '@/app/locale-context';
 
 import ApprovalInboxItem, { type InboxItemData } from './components/ApprovalInboxItem';
 import { inboxEmptyStateMessage, type InboxFilterKey as FilterKey } from './empty-state';
@@ -48,15 +49,27 @@ import {
 } from './offline';
 import styles from './inbox.module.css';
 
-const FILTERS: { key: FilterKey; label: string; stateParam?: string }[] = [
-  { key: 'AWAITING', label: 'Awaiting' },
-  { key: 'HELD', label: 'Held', stateParam: 'HELD' },
-  { key: 'APPROVED', label: 'Approved', stateParam: 'APPROVED' },
-  { key: 'DECLINED', label: 'Declined', stateParam: 'DECLINED' },
-  { key: 'ALL', label: 'All', stateParam: 'ALL' },
+const FILTERS: { key: FilterKey; stateParam?: string }[] = [
+  { key: 'AWAITING' },
+  { key: 'HELD', stateParam: 'HELD' },
+  { key: 'APPROVED', stateParam: 'APPROVED' },
+  { key: 'DECLINED', stateParam: 'DECLINED' },
+  { key: 'ALL', stateParam: 'ALL' },
 ];
 
+// T-53 (i18n): filter labels moved to the catalog — the `label` field above was a literal, but
+// `FILTERS` is module-scope (outside the component), where `useT()` cannot be called. Looked up
+// per-render inside the component instead (see the filter row below).
+const FILTER_LABEL_KEY: Record<FilterKey, string> = {
+  AWAITING: 'inbox.filters.awaiting',
+  HELD: 'inbox.filters.held',
+  APPROVED: 'inbox.filters.approved',
+  DECLINED: 'inbox.filters.declined',
+  ALL: 'inbox.filters.all',
+};
+
 export default function ApprovalInboxPage() {
+  const t = useT();
   const [filter, setFilter] = useState<FilterKey>('AWAITING');
   const [items, setItems] = useState<InboxItemData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +96,7 @@ export default function ApprovalInboxPage() {
       const url = stateParam ? `/api/approval-inbox?state=${stateParam}` : '/api/approval-inbox';
       const res = await fetch(url);
       if (!res.ok) {
-        setError('Could not load the approval inbox. Try again.');
+        setError(t('inbox.loadError'));
         setItems([]);
         return;
       }
@@ -102,7 +115,7 @@ export default function ApprovalInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load(filter);
@@ -255,28 +268,26 @@ export default function ApprovalInboxPage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.headerRow}>
-          <h1 className={styles.title}>Approval Inbox</h1>
+          <h1 className={styles.title}>{t('inbox.title')}</h1>
           {/* WP08 reachability wiring — see community/page.tsx's identical Grow link. */}
           <Link href="/grow" className={styles.growLink}>
-            Grow →
+            {t('inbox.growLink')}
           </Link>
         </div>
-        <p className={styles.subtitle}>
-          Every agent-drafted message waits here for your review — nothing sends without your approval.
-        </p>
+        <p className={styles.subtitle}>{t('inbox.subtitle')}</p>
 
         {/* OFFLINE (T-54, §6.4/§6.7): honest connectivity state — never a silent queue, never a
             fabricated "synced" while actually offline. */}
         {isOffline && (
           <p className={styles.offlineBanner} role="status">
-            Offline — showing your saved field
-            {queueLength > 0 ? ` (${queueLength} action${queueLength === 1 ? '' : 's'} queued)` : ''}. Anything you
-            approve, decline, or edit will sync and re-check compliance when you&rsquo;re back.
+            {t('inbox.offlineBanner')}
+            {queueLength > 0 ? t('inbox.offlineBannerQueuedSuffix', { count: queueLength, plural: queueLength === 1 ? '' : 's' }) : ''}
+            {t('inbox.offlineBannerTailEdit')}
           </p>
         )}
         {!isOffline && syncing && (
           <p className={styles.offlineBanner} role="status">
-            Back online — syncing {syncing.total} item{syncing.total === 1 ? '' : 's'}…
+            {t('inbox.syncingBanner', { count: syncing.total, plural: syncing.total === 1 ? '' : 's' })}
           </p>
         )}
         {!isOffline && !syncing && syncNotice && (
@@ -295,18 +306,18 @@ export default function ApprovalInboxPage() {
               className={`${styles.filterChip} ${filter === f.key ? styles.filterChipActive : ''}`}
               onClick={() => setFilter(f.key)}
             >
-              {f.label}
+              {t(FILTER_LABEL_KEY[f.key])}
             </button>
           ))}
         </div>
 
-        {loading && <p className={styles.loadingState}>Loading the approval inbox…</p>}
+        {loading && <p className={styles.loadingState}>{t('inbox.loading')}</p>}
 
         {!loading && error && (
           <div className={styles.errorState}>
             <p>{error}</p>
             <button type="button" className={styles.retryButton} onClick={() => load(filter)}>
-              Retry
+              {t('inbox.retry')}
             </button>
           </div>
         )}

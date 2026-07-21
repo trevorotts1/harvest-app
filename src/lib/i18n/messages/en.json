@@ -1,0 +1,146 @@
+{
+  "common": {
+    "retry": "Retry",
+    "loading": "Loading…",
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back"
+  },
+  "nav": {
+    "team": "Team",
+    "approvalInbox": "Approval Inbox",
+    "grow": "Grow",
+    "growArrow": "Grow →",
+    "community": "Community",
+    "subscription": "Subscription",
+    "dataPrivacy": "Data & Privacy",
+    "language": "Language"
+  },
+  "today": {
+    "greeting": "Good morning, {name}",
+    "loadingReport": "Gathering your report…",
+    "loadFailed": "We couldn't load Today — your work is safe.",
+    "retry": "Retry",
+    "offlineBanner": "Offline — showing your saved field",
+    "offlineBannerQueuedSuffix": " ({count} action{plural} queued)",
+    "offlineBannerTailQueueAction": ". Anything you approve, decline, confirm, or mark will sync when you're back.",
+    "syncingBanner": "Back online — syncing {count} item{plural}…",
+    "primaryCta": "Start today's 30 minutes",
+    "contentQueueLink": "Content Queue — social, blog & email drafts waiting for review",
+    "momentum": {
+      "thriving": "Thriving",
+      "growing": "Growing",
+      "quiet": "Quiet",
+      "resting": "Resting"
+    },
+    "receiptsCta": "See the one action that helps most"
+  },
+  "community": {
+    "title": "Community",
+    "importContacts": "Import contacts",
+    "growLink": "Grow →",
+    "loading": "Loading your community…",
+    "loadError": "Could not load your community. Try again.",
+    "retry": "Retry",
+    "emptyState": "No contacts yet — import or add contacts to start building your community.",
+    "toggleError": "This contact could not be updated. Try again."
+  },
+  "shift": {
+    "loadError": "Could not load your shift. Retry.",
+    "offlineBanner": "You're offline — actions are queued and will sync (with a compliance re-check) when you're back."
+  },
+  "inbox": {
+    "title": "Approval Inbox",
+    "growLink": "Grow →",
+    "subtitle": "Every agent-drafted message waits here for your review — nothing sends without your approval.",
+    "offlineBanner": "Offline — showing your saved field",
+    "offlineBannerQueuedSuffix": " ({count} action{plural} queued)",
+    "offlineBannerTailEdit": ". Anything you approve, decline, or edit will sync and re-check compliance when you're back.",
+    "syncingBanner": "Back online — syncing {count} item{plural}…",
+    "loading": "Loading the approval inbox…",
+    "loadError": "Could not load the approval inbox. Try again.",
+    "retry": "Retry",
+    "filters": {
+      "awaiting": "Awaiting",
+      "held": "Held",
+      "approved": "Approved",
+      "declined": "Declined",
+      "all": "All"
+    }
+  },
+  "learn": {
+    "backToToday": "← Back to Today",
+    "courseBadge": "Downline Maxxing course",
+    "title": "Learn",
+    "loadingCourse": "Gathering your course…",
+    "loadFailed": "We couldn't load the course right now — your progress is safe.",
+    "retry": "Retry",
+    "streakBadge": "Streak — {count} day{plural}",
+    "graceDayAvailable": "A grace day is available this week if you need it — life happens.",
+    "referralScripts": {
+      "badge": "Referral scripts",
+      "title": "Ask for an introduction",
+      "body": "Relationship-typed, CFE-cleared scripts for family, friends, work, church, and more."
+    },
+    "coaching": {
+      "badge": "Coaching",
+      "title": "Ask Harvest",
+      "body": "Grounded coaching from the course and objection scripts — in your own voice."
+    },
+    "goalCard": {
+      "badge": "Goal Commitment Card",
+      "title": "What you're building toward",
+      "body": "Income target, promotion timeline, and your top dreams — tied to your anchor."
+    },
+    "courseModulesBadge": "Course modules"
+  },
+  "billing": {
+    "loading": "Loading your plan…",
+    "heading": "Subscription",
+    "subhead": "Your plan, in plain terms. No surprises, no fine print.",
+    "unreachable": "We can't reach billing right now.",
+    "planUnaffected": "Your plan is unaffected.",
+    "retry": "Retry",
+    "sponsoredHeading": "You're sponsored",
+    "managePlan": "Manage plan",
+    "cancelSubscription": "Cancel subscription",
+    "cancelIntro": "Before you go — a few options, all equal:",
+    "checkoutUnavailable": "Checkout isn't available right now. Your plan is unaffected — please try again later.",
+    "checkoutFailed": "We couldn't start checkout. Your plan is unaffected.",
+    "findASponsor": "Find a sponsor",
+    "start": "Start",
+    "continueAt297": "Continue at $297",
+    "talkToUs": "Talk to us"
+  },
+  "dataRights": {
+    "heading": "Data & Privacy",
+    "subhead": "Your data is yours. Export a full copy, or ask us to delete it — GDPR/CCPA, plain terms.",
+    "export": {
+      "sectionTitle": "Export your data",
+      "body": "Download a copy of your profile, contacts, and account data in a readable format. Never includes your password or any security credential.",
+      "formatLabel": "Format",
+      "downloadCta": "Download my data"
+    },
+    "deletion": {
+      "sectionTitle": "Delete your account and data",
+      "body": "This permanently removes your profile, contacts, messages, and Seven Whys history. Communications required for regulatory recordkeeping are retained, never sold or reused — your deletion certificate lists exactly what was kept and why.",
+      "requestCta": "Request account deletion"
+    }
+  },
+  "onboarding": {
+    "vision": {
+      "body": "The people already in your phone represent hundreds of thousands of dollars in potential. We're about to show you exactly what that means — and then we're going to go get it for you.",
+      "cta": "Let's begin"
+    }
+  },
+  "settings": {
+    "language": {
+      "heading": "Language",
+      "subhead": "Choose the language for your Harvest workspace. This does not change the language of a community introduction you compose — that's a per-draft choice, CFE-gated either way.",
+      "english": "English",
+      "spanish": "Español",
+      "saved": "Saved.",
+      "saveFailed": "Could not save your language preference. Try again."
+    }
+  }
+}

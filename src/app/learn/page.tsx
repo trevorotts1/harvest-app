@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
 import CourseModulesList, { type CourseLoadState, type CourseModuleSummary } from './components/CourseModulesList';
 
 interface StreakSummary {
@@ -17,6 +18,7 @@ interface StreakSummary {
 }
 
 export default function LearnPage() {
+  const t = useT();
   const [modules, setModules] = useState<CourseModuleSummary[]>([]);
   const [disclosure, setDisclosure] = useState('');
   const [streak, setStreak] = useState<StreakSummary | null>(null);
@@ -49,18 +51,18 @@ export default function LearnPage() {
 
   return (
     <main className="shell section">
-      <Link href="/today" className="badge">← Back to Today</Link>
+      <Link href="/today" className="badge">{t('learn.backToToday')}</Link>
 
       <section className="card panel" style={{ marginTop: 18 }}>
-        <span className="badge">Downline Maxxing course</span>
-        <h1 style={{ marginTop: 12 }}>Learn</h1>
+        <span className="badge">{t('learn.courseBadge')}</span>
+        <h1 style={{ marginTop: 12 }}>{t('learn.title')}</h1>
         {courseState === 'ready' && <p style={{ color: 'var(--muted)' }}>{disclosure}</p>}
-        {courseState === 'loading' && <p style={{ color: 'var(--muted)' }}>Gathering your course…</p>}
+        {courseState === 'loading' && <p style={{ color: 'var(--muted)' }}>{t('learn.loadingCourse')}</p>}
         {courseState === 'failed' && (
           <p style={{ color: 'var(--muted)' }}>
-            We couldn&apos;t load the course right now — your progress is safe.{' '}
+            {t('learn.loadFailed')}{' '}
             <button type="button" className="badge" onClick={loadCourse} style={{ cursor: 'pointer' }}>
-              Retry
+              {t('learn.retry')}
             </button>
           </p>
         )}
@@ -68,7 +70,9 @@ export default function LearnPage() {
 
       {streak && (
         <section className="card panel" style={{ marginTop: 18 }}>
-          <span className="badge">Streak — {streak.currentStreakDays} day{streak.currentStreakDays === 1 ? '' : 's'}</span>
+          <span className="badge">
+            {t('learn.streakBadge', { count: streak.currentStreakDays, plural: streak.currentStreakDays === 1 ? '' : 's' })}
+          </span>
           <div style={{ display: 'flex', gap: 6, marginTop: 12 }} aria-label="7 day streak bar">
             {streak.last7Days.map((day) => (
               <span
@@ -88,30 +92,30 @@ export default function LearnPage() {
               </span>
             ))}
           </div>
-          {streak.graceDayAvailableThisWeek && <p style={{ color: 'var(--muted)', marginTop: 8 }}>A grace day is available this week if you need it — life happens.</p>}
+          {streak.graceDayAvailableThisWeek && <p style={{ color: 'var(--muted)', marginTop: 8 }}>{t('learn.graceDayAvailable')}</p>}
         </section>
       )}
 
       <section className="grid-3" style={{ marginTop: 18 }}>
         <Link href="/learn/referrals" className="card feature">
-          <span className="badge">Referral scripts</span>
-          <h3 style={{ marginTop: 12 }}>Ask for an introduction</h3>
-          <p>Relationship-typed, CFE-cleared scripts for family, friends, work, church, and more.</p>
+          <span className="badge">{t('learn.referralScripts.badge')}</span>
+          <h3 style={{ marginTop: 12 }}>{t('learn.referralScripts.title')}</h3>
+          <p>{t('learn.referralScripts.body')}</p>
         </Link>
         <Link href="/learn/ask" className="card feature">
-          <span className="badge">Coaching</span>
-          <h3 style={{ marginTop: 12 }}>Ask Harvest</h3>
-          <p>Grounded coaching from the course and objection scripts — in your own voice.</p>
+          <span className="badge">{t('learn.coaching.badge')}</span>
+          <h3 style={{ marginTop: 12 }}>{t('learn.coaching.title')}</h3>
+          <p>{t('learn.coaching.body')}</p>
         </Link>
         <Link href="/grow/goal-card" className="card feature">
-          <span className="badge">Goal Commitment Card</span>
-          <h3 style={{ marginTop: 12 }}>What you&apos;re building toward</h3>
-          <p>Income target, promotion timeline, and your top dreams — tied to your anchor.</p>
+          <span className="badge">{t('learn.goalCard.badge')}</span>
+          <h3 style={{ marginTop: 12 }}>{t('learn.goalCard.title')}</h3>
+          <p>{t('learn.goalCard.body')}</p>
         </Link>
       </section>
 
       <section className="card panel" style={{ marginTop: 18 }}>
-        <span className="badge">Course modules</span>
+        <span className="badge">{t('learn.courseModulesBadge')}</span>
         <CourseModulesList state={courseState} modules={modules} onRetry={loadCourse} />
       </section>
     </main>

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
 import ContactCard, { type RecencyState } from './components/ContactCard';
 import PlotsRow, { type Plot } from './components/PlotsRow';
 import styles from './community.module.css';
@@ -46,6 +47,7 @@ function recencyFromStrength(strength: number): RecencyState {
 }
 
 export default function CommunityPage() {
+  const t = useT();
   const [plots, setPlots] = useState<Plot[]>([]);
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
   const [selectedPlot, setSelectedPlot] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export default function CommunityPage() {
     try {
       const res = await fetch('/api/contacts/pipeline');
       if (!res.ok) {
-        setError('Could not load your community. Try again.');
+        setError(t('community.loadError'));
         setPlots([]);
         setContacts([]);
         return;
@@ -102,13 +104,13 @@ export default function CommunityPage() {
         )
       );
     } catch {
-      setError('Could not load your community. Try again.');
+      setError(t('community.loadError'));
       setPlots([]);
       setContacts([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -129,7 +131,7 @@ export default function CommunityPage() {
     if (!res.ok) {
       // A real contact id can still fail here (deleted between load and toggle, a transient
       // error, etc.) — this is a genuine failure notice, not the old "this is demo data" excuse.
-      setToggleNotice('This contact could not be updated. Try again.');
+      setToggleNotice(t('community.toggleError'));
       // Roll the optimistic update back so the toggle reflects the persisted state.
       setFlags((prev) => {
         const current: FlagState = prev[id] ?? { isRecruitTarget: false, isClient: false };
@@ -144,18 +146,18 @@ export default function CommunityPage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.headerRow}>
-          <h1 className={styles.title}>Community</h1>
+          <h1 className={styles.title}>{t('community.title')}</h1>
           <div className={styles.headerRow}>
             {/* T-R30 (parity GAP 1) reachability wiring — the real CSV import surface linked from
                 an existing, already-reached nav point (§13's "no orphaned components" mandate),
                 same convention as the Grow link below. */}
             <Link href="/community/import" className={styles.growLink}>
-              Import contacts
+              {t('community.importContacts')}
             </Link>
             {/* WP08 reachability wiring — the Orchard/Grow surface linked from an existing,
                 already-reached nav point (§13's "no orphaned components" mandate). */}
             <Link href="/grow" className={styles.growLink}>
-              Grow →
+              {t('community.growLink')}
             </Link>
           </div>
         </div>
@@ -168,21 +170,19 @@ export default function CommunityPage() {
 
         {toggleNotice && <p className={styles.needsInfoNote}>{toggleNotice}</p>}
 
-        {loading && <p className={styles.loadingState}>Loading your community…</p>}
+        {loading && <p className={styles.loadingState}>{t('community.loading')}</p>}
 
         {!loading && error && (
           <div className={styles.errorState}>
             <p>{error}</p>
             <button type="button" className={styles.retryButton} onClick={() => load()}>
-              Retry
+              {t('community.retry')}
             </button>
           </div>
         )}
 
         {!loading && !error && contacts.length === 0 && (
-          <p className={styles.emptyState}>
-            No contacts yet — import or add contacts to start building your community.
-          </p>
+          <p className={styles.emptyState}>{t('community.emptyState')}</p>
         )}
 
         {!loading && !error && contacts.length > 0 && (

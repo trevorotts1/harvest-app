@@ -23,6 +23,7 @@ import Link from 'next/link';
 
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
+import { useT } from '@/app/locale-context';
 
 import AnchorHeader from './components/AnchorHeader';
 import BriefingCard from './components/BriefingCard';
@@ -68,6 +69,7 @@ function deriveQueuedIds(q: PersistentOfflineQueue): { actionIds: Set<string>; e
 }
 
 export default function TodayPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   // OFFLINE (T-54): connectivity + the persisted, replay-on-reconnect mutation queue for the Action
@@ -219,7 +221,7 @@ export default function TodayPage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.zoneCard}>
-            <p className={styles.narrativeLine}>Gathering your report…</p>
+            <p className={styles.narrativeLine}>{t('today.loadingReport')}</p>
           </div>
         </div>
       </main>
@@ -231,9 +233,9 @@ export default function TodayPage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.zoneCard}>
-            <p className={styles.zoneErrorText}>We couldn&apos;t load Today — your work is safe.</p>
+            <p className={styles.zoneErrorText}>{t('today.loadFailed')}</p>
             <button type="button" className={styles.queueActionButton} onClick={load}>
-              Retry
+              {t('today.retry')}
             </button>
           </div>
         </div>
@@ -250,21 +252,21 @@ export default function TodayPage() {
             team calendar + upline/RVP dashboard + Sponsor Cockpit. `/team` is itself a gated
             downstream page (GATED_DOWNSTREAM_PAGE_PREFIXES) and each sub-page authorizes itself. */}
         <nav aria-label="Team navigation" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <Link href="/team" style={{ fontWeight: 600 }}>Team</Link>
+          <Link href="/team" style={{ fontWeight: 600 }}>{t('nav.team')}</Link>
         </nav>
 
         {/* OFFLINE (T-54, §6.4/§6.7): honest connectivity state — never a silent queue, never a
             fabricated "synced" while actually offline. */}
         {isOffline && (
           <p className={styles.offlineBanner} role="status">
-            Offline — showing your saved field
-            {queueLength > 0 ? ` (${queueLength} action${queueLength === 1 ? '' : 's'} queued)` : ''}. Anything you
-            approve, decline, confirm, or mark will sync when you&rsquo;re back.
+            {t('today.offlineBanner')}
+            {queueLength > 0 ? t('today.offlineBannerQueuedSuffix', { count: queueLength, plural: queueLength === 1 ? '' : 's' }) : ''}
+            {t('today.offlineBannerTailQueueAction')}
           </p>
         )}
         {!isOffline && syncing && (
           <p className={styles.offlineBanner} role="status">
-            Back online — syncing {syncing.total} item{syncing.total === 1 ? '' : 's'}…
+            {t('today.syncingBanner', { count: syncing.total, plural: syncing.total === 1 ? '' : 's' })}
           </p>
         )}
         {!isOffline && !syncing && syncNotice && (
@@ -319,7 +321,7 @@ export default function TodayPage() {
             GATED_DOWNSTREAM_PAGE_PREFIXES in src/lib/auth/onboarding-gate-edge.ts), so an
             authenticated-but-not-onboarded rep is still correctly routed into onboarding first. */}
         <Link href="/shift" className={styles.primaryCta}>
-          Start today&apos;s 30 minutes
+          {t('today.primaryCta')}
         </Link>
 
         {/* T-41 (WP06 §11.5 Unified Content Queue / §11.4 Launch Kit): the reachable entry point to
@@ -327,7 +329,7 @@ export default function TodayPage() {
             fix used for the Approval Inbox badge (AnchorHeader.tsx) rather than reaching into the
             mission-control zone service/types this build unit does not own. */}
         <Link href="/content" className={styles.queueReviewLink}>
-          Content Queue — social, blog &amp; email drafts waiting for review
+          {t('today.contentQueueLink')}
         </Link>
       </div>
     </main>
