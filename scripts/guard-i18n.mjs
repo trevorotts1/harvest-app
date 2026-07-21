@@ -123,9 +123,27 @@ function flattenCatalog(obj, prefix = '') {
 // ever needs word-boundary matching, add it here as its own explicit `[term, /regex/i]` entry
 // mirroring the exact CFE pattern for that term — do NOT reintroduce a generic `\b${term}\b`
 // builder, since that reintroduces exactly this bug for any term with an irregular plural/suffix.
+//
+// T-R34: the SAME plain-substring gap existed here for three ES terms — "conversión" (Spanish
+// drops its accent on pluralization: "conversiones" is not a substring-match of "conversión" at
+// all, accented or not), "contacto en frío" (the plural "contactos en frío" inserts an "s" BEFORE
+// the following word boundary, breaking the substring), and "presentación de ventas" (misses both
+// "presentaciones de ventas" — same accent-drop — and "discurso(s) de ventas" entirely, which this
+// catalog-lint never listed as its own substring even singular). Fixed the same way as "lead":
+// explicit regex literals copy-pasted from the now-fixed src/services/compliance/vocabulary.ts
+// FORBIDDEN_TERMS_ES rows, keyed by the FORBIDDEN_SUBSTRINGS_ES entry text so lookup is unchanged.
+// ("embudo" needed no entry here — "embudo" is already a literal PREFIX of "embudos", so the plain
+// `.includes()` substring check already catches the plural; only terms where pluralizing changes a
+// non-trailing character, or inserts a character before word's end, need a regex override.)
 const WORD_BOUNDARY_TERMS = new Map([
   // Mirrors src/services/compliance/vocabulary.ts FORBIDDEN_TERMS's `/\bleads?\b/i` exactly.
   ['lead', /\bleads?\b/i],
+  // Mirrors vocabulary.ts FORBIDDEN_TERMS_ES's (T-R34-fixed) `/\bconversi[oó]n(?:es)?\b/i` exactly.
+  ['conversión', /\bconversi[oó]n(?:es)?\b/i],
+  // Mirrors vocabulary.ts FORBIDDEN_TERMS_ES's (T-R34-fixed) `/\bcontactos?\s+en\s+fr[ií]o\b/i`.
+  ['contacto en frío', /\bcontactos?\s+en\s+fr[ií]o\b/i],
+  // Mirrors vocabulary.ts FORBIDDEN_TERMS_ES's (T-R34-fixed) presentación/discurso-de-ventas rule.
+  ['presentación de ventas', /\b(?:discursos?|presentaci[oó]n(?:es)?)\s+de\s+ventas?\b/i],
 ]);
 
 function termMatches(lowerValue, lowerTerm) {

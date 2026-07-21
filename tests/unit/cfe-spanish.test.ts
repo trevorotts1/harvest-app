@@ -235,4 +235,151 @@ describe('Doctrine vocabulary — Spanish column (uiux §0.4/§6.2 "the forbidde
     const enOnly = new VocabularyClassifier(FORBIDDEN_TERMS);
     expect(enOnly.scan('Agrega este prospecto a la lista.').clean).toBe(true);
   });
+
+  test('FORBIDDEN_TERMS_ES row count is unchanged (14) — T-R34 only edited existing rows\' patterns, added zero/removed zero rows', () => {
+    expect(FORBIDDEN_TERMS_ES).toHaveLength(14);
+  });
+});
+
+/**
+ * T-R34 (compliance fix): the Spanish forbidden-term classifier under-blocked several INFLECTED
+ * (mostly plural) forms — confirmed via direct `RegExp.test()` against the pre-fix
+ * `src/services/compliance/vocabulary.ts` patterns. Spanish regularly pluralizes by adding "-s"/
+ * "-es" (and, for words ending in an accented vowel + "n" — "conversión", "presentación" — DROPS
+ * the accent on pluralization: "conversión" -> "conversiones", not "conversións"), so a
+ * singular-only `\bterm\b` word-boundary regex silently lets the plural straight through stage-1.
+ *
+ * Each `it.each` row below is a MUTATION PROOF: revert the corresponding fix in vocabulary.ts (put
+ * back the singular-only pattern) and that row's assertion fails — the classifier would return
+ * `clean: true` for content containing ONLY the plural/inflected form, exactly as it did before
+ * this fix (confirmed missed pre-fix; see the `beforeFix` regexes inlined below, copied verbatim
+ * from the pre-fix source, each of which `.test()`s false against its row's content).
+ */
+describe('T-R34 — Spanish forbidden-term INFLECTED forms now caught (were missed pre-fix)', () => {
+  const classifier = new VocabularyClassifier(); // default = FORBIDDEN_TERMS_ALL (both languages)
+
+  describe('confirmed-missing terms (QC-confirmed via direct RegExp.test)', () => {
+    const beforeFix: Record<string, RegExp> = {
+      conversión: /\bconversi[oó]n\b/i,
+      embudo: /\bembudo\b/i,
+      'contacto en frío': /\bcontacto\s+en\s+fr[ií]o\b/i,
+      'presentación de ventas': /\b(?:discurso|presentaci[oó]n)\s+de\s+ventas?\b/i,
+    };
+
+    const inflectedCases: Array<[string, string, string]> = [
+      ['Revisamos las conversiones del mes pasado.', 'conversión', 'conversiones'],
+      ['Metimos a este contacto en los embudos de la campaña.', 'embudo', 'embudos'],
+      ['Los contactos en frío nunca funcionan para nuestro equipo.', 'contacto en frío', 'contactos en frío'],
+      ['Prepara las presentaciones de ventas para mañana.', 'presentación de ventas', 'presentaciones de ventas'],
+      ['Revisa los discursos de ventas antes de la llamada.', 'presentación de ventas', 'discursos de ventas'],
+    ];
+
+    it.each(inflectedCases)(
+      'BEFORE(missed) / AFTER(caught): "%s" now flags forbidden "%s" via inflected form "%s"',
+      (content, expectedForbidden, inflectedForm) => {
+        // AFTER: the current (fixed) classifier catches it.
+        const scan = classifier.scan(content);
+        expect(scan.clean).toBe(false);
+        expect(scan.violations.map((v) => v.forbidden)).toContain(expectedForbidden);
+
+        // BEFORE: the pre-fix pattern, run directly against the SAME content, misses it — proving
+        // this is a genuine before(missed)->after(caught) delta and not a pre-existing pass.
+        expect(beforeFix[expectedForbidden].test(content)).toBe(false);
+        expect(content.toLowerCase()).toContain(inflectedForm.toLowerCase());
+      }
+    );
+  });
+
+  describe('audit-fix terms (found while auditing the rest of the list for the same defect class)', () => {
+    test('"reclutada"/"reclutadas" (feminine past-participle forms) now flagged — pre-fix pattern only covered the masculine "reclutado(s)"', () => {
+      const beforeFixReclut = /\breclut(?:ar|amiento|ando|ados?|as)\b/i;
+      const singular = 'Ella fue reclutada la semana pasada por su hermana.';
+      const plural = 'Ellas fueron reclutadas ayer durante el evento.';
+
+      expect(beforeFixReclut.test(singular)).toBe(false);
+      expect(beforeFixReclut.test(plural)).toBe(false);
+
+      expect(classifier.scan(singular).clean).toBe(false);
+      expect(classifier.scan(singular).violations.map((v) => v.forbidden)).toContain('reclutar');
+      expect(classifier.scan(plural).clean).toBe(false);
+      expect(classifier.scan(plural).violations.map((v) => v.forbidden)).toContain('reclutar');
+    });
+
+    test('"públicos objetivo(s)" (pluralized compound phrase) now flagged — pre-fix pattern only matched the fully-singular phrase', () => {
+      const beforeFixPublico = /\bp[uú]blico\s+objetivo\b/i;
+      const content = 'Definimos los públicos objetivo de cada campaña regional.';
+
+      expect(beforeFixPublico.test(content)).toBe(false);
+
+      const scan = classifier.scan(content);
+      expect(scan.clean).toBe(false);
+      expect(scan.violations.map((v) => v.forbidden)).toContain('público objetivo');
+    });
+  });
+
+  describe('end-to-end: the RUNTIME CFE (full engine, not just the bare classifier) BLOCKS Spanish content on an inflected form alone, zero Haiku signal', () => {
+    test('plural "conversiones" alone triggers a stage-1 BLOCK through the full pipeline', async () => {
+      const engine = new ComplianceFilterEngine({ classifierClient: new MapClient({}) }); // every classifier confidence 0
+      const v = await engine.evaluateContent({
+        content: 'Necesitamos mejorar las conversiones de este mes en el equipo.',
+        channel: 'SMS',
+        userContext: ctx,
+        language: 'es',
+      });
+      expect(v.band).toBe('blocked');
+      expect(v.released).toBe(false);
+      expect(v.reason).toContain('forbidden_vocabulary');
+      expect(v.reason).toContain('conversión');
+    });
+
+    test('plural "contactos en frío" alone triggers a stage-1 BLOCK through the full pipeline', async () => {
+      const engine = new ComplianceFilterEngine({ classifierClient: new MapClient({}) });
+      const v = await engine.evaluateContent({
+        content: 'Los contactos en frío no han respondido esta semana.',
+        channel: 'SMS',
+        userContext: ctx,
+        language: 'es',
+      });
+      expect(v.band).toBe('blocked');
+      expect(v.released).toBe(false);
+      expect(v.reason).toContain('forbidden_vocabulary');
+      expect(v.reason).toContain('contacto en frío');
+    });
+
+    test('plural "presentaciones de ventas" alone triggers a stage-1 BLOCK through the full pipeline', async () => {
+      const engine = new ComplianceFilterEngine({ classifierClient: new MapClient({}) });
+      const v = await engine.evaluateContent({
+        content: 'Terminamos las presentaciones de ventas de esta semana.',
+        channel: 'SMS',
+        userContext: ctx,
+        language: 'es',
+      });
+      expect(v.band).toBe('blocked');
+      expect(v.released).toBe(false);
+      expect(v.reason).toContain('forbidden_vocabulary');
+      expect(v.reason).toContain('presentación de ventas');
+    });
+  });
+
+  describe('benign Spanish controls are NOT over-blocked by the widened (plural/accent-insensitive) patterns', () => {
+    const benignCases: string[] = [
+      // "conversación"/"conversaciones" (conversation) must stay clean — the new `(?:es)?` suffix
+      // on "conversión" must not widen the match to this unrelated, common word.
+      'Tuvimos una conversación agradable con la familia el domingo.',
+      'Las conversaciones familiares fueron muy amenas esta semana.',
+      // Bare plural "contactos" with no "en frío" must stay clean — only the full phrase is banned.
+      'Actualiza los contactos de la agenda antes del viernes.',
+      // Bare plural "discursos" with no "de ventas" must stay clean.
+      'Escribió varios discursos para la boda de su hermana.',
+      // Bare "público"/"públicos" with no "objetivo" must stay clean.
+      'El parque es público y lo visitan muchas familias los domingos.',
+      'Los públicos de cada canal de streaming son muy distintos.',
+      // Bare "objetivo(s)" with no "público" must stay clean.
+      'Nuestro objetivo este trimestre es mejorar la comunicación interna.',
+    ];
+
+    it.each(benignCases)('leaves "%s" clean', (content) => {
+      expect(classifier.scan(content).clean).toBe(true);
+    });
+  });
 });
