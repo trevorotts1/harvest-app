@@ -18,6 +18,12 @@
 // takes an already-decrypted, already-ownership-scoped list of entries (the page/route does the
 // session-gated read); this component renders, it does not fetch.
 
+'use client';
+
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
+import type { Locale } from '@/lib/i18n/locale';
+import type { TVars } from '@/lib/i18n/catalog';
 import AgentSentBadge, { type MessageSourceLabel, type SentFromLabel } from './AgentSentBadge';
 import ThreeWayHandoffCard, { type HandoffState } from './ThreeWayHandoffCard';
 import styles from '../conversation.module.css';
@@ -77,10 +83,12 @@ export interface ConversationTimelineProps {
   onRetry?: (entryId: string) => void;
 }
 
-function formatTime(iso: string): string {
+// T-R32 (§17.5 locale-aware date formatting) — was `toLocaleString('en-US', ...)`, hardcoded
+// regardless of the rep's chosen locale. EN output is byte-identical to before.
+function formatTime(locale: Locale, iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return formatDateTime(locale, d, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 const CHANNEL_ICON: Record<TimelineChannel, string> = {
@@ -91,15 +99,17 @@ const CHANNEL_ICON: Record<TimelineChannel, string> = {
   IN_APP: '◆',
 };
 
+type Translate = (key: string, vars?: TVars) => string;
+
 /** Honest status label — a composer handoff is "handed off", never a fake delivered tick (§4.7). */
-function statusLabel(entry: TimelineMessageEntry): string {
+function statusLabel(entry: TimelineMessageEntry, t: Translate): string {
   const s = entry.deliveryStatus;
-  if (s === 'HANDED_OFF') return 'handed off';
-  if (s === 'FAILED') return 'failed';
-  if (s === 'PENDING') return 'sending';
-  if (s === 'queued') return 'queued';
-  if (s === 'SENT' || s === 'sent') return 'sent';
-  if (s === 'delivered') return 'delivered';
+  if (s === 'HANDED_OFF') return t('community.timeline.status.handedOff');
+  if (s === 'FAILED') return t('community.timeline.status.failed');
+  if (s === 'PENDING') return t('community.timeline.status.sending');
+  if (s === 'queued') return t('community.timeline.status.queued');
+  if (s === 'SENT' || s === 'sent') return t('community.timeline.status.sent');
+  if (s === 'delivered') return t('community.timeline.status.delivered');
   return s.toLowerCase();
 }
 
@@ -113,7 +123,17 @@ function bubbleClass(entry: TimelineMessageEntry): string {
   return styles.bubblePlatform;
 }
 
-function MessageEntryView({ entry, onRetry }: { entry: TimelineMessageEntry; onRetry?: (id: string) => void }) {
+function MessageEntryView({
+  entry,
+  onRetry,
+  locale,
+  t,
+}: {
+  entry: TimelineMessageEntry;
+  onRetry?: (id: string) => void;
+  locale: Locale;
+  t: Translate;
+}) {
   const outbound = entry.direction === 'OUTBOUND';
   const failed = entry.deliveryStatus === 'FAILED';
   return (
@@ -130,8 +150,8 @@ function MessageEntryView({ entry, onRetry }: { entry: TimelineMessageEntry; onR
       </div>
       <div className={styles.entryMeta}>
         <span className={styles.channelIcon} aria-hidden="true">{CHANNEL_ICON[entry.channel]}</span>
-        <time className={styles.timestamp} dateTime={entry.timestamp}>{formatTime(entry.timestamp)}</time>
-        <span className={`${styles.statusLine} ${failed ? styles.statusFailed : ''}`}>{statusLabel(entry)}</span>
+        <time className={styles.timestamp} dateTime={entry.timestamp}>{formatTime(locale, entry.timestamp)}</time>
+        <span className={`${styles.statusLine} ${failed ? styles.statusFailed : ''}`}>{statusLabel(entry, t)}</span>
       </div>
       {/* The agent badge (transparency = compliance evidence, §4.7) rides every OUTBOUND entry. */}
       {outbound && (
@@ -145,33 +165,35 @@ function MessageEntryView({ entry, onRetry }: { entry: TimelineMessageEntry; onR
       )}
       {failed && (
         <button type="button" className={styles.retryButton} onClick={() => onRetry?.(entry.id)}>
-          Retry
+          {t('common.retry')}
         </button>
       )}
     </li>
   );
 }
 
-function SystemEntryView({ entry }: { entry: TimelineSystemEntry }) {
+function SystemEntryView({ entry, t }: { entry: TimelineSystemEntry; t: Translate }) {
   if (entry.variant === 'opt-out') {
     // Full-width clay do-not-contact rule (§4.7 / §18.8) — honored everywhere.
     return (
       <li className={styles.entrySystem} data-entry-kind="system" data-variant="opt-out">
         <p className={styles.optOutRule} role="alert">
           <span className={styles.optOutIcon} aria-hidden="true">⊘</span>
-          Do not contact — honored everywhere.
+          {t('community.timeline.doNotContact')}
         </p>
       </li>
     );
   }
   if (entry.variant === 'reply-paused') {
     // §10.8 reply-arrived chip: the automated cadence is visibly paused; the rep is up.
-    const who = entry.contactName ?? 'They';
+    const replyLine = entry.contactName
+      ? t('community.timeline.replyPausedNamed', { name: entry.contactName })
+      : t('community.timeline.replyPausedGeneric');
     return (
       <li className={styles.entrySystem} data-entry-kind="system" data-variant="reply-paused">
         <p className={styles.replyPausedChip} role="status">
           <span className={styles.systemIcon} aria-hidden="true">⏸</span>
-          {who} replied — your cadence is paused; you&apos;re up.
+          {replyLine}
         </p>
       </li>
     );
@@ -180,9 +202,9 @@ function SystemEntryView({ entry }: { entry: TimelineSystemEntry }) {
   return (
     <li className={styles.entrySystem} data-entry-kind="system" data-variant="reactivation">
       <div className={styles.reactivationCard} role="note">
-        <span className={styles.reactivationLabel}>Context replay</span>
+        <span className={styles.reactivationLabel}>{t('community.timeline.contextReplay')}</span>
         <p className={styles.reactivationSummary}>
-          {entry.summary ?? 'Here is where you left off.'}
+          {entry.summary ?? t('community.timeline.reactivationDefault')}
         </p>
       </div>
     </li>
@@ -190,20 +212,22 @@ function SystemEntryView({ entry }: { entry: TimelineSystemEntry }) {
 }
 
 export default function ConversationTimeline({ entries, onRetry }: ConversationTimelineProps) {
+  const { locale, t } = useLocale();
+
   if (entries.length === 0) {
     // §5.7 empty state — never demo interactions.
     return (
       <div className={styles.timelineEmpty} role="status">
-        No introductions yet. When you&apos;re ready, your agent has a draft.
+        {t('community.timeline.emptyState')}
       </div>
     );
   }
 
   return (
-    <ol className={styles.timeline} aria-label="Conversation timeline">
+    <ol className={styles.timeline} aria-label={t('community.timeline.ariaLabel')}>
       {entries.map((entry) => {
         if (entry.kind === 'message') {
-          return <MessageEntryView key={entry.id} entry={entry} onRetry={onRetry} />;
+          return <MessageEntryView key={entry.id} entry={entry} onRetry={onRetry} locale={locale} t={t} />;
         }
         if (entry.kind === 'handoff') {
           return (
@@ -217,7 +241,7 @@ export default function ConversationTimeline({ entries, onRetry }: ConversationT
             </li>
           );
         }
-        return <SystemEntryView key={entry.id} entry={entry} />;
+        return <SystemEntryView key={entry.id} entry={entry} t={t} />;
       })}
     </ol>
   );

@@ -33,7 +33,7 @@ import Link from 'next/link';
 
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
 
 import ApprovalInboxItem, { type InboxItemData } from './components/ApprovalInboxItem';
 import { inboxEmptyStateMessage, type InboxFilterKey as FilterKey } from './empty-state';
@@ -69,7 +69,7 @@ const FILTER_LABEL_KEY: Record<FilterKey, string> = {
 };
 
 export default function ApprovalInboxPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [filter, setFilter] = useState<FilterKey>('AWAITING');
   const [items, setItems] = useState<InboxItemData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +110,7 @@ export default function ApprovalInboxPage() {
         stillQueued.size === 0 ? fetched : fetched.map((it) => (stillQueued.has(it.id) ? { ...it, queuedOffline: true } : it))
       );
     } catch {
-      setError('Could not load the approval inbox. Try again.');
+      setError(t('inbox.loadError'));
       setItems([]);
     } finally {
       setLoading(false);
@@ -197,7 +197,7 @@ export default function ApprovalInboxPage() {
       body: JSON.stringify({ draftId, justification }),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? 'This draft could not be approved.' };
+    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.approveFailed') };
     setItems((prev) => prev.filter((it) => it.id !== draftId));
     return { ok: true };
   }
@@ -220,7 +220,7 @@ export default function ApprovalInboxPage() {
       body: JSON.stringify({ draftId, reason, note }),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? 'This draft could not be declined.' };
+    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.declineFailed') };
     setItems((prev) => prev.filter((it) => it.id !== draftId));
     return { ok: true };
   }
@@ -231,7 +231,7 @@ export default function ApprovalInboxPage() {
   ): Promise<{ ok: boolean; item?: InboxItemData; error?: string }> {
     if (isOffline) {
       const existing = items.find((it) => it.id === draftId);
-      if (!existing) return { ok: false, error: 'This draft is no longer in the current view.' };
+      if (!existing) return { ok: false, error: t('inbox.errors.draftNotInView') };
       const q = queueRef.current!;
       // No fixed id: a rep may save an edit, keep editing, and save again while still offline —
       // each is a distinct mutation and both must replay, in order (see ./offline.ts's header).
@@ -247,10 +247,10 @@ export default function ApprovalInboxPage() {
       body: JSON.stringify({ draftId, body }),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? 'This edit could not be saved.' };
+    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.editFailed') };
 
     const existing = items.find((it) => it.id === draftId);
-    if (!existing) return { ok: false, error: 'This draft is no longer in the current view.' };
+    if (!existing) return { ok: false, error: t('inbox.errors.draftNotInView') };
 
     // The re-checked band ALWAYS replaces the stale one — never a pre-edit field survives the merge.
     const merged: InboxItemData = {
@@ -296,7 +296,7 @@ export default function ApprovalInboxPage() {
           </p>
         )}
 
-        <div className={styles.filterRow} role="tablist" aria-label="Filter the approval inbox">
+        <div className={styles.filterRow} role="tablist" aria-label={t('inbox.filterAria')}>
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -323,7 +323,7 @@ export default function ApprovalInboxPage() {
         )}
 
         {!loading && !error && items.length === 0 && (
-          <p className={styles.emptyState}>{inboxEmptyStateMessage(filter)}</p>
+          <p className={styles.emptyState}>{inboxEmptyStateMessage(filter, locale)}</p>
         )}
 
         {!loading && !error && items.length > 0 && (

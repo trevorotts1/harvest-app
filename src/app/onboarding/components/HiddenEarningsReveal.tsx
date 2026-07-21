@@ -26,6 +26,8 @@ import {
   SAFE_HARBOR_LINE,
   SAFE_HARBOR_LINE_SPOKEN,
 } from '@/services/warm-market/hidden-earnings';
+import { formatCurrencyUSD } from '@/lib/i18n/format';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 /** Re-exported from the engine (§4.13 / §5.1 O-8) — the exact FTC safe-harbor wording. */
 export { SAFE_HARBOR_LINE };
@@ -43,14 +45,18 @@ export interface HiddenEarningsRevealProps {
   estimatedClients: number;
   onContinue?: () => void;
   onAddContacts?: () => void;
+  /** T-R32 (§17.5 locale-aware number formatting) — optional so every existing caller (and every
+   *  existing test, none of which pass this) keeps compiling and rendering byte-identical EN output;
+   *  a caller that already knows the rep's locale (e.g. `OnboardingFlow.tsx` via `useLocale()`) can
+   *  pass it through so the figure formats per-locale ("US$1,234" for es-US vs "$1,234" for en-US). */
+  locale?: Locale;
 }
 
-function formatUsd(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
+// T-R32 (§17.5 locale-aware number formatting) — was `Intl.NumberFormat('en-US', ...)`, hardcoded
+// regardless of the rep's chosen locale. `locale` defaults to `DEFAULT_LOCALE` so EN output (the
+// only locale every existing caller/test exercises today) is byte-identical to before.
+function formatUsd(value: number, locale: Locale): string {
+  return formatCurrencyUSD(locale, value);
 }
 
 export default function HiddenEarningsReveal({
@@ -60,6 +66,7 @@ export default function HiddenEarningsReveal({
   estimatedClients,
   onContinue,
   onAddContacts,
+  locale = DEFAULT_LOCALE,
 }: HiddenEarningsRevealProps) {
   // §7.3/§18.5: 0–3 contacts is always the growth path. ALSO: the engine's own "never $0" guard
   // (hidden-earnings.ts `computeHiddenEarnings`) can fall back to the growth path at a HIGHER raw
@@ -105,7 +112,7 @@ export default function HiddenEarningsReveal({
   // The single screen-reader utterance (§6.1 O-8 narration script): figure + safe harbor as ONE line.
   const srUtterance =
     `From the ${contactCount} people in your community: an estimated ${estimatedAppointments} conversations, ` +
-    `${estimatedClients} families you could help, and ${formatUsd(monthlyValueUsd)} of potential monthly value. ` +
+    `${estimatedClients} families you could help, and ${formatUsd(monthlyValueUsd, locale)} of potential monthly value. ` +
     SAFE_HARBOR_LINE_SPOKEN;
 
   return (
@@ -118,7 +125,7 @@ export default function HiddenEarningsReveal({
       {/* Visual composition — decorative to screen readers (the SR line above is authoritative). */}
       <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)' }}>
         <p className={styles.revealEyebrow}>From the {contactCount} people in your field</p>
-        <p className={styles.revealFigure}>{formatUsd(monthlyValueUsd)}</p>
+        <p className={styles.revealFigure}>{formatUsd(monthlyValueUsd, locale)}</p>
         <p className={styles.revealStat}>{estimatedAppointments} conversations</p>
         <p className={styles.revealStat}>{estimatedClients} families you could help</p>
         {/* Safe harbor: same composition, vision voice, screenshot-inseparable, not dismissible. */}

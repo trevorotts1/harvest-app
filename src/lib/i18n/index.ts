@@ -11,3 +11,4 @@ export {
 } from './locale';
 export { t, tFrom, CATALOGS, flattenCatalog, type CatalogTree, type TVars } from './catalog';
 export { computeGrowthReport, type GrowthReport, type KeyGrowth } from './growth';
+export { formatDate, formatDateTime, formatNumber, formatCurrencyUSD } from './format';

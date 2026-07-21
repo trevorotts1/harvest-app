@@ -7,12 +7,26 @@
 // Lives outside page.tsx: Next.js's App Router only permits a page module to export the framework's
 // own recognized names (default, metadata, generateStaticParams, ...) — `tsc`'s generated route
 // types reject any other named export from a page.tsx file.
+//
+// T-R32 (master-spec §17.5; uiux §6.2) — this per-filter copy was a NAMED deep-copy i18n gap (a raw
+// literal in a plain `.ts` module, never scanned by `guard-no-literals-in-components.mjs`, which only
+// walks `.tsx`, so this gap was invisible to that guard even though it's real un-i18n'd rep-facing
+// copy). Now routed through the catalog: the caller passes the rep's locale, this looks up the
+// per-filter key via `t()` — same fallback-safe, never-blank contract as every other catalog lookup.
+
+import { t } from '@/lib/i18n/catalog';
+import type { Locale } from '@/lib/i18n/locale';
 
 export type InboxFilterKey = 'AWAITING' | 'HELD' | 'APPROVED' | 'DECLINED' | 'ALL';
 
-export function inboxEmptyStateMessage(filter: InboxFilterKey): string {
-  if (filter === 'HELD') return "Nothing held for review — your field's been clean.";
-  if (filter === 'DECLINED') return 'Nothing declined yet.';
-  if (filter === 'APPROVED') return 'Nothing approved yet — your first approval will show up here.';
-  return 'Nothing waiting on you right now — a good day.';
+const EMPTY_STATE_KEY: Record<InboxFilterKey, string> = {
+  AWAITING: 'inbox.emptyState.awaiting',
+  HELD: 'inbox.emptyState.held',
+  APPROVED: 'inbox.emptyState.approved',
+  DECLINED: 'inbox.emptyState.declined',
+  ALL: 'inbox.emptyState.all',
+};
+
+export function inboxEmptyStateMessage(filter: InboxFilterKey, locale: Locale): string {
+  return t(locale, EMPTY_STATE_KEY[filter]);
 }

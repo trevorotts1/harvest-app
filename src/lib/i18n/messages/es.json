@@ -43,7 +43,36 @@
     "loadError": "No se pudo cargar tu comunidad. Inténtalo de nuevo.",
     "retry": "Reintentar",
     "emptyState": "Aún no tienes contactos — importa o agrega contactos para empezar a construir tu comunidad.",
-    "toggleError": "No se pudo actualizar este contacto. Inténtalo de nuevo."
+    "toggleError": "No se pudo actualizar este contacto. Inténtalo de nuevo.",
+    "agentBadge": {
+      "sentFromRepNumber": "enviado desde tu número",
+      "fromPlatformNumber": "desde tu número de Harvest",
+      "sentByAgent": "enviado por tu agente",
+      "sentByUpline": "enviado por tu línea ascendente",
+      "sentByYou": "enviado por ti",
+      "approvedByYouOn": " · aprobado por ti el {date}",
+      "approvedByYou": " · aprobado por ti",
+      "complianceLinkedSuffix": " — vinculado a su registro de cumplimiento",
+      "complianceRecordLinked": "registro de cumplimiento vinculado",
+      "complianceRecordTitle": "Este envío está vinculado a su registro de auditoría de cumplimiento."
+    },
+    "timeline": {
+      "ariaLabel": "Cronología de la conversación",
+      "emptyState": "Aún no hay presentaciones. Cuando estés listo, tu agente tiene un borrador.",
+      "doNotContact": "No contactar — respetado en todas partes.",
+      "replyPausedNamed": "{name} respondió — tu cadencia está en pausa; te toca a ti.",
+      "replyPausedGeneric": "Recibiste una respuesta — tu cadencia está en pausa; te toca a ti.",
+      "contextReplay": "Repetición de contexto",
+      "reactivationDefault": "Aquí es donde lo dejaste.",
+      "status": {
+        "handedOff": "transferido",
+        "failed": "fallido",
+        "sending": "enviando",
+        "queued": "en espera",
+        "sent": "enviado",
+        "delivered": "entregado"
+      }
+    }
   },
   "shift": {
     "loadError": "No pudimos cargar tu turno. Reintenta.",
@@ -74,6 +103,60 @@
       "recommendationLabel": "Recomendación (asesoría",
       "suggestedRewrite": "Redacción alternativa conforme",
       "advisoryOnly": "Solo asesoría — una persona sigue decidiendo. Esto no aprueba ni envía nada."
+    },
+    "emptyState": {
+      "awaiting": "No tienes nada pendiente en este momento — un buen día.",
+      "all": "No tienes nada pendiente en este momento — un buen día.",
+      "held": "No hay nada retenido para revisión — tu campo ha estado limpio.",
+      "declined": "Nada rechazado todavía.",
+      "approved": "Nada aprobado todavía — tu primera aprobación aparecerá aquí."
+    },
+    "errors": {
+      "approveFailed": "No se pudo aprobar este borrador.",
+      "declineFailed": "No se pudo rechazar este borrador.",
+      "editFailed": "No se pudo guardar esta edición.",
+      "draftNotInView": "Este borrador ya no está en la vista actual."
+    },
+    "filterAria": "Filtrar la bandeja de aprobación",
+    "item": {
+      "agentDraftLabel": "Borrador del agente",
+      "separator": "·",
+      "draftedAt": "Redactado el {date}",
+      "queuedBanner": "En espera — se completará cuando vuelvas a estar en línea; primero volverá a revisar el cumplimiento.",
+      "heldBanner": "Retenido para revisión — este borrador no se puede aprobar tal cual. Usa la redacción alternativa o descártalo.",
+      "editAria": "Editar texto del borrador",
+      "reasonForDecliningAria": "Motivo para rechazar",
+      "optionalNotePlaceholder": "Nota opcional",
+      "optionalNoteAria": "Nota opcional sobre el motivo del rechazo",
+      "justificationPrompt": "Este borrador fue marcado por la revisión de cumplimiento. ¿Por qué está bien aprobarlo tal cual?",
+      "justificationPlaceholder": "Una breve razón por la que este borrador marcado está bien para enviar…",
+      "justificationAria": "Justificación para aprobar este borrador marcado",
+      "approve": "Aprobar",
+      "approveWithJustification": "Aprobar con justificación",
+      "edit": "Editar",
+      "rechecking": "Revisando de nuevo…",
+      "useRewrite": "Usar reescritura",
+      "saveAndRecheck": "Guardar y volver a revisar",
+      "discard": "Descartar",
+      "confirmDecline": "Confirmar rechazo",
+      "decline": "Rechazar",
+      "contactFallback": "este contacto",
+      "draftToAria": "Borrador para {name} vía {channel}",
+      "editFailedGeneric": "Falló la edición.",
+      "declineFailedGeneric": "Falló el rechazo.",
+      "chip": {
+        "rechecking": "Revisando de nuevo",
+        "blocked": "Bloqueado",
+        "flagged": "Marcado",
+        "pass": "Conforme",
+        "queued": "En espera"
+      },
+      "declineReasons": {
+        "notMyVoice": "No es mi voz",
+        "wrongPerson": "Persona equivocada",
+        "wrongTime": "Momento equivocado",
+        "other": "Otro"
+      }
     }
   },
   "learn": {
@@ -118,7 +201,45 @@
     "findASponsor": "Encuentra un patrocinador",
     "start": "Comenzar",
     "continueAt297": "Continuar por $297",
-    "talkToUs": "Habla con nosotros"
+    "talkToUs": "Habla con nosotros",
+    "sponsored": {
+      "coveredThroughWithSponsor": "Cubierto hasta el {date} por tu patrocinador de línea descendente.",
+      "coveredThroughNoSponsor": "Cubierto hasta el {date}.",
+      "everythingIncluded": "Todo está incluido — no hay tarjeta registrada, nada que pagar."
+    },
+    "anniversary": {
+      "endsOn": "Tu año patrocinado termina el {date}.",
+      "body": "Continúa bajo patrocinio si se renueva, cambia a $297/mes, o déjalo vencer.",
+      "convertCta": "Cambiar a $297/mes"
+    },
+    "manage": {
+      "heading": "Administrar plan",
+      "pauseOption": "Pausar (los agentes descansan, los datos se conservan)",
+      "downgradeOption": "Bajar de plan",
+      "accessUntil": "Si cancelas, mantienes acceso completo hasta el {date}, y puedes reactivar dentro de {days} días. No necesitas contactar a soporte."
+    },
+    "tier": {
+      "currentPlanBadge": "Tu plan",
+      "body": {
+        "free": "Todo incluido — tu patrocinador de línea descendente cubre tu primer año.",
+        "individual": "La plataforma completa: cada agente, cada superficie.",
+        "enterprise": "Implementación a nivel de organización, gestión de equipo, análisis organizacional, soporte dedicado."
+      }
+    },
+    "banner": {
+      "paymentReceivedTitle": "Pago recibido",
+      "paymentReceivedBody": "Tu plan está activo. Gracias — de vuelta al campo.",
+      "memberGraceTitle": "El pago de tu patrocinador necesita atención.",
+      "memberGraceBody": "Nada cambia para ti durante 30 días. Ya les avisamos a ellos y a tu RVP. Puedes continuar por $297/mes o encontrar un nuevo patrocinador cuando estés listo.",
+      "graceTitle": "Tu pago no se procesó.",
+      "graceBody": "Todo sigue funcionando. Actualiza tu método de pago para mantener tu plan activo.",
+      "softSuspendedTitle": "Tus agentes están en reposo hasta que se resuelva la facturación.",
+      "softSuspendedBody": "Terminaron sus conversaciones abiertas. Tus datos están exactamente como los dejaste. Actualiza tu pago y todo vuelve enseguida.",
+      "disputedTitle": "Una disputa de pago pausó los mensajes salientes.",
+      "disputedBody": "Leer y exportar siguen funcionando mientras lo resolvemos.",
+      "canceledActiveTitle": "Tu plan está programado para terminar.",
+      "canceledActiveBody": "Tienes acceso completo hasta el {date}. Puedes reactivar en cualquier momento antes de esa fecha."
+    }
   },
   "dataRights": {
     "heading": "Datos y privacidad",
@@ -127,13 +248,34 @@
       "sectionTitle": "Exporta tus datos",
       "body": "Descarga una copia de tu perfil, contactos y datos de cuenta en un formato legible. Nunca incluye tu contraseña ni ninguna credencial de seguridad.",
       "formatLabel": "Formato",
-      "downloadCta": "Descargar mis datos"
+      "downloadCta": "Descargar mis datos",
+      "createFailed": "No se pudo iniciar tu exportación. No se cambió nada.",
+      "downloadFailed": "Tu exportación se creó, pero la descarga falló — intenta de nuevo.",
+      "downloaded": "Se descargó {filename}."
     },
     "deletion": {
       "sectionTitle": "Elimina tu cuenta y tus datos",
       "body": "Esto elimina permanentemente tu perfil, contactos, mensajes e historial de las Siete Razones. Las comunicaciones exigidas por normas regulatorias se conservan, nunca se venden ni reutilizan — tu certificado de eliminación detalla exactamente qué se conservó y por qué.",
-      "requestCta": "Solicitar eliminación de la cuenta"
-    }
+      "requestCta": "Solicitar eliminación de la cuenta",
+      "requestFailed": "No se pudo enviar tu solicitud de eliminación. No se cambió nada.",
+      "noRequestToConfirm": "No hay solicitud de eliminación para confirmar.",
+      "confirmFailedGeneric": "No se pudo confirmar la eliminación.",
+      "confirmStartingAt": "Puedes confirmar a partir del {date}.",
+      "coolingOffTitle": "Tu solicitud de eliminación está en su período de espera de 24 horas.",
+      "coolingOffBody": "Solicitado el {requestedDate}. Puedes confirmar a partir del {readyDate}.",
+      "confirmCheckboxLabel": "Entiendo que esto elimina permanentemente mi cuenta y no se puede deshacer.",
+      "confirmCta": "Eliminar permanentemente mis datos",
+      "onHoldTitle": "Tu solicitud de eliminación está en espera.",
+      "onHoldBody": "Hay una retención legal activa en tu cuenta — contacta a soporte para más detalles.",
+      "completedTitle": "Tu cuenta ha sido eliminada.",
+      "completedBody": "Completado el {date}.",
+      "fieldsDeleted": "{count} campos eliminados o anonimizados.",
+      "recordsRetained": "{count} registro(s) conservado(s) por requisito regulatorio.",
+      "certificateLabel": "Certificado: {url}"
+    },
+    "loadingSettings": "Cargando tu configuración de datos y privacidad…",
+    "exportSectionAria": "Exportar tus datos",
+    "deletionSectionAria": "Eliminar tu cuenta y datos"
   },
   "onboarding": {
     "vision": {
