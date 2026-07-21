@@ -42,6 +42,7 @@
 import { useState } from 'react';
 
 import ContactControls from './ContactControls';
+import ClassifierAdjudicationDrawer from './ClassifierAdjudicationDrawer';
 import styles from '../inbox.module.css';
 
 export type CfeOutcome = 'PASS' | 'FLAG' | 'BLOCK' | 'RECORDED' | null;
@@ -59,6 +60,14 @@ export interface InboxItemData {
   created_at: string;
   agentsPaused?: boolean;
   doNotContact?: boolean;
+  // T-09 (§5.5 AC-1) — additive, all optional so every existing caller keeps compiling. The
+  // draft's persisted per-classifier CFE data feeds the ClassifierAdjudicationDrawer; the advisory
+  // recommendation fields are populated only on the upline compliance-review surface.
+  cfe_classifier_data?: unknown;
+  recommendedAction?: string | null;
+  suggestedRewrite?: string | null;
+  recommendationModel?: string | null;
+  escalationReason?: string | null;
   /** T-54 — see this file's header "QUEUED-OFFLINE" note. Page-owned, ephemeral; absent/false for
    *  every existing caller (DraftApprovalCard, Approval Inbox list before an offline action). */
   queuedOffline?: boolean;
@@ -329,6 +338,20 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
             )
           )}
         </div>
+      )}
+
+      {/* T-09 (§5.5 AC-1) — additive compliance-detail disclosure (classifier confidences + risk
+          score + any advisory recommendation). Suppressed while queued-offline, matching the chip's
+          own stale-band suppression above. */}
+      {!queuedOffline && (
+        <ClassifierAdjudicationDrawer
+          classifierData={current.cfe_classifier_data}
+          riskScore={current.cfe_risk_score}
+          recommendedAction={current.recommendedAction}
+          suggestedRewrite={current.suggestedRewrite}
+          recommendationModel={current.recommendationModel}
+          escalationReason={current.escalationReason}
+        />
       )}
 
       <ContactControls

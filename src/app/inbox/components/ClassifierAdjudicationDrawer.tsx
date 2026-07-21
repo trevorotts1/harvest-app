@@ -1,0 +1,135 @@
+// T-09 (master-spec §5.5 AC-1 "surface classifier-by-classifier confidences + risk score +
+// recommended action + suggested rewrite in the Approval Inbox"). An ADDITIVE, self-contained
+// disclosure sub-component — deliberately kept OUT of ApprovalInboxItem.tsx's body (a concurrent
+// i18n unit also edits that file) so the only change there is a single import + one render line.
+//
+// Presentational only: it renders whatever it is handed and NEVER decides/approves anything. On the
+// rep's own Approval Inbox it shows the classifier breakdown + risk score off the draft's persisted
+// CFE data (recommendation props absent). On the upline's compliance-review surface it additionally
+// shows the ADVISORY Sonnet-5 / Opus-4.8 recommended action + suggested rewrite (AC-2/AC-7) — always
+// labelled "Recommendation (advisory)" so it can never be mistaken for a decision.
+
+'use client';
+
+import styles from '../inbox.module.css';
+
+interface ClassifierResultLike {
+  classifier: string;
+  confidence: number;
+  matched_patterns?: string[];
+}
+
+export interface ClassifierAdjudicationDrawerProps {
+  /** The draft's persisted `cfe_classifier_data` (a `ClassifierResult[]`, loosely typed here). */
+  classifierData?: unknown;
+  riskScore?: number | null;
+  /** ADVISORY (upline surface only) — the Sonnet-5 / Opus-4.8 recommendation. */
+  recommendedAction?: string | null;
+  suggestedRewrite?: string | null;
+  /** 'sonnet_5' | 'opus_4_8' — which Claude tier produced the advisory recommendation. */
+  recommendationModel?: string | null;
+  /** 'classifier_conflict' | 'novel_pattern' — why Opus was escalated to (AC-7). */
+  escalationReason?: string | null;
+}
+
+const CLASSIFIER_LABELS: Record<string, string> = {
+  INCOME_CLAIM: 'Income claim',
+  TESTIMONIAL: 'Testimonial',
+  OPPORTUNITY: 'Opportunity',
+  INSURANCE: 'Insurance',
+  REFERRAL: 'Referral',
+};
+
+const MODEL_LABELS: Record<string, string> = {
+  sonnet_5: 'Sonnet 5',
+  opus_4_8: 'Opus 4.8',
+};
+
+const ESCALATION_LABELS: Record<string, string> = {
+  classifier_conflict: 'classifiers conflicted',
+  novel_pattern: 'novel pattern detected',
+};
+
+/** Defensive local coercion — a null/legacy/misshapen value renders as "no signal", never throws. */
+function coerce(data: unknown): ClassifierResultLike[] {
+  if (!Array.isArray(data)) return [];
+  const out: ClassifierResultLike[] = [];
+  for (const raw of data) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.classifier === 'string' && typeof r.confidence === 'number') {
+      out.push({ classifier: r.classifier, confidence: r.confidence });
+    }
+  }
+  return out;
+}
+
+export default function ClassifierAdjudicationDrawer({
+  classifierData,
+  riskScore,
+  recommendedAction,
+  suggestedRewrite,
+  recommendationModel,
+  escalationReason,
+}: ClassifierAdjudicationDrawerProps) {
+  const results = coerce(classifierData)
+    .filter((r) => r.confidence > 0)
+    .sort((a, b) => b.confidence - a.confidence);
+
+  return (
+    <details className={styles.adjudicationDrawer}>
+      <summary className={styles.adjudicationSummary}>
+        Compliance detail{typeof riskScore === 'number' ? ` · risk ${riskScore}` : ''}
+      </summary>
+
+      <div className={styles.adjudicationBody}>
+        <p className={styles.adjudicationHeading}>Classifier signals</p>
+        {results.length === 0 ? (
+          <p className={styles.itemMeta}>No individual classifier signal.</p>
+        ) : (
+          <ul className={styles.classifierList}>
+            {results.map((r) => {
+              const pct = Math.round(r.confidence * 100);
+              return (
+                <li key={r.classifier} className={styles.classifierRow}>
+                  <span className={styles.classifierName}>
+                    {CLASSIFIER_LABELS[r.classifier] ?? r.classifier}
+                  </span>
+                  <span className={styles.classifierTrack} aria-hidden="true">
+                    <span className={styles.classifierFill} style={{ width: `${pct}%` }} />
+                  </span>
+                  <span className={styles.classifierPct}>{pct}%</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {recommendedAction ? (
+          <div className={styles.recommendationBlock}>
+            <p className={styles.adjudicationHeading}>
+              Recommendation (advisory
+              {recommendationModel && MODEL_LABELS[recommendationModel]
+                ? ` · ${MODEL_LABELS[recommendationModel]}`
+                : ''}
+              {escalationReason && ESCALATION_LABELS[escalationReason]
+                ? ` · ${ESCALATION_LABELS[escalationReason]}`
+                : ''}
+              )
+            </p>
+            <p className={styles.itemBody}>{recommendedAction}</p>
+            {suggestedRewrite ? (
+              <>
+                <p className={styles.adjudicationHeading}>Suggested compliant rewrite</p>
+                <p className={styles.suggestedRewrite}>{suggestedRewrite}</p>
+              </>
+            ) : null}
+            <p className={styles.itemMeta}>
+              Advisory only — a person still decides. Nothing here approves or sends anything.
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </details>
+  );
+}
