@@ -77,22 +77,58 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 2: "skip-to-content first on every page"). Visually
-   hidden off-screen until the link itself receives focus, per the standard skip-link pattern —
-   `left/top` (not `display:none`) so it remains in the accessibility tree and the tab order. */
+   hidden until the link itself receives focus, per the standard skip-link pattern.
+   QC#1 fix (rendered-contrast gate, tests/unit/rendered-contrast-gate.test.ts): the ORIGINAL
+   implementation hid the resting state by pushing it off-canvas (`top: -48px`) while staying
+   fully opaque. scripts/verify-rendered-contrast.mjs samples each text node's ACTUAL layout rect
+   (via Range.getClientRects()) against a full-page screenshot; a rect sitting above y=0 is outside
+   the document's scrollable/screenshottable area entirely, so the sampled "backdrop" silently
+   became whatever solid canvas color the page happens to paint at the clamped edge — not the
+   link's own (perfectly-AA) fill — producing the false "1.11:1 / 1.00:1" reads QC caught. `opacity`
+   was tried next, but that trips `scripts/guard-no-opacity-on-text.mjs` (a sub-1 `opacity` on any
+   text-bearing rule is exactly the T-05 QC defect-3 pattern it exists to bar, and it can't tell
+   "hide the whole control until focus" apart from "permanently dim this text"). `visibility:hidden`
+   / `display:none` were ruled out too — both pull an element out of the browser's tab order, so a
+   keyboard user could never reach it in the first place, defeating the entire point of a skip link.
+   The fix that satisfies all constraints at once: collapse the box to a true `0x0` layout size
+   (`width/height/padding: 0` + `overflow: hidden`) at rest, and restore its real size on focus.
+   `width`/`height` aren't in either guard's scope, `getBoundingClientRect()` reports a genuine 0x0
+   box (no clip/transform trick, no reported-vs-painted mismatch), and a 0-size element remains
+   focusable and screen-reader-visible — `display`/`visibility` are the only two properties that
+   remove an element from the tab order, and neither is touched here. Because the box is truly 0x0
+   at rest, `verify-rendered-contrast.mjs`'s own `visible()` filter (`r.width > 0 && r.height > 0`)
+   correctly skips it, the same way it already skips any other legitimately-hidden node — so only
+   the focused/visible state (top: 8px, full size) is ever actually painted or measured, and that
+   state uses `--color-action` / `--on-action`, the exact fill pairing `verify-contrast.mjs` already
+   asserts AA-safe in both themes (6.29:1 light / 8.53:1 dark — see `on-action on color-action fill
+   (button label)` in LIGHT_PAIRS / DARK_PAIRS). The original off-canvas `top: -48px` is KEPT
+   (belt-and-suspenders, and tests/unit/wcag-keyboard-focus.test.ts's "(a) .skip-link CSS" block
+   statically asserts it) — it's no longer what does the hiding (the 0x0 box is), so it's harmless
+   defense-in-depth rather than the single point of failure it was before. */
 .skip-link {
   position: absolute;
   top: -48px;
   left: 8px;
   z-index: 1000;
+  width: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
   background: var(--color-action);
   color: var(--on-action);
-  padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-control);
   font-weight: 800;
+  pointer-events: none;
   transition: top var(--dur-grow) var(--ease-organic);
 }
 .skip-link:focus {
   top: 8px;
+  width: auto;
+  height: auto;
+  padding: var(--space-2) var(--space-4);
+  overflow: visible;
+  pointer-events: auto;
 }
 
 .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
