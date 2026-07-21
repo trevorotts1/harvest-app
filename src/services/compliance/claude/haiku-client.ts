@@ -146,6 +146,13 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
       }
     }
 
+    // A degenerate JSON body (e.g. the literal `"null"`) or a text block whose JSON parses to
+    // `null` reaches here as `payload === null` — guard before any field read so that case throws
+    // the SAME domain error as a payload merely missing the fields, never a raw TypeError.
+    if (payload === null || typeof payload !== 'object') {
+      throw new ClaudeClassifierError('Haiku verdict missing required fields.');
+    }
+
     const flagged = payload.flagged;
     const confidence = payload.confidence;
     if (typeof flagged !== 'boolean' || typeof confidence !== 'number') {

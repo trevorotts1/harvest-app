@@ -142,12 +142,15 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     const raw = await this.call(SYSTEM_PROMPT, userContent, SEVEN_WHYS_TURN_JSON_SCHEMA);
     const payload = this.parseJsonBlock(raw);
 
-    const question = payload.question;
-    const depthSignal = payload.depth_signal;
+    // `payload` is `null` for a degenerate JSON body (e.g. the literal `"null"`) or a text block
+    // whose JSON parses to `null` — `?.` here reproduces base behavior (throw the SAME domain error
+    // as a payload merely missing the fields) instead of a raw TypeError.
+    const question = payload?.question;
+    const depthSignal = payload?.depth_signal;
     if (typeof question !== 'string' || typeof depthSignal !== 'number') {
       throw new SevenWhysConversationError('Sonnet conversation turn missing required fields.');
     }
-    const acknowledgment = payload.acknowledgment;
+    const acknowledgment = payload?.acknowledgment;
     return {
       acknowledgment: typeof acknowledgment === 'string' ? acknowledgment : null,
       question,
@@ -159,7 +162,8 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     const userContent = JSON.stringify({ transcript: req.transcript });
     const raw = await this.call(ANCHOR_SYSTEM_PROMPT, userContent, SEVEN_WHYS_ANCHOR_JSON_SCHEMA);
     const payload = this.parseJsonBlock(raw);
-    const anchorStatement = payload.anchor_statement;
+    // See the matching comment in converse(): `payload` may be `null` for a degenerate JSON body.
+    const anchorStatement = payload?.anchor_statement;
     if (typeof anchorStatement !== 'string' || anchorStatement.length === 0) {
       throw new SevenWhysConversationError('Sonnet anchor composition returned no statement.');
     }
@@ -225,8 +229,11 @@ export class SonnetConversationClient implements SevenWhysConversationClient {
     return raw;
   }
 
-  private parseJsonBlock(raw: string): MessagesResponseBody {
-    let json: MessagesResponseBody;
+  private parseJsonBlock(raw: string): MessagesResponseBody | null {
+    // `JSON.parse` of a degenerate body (e.g. the literal `"null"`) legitimately yields `null` —
+    // the return type says so explicitly so callers must read fields via `?.` rather than assume
+    // an object is always present.
+    let json: MessagesResponseBody | null;
     try {
       json = JSON.parse(raw);
     } catch {

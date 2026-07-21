@@ -111,6 +111,58 @@ describe('CFE — real Haiku call path (§4.4), driven with a fake transport', (
       else process.env.ANTHROPIC_API_KEY = prevKey;
     }
   });
+
+  // Regression (T-R2 lint-refactor QC reject): a degenerate JSON response body — the literal
+  // `"null"` (or a text block whose JSON parses to `null`) — must still throw the domain error
+  // (ClaudeClassifierError('Haiku verdict missing required fields.')) that the pre-refactor
+  // `payload?.flagged`/`payload?.confidence` optional chaining produced. A lint pass that dropped
+  // the `?.` in favor of bare `payload.flagged` would instead throw a raw
+  // `TypeError: Cannot read properties of null` here — this must never regress.
+  it('a degenerate ("null") Haiku JSON body throws ClaudeClassifierError, never a raw TypeError', async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-only-not-a-real-key';
+    const fakeFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          content: [{ type: 'text', text: 'null' }],
+        }),
+    }));
+    try {
+      const client = new HaikuClassifierClient({ fetchImpl: fakeFetch });
+      await expect(
+        client.classify({ classifier: 'INCOME_CLAIM', systemPrompt: 's', content: 'x' })
+      ).rejects.toThrow(ClaudeClassifierError);
+      await expect(
+        client.classify({ classifier: 'INCOME_CLAIM', systemPrompt: 's', content: 'x' })
+      ).rejects.toThrow('Haiku verdict missing required fields.');
+    } finally {
+      if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = prevKey;
+    }
+  });
+
+  // Same regression, but the OUTER Messages API envelope itself is the degenerate `"null"` body
+  // (no `content` array at all) — a second, independent path into the same bug.
+  it('an outer "null" Messages API body throws ClaudeClassifierError, never a raw TypeError', async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-only-not-a-real-key';
+    const fakeFetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => 'null',
+    }));
+    try {
+      const client = new HaikuClassifierClient({ fetchImpl: fakeFetch });
+      await expect(
+        client.classify({ classifier: 'INCOME_CLAIM', systemPrompt: 's', content: 'x' })
+      ).rejects.toThrow(ClaudeClassifierError);
+    } finally {
+      if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = prevKey;
+    }
+  });
 });
 
 describe('CFE — risk scoring & banding (§5.4) + §5.3 rules', () => {

@@ -20,6 +20,7 @@ import {
   WhySessionPrismaClient,
   WhySessionRow,
   SonnetConversationClient,
+  SevenWhysConversationError,
   MissingClaudeCredentialError,
   SevenWhysAnchorVocabViolationError,
   finalizeAnchorStatement,
@@ -410,6 +411,58 @@ describe('Seven Whys — Claude-only, DI-mockable conversation client (§0.3, §
     });
     expect(calls).toHaveLength(1);
     expect((calls[0] as { model: string }).model).toBe('claude-sonnet-5');
+  });
+
+  // Regression (T-R2 lint-refactor QC reject): a degenerate JSON response body — the literal
+  // `"null"` — must still throw the domain error (SevenWhysConversationError) the pre-refactor
+  // `payload?.question`/`payload?.depth_signal` optional chaining produced, never a raw
+  // `TypeError: Cannot read properties of null`.
+  test('converse(): a degenerate ("null") Sonnet JSON body throws SevenWhysConversationError, never a raw TypeError', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ content: [{ type: 'text', text: 'null' }] }),
+    });
+    const client = new SonnetConversationClient({ fetchImpl });
+    await expect(
+      client.converse({
+        respondingToLevel: null,
+        answer: null,
+        nextLevel: SevenWhysLevel.GOAL,
+        isDeepening: false,
+        transcript: [],
+      })
+    ).rejects.toThrow(SevenWhysConversationError);
+    await expect(
+      client.converse({
+        respondingToLevel: null,
+        answer: null,
+        nextLevel: SevenWhysLevel.GOAL,
+        isDeepening: false,
+        transcript: [],
+      })
+    ).rejects.toThrow('Sonnet conversation turn missing required fields.');
+  });
+
+  // Same regression, on the sibling composeAnchor() call path — a distinct domain-error message,
+  // proving the null-guard was restored at BOTH read sites, not just the first one.
+  test('composeAnchor(): a degenerate ("null") Sonnet JSON body throws SevenWhysConversationError, never a raw TypeError', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
+    const fetchImpl = async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ content: [{ type: 'text', text: 'null' }] }),
+    });
+    const client = new SonnetConversationClient({ fetchImpl });
+    await expect(client.composeAnchor({ transcript: [] })).rejects.toThrow(
+      SevenWhysConversationError
+    );
+    await expect(client.composeAnchor({ transcript: [] })).rejects.toThrow(
+      'Sonnet anchor composition returned no statement.'
+    );
   });
 });
 
