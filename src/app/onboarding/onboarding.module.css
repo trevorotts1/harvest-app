@@ -188,7 +188,11 @@
 }
 .seedPulse {
   border-color: var(--color-harvest-fill-strong);
-  animation: seedPulse 1.2s var(--ease-organic) infinite;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .seedPulse {
+    animation: seedPulse 1.2s var(--ease-organic) infinite;
+  }
 }
 @keyframes seedPulse {
   0%,
