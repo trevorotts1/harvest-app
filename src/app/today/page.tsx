@@ -21,9 +21,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
+import { useSession } from 'next-auth/react';
+
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useLocale } from '@/app/locale-context';
+import { canSeeTeam } from '@/components/AppShell/navConfig';
 
 import AnchorHeader from './components/AnchorHeader';
 import BriefingCard from './components/BriefingCard';
@@ -70,6 +73,15 @@ function deriveQueuedIds(q: PersistentOfflineQueue): { actionIds: Set<string>; e
 
 export default function TodayPage() {
   const { locale, t } = useLocale();
+  const { data: session } = useSession();
+  // MAJOR-M1 (uiux §2.3 item 3 / AC-2-8): the Team affordance is role-gated — rep-only users never
+  // see it. The role comes from the server-issued session (next-auth claims), never client-forgeable;
+  // /team pages still enforce RBAC server-side, so this is purely the reachability affordance.
+  const role = session?.user?.role;
+  // MAJOR-M1 / §2.4: pure-upline/RVP are landed here on `/today?persona=team` by the auth flow. Read
+  // the flag from the URL after mount (no useSearchParams → no Suspense-boundary requirement at build)
+  // to surface the team-view context. The persona SWITCHER itself (M9) is a later wave.
+  const [personaTeam, setPersonaTeam] = useState(false);
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   // OFFLINE (T-54): connectivity + the persisted, replay-on-reconnect mutation queue for the Action
@@ -104,6 +116,13 @@ export default function TodayPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    // §2.4 deep-link state: honor `?persona=team` (the upline aggregate entry). Read post-mount so
+    // this stays SSR-safe and avoids a useSearchParams Suspense boundary.
+    if (typeof window === 'undefined') return;
+    setPersonaTeam(new URLSearchParams(window.location.search).get('persona') === 'team');
+  }, []);
 
   // OFFLINE (T-54): replays everything queued, in FIFO order, against the real routes. A permanent
   // (business-final) rejection is resolved by the handler itself (see ./offline.ts) — collected
@@ -248,12 +267,18 @@ export default function TodayPage() {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
-        {/* T-45 (WP09 §14.4/uiux §5.9 "Entry: Team rail item") — the reachable entry point into the
-            team calendar + upline/RVP dashboard + Sponsor Cockpit. `/team` is itself a gated
-            downstream page (GATED_DOWNSTREAM_PAGE_PREFIXES) and each sub-page authorizes itself. */}
-        <nav aria-label={t('nav.teamAria')} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <Link href="/team" style={{ fontWeight: 600 }}>{t('nav.team')}</Link>
-        </nav>
+        {/* MAJOR-M1 (uiux §2.3 item 3 / AC-2-8): Team is role-gated — rep-only users NEVER see it.
+            This is the "My Team" entry that folds into Today on mobile (the persistent rail carries
+            the desktop Team item); the previous unconditional render leaked it to every role.
+            §2.4: when a pure-upline/RVP was landed here on `?persona=team`, surface the team-view
+            heading + a link into the full Team dashboard. `/team` is a gated downstream page and each
+            sub-page authorizes itself server-side. */}
+        {canSeeTeam(role) && (
+          <nav aria-label={t('nav.teamAria')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginBottom: 8 }}>
+            {personaTeam && <span style={{ fontWeight: 700 }}>{t('today.teamViewHeading')}</span>}
+            <Link href="/team" style={{ fontWeight: 600 }}>{personaTeam ? t('today.teamViewLink') : t('nav.team')}</Link>
+          </nav>
+        )}
 
         {/* OFFLINE (T-54, §6.4/§6.7): honest connectivity state — never a silent queue, never a
             fabricated "synced" while actually offline. */}

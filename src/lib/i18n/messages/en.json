@@ -23,7 +23,40 @@
     "dataPrivacy": "Data & Privacy",
     "dataPrivacyAria": "Data and privacy — export or delete your data",
     "language": "Language",
-    "languageAria": "Language settings"
+    "languageAria": "Language settings",
+    "today": "Today",
+    "learn": "Learn",
+    "me": "Me",
+    "primaryAria": "Primary navigation",
+    "approvalInboxAria": "Approval Inbox, {count} waiting"
+  },
+  "me": {
+    "heading": "Me",
+    "subhead": "Your profile, preferences, and account.",
+    "accessibilityTitle": "Accessibility",
+    "accessibilityDesc": "Text size and reading preferences.",
+    "notificationsTitle": "Notifications",
+    "notificationsDesc": "Choose which alerts you get, and when.",
+    "languageTitle": "Language",
+    "languageDesc": "Choose your workspace language.",
+    "subscriptionTitle": "Subscription",
+    "subscriptionDesc": "Your plan and billing.",
+    "dataRightsTitle": "Data & Privacy",
+    "dataRightsDesc": "Export or delete your data.",
+    "comingSoon": "Coming soon"
+  },
+  "accessibility": {
+    "heading": "Accessibility",
+    "subhead": "Make The Harvest easier to read and use.",
+    "bigTextTitle": "Big Text",
+    "bigTextDesc": "Increase the text size across the whole app.",
+    "bigTextOn": "On",
+    "bigTextOff": "Off"
+  },
+  "notFound": {
+    "heading": "That page has moved on",
+    "body": "That item has moved on — here's Today.",
+    "cta": "Go to Today"
   },
   "auth": {
     "brandName": "The Harvest",
@@ -90,6 +123,8 @@
     }
   },
   "today": {
+    "teamViewHeading": "Your team",
+    "teamViewLink": "Open the Team dashboard",
     "greeting": "Good morning, {name}",
     "loadingReport": "Gathering your report…",
     "loadFailed": "We couldn't load Today — your work is safe.",

@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useT } from '@/app/locale-context';
+import { landsOnTeamView } from '@/components/AppShell/navConfig';
 
 const industries = [
   'Financial services',
@@ -68,12 +69,14 @@ export default function AuthPage() {
         // for "no such user" and "wrong password"; this mirrors that at the UI layer too.
         setLoginError('Invalid email or password.');
       } else if (result?.ok) {
-        // T-R28 (uiux AC-2-1 "Today is the default landing surface; every login lands on Today").
-        // This used to push straight to the pre-rebuild demo scaffold (hardcoded mock arrays,
-        // `#fragment` nav, no links to the five real destinations) — the retired route is now
-        // harmless even so, having been converted to a pure server redirect, but a fresh login
-        // should land directly on the real surface, not bounce through a retired stub.
-        router.push('/today');
+        // uiux AC-2-1: "Today is the default landing surface; every login lands on Today." MAJOR-M1 /
+        // §2.3 item 3 / §2.4: a PURE upline (UPLINE/RVP) instead lands on the team view of Today
+        // (`/today?persona=team`); DUAL defaults to its rep persona and REP/ADMIN to plain Today.
+        // The role is read from the SERVER session (`getSession()` hits the server-computed
+        // /api/auth/session) — never from client-supplied input — so the landing decision is
+        // server-authoritative and cannot be spoofed.
+        const session = await getSession();
+        router.push(landsOnTeamView(session?.user?.role) ? '/today?persona=team' : '/today');
       }
     } finally {
       setLoginPending(false);

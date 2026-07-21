@@ -44,32 +44,31 @@ const renderEs = (data: HeaderZoneData) =>
   );
 
 describe('AnchorHeader — i18n (EN default + genuine ES render, T-R32b)', () => {
-  test('EN default renders the greeting, nav row, and momentum band label in English', () => {
+  test('EN default renders the greeting, the retained Approval Inbox affordance, and the momentum band label in English', () => {
     const html = renderEn(baseData());
     const text = textOf(html);
     expect(text).toContain('Good morning, Jordan');
     expect(text).toContain('Approval Inbox');
     expect(text).toContain('Growing'); // momentum band label, via today.momentum.growing
-    expect(text).toContain('Community');
-    expect(text).toContain('Subscription');
-    expect(text).toContain('Data Privacy'); // "Data & Privacy" — textOf collapses the escaped "&amp;" to a space
-    expect(text).toContain('Language');
-    expect(html).toContain('aria-label="Open the Orchard"');
-    expect(html).toContain('aria-label="Subscription and billing"');
+    // T-57 R2: the redundant destination + Me-subsurface pills (Grow/Community/Subscription/Data &
+    // Privacy/Language) moved to the persistent AppShell nav + the /me hub, so the Today header no
+    // longer carries them. Only the §2.3-item-1 mobile Approval Inbox affordance stays.
+    expect(html).not.toContain('href="/community"');
+    expect(html).not.toContain('href="/grow"');
+    expect(html).not.toContain('href="/me/subscription"');
+    expect(html).not.toContain('href="/me/data-rights"');
+    expect(html).not.toContain('href="/me/language"');
+    expect(html).toContain('href="/inbox"');
+    expect(html).toContain('aria-label="Approval Inbox, 3 waiting"'); // localized, count-interpolated
   });
 
-  test('ES provider renders genuinely Spanish nav + momentum-band copy — not a silent EN fallback', () => {
+  test('ES provider renders genuinely Spanish header copy — not a silent EN fallback', () => {
     const html = renderEs(baseData());
     const text = textOf(html);
     expect(text).toContain('Buenos días, Jordan');
     expect(text).toContain('Bandeja de aprobación');
     expect(text).toContain('Creciendo'); // today.momentum.growing (ES)
-    expect(text).toContain('Comunidad');
-    expect(text).toContain('Suscripción');
-    expect(text).toContain('Datos y privacidad');
-    expect(text).toContain('Idioma');
-    expect(html).toContain('aria-label="Abrir el Huerto"');
-    expect(html).toContain('aria-label="Suscripción y facturación"');
+    expect(html).toContain('aria-label="Bandeja de aprobación, 3 en espera"');
 
     // None of the EN-only strings leak into the ES render. (`groveCaption` itself is server-computed
     // narration text passed straight through as a prop — out of this retrofit's scope — so it is

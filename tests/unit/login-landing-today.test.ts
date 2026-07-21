@@ -23,14 +23,20 @@ function src(...parts: string[]): string {
 }
 
 describe('T-R28 — a successful login lands on /today, and /dashboard is no longer a dead end', () => {
-  test('the login page pushes to /today on a successful sign-in, not the retired /dashboard demo', () => {
+  test('a successful sign-in lands on /today (rep/default) or /today?persona=team (pure upline/RVP), never the retired /dashboard', () => {
     const authPage = src('app', 'auth', 'page.tsx');
-    // Isolate the credentials-login success branch (`result?.ok`) rather than matching anywhere in
-    // the file, so this can't be satisfied by an unrelated `/today` string elsewhere in the page.
-    const successBranch = authPage.match(/result\?\.ok\)\s*\{[\s\S]*?\}/);
+    // Isolate the credentials-login success branch (`result?.ok`) up to its `router.push(...)`, so
+    // this can't be satisfied by an unrelated `/today` string elsewhere in the page.
+    const successBranch = authPage.match(/result\?\.ok\)\s*\{[\s\S]*?router\.push\([^;]*;/);
     expect(successBranch).not.toBeNull();
-    expect(successBranch?.[0]).toMatch(/router\.push\(\s*'\/today'\s*\)/);
-    expect(successBranch?.[0]).not.toMatch(/\/dashboard/);
+    // No bounce through the retired /dashboard demo scaffold, anywhere in the page.
+    expect(authPage).not.toContain('/dashboard');
+    // MAJOR-M1 (uiux §2.3/§2.4): the landing role is read from the SERVER session (getSession),
+    // never client-supplied input; pure upline/RVP → the team view, everyone else → plain Today.
+    expect(successBranch?.[0]).toMatch(/getSession\(/);
+    expect(successBranch?.[0]).toMatch(/landsOnTeamView/);
+    expect(successBranch?.[0]).toMatch(/persona=team/);
+    expect(successBranch?.[0]).toMatch(/'\/today'/);
   });
 
   test('the login page\'s "skip" links point at /today, not /dashboard', () => {
@@ -86,15 +92,14 @@ describe('T-R28 — a successful login lands on /today, and /dashboard is no lon
     expect((flow.match(/router\.push\(\s*'\/today'\s*\)/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
-  test("Today's AnchorHeader nav links to Community, Grow, and Me (Subscription) — three of the five uiux destinations", () => {
-    const anchorHeader = src('app', 'today', 'components', 'AnchorHeader.tsx');
-    expect(anchorHeader).toMatch(/href="\/community"/);
-    expect(anchorHeader).toMatch(/href="\/grow"/);
-    expect(anchorHeader).toMatch(/href="\/me\/subscription"/);
-  });
-
-  test("Today also reaches Learn via WP07Panel, so all five uiux destinations are reachable from Today", () => {
-    const wp07Panel = src('app', 'today', 'components', 'WP07Panel.tsx');
-    expect(wp07Panel).toMatch(/href="\/learn"/);
+  test("the persistent AppShell nav exposes all five uiux destinations (Today/Community/Grow/Learn/Me)", () => {
+    // T-57 R2: the five destinations moved OUT of the ad-hoc Today header pills into the persistent
+    // AppShell nav (uiux §2.1/§2.2); their canonical hrefs live in the shared navConfig.
+    const navConfig = src('components', 'AppShell', 'navConfig.ts');
+    expect(navConfig).toMatch(/href: '\/today'/);
+    expect(navConfig).toMatch(/href: '\/community'/);
+    expect(navConfig).toMatch(/href: '\/grow'/);
+    expect(navConfig).toMatch(/href: '\/learn'/);
+    expect(navConfig).toMatch(/href: '\/me'/);
   });
 });
