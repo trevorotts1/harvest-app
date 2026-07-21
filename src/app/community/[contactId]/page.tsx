@@ -25,6 +25,8 @@ import ConversationTimeline, { type TimelineEntry } from '../components/Conversa
 import SequenceEnrollPanel from '../components/SequenceEnrollPanel';
 import ObjectionCoachPanel from '../components/ObjectionCoachPanel';
 import BridgeUplinePanel from '../components/BridgeUplinePanel';
+import ComposerHandoffSheet from '../components/ComposerHandoffSheet';
+import { resolveFirstTouchDraftId } from '../components/resolve-first-touch-draft';
 import styles from '../conversation.module.css';
 import { useT } from '@/app/locale-context';
 
@@ -48,6 +50,10 @@ export default function ContactConversationPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // T-57 R3a (§5.7) — fresh first-touch composer handoff from this contact's conversation surface.
+  const [composer, setComposer] = useState<{ draftId: string; contactName: string } | null>(null);
+  const [resolvingFirstTouch, setResolvingFirstTouch] = useState(false);
+  const [noFirstTouchDraft, setNoFirstTouchDraft] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,6 +84,16 @@ export default function ContactConversationPage({ params }: PageProps) {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function handleStartFirstTouch() {
+    if (!contact) return;
+    setNoFirstTouchDraft(false);
+    setResolvingFirstTouch(true);
+    const draftId = await resolveFirstTouchDraftId(contact.id);
+    setResolvingFirstTouch(false);
+    if (draftId) setComposer({ draftId, contactName: contact.name });
+    else setNoFirstTouchDraft(true);
+  }
 
   return (
     <div className={styles.conversationPage}>
@@ -124,6 +140,22 @@ export default function ContactConversationPage({ params }: PageProps) {
                 gates would HELD anyway, but the UI should never even offer it. */}
             {!contact.doNotContact && (
               <div className={styles.repActionsRegion}>
+                {/* T-57 R3a (§5.7 AC-5.7-1) — fresh own-number first touch from your own number.
+                    The sheet re-asserts CFE clearance fail-closed before rendering any text. */}
+                <button
+                  type="button"
+                  className={styles.repActionButton}
+                  onClick={handleStartFirstTouch}
+                  aria-label={t('composer.startFirstTouchAria', { name: contact.name })}
+                  disabled={resolvingFirstTouch}
+                >
+                  {resolvingFirstTouch ? t('composer.resolving') : t('composer.startFirstTouch')}
+                </button>
+                {noFirstTouchDraft && (
+                  <p className={styles.timelineEmpty} role="status">
+                    {t('composer.noDraftReady')}
+                  </p>
+                )}
                 <SequenceEnrollPanel contactId={contact.id} />
                 <ObjectionCoachPanel contactId={contact.id} />
                 <BridgeUplinePanel contactId={contact.id} />
@@ -132,6 +164,14 @@ export default function ContactConversationPage({ params }: PageProps) {
           </>
         )}
       </div>
+
+      <ComposerHandoffSheet
+        open={composer !== null}
+        draftId={composer?.draftId ?? null}
+        contactName={composer?.contactName ?? ''}
+        onClose={() => setComposer(null)}
+        onConfirmed={load}
+      />
     </div>
   );
 }

@@ -5,12 +5,14 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import styles from '../today.module.css';
 import type { MilestonesZoneData, ZoneResult } from '@/services/mission-control/types';
 import { useT } from '@/app/locale-context';
+import ComposerHandoffSheet from '@/app/community/components/ComposerHandoffSheet';
+import { resolveFirstTouchDraftId } from '@/app/community/components/resolve-first-touch-draft';
 
 interface FirstFortyEightGoal {
   contactId: string;
@@ -38,13 +40,32 @@ const PHASE_COPY_KEY: Record<string, string> = {
 export default function WP07Panel({ milestones }: { milestones: ZoneResult<MilestonesZoneData> }) {
   const t = useT();
   const [first48, setFirst48] = useState<FirstFortyEightState | null>(null);
+  // T-57 R3a (M8) — First-48 "contact now" one-tap opens the Composer Handoff Sheet for the
+  // pre-cleared first-touch draft to that A-list name (§12.2). Resolves the draftId the composer
+  // route needs from the contactId the goal carries; the sheet re-asserts CFE clearance fail-closed.
+  const [composer, setComposer] = useState<{ draftId: string; contactName: string } | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [noDraftFor, setNoDraftFor] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadFirst48 = useCallback(() => {
     fetch('/api/gamification/first-48')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: FirstFortyEightState) => setFirst48(data))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    loadFirst48();
+  }, [loadFirst48]);
+
+  async function handleContactNow(goal: FirstFortyEightGoal) {
+    setNoDraftFor(null);
+    setResolvingId(goal.contactId);
+    const draftId = await resolveFirstTouchDraftId(goal.contactId);
+    setResolvingId(null);
+    if (draftId) setComposer({ draftId, contactName: goal.displayName });
+    else setNoDraftFor(goal.contactId);
+  }
 
   return (
     <>
@@ -58,11 +79,34 @@ export default function WP07Panel({ milestones }: { milestones: ZoneResult<Miles
               <div key={goal.contactId} className="card feature">
                 <strong>{goal.displayName}</strong>
                 <p>{goal.contacted ? t('today.wp07Panel.contactedYes') : t('today.wp07Panel.contactedNo')}</p>
+                {!goal.contacted && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ marginTop: 8 }}
+                    onClick={() => handleContactNow(goal)}
+                    aria-label={t('first48.contactNowAria', { name: goal.displayName })}
+                    disabled={resolvingId === goal.contactId}
+                  >
+                    {resolvingId === goal.contactId ? t('first48.resolving') : t('first48.contactNow')}
+                  </button>
+                )}
+                {noDraftFor === goal.contactId && (
+                  <p style={{ color: 'var(--muted)', marginTop: 8 }}>{t('first48.noDraftReady')}</p>
+                )}
               </div>
             ))}
           </div>
         </section>
       )}
+
+      <ComposerHandoffSheet
+        open={composer !== null}
+        draftId={composer?.draftId ?? null}
+        contactName={composer?.contactName ?? ''}
+        onClose={() => setComposer(null)}
+        onConfirmed={loadFirst48}
+      />
 
       {milestones.status === 'ok' && milestones.data.items.length > 0 && (
         <section className={styles.zoneCard} data-zone="milestones">
