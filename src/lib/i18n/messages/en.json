@@ -111,7 +111,65 @@
       "engage": "Engage",
       "wealth": "Wealth"
     },
-    "criteriaHeading": "The ten criteria feeding your Grove"
+    "criteriaHeading": "The ten criteria feeding your Grove",
+    "actionQueue": {
+      "badge": "Today",
+      "badgeZeroMinutes": "Today: 0 minutes",
+      "emptyNarrative": "Nothing needs you. Your agents take it from here.",
+      "badgeWithMinutes": "Today: {minutes} minutes",
+      "blockedByCompliance": "Blocked by compliance review",
+      "flaggedByCompliance": "Flagged by compliance review",
+      "cfeBandSuffix": " (CFE: {band})",
+      "reloadIcon": "↻",
+      "queuedWillSync": "Queued — will sync",
+      "reviewInApprovalInboxCta": "Review in Approval Inbox",
+      "declineCta": "Decline",
+      "showAllCount": "show all ({count})",
+      "kind": {
+        "approve": "Approve",
+        "review": "Review",
+        "confirm": "Confirm"
+      }
+    },
+    "calendarStrip": {
+      "badge": "Team calendar",
+      "noOrgNarrative": "No team yet — events will show here once you're connected to an organization.",
+      "quietNarrative": "Quiet so far — no upcoming team events.",
+      "attendedCta": "I was there",
+      "missedCta": "Couldn't make it"
+    },
+    "zoneErrorBoundary": {
+      "message": "We could not show your {zone} right now — the rest of Today is unaffected."
+    },
+    "wp07Panel": {
+      "first48Badge": "First 48",
+      "phase": {
+        "warning": "You can still claim these — no rush, no shame.",
+        "expired": "The clock stopped, but these three are still yours whenever you're ready."
+      },
+      "first48Empty": "Import a few contacts to see your first three here.",
+      "contactedYes": "Contacted",
+      "contactedNo": "Not yet contacted",
+      "milestonesHeading": "Milestones",
+      "learnBadge": "Learn",
+      "learnBody": "Course, referrals & coaching",
+      "growBadge": "Grow",
+      "growBody": "Your Goal Commitment Card",
+      "momentumBadge": "Momentum",
+      "momentumBody": "The ten criteria, in full"
+    },
+    "ratioCards": {
+      "learningCommunity": "learning your community",
+      "heading": "Ratios",
+      "agentRatioTitle": "Agent's Ratio",
+      "fieldTrainerRatioTitle": "Field Trainer's Ratio"
+    },
+    "briefingCard": {
+      "whileYouSlept": "While you slept"
+    },
+    "pipelineGlance": {
+      "heading": "Pipeline"
+    }
   },
   "community": {
     "title": "Community",

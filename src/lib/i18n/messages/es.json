@@ -111,7 +111,65 @@
       "engage": "Interactuar",
       "wealth": "Riqueza"
     },
-    "criteriaHeading": "Los diez criterios que alimentan tu vergel"
+    "criteriaHeading": "Los diez criterios que alimentan tu vergel",
+    "actionQueue": {
+      "badge": "Hoy",
+      "badgeZeroMinutes": "Hoy: 0 minutos",
+      "emptyNarrative": "Nada necesita de ti. Tus agentes se encargan de esto.",
+      "badgeWithMinutes": "Hoy: {minutes} minutos",
+      "blockedByCompliance": "Bloqueado por revisión de cumplimiento",
+      "flaggedByCompliance": "Marcado por revisión de cumplimiento",
+      "cfeBandSuffix": " (CFE: {band})",
+      "reloadIcon": "↻",
+      "queuedWillSync": "En espera — se sincronizará",
+      "reviewInApprovalInboxCta": "Revisar en la Bandeja de aprobación",
+      "declineCta": "Rechazar",
+      "showAllCount": "ver todo ({count})",
+      "kind": {
+        "approve": "Aprobar",
+        "review": "Revisar",
+        "confirm": "Confirmar"
+      }
+    },
+    "calendarStrip": {
+      "badge": "Calendario del equipo",
+      "noOrgNarrative": "Aún no tienes equipo — los eventos aparecerán aquí una vez que estés conectado a una organización.",
+      "quietNarrative": "Tranquilo por ahora — sin próximos eventos de equipo.",
+      "attendedCta": "Estuve ahí",
+      "missedCta": "No pude asistir"
+    },
+    "zoneErrorBoundary": {
+      "message": "No pudimos mostrar tu {zone} ahora mismo — el resto de Hoy no se ve afectado."
+    },
+    "wp07Panel": {
+      "first48Badge": "Primeras 48",
+      "phase": {
+        "warning": "Aún puedes reclamarlas — sin prisa, sin pena.",
+        "expired": "El tiempo se acabó, pero estas tres siguen siendo tuyas cuando estés listo."
+      },
+      "first48Empty": "Importa algunos contactos para ver aquí a tus primeros tres.",
+      "contactedYes": "Contactado",
+      "contactedNo": "Aún no contactado",
+      "milestonesHeading": "Hitos",
+      "learnBadge": "Aprender",
+      "learnBody": "Curso, referidos y acompañamiento",
+      "growBadge": "Cultivar",
+      "growBody": "Tu tarjeta de compromiso de metas",
+      "momentumBadge": "Momentum",
+      "momentumBody": "Los diez criterios, completos"
+    },
+    "ratioCards": {
+      "learningCommunity": "conociendo tu comunidad",
+      "heading": "Proporciones",
+      "agentRatioTitle": "Proporción del Agente",
+      "fieldTrainerRatioTitle": "Proporción del Entrenador de Campo"
+    },
+    "briefingCard": {
+      "whileYouSlept": "Mientras dormías"
+    },
+    "pipelineGlance": {
+      "heading": "Pipeline"
+    }
   },
   "community": {
     "title": "Comunidad",

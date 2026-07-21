@@ -10,17 +10,18 @@
 
 import styles from '../today.module.css';
 import type { RatiosZoneData, RatioTriple, ZoneResult } from '@/services/mission-control/types';
+import { useT } from '@/app/locale-context';
 
 export interface RatioCardsProps {
   result: ZoneResult<RatiosZoneData>;
 }
 
-function RatioCard({ title, ratio }: { title: string; ratio: RatioTriple }) {
+function RatioCard({ titleKey, ratio, t }: { titleKey: string; ratio: RatioTriple; t: (key: string) => string }) {
   return (
     <div className={styles.ratioCard}>
       <div className={styles.zoneHeaderRow}>
-        <strong>{title}</strong>
-        {ratio.learning && <span className={styles.learningChip}>learning your community</span>}
+        <strong>{t(titleKey)}</strong>
+        {ratio.learning && <span className={styles.learningChip}>{t('today.ratioCards.learningCommunity')}</span>}
       </div>
       <p className={styles.ratioNumerals}>
         {ratio.a} : {ratio.b} : {ratio.c}
@@ -32,10 +33,12 @@ function RatioCard({ title, ratio }: { title: string; ratio: RatioTriple }) {
 }
 
 export default function RatioCards({ result }: RatioCardsProps) {
+  const t = useT();
+
   if (result.status === 'error') {
     return (
       <section className={styles.zoneCard} data-zone="ratios">
-        <span className={styles.zoneBadge}>Ratios</span>
+        <span className={styles.zoneBadge}>{t('today.ratioCards.heading')}</span>
         <p className={styles.zoneErrorText}>{result.message}</p>
       </section>
     );
@@ -43,9 +46,9 @@ export default function RatioCards({ result }: RatioCardsProps) {
 
   return (
     <section className={styles.zoneCard} data-zone="ratios">
-      <span className={styles.zoneBadge}>Ratios</span>
-      <RatioCard title="Agent's Ratio" ratio={result.data.agentRatio} />
-      <RatioCard title="Field Trainer's Ratio" ratio={result.data.fieldTrainerRatio} />
+      <span className={styles.zoneBadge}>{t('today.ratioCards.heading')}</span>
+      <RatioCard titleKey="today.ratioCards.agentRatioTitle" ratio={result.data.agentRatio} t={t} />
+      <RatioCard titleKey="today.ratioCards.fieldTrainerRatioTitle" ratio={result.data.fieldTrainerRatio} t={t} />
     </section>
   );
 }

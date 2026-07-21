@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import styles from '../today.module.css';
 import type { BriefingZoneData, ZoneResult } from '@/services/mission-control/types';
+import { useT } from '@/app/locale-context';
 
 export interface BriefingCardProps {
   result: ZoneResult<BriefingZoneData>;
@@ -56,6 +57,7 @@ function hasSpeechSynthesis(): boolean {
 }
 
 export default function BriefingCard({ result }: BriefingCardProps) {
+  const t = useT();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 6) — "TTS briefing: the 'listen' affordance plays the
   // briefing as audio (system TTS in v1) — an accessibility feature that seeds the Phase-2 Voice
@@ -96,7 +98,7 @@ export default function BriefingCard({ result }: BriefingCardProps) {
   if (result.status === 'error') {
     return (
       <section className={styles.zoneCard} data-zone="briefing">
-        <span className={styles.zoneBadge}>While you slept</span>
+        <span className={styles.zoneBadge}>{t('today.briefingCard.whileYouSlept')}</span>
         <p className={styles.zoneErrorText}>{result.message}</p>
       </section>
     );
@@ -121,7 +123,7 @@ export default function BriefingCard({ result }: BriefingCardProps) {
   return (
     <section className={styles.zoneCard} data-zone="briefing" data-briefing-state={state}>
       <div className={styles.zoneHeaderRow}>
-        <span className={styles.zoneBadge}>While you slept</span>
+        <span className={styles.zoneBadge}>{t('today.briefingCard.whileYouSlept')}</span>
         {stamp && <span className={styles.freshnessStamp}>{stamp}</span>}
         {ttsSupported && transcript && (
           <button

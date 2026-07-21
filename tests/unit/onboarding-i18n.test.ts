@@ -4,7 +4,7 @@
 // full retrofit off hardcoded EN literals onto the i18n catalog for each step: EN default unchanged,
 // genuine ES render, no EN leakage. Rendered with `createElement` (no JSX) so this file can stay a
 // `.test.ts`, matching this suite's own onboarding-ui.test.ts convention.
-import { createElement } from 'react';
+import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
@@ -33,11 +33,11 @@ const textOf = (html: string) =>
     .replace(/&[a-z#0-9]+;/g, ' ')
     .replace(/\s+/g, ' ');
 
-function renderEn(el: Parameters<typeof createElement>[0], props: Record<string, unknown>) {
+function renderEn<P extends object>(el: ComponentType<P>, props: P) {
   return renderToStaticMarkup(createElement(el, props));
 }
 
-function renderEs(el: Parameters<typeof createElement>[0], props: Record<string, unknown>) {
+function renderEs<P extends object>(el: ComponentType<P>, props: P) {
   return renderToStaticMarkup(
     createElement(
       LocaleContext.Provider,
@@ -80,7 +80,13 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
   });
 
   test('SponsorStep — linked branch (headline, sponsor-fallback name, accept/no-upline) translates', () => {
-    const outcome: SponsorMatchOutcome = { kind: 'linked', orgType: OrgType.EXTERNAL, sponsorUserId: 'u-1' } as SponsorMatchOutcome;
+    const outcome: SponsorMatchOutcome = {
+      kind: 'linked',
+      sponsorId: 'u-1',
+      source: 'automated_match',
+      termStart: new Date(),
+      termEnd: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
+    };
     const en = textOf(renderEn(SponsorStep, { outcome }));
     const es = textOf(renderEs(SponsorStep, { outcome }));
     expect(en).toContain('We found your Downline Sponsor');
@@ -228,6 +234,7 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
       acknowledgment: null,
       reprompt: false,
       complete: false,
+      anchorStatement: null,
     };
     const enHtml = renderEn(SevenWhysConversation, { turn, answer: 'a real answer', typing: true });
     const esHtml = renderEs(SevenWhysConversation, { turn, answer: 'a real answer', typing: true });

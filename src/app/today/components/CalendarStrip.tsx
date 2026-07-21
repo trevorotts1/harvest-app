@@ -8,6 +8,7 @@
 
 import styles from '../today.module.css';
 import type { CalendarEventItem, CalendarZoneData, ZoneResult } from '@/services/mission-control/types';
+import { useT } from '@/app/locale-context';
 
 export interface CalendarStripProps {
   result: ZoneResult<CalendarZoneData>;
@@ -18,10 +19,12 @@ export interface CalendarStripProps {
 }
 
 export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineEventIds }: CalendarStripProps) {
+  const t = useT();
+
   if (result.status === 'error') {
     return (
       <section className={styles.zoneCard} data-zone="calendar">
-        <span className={styles.zoneBadge}>Team calendar</span>
+        <span className={styles.zoneBadge}>{t('today.calendarStrip.badge')}</span>
         <p className={styles.zoneErrorText}>{result.message}</p>
       </section>
     );
@@ -30,8 +33,8 @@ export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineE
   if (!result.data.hasOrg) {
     return (
       <section className={styles.zoneCard} data-zone="calendar">
-        <span className={styles.zoneBadge}>Team calendar</span>
-        <p className={styles.narrativeLine}>No team yet — events will show here once you&apos;re connected to an organization.</p>
+        <span className={styles.zoneBadge}>{t('today.calendarStrip.badge')}</span>
+        <p className={styles.narrativeLine}>{t('today.calendarStrip.noOrgNarrative')}</p>
       </section>
     );
   }
@@ -39,15 +42,15 @@ export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineE
   if (result.data.events.length === 0) {
     return (
       <section className={styles.zoneCard} data-zone="calendar">
-        <span className={styles.zoneBadge}>Team calendar</span>
-        <p className={styles.narrativeLine}>Quiet so far — no upcoming team events.</p>
+        <span className={styles.zoneBadge}>{t('today.calendarStrip.badge')}</span>
+        <p className={styles.narrativeLine}>{t('today.calendarStrip.quietNarrative')}</p>
       </section>
     );
   }
 
   return (
     <section className={styles.zoneCard} data-zone="calendar">
-      <span className={styles.zoneBadge}>Team calendar</span>
+      <span className={styles.zoneBadge}>{t('today.calendarStrip.badge')}</span>
       <ul className={styles.calendarList}>
         {result.data.events.map((e) => (
           <li key={e.id} className={styles.calendarRow}>
@@ -56,18 +59,18 @@ export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineE
               <span className={styles.queueMeta}>{new Date(e.startsAt).toLocaleString()}</span>
             </div>
             {e.attendanceState === 'attended' || e.attendanceState === 'missed' ? (
-              <span className={styles.attendanceMarked}>{e.attendanceState === 'attended' ? 'I was there' : "Couldn't make it"}</span>
+              <span className={styles.attendanceMarked}>{e.attendanceState === 'attended' ? t('today.calendarStrip.attendedCta') : t('today.calendarStrip.missedCta')}</span>
             ) : queuedOfflineEventIds?.has(e.id) ? (
               <span className={styles.queueQueuedOffline} role="status">
-                <span aria-hidden="true">&#x21bb;</span> Queued — will sync
+                <span aria-hidden="true">{t('today.actionQueue.reloadIcon')}</span> {t('today.actionQueue.queuedWillSync')}
               </span>
             ) : (
               <div className={styles.queueActions}>
                 <button type="button" className={styles.queueActionButton} onClick={() => onMarkAttendance(e, 'attended')}>
-                  I was there
+                  {t('today.calendarStrip.attendedCta')}
                 </button>
                 <button type="button" className={styles.queueActionButtonSecondary} onClick={() => onMarkAttendance(e, 'missed')}>
-                  Couldn&apos;t make it
+                  {t('today.calendarStrip.missedCta')}
                 </button>
               </div>
             )}
