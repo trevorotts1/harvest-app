@@ -102,12 +102,30 @@ function flattenCatalog(obj, prefix = '') {
   return out;
 }
 
+// T-R32b fix: "lead" is a bare substring of common, unrelated, entirely legitimate product-copy
+// words — "Leader"/"Leadership"/"leading" (e.g. the real Primerica titles "Regional Leader",
+// "Division Leader", "District Leader" the auth wizard must display verbatim) — none of which are
+// the doctrine-forbidden noun "a lead" this term exists to catch. The runtime CFE classifier
+// (src/services/compliance/vocabulary.ts) already draws this exact distinction with a
+// word-boundary regex (`/\bleads?\b/i`); this mirrors that precedent for the ONE term that needs it
+// rather than switching every term to word-boundary matching, which would silently break the
+// Spanish "reclut" entry's own documented INTENTIONAL prefix match (catches reclutar/reclutamiento/
+// reclutas, none of which end at a word boundary right after "reclut").
+const WORD_BOUNDARY_TERMS = new Set(['lead']);
+
+function termMatches(lowerValue, lowerTerm) {
+  if (WORD_BOUNDARY_TERMS.has(lowerTerm)) {
+    return new RegExp(`\\b${lowerTerm}\\b`).test(lowerValue);
+  }
+  return lowerValue.includes(lowerTerm);
+}
+
 function lintCatalog(flat, forbiddenSubstrings, label) {
   const violations = [];
   for (const [key, value] of Object.entries(flat)) {
     const lower = value.toLowerCase();
     for (const term of forbiddenSubstrings) {
-      if (lower.includes(term.toLowerCase())) {
+      if (termMatches(lower, term.toLowerCase())) {
         violations.push({ key, value, term, label });
       }
     }

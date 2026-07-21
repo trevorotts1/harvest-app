@@ -4,17 +4,89 @@
     "loading": "Cargando…",
     "cancel": "Cancelar",
     "save": "Guardar",
-    "back": "Atrás"
+    "back": "Atrás",
+    "yes": "Sí",
+    "no": "No"
   },
   "nav": {
     "team": "Equipo",
+    "teamAria": "Navegación del equipo",
     "approvalInbox": "Bandeja de aprobación",
     "grow": "Cultivar",
     "growArrow": "Cultivar →",
+    "orchardAria": "Abrir el Huerto",
     "community": "Comunidad",
+    "communityAria": "Abrir Comunidad",
     "subscription": "Suscripción",
+    "subscriptionAria": "Suscripción y facturación",
     "dataPrivacy": "Datos y privacidad",
-    "language": "Idioma"
+    "dataPrivacyAria": "Datos y privacidad — exporta o elimina tus datos",
+    "language": "Idioma",
+    "languageAria": "Ajustes de idioma"
+  },
+  "auth": {
+    "brandName": "The Harvest",
+    "title": "Entra al centro de mando.",
+    "subtitle": "La demostración clasifica primero el negocio y luego revela solo los campos que coinciden con esa estructura empresarial.",
+    "demoAccessBadge": "Acceso de demostración",
+    "registerTab": "Registrarse",
+    "loginTab": "Iniciar sesión",
+    "emailLabel": "Correo electrónico",
+    "passwordLabel": "Contraseña",
+    "skipToToday": "Saltar a Hoy",
+    "nameLabel": "Nombre",
+    "roleLabel": "Rol",
+    "roleOptionRep": "Rep/Usuario",
+    "roleOptionUpline": "Línea ascendente",
+    "continueToOnboarding": "Continuar a la incorporación",
+    "demoDisclosureNotice": "Los campos específicos del negocio aparecen solo después de que el tipo de negocio o el nombre de la organización los haga relevantes. Ninguna acción real de mensajes, pagos o cuentas externas ocurre en esta demostración.",
+    "wizard": {
+      "ariaLabel": "Asistente de negocio e industria",
+      "badge": "Asistente de negocio / industria",
+      "industryQuestion": "¿Cuál es la industria del negocio?",
+      "businessModelQuestion": "¿Qué estructura la describe mejor?",
+      "businessModel": {
+        "downline": "Organización de línea descendente o basada en equipo",
+        "franchise": "Propietario de franquicia",
+        "independent": "Práctica profesional independiente",
+        "localService": "Negocio de servicios locales",
+        "consulting": "Firma de consultoría",
+        "school": "Escuela / programa educativo",
+        "corporate": "Equipo corporativo"
+      },
+      "franchiseTypeQuestion": "¿Qué tipo de franquicia?",
+      "organizationNameLabel": "Nombre del negocio u organización",
+      "organizationNamePlaceholder": "Ejemplo: nombre del negocio, franquicia, escuela, firma u organización"
+    },
+    "primerica": {
+      "levelLabel": "Nivel de Primerica",
+      "level": {
+        "snsd": "SNSD (Directora Nacional de Ventas Senior)",
+        "nsd": "NSD (Director Nacional de Ventas)",
+        "svp": "SVP (Vicepresidente Senior)",
+        "rvp": "RVP (Vicepresidente Regional)",
+        "rl": "RL (Líder Regional)",
+        "dl": "DL (Líder de División)",
+        "district": "Distrito (Líder de Distrito)",
+        "srRep": "Rep. Sr. (Representante Senior)",
+        "rep": "Rep (Representante)"
+      },
+      "solutionNumberLabel": "¿Cuál es tu número de solución?",
+      "solutionNumberPlaceholder": "Ingresa tu número de solución de Primerica",
+      "pairingQuestion": "¿A quién puedes identificar para el emparejamiento?",
+      "pairing": {
+        "upline": "Mi línea ascendente inmediata",
+        "fieldTrainer": "Mi entrenador de campo",
+        "rvp": "Mi RVP",
+        "unknown": "Todavía no lo sé"
+      },
+      "uplineNameLabel": "Nombre de tu línea ascendente, entrenador de campo o RVP",
+      "uplineNamePlaceholder": "Nombre de la persona a la que debe conectarse esta cuenta",
+      "knowsSolutionIdQuestion": "¿Conoces su ID de solución?",
+      "notSure": "No estoy seguro",
+      "uplineSolutionIdLabel": "ID de solución de línea ascendente",
+      "uplineSolutionIdPlaceholder": "Si lo conoces, ingrésalo para que Harvest pueda emparejar cuentas cuando ambas estén en la plataforma"
+    }
   },
   "today": {
     "greeting": "Buenos días, {name}",
@@ -33,7 +105,13 @@
       "quiet": "Tranquilo",
       "resting": "En reposo"
     },
-    "receiptsCta": "Ver la acción que más ayuda"
+    "receiptsCta": "Ver la acción que más ayuda",
+    "laws": {
+      "grow": "Cultivar",
+      "engage": "Interactuar",
+      "wealth": "Riqueza"
+    },
+    "criteriaHeading": "Los diez criterios que alimentan tu vergel"
   },
   "community": {
     "title": "Comunidad",

@@ -251,7 +251,7 @@ export default function TodayPage() {
         {/* T-45 (WP09 §14.4/uiux §5.9 "Entry: Team rail item") — the reachable entry point into the
             team calendar + upline/RVP dashboard + Sponsor Cockpit. `/team` is itself a gated
             downstream page (GATED_DOWNSTREAM_PAGE_PREFIXES) and each sub-page authorizes itself. */}
-        <nav aria-label="Team navigation" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <nav aria-label={t('nav.teamAria')} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <Link href="/team" style={{ fontWeight: 600 }}>{t('nav.team')}</Link>
         </nav>
 

@@ -5,6 +5,8 @@ import { signIn } from 'next-auth/react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { useT } from '@/app/locale-context';
+
 const industries = [
   'Financial services',
   'Restaurant',
@@ -32,6 +34,7 @@ const franchiseTypes = [
 ];
 
 export default function AuthPage() {
+  const t = useT();
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [industry, setIndustry] = useState('Financial services');
@@ -87,8 +90,8 @@ export default function AuthPage() {
     <main className="form-page">
       <section className="card form-card" aria-labelledby="auth-title">
         <aside className="form-aside">
-          <Link href="/" className="brand"><span className="brand-mark">H</span><span>The Harvest</span></Link>
-          <h1 id="auth-title" style={{ fontSize: '3rem', marginTop: 48 }}>Enter the command center.</h1>
+          <Link href="/" className="brand"><span className="brand-mark">H</span><span>{t('auth.brandName')}</span></Link>
+          <h1 id="auth-title" style={{ fontSize: '3rem', marginTop: 48 }}>{t('auth.title')}</h1>
           {/* T-52 WCAG AA fix: was `color: 'rgba(255,255,255,.72)'` — a translucent
               white on the flat `--bg-deep` (`.form-aside`) fill. Swapped to the real
               design-system "secondary text on an inverse surface" token
@@ -97,22 +100,22 @@ export default function AuthPage() {
               other two carried exemptions this fix resolves. Redirect logic above
               (handleLogin / router.push) is untouched — this line only. */}
           <p style={{ color: 'var(--muted-inverse)', lineHeight: 1.6 }}>
-            The demo classifies the business first, then reveals only the fields that match that business structure.
+            {t('auth.subtitle')}
           </p>
         </aside>
 
         <div className="form-body">
-          <span className="badge">Demo access</span>
+          <span className="badge">{t('auth.demoAccessBadge')}</span>
           <h2 style={{ marginTop: 14 }}>{mode === 'register' ? 'Create your demo profile' : 'Welcome back'}</h2>
           <div className="actions" style={{ marginTop: 0, marginBottom: 22 }}>
-            <button className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('register')}>Register</button>
-            <button className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('login')}>Login</button>
+            <button className={`btn ${mode === 'register' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('register')}>{t('auth.registerTab')}</button>
+            <button className={`btn ${mode === 'login' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setMode('login')}>{t('auth.loginTab')}</button>
           </div>
 
           {mode === 'login' ? (
             <form onSubmit={handleLogin}>
               <div className="field">
-                <label htmlFor="login-email">Email</label>
+                <label htmlFor="login-email">{t('auth.emailLabel')}</label>
                 <input
                   id="login-email"
                   name="email"
@@ -124,7 +127,7 @@ export default function AuthPage() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="login-password">Password</label>
+                <label htmlFor="login-password">{t('auth.passwordLabel')}</label>
                 <input
                   id="login-password"
                   name="password"
@@ -142,52 +145,52 @@ export default function AuthPage() {
                 <button className="btn btn-primary" type="submit" disabled={loginPending}>
                   {loginPending ? 'Signing in…' : 'Sign in'}
                 </button>
-                <Link className="btn btn-secondary" href="/today">Skip to Today</Link>
+                <Link className="btn btn-secondary" href="/today">{t('auth.skipToToday')}</Link>
               </div>
             </form>
           ) : (
           <form action="/onboarding">
             <div className="field">
-              <label htmlFor="name">Name</label>
+              <label htmlFor="name">{t('auth.nameLabel')}</label>
               <input id="name" name="name" defaultValue="Spaulding Demo" />
             </div>
             <div className="field">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">{t('auth.emailLabel')}</label>
               <input id="email" name="email" type="email" defaultValue="demo@theharvest.local" />
             </div>
             <div className="field">
-              <label htmlFor="role">Role</label>
+              <label htmlFor="role">{t('auth.roleLabel')}</label>
               <select id="role" name="role" defaultValue="REP">
-                <option value="REP">Rep/User</option>
-                <option value="UPLINE">Upline</option>
+                <option value="REP">{t('auth.roleOptionRep')}</option>
+                <option value="UPLINE">{t('auth.roleOptionUpline')}</option>
                 <option value="RVP">RVP</option>
               </select>
             </div>
 
-            <div className="wizard-block" aria-label="Business and industry wizard">
-              <span className="badge">Business / Industry wizard</span>
+            <div className="wizard-block" aria-label={t('auth.wizard.ariaLabel')}>
+              <span className="badge">{t('auth.wizard.badge')}</span>
               <div className="field">
-                <label htmlFor="industry">What is the business industry?</label>
+                <label htmlFor="industry">{t('auth.wizard.industryQuestion')}</label>
                 <select id="industry" name="industry" value={industry} onChange={(event) => setIndustry(event.target.value)}>
                   {industries.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </div>
               <div className="field">
-                <label htmlFor="businessModel">Which structure best describes it?</label>
+                <label htmlFor="businessModel">{t('auth.wizard.businessModelQuestion')}</label>
                 <select id="businessModel" name="businessModel" value={businessModel} onChange={(event) => setBusinessModel(event.target.value)}>
-                  <option>Downline / team-based organization</option>
-                  <option>Franchise owner</option>
-                  <option>Independent professional practice</option>
-                  <option>Local service business</option>
-                  <option>Consulting firm</option>
-                  <option>School / education program</option>
-                  <option>Corporate team</option>
+                  <option>{t('auth.wizard.businessModel.downline')}</option>
+                  <option>{t('auth.wizard.businessModel.franchise')}</option>
+                  <option>{t('auth.wizard.businessModel.independent')}</option>
+                  <option>{t('auth.wizard.businessModel.localService')}</option>
+                  <option>{t('auth.wizard.businessModel.consulting')}</option>
+                  <option>{t('auth.wizard.businessModel.school')}</option>
+                  <option>{t('auth.wizard.businessModel.corporate')}</option>
                 </select>
               </div>
 
               {isFranchise ? (
                 <div className="field">
-                  <label htmlFor="franchiseType">What type of franchise?</label>
+                  <label htmlFor="franchiseType">{t('auth.wizard.franchiseTypeQuestion')}</label>
                   <select id="franchiseType" name="franchiseType" value={franchiseType} onChange={(event) => setFranchiseType(event.target.value)}>
                     {franchiseTypes.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
@@ -195,69 +198,69 @@ export default function AuthPage() {
               ) : null}
 
               <div className="field">
-                <label htmlFor="organizationName">Name of business or organization</label>
+                <label htmlFor="organizationName">{t('auth.wizard.organizationNameLabel')}</label>
                 <input
                   id="organizationName"
                   name="organizationName"
                   value={organizationName}
                   onChange={(event) => setOrganizationName(event.target.value)}
-                  placeholder="Example: business, franchise, school, firm, or organization name"
+                  placeholder={t('auth.wizard.organizationNamePlaceholder')}
                 />
               </div>
 
               {isPrimerica ? (
                 <div className="primerica-fields">
                   <div className="field">
-                    <label htmlFor="primericaLevel">Primerica level</label>
+                    <label htmlFor="primericaLevel">{t('auth.primerica.levelLabel')}</label>
                     <select id="primericaLevel" name="primericaLevel" defaultValue="REP">
-                      <option value="SNSD">SNSD (Senior National Sales Director)</option>
-                      <option value="NSD">NSD (National Sales Director)</option>
-                      <option value="SVP">SVP (Senior Vice President)</option>
-                      <option value="RVP">RVP (Regional Vice President)</option>
-                      <option value="RL">RL (Regional Leader)</option>
-                      <option value="DL">DL (Division Leader)</option>
-                      <option value="DISTRICT">District (District Leader)</option>
-                      <option value="SR_REP">Sr. Rep (Senior Representative)</option>
-                      <option value="REP">Rep (Representative)</option>
+                      <option value="SNSD">{t('auth.primerica.level.snsd')}</option>
+                      <option value="NSD">{t('auth.primerica.level.nsd')}</option>
+                      <option value="SVP">{t('auth.primerica.level.svp')}</option>
+                      <option value="RVP">{t('auth.primerica.level.rvp')}</option>
+                      <option value="RL">{t('auth.primerica.level.rl')}</option>
+                      <option value="DL">{t('auth.primerica.level.dl')}</option>
+                      <option value="DISTRICT">{t('auth.primerica.level.district')}</option>
+                      <option value="SR_REP">{t('auth.primerica.level.srRep')}</option>
+                      <option value="REP">{t('auth.primerica.level.rep')}</option>
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="solutionNumber">What is your solution number?</label>
-                    <input id="solutionNumber" name="solutionNumber" placeholder="Enter your Primerica solution number" />
+                    <label htmlFor="solutionNumber">{t('auth.primerica.solutionNumberLabel')}</label>
+                    <input id="solutionNumber" name="solutionNumber" placeholder={t('auth.primerica.solutionNumberPlaceholder')} />
                   </div>
                   <div className="field">
-                    <label htmlFor="supportRelationship">Who can you identify for pairing?</label>
+                    <label htmlFor="supportRelationship">{t('auth.primerica.pairingQuestion')}</label>
                     <select id="supportRelationship" name="supportRelationship" defaultValue="IMMEDIATE_UPLINE">
-                      <option value="IMMEDIATE_UPLINE">My immediate upline</option>
-                      <option value="FIELD_TRAINER">My field trainer</option>
-                      <option value="RVP">My RVP</option>
-                      <option value="UNKNOWN">I do not know yet</option>
+                      <option value="IMMEDIATE_UPLINE">{t('auth.primerica.pairing.upline')}</option>
+                      <option value="FIELD_TRAINER">{t('auth.primerica.pairing.fieldTrainer')}</option>
+                      <option value="RVP">{t('auth.primerica.pairing.rvp')}</option>
+                      <option value="UNKNOWN">{t('auth.primerica.pairing.unknown')}</option>
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="uplineName">Name of upline, field trainer, or RVP</label>
-                    <input id="uplineName" name="uplineName" placeholder="Name of the person this account should connect to" />
+                    <label htmlFor="uplineName">{t('auth.primerica.uplineNameLabel')}</label>
+                    <input id="uplineName" name="uplineName" placeholder={t('auth.primerica.uplineNamePlaceholder')} />
                   </div>
                   <div className="field">
-                    <label htmlFor="knowsUplineSolutionId">Do you know their solution ID?</label>
+                    <label htmlFor="knowsUplineSolutionId">{t('auth.primerica.knowsSolutionIdQuestion')}</label>
                     <select id="knowsUplineSolutionId" name="knowsUplineSolutionId" defaultValue="UNKNOWN">
-                      <option value="YES">Yes</option>
-                      <option value="NO">No</option>
-                      <option value="UNKNOWN">Not sure</option>
+                      <option value="YES">{t('common.yes')}</option>
+                      <option value="NO">{t('common.no')}</option>
+                      <option value="UNKNOWN">{t('auth.primerica.notSure')}</option>
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="uplineSolutionId">Upline solution ID</label>
-                    <input id="uplineSolutionId" name="uplineSolutionId" placeholder="If known, enter it so Harvest can pair accounts when both are on-platform" />
+                    <label htmlFor="uplineSolutionId">{t('auth.primerica.uplineSolutionIdLabel')}</label>
+                    <input id="uplineSolutionId" name="uplineSolutionId" placeholder={t('auth.primerica.uplineSolutionIdPlaceholder')} />
                   </div>
                 </div>
               ) : null}
             </div>
 
-            <div className="notice">Business-specific fields appear only after the business type or organization name makes them relevant. No real message, payment, or external account action happens in this demo.</div>
+            <div className="notice">{t('auth.demoDisclosureNotice')}</div>
             <div className="actions">
-              <button className="btn btn-primary" type="submit">Continue to onboarding</button>
-              <Link className="btn btn-secondary" href="/today">Skip to Today</Link>
+              <button className="btn btn-primary" type="submit">{t('auth.continueToOnboarding')}</button>
+              <Link className="btn btn-secondary" href="/today">{t('auth.skipToToday')}</Link>
             </div>
           </form>
           )}

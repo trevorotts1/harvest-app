@@ -4,17 +4,89 @@
     "loading": "Loading…",
     "cancel": "Cancel",
     "save": "Save",
-    "back": "Back"
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No"
   },
   "nav": {
     "team": "Team",
+    "teamAria": "Team navigation",
     "approvalInbox": "Approval Inbox",
     "grow": "Grow",
     "growArrow": "Grow →",
+    "orchardAria": "Open the Orchard",
     "community": "Community",
+    "communityAria": "Open Community",
     "subscription": "Subscription",
+    "subscriptionAria": "Subscription and billing",
     "dataPrivacy": "Data & Privacy",
-    "language": "Language"
+    "dataPrivacyAria": "Data and privacy — export or delete your data",
+    "language": "Language",
+    "languageAria": "Language settings"
+  },
+  "auth": {
+    "brandName": "The Harvest",
+    "title": "Enter the command center.",
+    "subtitle": "The demo classifies the business first, then reveals only the fields that match that business structure.",
+    "demoAccessBadge": "Demo access",
+    "registerTab": "Register",
+    "loginTab": "Login",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "skipToToday": "Skip to Today",
+    "nameLabel": "Name",
+    "roleLabel": "Role",
+    "roleOptionRep": "Rep/User",
+    "roleOptionUpline": "Upline",
+    "continueToOnboarding": "Continue to onboarding",
+    "demoDisclosureNotice": "Business-specific fields appear only after the business type or organization name makes them relevant. No real message, payment, or external account action happens in this demo.",
+    "wizard": {
+      "ariaLabel": "Business and industry wizard",
+      "badge": "Business / Industry wizard",
+      "industryQuestion": "What is the business industry?",
+      "businessModelQuestion": "Which structure best describes it?",
+      "businessModel": {
+        "downline": "Downline / team-based organization",
+        "franchise": "Franchise owner",
+        "independent": "Independent professional practice",
+        "localService": "Local service business",
+        "consulting": "Consulting firm",
+        "school": "School / education program",
+        "corporate": "Corporate team"
+      },
+      "franchiseTypeQuestion": "What type of franchise?",
+      "organizationNameLabel": "Name of business or organization",
+      "organizationNamePlaceholder": "Example: business, franchise, school, firm, or organization name"
+    },
+    "primerica": {
+      "levelLabel": "Primerica level",
+      "level": {
+        "snsd": "SNSD (Senior National Sales Director)",
+        "nsd": "NSD (National Sales Director)",
+        "svp": "SVP (Senior Vice President)",
+        "rvp": "RVP (Regional Vice President)",
+        "rl": "RL (Regional Leader)",
+        "dl": "DL (Division Leader)",
+        "district": "District (District Leader)",
+        "srRep": "Sr. Rep (Senior Representative)",
+        "rep": "Rep (Representative)"
+      },
+      "solutionNumberLabel": "What is your solution number?",
+      "solutionNumberPlaceholder": "Enter your Primerica solution number",
+      "pairingQuestion": "Who can you identify for pairing?",
+      "pairing": {
+        "upline": "My immediate upline",
+        "fieldTrainer": "My field trainer",
+        "rvp": "My RVP",
+        "unknown": "I do not know yet"
+      },
+      "uplineNameLabel": "Name of upline, field trainer, or RVP",
+      "uplineNamePlaceholder": "Name of the person this account should connect to",
+      "knowsSolutionIdQuestion": "Do you know their solution ID?",
+      "notSure": "Not sure",
+      "uplineSolutionIdLabel": "Upline solution ID",
+      "uplineSolutionIdPlaceholder": "If known, enter it so Harvest can pair accounts when both are on-platform"
+    }
   },
   "today": {
     "greeting": "Good morning, {name}",
@@ -33,7 +105,13 @@
       "quiet": "Quiet",
       "resting": "Resting"
     },
-    "receiptsCta": "See the one action that helps most"
+    "receiptsCta": "See the one action that helps most",
+    "laws": {
+      "grow": "Grow",
+      "engage": "Engage",
+      "wealth": "Wealth"
+    },
+    "criteriaHeading": "The ten criteria feeding your Grove"
   },
   "community": {
     "title": "Community",
