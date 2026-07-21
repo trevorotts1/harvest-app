@@ -97,7 +97,12 @@ export const FORBIDDEN_TERMS_ES: ForbiddenTermRule[] = [
   // is `potencial(?:es)?`, NOT `potenciales?` (which would require the misspelled "potenciale" and
   // silently never match the singular "potencial" at all; caught by this file's own test suite).
   { term: /\bclientes?\s+potencial(?:es)?\b/i, forbidden: 'cliente potencial', replacement: 'miembro de la comunidad / contacto' },
-  { term: /\b(?:discurso|presentaci[oó]n)\s+de\s+ventas?\b/i, forbidden: 'presentación de ventas', replacement: 'introducción comunitaria / invitación' },
+  // T-R34 fix: "discurso"/"presentación" both pluralize regularly ("discursos", "presentaciones" —
+  // the latter also drops its accent on pluralization, o→ó→"iones", same phenomenon as
+  // "conversión"→"conversiones" below), and the pre-fix pattern only matched the singular of each,
+  // so "presentaciones de ventas" / "discursos de ventas" slipped the runtime classifier entirely
+  // (confirmed via direct RegExp.test — see tests/unit/cfe-spanish.test.ts).
+  { term: /\b(?:discursos?|presentaci[oó]n(?:es)?)\s+de\s+ventas?\b/i, forbidden: 'presentación de ventas', replacement: 'introducción comunitaria / invitación' },
   { term: /\bcitas?\s+de\s+ventas?\b/i, forbidden: 'cita de ventas', replacement: 'introducción comunitaria' },
   // "vender/venta" — object-gated exactly like the English "selling" row: only when the thing being
   // sold is a PERSON, marked either by the "a [persona]" prepositional-object construction (the
@@ -126,13 +131,30 @@ export const FORBIDDEN_TERMS_ES: ForbiddenTermRule[] = [
     forbidden: 'cerrar (a una persona)',
     replacement: 'invitar, presentar, dar la bienvenida, incorporar',
   },
-  { term: /\bembudo\b/i, forbidden: 'embudo', replacement: 'proceso de introducción / proceso de cosecha' },
-  { term: /\bconversi[oó]n\b/i, forbidden: 'conversión', replacement: 'paso de compromiso / finalización de la introducción' },
+  // T-R34 fix: "embudo" regularly pluralizes to "embudos" — the pre-fix `\bembudo\b` word-boundary
+  // pattern excluded it (no boundary between "o" and a trailing "s"), so plural funnel-language
+  // slipped the runtime classifier (confirmed via direct RegExp.test).
+  { term: /\bembudos?\b/i, forbidden: 'embudo', replacement: 'proceso de introducción / proceso de cosecha' },
+  // T-R34 fix: same accent-drop-on-pluralization phenomenon documented on "potencial"/"seguidor"
+  // above — "conversión" -> "conversiones" drops its accent (ó -> o) AND the pre-fix pattern had no
+  // `(?:es)?` plural suffix at all, so "conversiones" slipped the runtime classifier entirely
+  // (confirmed via direct RegExp.test).
+  { term: /\bconversi[oó]n(?:es)?\b/i, forbidden: 'conversión', replacement: 'paso de compromiso / finalización de la introducción' },
   // Same pluralization note as "potencial" above: "seguidor" -> "seguidores" adds "-es".
   { term: /\bseguidor(?:es)?\b/i, forbidden: 'seguidores', replacement: 'miembro de la comunidad / miembro base / suscriptor' },
-  { term: /\bp[uú]blico\s+objetivo\b/i, forbidden: 'público objetivo', replacement: 'comunidad / equipo / base' },
-  { term: /\breclut(?:ar|amiento|ando|ados?|as)\b/i, forbidden: 'reclutar', replacement: 'invitar / auspiciar / sumar' },
-  { term: /\bcontacto\s+en\s+fr[ií]o\b/i, forbidden: 'contacto en frío', replacement: 'introducción comunitaria (siempre requiere un contexto cálido)' },
+  // T-R34 audit fix: both words of this compound noun phrase can independently pluralize
+  // ("públicos objetivo(s)" — used when copy refers to more than one target-audience segment); the
+  // pre-fix pattern only matched the fully-singular phrase, so any pluralized variant slipped the
+  // runtime classifier. Also accent-insensitive (público/publico) like the rest of this file.
+  { term: /\bp[uú]blicos?\s+objetivos?\b/i, forbidden: 'público objetivo', replacement: 'comunidad / equipo / base' },
+  // T-R34 audit fix: added the feminine past-participle forms "reclutada"/"reclutadas" (the pre-fix
+  // pattern's `ados?` alternative only covered the masculine "reclutado(s)") — same inflection-gap
+  // class as the confirmed-missing terms above, just gender agreement instead of pluralization.
+  { term: /\breclut(?:ar|amiento|ando|ad[oa]s?|as)\b/i, forbidden: 'reclutar', replacement: 'invitar / auspiciar / sumar' },
+  // T-R34 fix: "contacto" pluralizes regularly to "contactos" (first word of the phrase); the
+  // pre-fix pattern only matched the singular "contacto en frío", so "contactos en frío" slipped
+  // the runtime classifier entirely (confirmed via direct RegExp.test).
+  { term: /\bcontactos?\s+en\s+fr[ií]o\b/i, forbidden: 'contacto en frío', replacement: 'introducción comunitaria (siempre requiere un contexto cálido)' },
   { term: /\bingresos?\s+garantizados?\b/i, forbidden: 'ingreso garantizado', replacement: 'potencial (con la cláusula de exención de la FTC adjunta)' },
   { term: /\b(?:vas\s+a\s+ganar|ganar[aá]s)\b/i, forbidden: 'vas a ganar / ganarás', replacement: 'potencial (con la cláusula de exención de la FTC adjunta)' },
 ];

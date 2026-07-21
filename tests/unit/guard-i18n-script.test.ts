@@ -187,6 +187,150 @@ describe('scripts/guard-i18n.mjs — (B) layout growth-tolerance CSS scan', () =
   });
 });
 
+// T-R34 QC-reject follow-up (rejected 7.0): T-R34 widened six FORBIDDEN_TERMS_ES entries in
+// src/services/compliance/vocabulary.ts to catch inflected/plural forms — "embudo", "conversión",
+// "contacto en frío", "presentación de ventas" (+ "discurso de ventas"), "reclutar", and "público
+// objetivo" — and mirrored three of the multi-word/accent-sensitive ones into this script's
+// WORD_BOUNDARY_TERMS map. It MISSED mirroring "público objetivo": the plain `.includes('público
+// objetivo')` substring check does not match "públicos objetivos" / "públicos objetivo" (pluralizing
+// the first word inserts an "s" before the following space, breaking the substring — same defect
+// class as "contacto en frío"), so the copy-lint silently disagreed with the runtime classifier.
+// Fixed by adding the missing WORD_BOUNDARY_TERMS entry (mirroring vocabulary.ts's
+// `/\bp[uú]blicos?\s+objetivos?\b/i` exactly). This suite pins the fix and, per the audit this fix
+// required, proves the OTHER five widened terms already agree with the runtime (whether via their
+// own WORD_BOUNDARY_TERMS regex, or — for "embudo"/"reclutar" — the plain substring being a literal
+// prefix of every inflected form), so any future re-introduction of drift on any of the six is
+// caught here rather than slipping to QC again.
+describe('scripts/guard-i18n.mjs — T-R34 QC-reject follow-up: guard/runtime drift on all 6 widened ES terms', () => {
+  let dir: string;
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  describe('público objetivo (the missed mirror — this drift is what got T-R34 rejected)', () => {
+    test('the plural "públicos objetivos" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Define tus públicos objetivos antes de publicar' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+      expect(result.stderr).toMatch(/público objetivo/);
+    });
+
+    test('the mixed-plural "públicos objetivo" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Nuestros públicos objetivo son variados' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('the mixed-plural "público objetivos" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Elige tu público objetivos con cuidado' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('the fully-singular "público objetivo" is still caught — must FAIL (pre-existing, not a regression)', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Define tu público objetivo' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('benign "público general" does NOT false-positive — must PASS', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Este mensaje es para el público general' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(0);
+    });
+
+    test('benign "público" alone (no "objetivo" nearby) does NOT false-positive — must PASS', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Gracias, público, por su atención' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(0);
+    });
+
+    test('benign "objetivo" alone (no "público" nearby) does NOT false-positive — must PASS', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Nuestro objetivo es ayudarte a crecer' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(0);
+    });
+
+    test('benign "público" and "objetivo" both present but NOT adjacent/in-order does NOT false-positive — must PASS', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(
+        dir,
+        { ok: 'fine' },
+        { cta: 'Somos un público diverso, con un objetivo claro y compartido' }
+      );
+      const result = runGuard(dir);
+      expect(result.status).toBe(0);
+    });
+  });
+
+  describe('the other 5 T-R34-widened terms — confirming they already agree with the runtime', () => {
+    test('embudo: plural "embudos" is caught — must FAIL (plain substring is prefix-safe)', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Simplifica tus embudos de ventas' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('conversión: plural + accent-dropped "conversiones" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Mejora tus conversiones esta semana' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('contacto en frío: plural "contactos en frío" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Evita los contactos en frío' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('presentación de ventas: plural + accent-dropped "presentaciones de ventas" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Prepara tus presentaciones de ventas' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('discurso de ventas (the alternate noun sharing the same rule) is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'No uses un discurso de ventas' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('reclutar: feminine past-participle "reclutada" is caught — must FAIL (plain substring is prefix-safe)', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Fue reclutada la semana pasada' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+
+    test('reclutar: feminine plural past-participle "reclutadas" is caught — must FAIL', () => {
+      dir = makeScratchRepo();
+      writeCatalogs(dir, { ok: 'fine' }, { cta: 'Las nuevas reclutadas empiezan hoy' });
+      const result = runGuard(dir);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    });
+  });
+});
+
 describe('scripts/guard-i18n.mjs — against the REAL repo (no fixtures)', () => {
   test('running the real script from the real repo root exits 0 — the shipped catalog + CSS are clean', () => {
     const result = runGuard(REPO_ROOT);
