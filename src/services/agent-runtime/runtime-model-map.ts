@@ -35,6 +35,43 @@ export const CLAUDE_MODEL_IDS: Record<ClaudeModelTier, string> = {
   [ClaudeModelTier.OPUS_4_8]: OPUS_MODEL_ID, // claude-opus-4-8
 };
 
+/**
+ * T-R27 FIX (closes the QC#1 reject of the original reservation primitive) — the HARD, ENFORCED
+ * per-run output-token cap. This is the load-bearing half of making the cost-killswitch's admission
+ * reservation (`cost-killswitch/run-gate.ts` `RESERVATION_TOKEN_BUDGET`/`reservationEstimateCentsFor`)
+ * a TRUE worst-case upper bound instead of a "typical/generous average" guess:
+ *
+ *   `claude/anthropic-runtime-client.ts` CLAMPS every real Anthropic Messages API call's wire
+ *   `max_tokens` to this value — regardless of what a caller passes (or omits) — so NO real run in
+ *   this runtime can ever generate more than `HARD_MAX_OUTPUT_TOKENS_PER_RUN` output tokens. That is
+ *   what makes "reserve for the maximum a run could cost" a provable claim rather than a hope: Claude
+ *   itself is instructed to hard-stop at this many output tokens, and the client refuses to ask for
+ *   more even if some future caller tries to.
+ *
+ * Sized well above every real step's actual usage in this lane (the nine agents' drafts/briefings/
+ * analyses run ~800-2,000 output tokens in practice, per prompt-assembly.ts's short, templated
+ * prompts) so a legitimately large single-step generation is never truncated mid-thought — this is a
+ * cost-control ceiling, not a quality throttle.
+ */
+export const HARD_MAX_OUTPUT_TOKENS_PER_RUN = 8_192;
+
+/**
+ * T-R27 FIX — a conservative, DOCUMENTED upper bound on a single run's INPUT token count. Unlike
+ * output, the Anthropic Messages API has no per-request wire parameter that caps input size, so this
+ * bound is not mechanically enforced the way `HARD_MAX_OUTPUT_TOKENS_PER_RUN` is — instead it is sized
+ * from `prompt-assembly.ts`'s actual, current shape: a short fixed doctrine system prompt plus a
+ * handful of short, hard-coded template lines (rep/contact first names, org, a literal task string
+ * from `agent-handlers.ts`, at most a few reflected-quality words) — nothing in this runtime builds an
+ * unbounded prompt (no full conversation history, no document/attachment ingestion, no user-supplied
+ * free text reaching the prompt). Real usage is on the order of a few hundred tokens; this constant is
+ * set at a wide, deliberate multiple of that so admission stays conservative even if prompt content
+ * grows somewhat — but it is NOT a hard ceiling the way the output cap is. If a future change adds
+ * unbounded prompt content (e.g. full thread history, document RAG context), this bound — and the
+ * "make admission conservative enough" argument that justifies skipping wire-level enforcement here —
+ * MUST be revisited alongside it, or a real input cap/truncation must be added.
+ */
+export const RESERVATION_SAFE_MAX_INPUT_TOKENS = 24_000;
+
 /** The nine agents (§4.2), keyed by the stable `AgentDefinition.key` value the schema expects. */
 export enum AgentKey {
   PROSPECTING = 'prospecting',

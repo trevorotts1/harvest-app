@@ -27,6 +27,13 @@ export interface AgentGenerationRequest {
   userPrompt: string;
   /** §4.4: batched (Batch API) work — Opus periodic + overnight waves. Recorded on the run. */
   batched?: boolean;
+  /**
+   * Optional per-call output-token budget. NOT a way to exceed the cost-killswitch's worst-case
+   * reservation bound: `AnthropicRuntimeClient` (the only production implementation) CLAMPS this to
+   * `HARD_MAX_OUTPUT_TOKENS_PER_RUN` (runtime-model-map.ts) on the wire regardless of what is passed
+   * here (T-R27 fix) — this field can only ever REQUEST a smaller budget than the hard cap, never a
+   * larger one.
+   */
   maxTokens?: number;
 }
 

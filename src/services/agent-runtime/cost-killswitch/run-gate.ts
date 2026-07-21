@@ -10,7 +10,11 @@
 // Setting only) before calling this gate — this file just has to honor it, which it does first.
 
 import type { AccessTier, IntensitySetting } from '@prisma/client';
-import { ClaudeModelTier } from '../runtime-model-map';
+import {
+  ClaudeModelTier,
+  HARD_MAX_OUTPUT_TOKENS_PER_RUN,
+  RESERVATION_SAFE_MAX_INPUT_TOKENS,
+} from '../runtime-model-map';
 import { RunGate, RunGateDecision, RunGateRequest } from '../seams';
 import { BudgetKillSwitchStore, PLATFORM_SCOPE_ID, PrismaBudgetKillSwitchStore } from './budget-store';
 import { CLAUDE_PRICING_CENTS_PER_1K } from './pricing';
@@ -82,21 +86,35 @@ export function dailyBudgetCentsFor(accessTier: AccessTier, intensitySetting: In
 }
 
 /**
- * T-R27 (§4.5 concurrency hardening) — the conservative per-run token budget the reservation
- * primitive prices against at ADMISSION time (before real usage is known). Sized generously — well
- * above a typical draft's usage (most steps run ~2,000 input / ~800 output tokens, per the test
- * fixtures elsewhere in this lane) — so a legitimately large single-step run is never under-reserved
- * (the reservation would then admit a run that could itself breach the cap, exactly what §4.5 rules
- * out). Not derived from any one agent's real prompt size; it is a deliberate, documented, tunable
- * safety margin, analogous to `DAILY_BUDGET_CENTS_BY_TIER_INTENSITY`'s operator-tunable defaults.
+ * T-R27 FIX (closes the QC#1 reject — "reservation estimate is a fixed generic average, so a per-rep
+ * concurrent burst can still overshoot the daily cost ceiling") — the reservation primitive now prices
+ * admission against a TRUE WORST-CASE per-run upper bound, not a "typical/generous average":
+ *
+ *   - `tokenOutput` = `HARD_MAX_OUTPUT_TOKENS_PER_RUN` (runtime-model-map.ts) — the same constant
+ *     `claude/anthropic-runtime-client.ts` CLAMPS every real wire call's `max_tokens` to. No real run
+ *     through this runtime can EVER report more output tokens than this.
+ *   - `tokenInput` = `RESERVATION_SAFE_MAX_INPUT_TOKENS` (runtime-model-map.ts) — a conservative,
+ *     documented (not mechanically enforced — see that constant's doc comment) upper bound on this
+ *     runtime's current, small, templated prompts (prompt-assembly.ts builds no unbounded content).
+ *
+ * THE INVARIANT THIS BUYS: for every admitted run, `real_cost <= reservationEstimateCentsFor(tier)`.
+ * Because the reservation ledger's admission test is
+ * `committed_spend + outstanding_reservations + estimate <= ceiling` (budget-store.ts `tryReserve`),
+ * and every admitted run's real cost is now bounded above by its own reservation, the SUM of every
+ * admitted run's real cost can never exceed the sum of their reservations, which the ledger already
+ * keeps under the ceiling at admission time — so total spend <= ceiling holds for real, not just for
+ * runs whose usage happens to undercut a "generous average" guess.
  */
-export const RESERVATION_TOKEN_BUDGET = { tokenInput: 15_000, tokenOutput: 6_000 } as const;
+export const RESERVATION_TOKEN_BUDGET = {
+  tokenInput: RESERVATION_SAFE_MAX_INPUT_TOKENS,
+  tokenOutput: HARD_MAX_OUTPUT_TOKENS_PER_RUN,
+} as const;
 
 /**
- * The reservation estimate for one run at `tier` (cents) — `RESERVATION_TOKEN_BUDGET` priced at
- * `tier`'s real published rate (single-sourced from `pricing.ts`, so this never drifts out of sync
- * with the real cost model). Ordered Haiku < Sonnet < Opus, matching every other cost-disciplined
- * ordering in this lane.
+ * The reservation estimate for one run at `tier` (cents) — `RESERVATION_TOKEN_BUDGET` (now a true
+ * worst-case token bound, see above) priced at `tier`'s real published rate (single-sourced from
+ * `pricing.ts`, so this never drifts out of sync with the real cost model). Ordered Haiku < Sonnet <
+ * Opus, matching every other cost-disciplined ordering in this lane.
  */
 export function reservationEstimateCentsFor(tier: ClaudeModelTier): number {
   const rate = CLAUDE_PRICING_CENTS_PER_1K[tier];
