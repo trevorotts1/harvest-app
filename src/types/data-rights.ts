@@ -123,6 +123,15 @@ export interface LegalHoldRecord {
 
 export type DeletionStatus = 'PENDING' | 'PROCESSING' | 'HELD' | 'COMPLETED' | 'FAILED';
 
+// T-R29 (reachability build — master-spec §5.7 "24-hour cooling-off period for deletion
+// confirmation" / §9.3 "24-hour confirmation cooling-off period"): the real, reachable
+// `/api/data-rights/deletion/confirm` route (src/app/api/data-rights/deletion/confirm/route.ts)
+// enforces this window BEFORE calling `DataRightsService.processDeletion` — `processDeletion`
+// itself is left UNMODIFIED (T-11's crux logic), so the clock lives here, at the route layer,
+// keyed off the ALREADY-PERSISTED `UserDataDeletion.requested_at` timestamp `requestDeletion`
+// writes. No schema change: this is a duration constant, not a new column.
+export const DELETION_CONFIRMATION_COOLING_OFF_HOURS = 24;
+
 export interface RetainedRecordRef {
   /** e.g. "AuditEntry:<id>" */
   ref: string;
