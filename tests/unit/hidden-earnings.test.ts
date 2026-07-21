@@ -151,7 +151,11 @@ describe('(b) 0, 1, 2, 3 contacts → growth-path state, never NaN/$0/Infinity',
     for (const bad of [NaN, Infinity, -Infinity, -5, -0.0001]) {
       const result = computeHiddenEarnings({ contactCount: bad, orgType: OrgType.EXTERNAL });
       expect(result.kind).toBe('growth_path');
-      expect(Number.isNaN((result as unknown as { estimatedMonthlyValueUsd?: number }).estimatedMonthlyValueUsd)).toBe(false);
+      // The growth-path shape structurally carries no numeric dollar field at all — assert its
+      // absence directly. (Probing `estimatedMonthlyValueUsd` with `Number.isNaN` here would be
+      // vacuous: the field doesn't exist on this variant, so `Number.isNaN(undefined) === false`
+      // regardless of whether the engine is implemented correctly.)
+      expect('estimatedMonthlyValueUsd' in result).toBe(false);
       expect(JSON.stringify(result)).not.toMatch(/NaN|Infinity/);
     }
   });
