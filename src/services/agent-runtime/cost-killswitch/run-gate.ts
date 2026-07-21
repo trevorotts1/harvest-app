@@ -10,8 +10,14 @@
 // Setting only) before calling this gate — this file just has to honor it, which it does first.
 
 import type { AccessTier, IntensitySetting } from '@prisma/client';
+import {
+  ClaudeModelTier,
+  HARD_MAX_OUTPUT_TOKENS_PER_RUN,
+  RESERVATION_SAFE_MAX_INPUT_TOKENS,
+} from '../runtime-model-map';
 import { RunGate, RunGateDecision, RunGateRequest } from '../seams';
 import { BudgetKillSwitchStore, PLATFORM_SCOPE_ID, PrismaBudgetKillSwitchStore } from './budget-store';
+import { CLAUDE_PRICING_CENTS_PER_1K } from './pricing';
 
 /**
  * Daily token-budget ceilings, in cents, by tier x intensity (§4.2/§4.5: "Low < Medium < High" is
@@ -62,10 +68,58 @@ export function startOfUtcDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-/** The daily cents ceiling for a rep's tier x intensity (ENTERPRISE handled by the caller separately). */
+/**
+ * The daily cents ceiling for a rep's tier x intensity (ENTERPRISE handled by the caller
+ * separately). T-56 DRILL HARDENING: the accessTier dimension already fell back to a safe default
+ * table via `??`, but the intensity dimension had no equivalent fallback — an unrecognized/corrupt
+ * `intensitySetting` (a data-integrity gap, not a normal enum value) made `table[intensitySetting]`
+ * resolve to `undefined`, and `spend >= undefined` is ALWAYS `false` in JS, so the budget check
+ * could never trip: a mis-set threshold silently became UNLIMITED spend (fail-open) instead of
+ * halting (fail-closed), the opposite of §4.5's mandate. A missing/unknown ceiling now returns 0
+ * (halt immediately) rather than `undefined` (never trip) — "no known safe ceiling" must mean HALT,
+ * not "assume the largest one."
+ */
 export function dailyBudgetCentsFor(accessTier: AccessTier, intensitySetting: IntensitySetting): number {
   const table = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY[accessTier as Exclude<AccessTier, 'ENTERPRISE'>];
-  return (table ?? DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED)[intensitySetting];
+  const ceiling = (table ?? DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED)[intensitySetting];
+  return typeof ceiling === 'number' && Number.isFinite(ceiling) ? ceiling : 0;
+}
+
+/**
+ * T-R27 FIX (closes the QC#1 reject — "reservation estimate is a fixed generic average, so a per-rep
+ * concurrent burst can still overshoot the daily cost ceiling") — the reservation primitive now prices
+ * admission against a TRUE WORST-CASE per-run upper bound, not a "typical/generous average":
+ *
+ *   - `tokenOutput` = `HARD_MAX_OUTPUT_TOKENS_PER_RUN` (runtime-model-map.ts) — the same constant
+ *     `claude/anthropic-runtime-client.ts` CLAMPS every real wire call's `max_tokens` to. No real run
+ *     through this runtime can EVER report more output tokens than this.
+ *   - `tokenInput` = `RESERVATION_SAFE_MAX_INPUT_TOKENS` (runtime-model-map.ts) — a conservative,
+ *     documented (not mechanically enforced — see that constant's doc comment) upper bound on this
+ *     runtime's current, small, templated prompts (prompt-assembly.ts builds no unbounded content).
+ *
+ * THE INVARIANT THIS BUYS: for every admitted run, `real_cost <= reservationEstimateCentsFor(tier)`.
+ * Because the reservation ledger's admission test is
+ * `committed_spend + outstanding_reservations + estimate <= ceiling` (budget-store.ts `tryReserve`),
+ * and every admitted run's real cost is now bounded above by its own reservation, the SUM of every
+ * admitted run's real cost can never exceed the sum of their reservations, which the ledger already
+ * keeps under the ceiling at admission time — so total spend <= ceiling holds for real, not just for
+ * runs whose usage happens to undercut a "generous average" guess.
+ */
+export const RESERVATION_TOKEN_BUDGET = {
+  tokenInput: RESERVATION_SAFE_MAX_INPUT_TOKENS,
+  tokenOutput: HARD_MAX_OUTPUT_TOKENS_PER_RUN,
+} as const;
+
+/**
+ * The reservation estimate for one run at `tier` (cents) — `RESERVATION_TOKEN_BUDGET` (now a true
+ * worst-case token bound, see above) priced at `tier`'s real published rate (single-sourced from
+ * `pricing.ts`, so this never drifts out of sync with the real cost model). Ordered Haiku < Sonnet <
+ * Opus, matching every other cost-disciplined ordering in this lane.
+ */
+export function reservationEstimateCentsFor(tier: ClaudeModelTier): number {
+  const rate = CLAUDE_PRICING_CENTS_PER_1K[tier];
+  const raw = (RESERVATION_TOKEN_BUDGET.tokenInput / 1000) * rate.in + (RESERVATION_TOKEN_BUDGET.tokenOutput / 1000) * rate.out;
+  return Math.max(0, Math.round(raw));
 }
 
 export interface BudgetKillSwitchRunGateOptions {
@@ -120,7 +174,18 @@ export class BudgetKillSwitchRunGate implements RunGate {
 
     const since = startOfUtcDay(this.clock());
 
+    // T-R27 (§4.5 concurrency hardening): the reservation this admission would place if it clears
+    // every remaining check, priced conservatively for the tier the run will actually spend on.
+    // Reserved ONLY once every other check below has already passed (see the end of this method) —
+    // never left outstanding against a run this same call ultimately denies.
+    const estimate = reservationEstimateCentsFor(req.primaryTier);
+    let repReservationId: string | null = null;
+
     if (repInfo.accessTier === 'ENTERPRISE' && repInfo.organizationId) {
+      // NOT reservation-aware (out of scope here, same as multi-instance atomicity, §4.5 T-56 gap was
+      // documented for the PER-REP ceiling specifically): the org aggregate remains check-then-spend.
+      // A concurrent multi-rep burst against the SAME enterprise org ceiling could in principle hit
+      // the identical class of gap this unit closes for the per-rep case — flagged, not fixed, here.
       const orgSpend = await this.store.getOrgDailySpendCents(repInfo.organizationId, since);
       if (orgSpend >= ENTERPRISE_ORG_DAILY_BUDGET_CENTS) {
         await this.alertOperator({
@@ -135,13 +200,23 @@ export class BudgetKillSwitchRunGate implements RunGate {
     } else {
       const ceiling = dailyBudgetCentsFor(repInfo.accessTier, repInfo.intensitySetting);
       const repSpend = await this.store.getDailySpendCents(req.userId, since);
-      if (repSpend >= ceiling) {
+      // THE T-R27 FIX: `tryReserve` folds in every OTHER admitted-but-not-yet-committed run's
+      // outstanding reservation atomically, so a concurrent burst for this SAME rep can no longer
+      // have every call observe the identical pre-burst `repSpend` and all pass (T-56's documented
+      // gap) — each concurrent admission sees the reservations the others already placed.
+      repReservationId = await this.store.tryReserve(req.userId, repSpend, ceiling, estimate);
+      if (repReservationId === null) {
         return { allowed: false, reason: 'budget_exhausted' };
       }
     }
 
     const platformSpend = await this.store.getPlatformDailySpendCents(since);
     if (platformSpend >= PLATFORM_DAILY_BUDGET_CENTS) {
+      // Roll back: the per-rep reservation above was provisional on EVERY check passing. The
+      // platform-wide breach denies this run, so the hold must not outlive the denial (no leak).
+      if (repReservationId) {
+        await this.store.releaseReservation(req.userId, repReservationId);
+      }
       await this.alertOperator({
         kind: 'kill_switch_auto_trip',
         scope: 'PLATFORM',
@@ -152,7 +227,22 @@ export class BudgetKillSwitchRunGate implements RunGate {
       return { allowed: false, reason: 'budget_exhausted_platform' };
     }
 
-    return { allowed: true };
+    if (!repReservationId) {
+      return { allowed: true };
+    }
+
+    // Admitted, WITH an outstanding reservation the caller now owns. `released` guards against a
+    // double-release (defensive — a caller might release in both a success path and a `finally`).
+    let released = false;
+    const reservationId = repReservationId;
+    return {
+      allowed: true,
+      release: async () => {
+        if (released) return;
+        released = true;
+        await this.store.releaseReservation(req.userId, reservationId);
+      },
+    };
   }
 }
 

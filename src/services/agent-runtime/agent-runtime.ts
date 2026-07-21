@@ -190,122 +190,136 @@ export class AgentRuntime {
       return this.result(spec.key, 'deferred', runId, null, gate.reason ?? 'Deferred to the next budget window.', null);
     }
 
-    // 4. CFE fast-pause (§4.6 / §9.9-9): if the CFE is non-responsive, content agents HOLD immediately
-    //    — no generation, no output. (The authoritative gate is still the evaluateContent call below.)
-    if (spec.primarySurface !== 'internal' && !this.cfe.isAvailable()) {
-      const runId = await this.recordTerminalRun(spec, input, 'HELD', HELD_CFE_DOWN_REASON);
-      await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
-      return this.result(spec.key, 'held', runId, null, HELD_CFE_DOWN_REASON, null);
-    }
-
-    // Create the RUNNING run row now, so a crash mid-generation is visible as an interrupted run.
-    const runId = await this.store.createAgentRun({
-      agent_key: spec.key,
-      user_id: input.userId,
-      trigger: input.trigger,
-      model_used: spec.primaryTier,
-      batched: false,
-      status: 'RUNNING',
-      input_summary: input.task ?? null,
-      reasoning_log: null,
-    });
-
-    // 5. Generate on the INJECTED Claude client. Claude-only, fail-closed (§0.3/§4.6).
-    let output: AgentOutput;
+    // T-R27 (§4.5 concurrency hardening): step 3's gate may have placed an outstanding RESERVATION
+    // against this rep's budget (see seams.ts `RunGateDecision.release`). Every remaining exit path
+    // below — successful surfacing, an internal-only completion, a CFE hold, a missing-credential
+    // hold, AND a rethrown transient error — must release it exactly once, so a run's hold is dropped
+    // once its REAL cost has landed (or the run failed) and never leaks. `try/finally` covers the
+    // `throw` path too (finally always runs on the way out, success or exception alike).
     try {
-      output = await AGENT_HANDLERS[spec.key].handle({
-        input,
-        spec,
-        modelClient: this.modelClient,
-        segment: (contactId) => this.segment(contactId),
-        assemble: (surface, task) => assemblePrompt({ spec, surface, rep: input.rep ?? {}, contact: input.contact, task }),
-        generateStep: (role, surface, task) => this.generateStep(spec, role, surface, task, input),
-      });
-    } catch (err) {
-      if (err instanceof MissingClaudeCredentialError) {
-        // Fail CLOSED (§0.3 rule 3): no key → the run HOLDS. Never a non-Claude provider, never a stub.
-        await this.store.updateAgentRun(runId, { status: 'HELD', reasoning_log: HELD_NO_KEY_REASON, finished_at: this.clock() });
-        await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE); // terminal: a key won't appear on retry
-        return this.result(spec.key, 'held', runId, null, HELD_NO_KEY_REASON, null);
+      // 4. CFE fast-pause (§4.6 / §9.9-9): if the CFE is non-responsive, content agents HOLD immediately
+      //    — no generation, no output. (The authoritative gate is still the evaluateContent call below.)
+      if (spec.primarySurface !== 'internal' && !this.cfe.isAvailable()) {
+        const runId = await this.recordTerminalRun(spec, input, 'HELD', HELD_CFE_DOWN_REASON);
+        await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
+        return this.result(spec.key, 'held', runId, null, HELD_CFE_DOWN_REASON, null);
       }
-      // Transient (429 / timeout / network): record FAILED and RETHROW so the durable queue RETRIES
-      // (§4.6). Deliberately NOT marked processed, so the retry genuinely re-runs (no false dedup).
-      await this.store.updateAgentRun(runId, { status: 'FAILED', reasoning_log: 'Transient model error; the durable queue will retry.', finished_at: this.clock() });
-      throw err;
-    }
 
-    const usage = output.usage;
-    const modelUsed = usage?.tier ?? spec.primaryTier;
-    const costCents = usage ? this.costModel.costCents({ tier: usage.tier, tokenInput: usage.tokenInput, tokenOutput: usage.tokenOutput, batched: usage.batched }) : 0;
+      // Create the RUNNING run row now, so a crash mid-generation is visible as an interrupted run.
+      const runId = await this.store.createAgentRun({
+        agent_key: spec.key,
+        user_id: input.userId,
+        trigger: input.trigger,
+        model_used: spec.primaryTier,
+        batched: false,
+        status: 'RUNNING',
+        input_summary: input.task ?? null,
+        reasoning_log: null,
+      });
 
-    // 6. Internal/analytic output (numbers, no free-text reaching a human) → no CFE content decision.
-    if (output.surface === 'internal' || !output.text) {
+      // 5. Generate on the INJECTED Claude client. Claude-only, fail-closed (§0.3/§4.6).
+      let output: AgentOutput;
+      try {
+        output = await AGENT_HANDLERS[spec.key].handle({
+          input,
+          spec,
+          modelClient: this.modelClient,
+          segment: (contactId) => this.segment(contactId),
+          assemble: (surface, task) => assemblePrompt({ spec, surface, rep: input.rep ?? {}, contact: input.contact, task }),
+          generateStep: (role, surface, task) => this.generateStep(spec, role, surface, task, input),
+        });
+      } catch (err) {
+        if (err instanceof MissingClaudeCredentialError) {
+          // Fail CLOSED (§0.3 rule 3): no key → the run HOLDS. Never a non-Claude provider, never a stub.
+          await this.store.updateAgentRun(runId, { status: 'HELD', reasoning_log: HELD_NO_KEY_REASON, finished_at: this.clock() });
+          await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE); // terminal: a key won't appear on retry
+          return this.result(spec.key, 'held', runId, null, HELD_NO_KEY_REASON, null);
+        }
+        // Transient (429 / timeout / network): record FAILED and RETHROW so the durable queue RETRIES
+        // (§4.6). Deliberately NOT marked processed, so the retry genuinely re-runs (no false dedup).
+        await this.store.updateAgentRun(runId, { status: 'FAILED', reasoning_log: 'Transient model error; the durable queue will retry.', finished_at: this.clock() });
+        throw err;
+      }
+
+      const usage = output.usage;
+      const modelUsed = usage?.tier ?? spec.primaryTier;
+      const costCents = usage ? this.costModel.costCents({ tier: usage.tier, tokenInput: usage.tokenInput, tokenOutput: usage.tokenOutput, batched: usage.batched }) : 0;
+
+      // 6. Internal/analytic output (numbers, no free-text reaching a human) → no CFE content decision.
+      if (output.surface === 'internal' || !output.text) {
+        await this.store.updateAgentRun(runId, {
+          status: 'COMPLETED',
+          model_used: modelUsed,
+          token_input: usage?.tokenInput ?? 0,
+          token_output: usage?.tokenOutput ?? 0,
+          cost_cents: costCents,
+          reasoning_log: output.reasoning,
+          finished_at: this.clock(),
+        });
+        await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
+        return this.result(spec.key, 'completed_internal', runId, null, output.reasoning, null);
+      }
+
+      // 7. THE CFE SYNC-PATH GATE (§2.3/§5) — the single choke point. No human/contact-bound agent
+      //    output surfaces without a CFE decision; a non-released verdict HOLDS it (fail-closed §5.2).
+      const verdict = await this.cfe.evaluateContent({
+        content: output.text,
+        channel: cfeChannelFor(output.surface, output.channel),
+        userContext: { user_id: input.userId, role: 'REP' as Role, content_id: runId },
+      });
+
+      // §2.3 banding → surfacing: 0–10 (clear) and 11–70 (flag) both ENTER the Approval Inbox (still
+      // needing human/upline OK); only 71–100 (blocked) and any FAIL-CLOSED hold (CFE unavailable/
+      // timeout/exception, verdict.held) are withheld. So a held/blocked verdict is never sendable
+      // (fail-closed §5.2), while a flagged draft reaches the rep carrying its FLAG band (§9.2, T-33's
+      // upline-review path). A verdict is NEVER surfaced without this CFE decision (the choke point).
+      const held = verdict.held || verdict.band === 'blocked';
+      const approvalState = held ? 'HELD' : 'PENDING';
+      const cfeOutcome = bandToOutcome(verdict);
+
+      let draftMessageId: string | null = null;
+      if (output.surface === 'contact_outbound' && input.contactId) {
+        // Every agent-drafted outbound becomes an Approval-Inbox item CARRYING its CFE band (§9.2) —
+        // and it is created ONLY here, after a CFE decision. A held/blocked verdict lands as HELD
+        // (not sendable); clear/flag lands as PENDING (still needs a human OK before send, §5.1).
+        draftMessageId = await this.store.createDraftMessage({
+          user_id: input.userId,
+          contact_id: input.contactId,
+          channel: output.channel ?? 'SMS_HANDOFF',
+          body: output.text,
+          cfe_outcome: cfeOutcome,
+          cfe_risk_score: verdict.score,
+          cfe_classifier_data: verdict.classifierResults,
+          approval_state: approvalState,
+        });
+      }
+
+      const reasoning = `${output.reasoning} CFE ${verdict.band} (score ${verdict.score}) → ${held ? 'HELD for review' : 'entered the Approval Inbox'}.`;
       await this.store.updateAgentRun(runId, {
-        status: 'COMPLETED',
+        status: held ? 'HELD' : 'COMPLETED',
         model_used: modelUsed,
         token_input: usage?.tokenInput ?? 0,
         token_output: usage?.tokenOutput ?? 0,
         cost_cents: costCents,
-        reasoning_log: output.reasoning,
+        output_ref: draftMessageId,
+        reasoning_log: reasoning,
         finished_at: this.clock(),
       });
       await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
-      return this.result(spec.key, 'completed_internal', runId, null, output.reasoning, null);
-    }
 
-    // 7. THE CFE SYNC-PATH GATE (§2.3/§5) — the single choke point. No human/contact-bound agent
-    //    output surfaces without a CFE decision; a non-released verdict HOLDS it (fail-closed §5.2).
-    const verdict = await this.cfe.evaluateContent({
-      content: output.text,
-      channel: cfeChannelFor(output.surface, output.channel),
-      userContext: { user_id: input.userId, role: 'REP' as Role, content_id: runId },
-    });
-
-    // §2.3 banding → surfacing: 0–10 (clear) and 11–70 (flag) both ENTER the Approval Inbox (still
-    // needing human/upline OK); only 71–100 (blocked) and any FAIL-CLOSED hold (CFE unavailable/
-    // timeout/exception, verdict.held) are withheld. So a held/blocked verdict is never sendable
-    // (fail-closed §5.2), while a flagged draft reaches the rep carrying its FLAG band (§9.2, T-33's
-    // upline-review path). A verdict is NEVER surfaced without this CFE decision (the choke point).
-    const held = verdict.held || verdict.band === 'blocked';
-    const approvalState = held ? 'HELD' : 'PENDING';
-    const cfeOutcome = bandToOutcome(verdict);
-
-    let draftMessageId: string | null = null;
-    if (output.surface === 'contact_outbound' && input.contactId) {
-      // Every agent-drafted outbound becomes an Approval-Inbox item CARRYING its CFE band (§9.2) —
-      // and it is created ONLY here, after a CFE decision. A held/blocked verdict lands as HELD
-      // (not sendable); clear/flag lands as PENDING (still needs a human OK before send, §5.1).
-      draftMessageId = await this.store.createDraftMessage({
-        user_id: input.userId,
-        contact_id: input.contactId,
-        channel: output.channel ?? 'SMS_HANDOFF',
-        body: output.text,
-        cfe_outcome: cfeOutcome,
-        cfe_risk_score: verdict.score,
-        cfe_classifier_data: verdict.classifierResults,
-        approval_state: approvalState,
+      return this.result(spec.key, held ? 'held' : 'surfaced', runId, draftMessageId, reasoning, {
+        band: verdict.band,
+        released: verdict.released,
+        held: verdict.held,
+        score: verdict.score,
       });
+    } finally {
+      // Reconcile (T-R27): drop the admission-time hold now that this run's real cost has landed on
+      // the ledger (or the run failed) — on EVERY exit path, exactly once (release() itself guards
+      // against a double-call). A gate that never reserved (critical bypass, `AllowAllRunGate`, an
+      // unresolvable rep) leaves `gate.release` undefined — the `?.()` is then simply a no-op.
+      await gate.release?.();
     }
-
-    const reasoning = `${output.reasoning} CFE ${verdict.band} (score ${verdict.score}) → ${held ? 'HELD for review' : 'entered the Approval Inbox'}.`;
-    await this.store.updateAgentRun(runId, {
-      status: held ? 'HELD' : 'COMPLETED',
-      model_used: modelUsed,
-      token_input: usage?.tokenInput ?? 0,
-      token_output: usage?.tokenOutput ?? 0,
-      cost_cents: costCents,
-      output_ref: draftMessageId,
-      reasoning_log: reasoning,
-      finished_at: this.clock(),
-    });
-    await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
-
-    return this.result(spec.key, held ? 'held' : 'surfaced', runId, draftMessageId, reasoning, {
-      band: verdict.band,
-      released: verdict.released,
-      held: verdict.held,
-      score: verdict.score,
-    });
   }
 
   // ── internals ──────────────────────────────────────────────────────────────────────────────

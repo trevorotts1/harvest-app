@@ -28,6 +28,17 @@ export interface RunGateDecision {
   allowed: boolean;
   /** Machine reason when denied, e.g. 'budget_exhausted' | 'kill_switch' (rep-honest copy in §4.6). */
   reason?: string;
+  /**
+   * T-R27 (§4.5 concurrency hardening) — present only when `check()` placed an outstanding
+   * RESERVATION against the rep's budget as part of admitting this run (closes T-56's documented
+   * per-rep concurrent-burst gap: a reservation-aware gate, not just check-then-spend). The caller
+   * MUST invoke this exactly once, on EVERY exit path (successful completion, CFE hold, missing
+   * credential, thrown error alike) — typically via `try { ... } finally { await decision.release?.() }`
+   * — so the hold is dropped once the run's real cost has landed (or the run failed) and never leaks.
+   * Absent/undefined when no reservation was made (denied, critical-path bypass, an unresolvable rep,
+   * or a gate implementation — like `AllowAllRunGate` — that doesn't reserve at all).
+   */
+  release?: () => Promise<void>;
 }
 
 /**

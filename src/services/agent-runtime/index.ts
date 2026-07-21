@@ -25,6 +25,8 @@ export {
   getAgentSpec,
   tierForStep,
   agentDefinitionRows,
+  HARD_MAX_OUTPUT_TOKENS_PER_RUN,
+  RESERVATION_SAFE_MAX_INPUT_TOKENS,
 } from './runtime-model-map';
 export type { AgentSpec, AgentModelStep, AgentMode, OutputSurface } from './runtime-model-map';
 

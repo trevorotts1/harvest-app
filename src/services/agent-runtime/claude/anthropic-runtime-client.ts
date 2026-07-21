@@ -14,7 +14,7 @@ import {
   ANTHROPIC_API_VERSION,
   ANTHROPIC_MESSAGES_ENDPOINT,
 } from '@/types/compliance';
-import { CLAUDE_MODEL_IDS, ClaudeModelTier } from '../runtime-model-map';
+import { CLAUDE_MODEL_IDS, ClaudeModelTier, HARD_MAX_OUTPUT_TOKENS_PER_RUN } from '../runtime-model-map';
 import {
   AgentGenerationRequest,
   AgentGenerationResult,
@@ -78,9 +78,17 @@ export class AnthropicRuntimeClient implements AgentModelClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
+    // T-R27 FIX (closes QC#1 reject): CLAMP, never just default — `req.maxTokens` is trusted for
+    // anything UNDER the hard cap (a caller may legitimately want a smaller budget for a short step),
+    // but is never allowed to request MORE than `HARD_MAX_OUTPUT_TOKENS_PER_RUN` on the wire, even if
+    // some future caller passes a larger value. This is what makes the cost-killswitch's reservation
+    // estimate (cost-killswitch/run-gate.ts) a TRUE worst-case bound rather than a hopeful default:
+    // no real call through this client can EVER generate more output tokens than that reservation
+    // priced for.
+    const requestedMaxTokens = req.maxTokens ?? HARD_MAX_OUTPUT_TOKENS_PER_RUN;
     const body: Record<string, unknown> = {
       model: modelId, // a claude-* id from CLAUDE_MODEL_IDS — Claude-only (§0.3)
-      max_tokens: req.maxTokens ?? 1024,
+      max_tokens: Math.min(requestedMaxTokens, HARD_MAX_OUTPUT_TOKENS_PER_RUN),
       system: req.systemPrompt,
       messages: [{ role: 'user', content: req.userPrompt }],
     };

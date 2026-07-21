@@ -7,9 +7,12 @@ import {
   AgentKey,
   AgentModelError,
   AgentRuntime,
+  AnthropicRuntimeClient,
   ClaudeModelTier,
   CLAUDE_MODEL_IDS,
+  HARD_MAX_OUTPUT_TOKENS_PER_RUN,
   InMemoryAgentRuntimeStore,
+  RESERVATION_SAFE_MAX_INPUT_TOKENS,
 } from '@/services/agent-runtime';
 import type { AgentGenerationRequest, AgentGenerationResult, AgentModelClient } from '@/services/agent-runtime';
 import {
@@ -24,8 +27,11 @@ import {
   InMemoryBudgetKillSwitchStore,
   PLATFORM_DAILY_BUDGET_CENTS,
   TierPricingCostModel,
+  dailyBudgetCentsFor,
   isUnderCostPressure,
+  reservationEstimateCentsFor,
 } from '@/services/agent-runtime/cost-killswitch';
+import type { CreateAgentRunInput, UpdateAgentRunInput } from '@/services/agent-runtime';
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { ClaudeClassifierClient, ClassifierRequest } from '@/services/compliance/claude';
 import type { ClassifierVerdict } from '@/types/compliance';
@@ -39,6 +45,30 @@ class FixedConfidenceClassifierClient implements ClaudeClassifierClient {
   }
 }
 const clearCFE = () => new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0) });
+const blockedCFE = () => new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0.99) });
+
+/** Wraps InMemoryAgentRuntimeStore so a run's completed cost_cents is recorded onto the paired
+ *  budget ledger the moment the run finishes — mirroring the live relationship the real Prisma
+ *  stores have via `AgentRun.cost_cents` (§4.5: "every AgentRun records... giving a live per-rep
+ *  roll-up"), but in-memory so a load/concurrency drill needs no DB. */
+class SpendRecordingStore extends InMemoryAgentRuntimeStore {
+  private readonly userByRunId = new Map<string, string>();
+  constructor(private readonly budgetStore: InMemoryBudgetKillSwitchStore) {
+    super();
+  }
+  async createAgentRun(input: CreateAgentRunInput): Promise<string> {
+    const id = await super.createAgentRun(input);
+    this.userByRunId.set(id, input.user_id);
+    return id;
+  }
+  async updateAgentRun(id: string, patch: UpdateAgentRunInput): Promise<void> {
+    await super.updateAgentRun(id, patch);
+    if (typeof patch.cost_cents === 'number') {
+      const userId = this.userByRunId.get(id);
+      if (userId) this.budgetStore.recordSpend(userId, patch.cost_cents);
+    }
+  }
+}
 
 const REP_CONTEXT = { firstName: 'Tasha', organization: 'primerica' };
 
@@ -477,5 +507,498 @@ describe('Degradation ladder wired into the real runtime — honest, self-disclo
     expect(store.draftMessages).toHaveLength(0); // nothing sent
     expect(store.agentRuns.at(-1)?.status).toBe('FAILED');
     expect(await store.wasProcessed('floor-key')).toBe(false); // a genuine retry will re-run it
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// T-56 VERIFICATION DRILL — additive load/concurrency/adversarial proofs for §4.5/§4.6. Everything
+// below strengthens the T-31 proof suite above under many-run/concurrent/mis-configured conditions
+// it did not originally exercise. One real, non-trivial architectural gap is documented (not
+// papered over) at the bottom, left as a deliberately failing, clearly-labeled test.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// PROOF (d) — per-rep budget accuracy under load (drill requirement #1): many sequential AND
+// concurrent runs, plus per-rep isolation under concurrent load (drill requirement #4).
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('Per-rep budget accuracy under load (§4.5) — sequential + concurrent runs', () => {
+  // TEETH: if any run's cost silently failed to attribute, the ledger total would be LESS than the
+  // sum of the individually-recorded per-run costs.
+  test('20 SEQUENTIAL runs for one rep: the ledger total is exactly the sum of every individual run cost', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'HIGH', organizationId: null });
+    const store = new SpendRecordingStore(budgetStore);
+    const model = new TieredScriptedModelClient({}, { tokenInput: 2000, tokenOutput: 800 }); // 2 cents/run at Sonnet (exact, non-zero)
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, costModel: new TierPricingCostModel() });
+
+    let expectedTotal = 0;
+    for (let i = 0; i < 20; i++) {
+      await runtime.runAgent(job({ idempotencyKey: `seq-${i}` }));
+      expectedTotal += store.agentRuns.at(-1)!.cost_cents!;
+    }
+    expect(await budgetStore.getDailySpendCents('user-1', new Date(0))).toBe(expectedTotal);
+    expect(expectedTotal).toBeGreaterThan(0);
+  });
+
+  // TEETH: if concurrent writes clobbered/duplicated a run's cost, the ledger total would NOT equal
+  // (per-run cost) x N — either lower (lost writes) or higher (double-counted).
+  test('20 CONCURRENT runs for one rep: every run is attributed exactly once (no lost/duplicated spend)', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'ENTERPRISE', intensitySetting: 'HIGH', organizationId: null }); // no per-rep ceiling in play — accounting accuracy only
+    const store = new SpendRecordingStore(budgetStore);
+    const model = new TieredScriptedModelClient({}, { tokenInput: 2000, tokenOutput: 800 }); // 2 cents/run at Sonnet (exact, non-zero)
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, costModel: new TierPricingCostModel() });
+
+    const N = 20;
+    await Promise.all(Array.from({ length: N }, (_, i) => runtime.runAgent(job({ idempotencyKey: `conc-${i}` }))));
+
+    expect(store.agentRuns).toHaveLength(N);
+    const perRunCost = store.agentRuns[0].cost_cents!;
+    expect(perRunCost).toBeGreaterThan(0);
+    expect(await budgetStore.getDailySpendCents('user-1', new Date(0))).toBe(perRunCost * N);
+  });
+
+  // TEETH: if per-rep isolation broke (e.g. spend keyed by a constant instead of userId, or a
+  // kill-switch check used the wrong scopeId), rep B's concurrent runs would be wrongly blocked by
+  // rep A's trip, or rep A's trip would fail to hold while running concurrently with rep B.
+  test('per-rep isolation holds under concurrent load: rep A tripped + rep B clear, running concurrently', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('rep-a', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', organizationId: null });
+    // T-R27 FIX: rep B is on HIGH (ceiling 600), not LOW (150) — this test is about per-rep
+    // ISOLATION, not ceiling capacity, so it needs enough headroom for all N runs to fit under the
+    // now-TRUE-worst-case reservation (~19c/run at Sonnet; N=10 needs ~190, which LOW's 150 no longer
+    // comfortably admits now that the reservation isn't a "generous average" that under-reserves).
+    budgetStore.repContexts.set('rep-b', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'HIGH', organizationId: null });
+    await budgetStore.setKillSwitchState('REP', 'rep-a', true, 'rep A manually paused');
+
+    const store = new SpendRecordingStore(budgetStore);
+    const modelA = new TieredScriptedModelClient();
+    const modelB = new TieredScriptedModelClient();
+    const runtimeA = new AgentRuntime({ modelClient: modelA, cfe: clearCFE(), store, runGate: new BudgetKillSwitchRunGate({ store: budgetStore }) });
+    const runtimeB = new AgentRuntime({ modelClient: modelB, cfe: clearCFE(), store, runGate: new BudgetKillSwitchRunGate({ store: budgetStore }) });
+
+    const N = 10;
+    const [resultsA, resultsB] = await Promise.all([
+      Promise.all(Array.from({ length: N }, (_, i) => runtimeA.runAgent(job({ userId: 'rep-a', idempotencyKey: `a-${i}` })))),
+      Promise.all(Array.from({ length: N }, (_, i) => runtimeB.runAgent(job({ userId: 'rep-b', idempotencyKey: `b-${i}` })))),
+    ]);
+
+    expect(resultsA.every((r) => r.outcome === 'deferred')).toBe(true);
+    expect(modelA.calls).toHaveLength(0); // rep A: kill-switch held, zero spend, even under concurrent load
+    expect(resultsB.every((r) => r.outcome === 'surfaced')).toBe(true);
+    expect(modelB.calls).toHaveLength(N); // rep B: entirely unaffected by rep A's trip
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// PROOF (e) — kill-switch fail-CLOSED hardening (drill requirement #2): a missing/mis-set threshold
+// must halt, never allow unlimited spend; once tripped, it stays tripped for subsequent runs.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('Kill-switch fail-CLOSED hardening (§4.5) — a missing/mis-set threshold halts, never allows unlimited spend', () => {
+  // REAL GAP FOUND BY THIS DRILL, FIXED HERE (trivial, one-line, in the existing fallback pattern):
+  // `dailyBudgetCentsFor` already fell back to a safe table on an unrecognized accessTier (via `??`)
+  // but had NO equivalent fallback on the intensitySetting dimension. `table[intensitySetting]` on
+  // an unrecognized/corrupt value resolved to `undefined`, and `spend >= undefined` is ALWAYS false
+  // in JS (any comparison with NaN is false) — so the budget check could NEVER trip: a mis-set
+  // threshold silently became UNLIMITED spend (fail-open), the opposite of §4.5. Hardened to return
+  // 0 (halt immediately) instead of `undefined` (never trip) when the ceiling can't be resolved.
+  test('an unrecognized/corrupt intensitySetting yields a fail-CLOSED (0-cent) ceiling, not an unlimited one', () => {
+    const ceiling = dailyBudgetCentsFor('PAID_INDIVIDUAL', 'BOGUS' as never);
+    expect(ceiling).toBe(0);
+    expect(Number.isFinite(ceiling)).toBe(true);
+  });
+
+  test('a rep with a corrupt intensitySetting is DENIED regardless of spend (halt, never unlimited)', async () => {
+    const store = new InMemoryBudgetKillSwitchStore();
+    store.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'BOGUS' as never, organizationId: null });
+    // Deliberately well under PLATFORM_DAILY_BUDGET_CENTS so the (unrelated) platform circuit
+    // breaker can't independently save this check — this test must fail/pass on the
+    // intensitySetting-ceiling fallback ALONE, not be masked by a different gate tripping too.
+    store.recordSpend('user-1', 10_000);
+    expect(10_000).toBeLessThan(PLATFORM_DAILY_BUDGET_CENTS);
+    const gate = new BudgetKillSwitchRunGate({ store });
+    const decision = await gate.check({ userId: 'user-1', agentKey: AgentKey.PROSPECTING, criticality: 'non_critical', primaryTier: ClaudeModelTier.SONNET_5 });
+    expect(decision.allowed).toBe(false); // fail CLOSED
+  });
+
+  // Fail-closed even at literally zero recorded spend: "no known safe ceiling" must mean HALT, not
+  // "assume the largest one" — a brand-new rep with a corrupt threshold must still halt.
+  test('a rep with a corrupt intensitySetting is DENIED even at zero recorded spend', async () => {
+    const store = new InMemoryBudgetKillSwitchStore();
+    store.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'BOGUS' as never, organizationId: null });
+    const gate = new BudgetKillSwitchRunGate({ store });
+    const decision = await gate.check({ userId: 'user-1', agentKey: AgentKey.PROSPECTING, criticality: 'non_critical', primaryTier: ClaudeModelTier.SONNET_5 });
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe('budget_exhausted');
+  });
+
+  // "Once tripped, subsequent runs are blocked — not silently allowed": a manual REP trip must deny
+  // every check call for as long as it stays tripped, not just the first.
+  test('once manually tripped, EVERY subsequent check call denies (not a one-shot deny)', async () => {
+    const store = new InMemoryBudgetKillSwitchStore();
+    store.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', organizationId: null });
+    await store.setKillSwitchState('REP', 'user-1', true, 'operator pause');
+    const gate = new BudgetKillSwitchRunGate({ store });
+    for (let i = 0; i < 5; i++) {
+      const decision = await gate.check({ userId: 'user-1', agentKey: AgentKey.PROSPECTING, criticality: 'non_critical', primaryTier: ClaudeModelTier.SONNET_5 });
+      expect(decision.allowed).toBe(false);
+      expect(decision.reason).toBe('kill_switch_rep');
+    }
+  });
+
+  // "Once tripped" via budget exhaustion (not a manual toggle) is equally sticky: the ledger never
+  // decreases, so a second immediately-following check (no new spend recorded) must ALSO deny.
+  test('once budget-exhausted, a SECOND immediately-following check call ALSO denies (sticky, not a fluke)', async () => {
+    const store = new InMemoryBudgetKillSwitchStore();
+    store.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', organizationId: null });
+    store.recordSpend('user-1', DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.PAID_INDIVIDUAL.LOW);
+    const gate = new BudgetKillSwitchRunGate({ store });
+    const first = await gate.check({ userId: 'user-1', agentKey: AgentKey.PROSPECTING, criticality: 'non_critical', primaryTier: ClaudeModelTier.SONNET_5 });
+    const second = await gate.check({ userId: 'user-1', agentKey: AgentKey.PROSPECTING, criticality: 'non_critical', primaryTier: ClaudeModelTier.SONNET_5 });
+    expect(first.allowed).toBe(false);
+    expect(second.allowed).toBe(false);
+  });
+
+  // A missing ANTHROPIC_API_KEY is a different flavor of "missing threshold" (no credential at
+  // all): it must halt via AgentRuntime, never fall back to a non-Claude provider or a stub, even
+  // when the budget/kill-switch gate itself would have allowed the run.
+  test('missing Claude credential halts the run (fail-closed) even when the budget/kill-switch gate allows it', async () => {
+    const store = new InMemoryAgentRuntimeStore();
+    const runtime = new AgentRuntime({ cfe: clearCFE(), store, costModel: new TierPricingCostModel() }); // real AnthropicRuntimeClient, no key
+    const res = await runtime.runAgent(job());
+    expect(res.outcome).toBe('held');
+    expect(store.draftMessages).toHaveLength(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// PROOF (f) — compliance is never traded away for cost (drill requirement #3): a degraded or
+// critical-bypassed run is STILL CFE-gated; the cost lane can never suppress the compliance lane.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('Compliance is never traded away for cost (§2.3/§4.5/§4.6) — CFE still gates degraded/critical-bypass runs', () => {
+  // TEETH: if DegradingModelClient or AgentRuntime ever short-circuited the CFE call for a
+  // cost-pressure-degraded run, this blocked-content run would surface instead of holding.
+  test('a cost-pressure-degraded (Sonnet->Haiku) run is STILL CFE-gated: a blocked verdict still HOLDS', async () => {
+    const store = new InMemoryAgentRuntimeStore();
+    const inner = new TieredScriptedModelClient(); // succeeds at any tier — no rate-limit involved
+    const degradingClient = new DegradingModelClient(inner, { costPressureCheck: () => true });
+    const runtime = new AgentRuntime({ modelClient: degradingClient, cfe: blockedCFE(), store, costModel: new TierPricingCostModel() });
+
+    const res = await runtime.runAgent(job());
+    expect(inner.calls.map((c) => c.tier)).toEqual([ClaudeModelTier.HAIKU_4_5]); // degraded proactively, in-roster
+    expect(res.outcome).toBe('held'); // CFE still blocked — cost pressure never bypasses compliance
+    // A blocked verdict still lands as a DraftMessage row (§9.2 — it carries its CFE band for the
+    // record) but it is HELD, never sendable/approvable — that's the fail-closed contract.
+    expect(store.draftMessages.at(-1)?.approval_state).toBe('HELD');
+    expect(store.draftMessages.at(-1)?.cfe_outcome).toBe('BLOCK');
+  });
+
+  // TEETH: if the RunGate's critical-path bypass (§4.5) were mistakenly wired to also bypass the
+  // CFE (instead of only the budget/kill-switch gate), this over-budget/killed critical run's
+  // blocked content would surface instead of holding.
+  test('the critical-path budget/kill-switch bypass does NOT bypass the CFE — a blocked Appointment Setting draft still HOLDS', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', organizationId: null });
+    budgetStore.recordSpend('user-1', 999_999);
+    await budgetStore.setKillSwitchState('REP', 'user-1', true, 'operator-requested pause');
+
+    const store = new InMemoryAgentRuntimeStore();
+    const model = new TieredScriptedModelClient();
+    const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
+    const runtime = new AgentRuntime({ modelClient: model, cfe: blockedCFE(), store, runGate });
+
+    const res = await runtime.runAgent(job({ agentKey: AgentKey.APPOINTMENT_SETTING }));
+    expect(model.calls.length).toBeGreaterThan(0); // RunGate let it spend (critical path, §4.5)
+    expect(res.outcome).toBe('held'); // but the CFE still blocked it — never sendable
+    expect(store.draftMessages.at(-1)?.approval_state).toBe('HELD'); // carries the BLOCK band, never approvable
+    expect(store.draftMessages.at(-1)?.cfe_outcome).toBe('BLOCK');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// PROOF (g) — UNDER LOAD (drill requirement #4): the kill-switch trips at the right point, degraded
+// calls stay in-roster even under a heavy concurrent adversarial burst on ONE shared client, and —
+// documented rather than papered over — the one real gap this drill found in the cost lane (T-56),
+// CLOSED by T-R27's reservation primitive (run-gate.ts `tryReserve`/`releaseReservation`) below.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('UNDER LOAD (§4.5/§4.6, drill requirement #4)', () => {
+  // T-R27 UPDATE: before the reservation fix, this test asserted the SAME overshoot pattern as the
+  // (then-failing) KNOWN GAP test below — just with a smaller burst (6, not 10) and a looser bound
+  // ("crosses the ceiling" rather than "never overshoots by more than one run's cost"). A burst of 6
+  // x 18 cents against this 40-cent ceiling is EXACTLY the class of concurrent-burst overshoot §4.5
+  // rules out ("no path spends past the cap"), so once the reservation primitive closes that gap for
+  // real, this scenario's admitted spend is bounded too — it no longer "comfortably clears" the
+  // ceiling; admission stops itself at 2 runs (2 x 18 = 36 <= the 40-cent ceiling, ZERO overshoot),
+  // denying the other 4 WITHIN the burst itself (not merely after it settles). The still-valid part
+  // of this test's original intent — "once at/near the ceiling, a run fired after settling is denied"
+  // — is preserved below.
+  test('a concurrent burst for ONE rep is admission-bounded by the reservation, not just denied after it settles (the trip point is honored)', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'FREE_ORG_LINKED', intensitySetting: 'LOW', organizationId: null });
+    const ceiling = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED.LOW; // 40 cents
+    const store = new SpendRecordingStore(budgetStore);
+    const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
+    const model = new TieredScriptedModelClient({}, { tokenInput: 20000, tokenOutput: 8000 }); // 18 cents/run at Sonnet (exact)
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, runGate, costModel: new TierPricingCostModel() });
+
+    // A burst of 6 concurrent runs; unmitigated (T-56's gap) 6 x 18 = 108 cents would comfortably
+    // clear the 40-cent ceiling. WITH the reservation fix, admission itself stays inside the cap.
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => runtime.runAgent(job({ idempotencyKey: `burst-${i}` }))));
+    const totalAfterBurst = await budgetStore.getDailySpendCents('user-1', new Date(0));
+
+    expect(totalAfterBurst).toBeLessThanOrEqual(ceiling); // NO overshoot at all — the fix is exact here
+    expect(totalAfterBurst).toBeGreaterThan(0); // sanity: SOME of the burst legitimately ran
+    const surfaced = results.filter((r) => r.outcome === 'surfaced');
+    const deferred = results.filter((r) => r.outcome === 'deferred');
+    expect(surfaced.length).toBeGreaterThan(0); // some of the burst was admitted...
+    expect(deferred.length).toBeGreaterThan(0); // ...and the rest was denied WITHIN the burst itself
+    expect(model.calls).toHaveLength(surfaced.length); // exactly the admitted subset actually spent
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // no leaked reservations
+
+    // Now that the ledger has settled, a FRESH run fired after the burst MUST be denied.
+    const after = await runtime.runAgent(job({ idempotencyKey: 'after-burst' }));
+    expect(after.outcome).toBe('deferred');
+    expect(model.calls).toHaveLength(surfaced.length); // the post-settlement run added ZERO further spend
+  });
+
+  // Adversarial (worse than production wiring, which builds a fresh DegradingModelClient per
+  // dispatch invocation, §4.5/§4.6 wiring.ts): even sharing ONE instance across a heavy concurrent
+  // burst, every individual call still independently resolves in-roster — never off-Claude.
+  test('a heavy concurrent 429 burst on a SHARED DegradingModelClient: every call still resolves in-roster (Haiku), never off-Claude', async () => {
+    const inner = new TieredScriptedModelClient({ [ClaudeModelTier.SONNET_5]: rateLimitError() });
+    const client = new DegradingModelClient(inner);
+    const N = 25;
+    const results = await Promise.all(
+      Array.from({ length: N }, () => client.generate({ tier: ClaudeModelTier.SONNET_5, systemPrompt: 's', userPrompt: 'u' }))
+    );
+    for (const r of results) {
+      expect(r.tier).toBe(ClaudeModelTier.HAIKU_4_5); // every call individually degraded correctly
+      expect(r.modelId).toMatch(/^claude-/); // never off-Claude, even under a shared-instance burst
+    }
+    expect(inner.calls.every((c) => CLAUDE_MODEL_IDS[c.tier].startsWith('claude-'))).toBe(true);
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────────────────────
+  // FIXED (T-56 drill finding → T-R27 reservation fix, run-gate.ts). Was: "KNOWN GAP: a concurrent
+  // burst for ONE rep can overshoot the daily ceiling by more than one run's cost."
+  //
+  // The RunGate USED TO BE a "check-then-spend" gate with no reservation/lock: `AgentRuntime.runAgent`
+  // consulted `RunGate.check()` ONCE, near the top of the run, and a run's cost was only attributed
+  // to the per-rep ledger at the very END (after generation + CFE complete). Under a concurrent
+  // burst for the SAME rep, every call's `check()` could observe the SAME pre-burst spend (because
+  // none of the others had recorded its cost yet) and all of them would pass — so the per-rep daily
+  // ceiling could be overshot by up to (burst size - 1) extra runs' worth of spend. A genuine
+  // violation of "no path spends past the cap" under concurrent load for ONE rep, not observable from
+  // sequential traffic, only from real concurrency.
+  //
+  // FIXED by `BudgetKillSwitchStore.tryReserve`/`releaseReservation` (budget-store.ts's
+  // `ReservationLedger`) + `BudgetKillSwitchRunGate.check()` (run-gate.ts): admission now atomically
+  // folds in every OTHER admitted-but-not-yet-committed run's outstanding reservation, so concurrent
+  // admissions for the SAME rep see each other's in-flight holds — the burst is now bounded AT
+  // ADMISSION TIME, not just after it settles. `AgentRuntime.runAgent` releases the hold in a
+  // `try/finally` on every exit path once the run's real cost lands (or it fails), so nothing leaks.
+  // NOT covered by this fix (documented, not papered over): the ENTERPRISE org-aggregate ceiling and
+  // the platform-wide ceiling remain check-then-spend (same theoretical gap under a concurrent
+  // MULTI-rep burst against those shared caps) — the T-56 gap was specifically the PER-REP ceiling,
+  // and preserving per-rep isolation was the explicit scope here. Also out of scope: cross-Node-
+  // instance atomicity (the reservation tally is in-process only — see `ReservationLedger`'s doc
+  // comment) — a separate, larger concern (T-R5).
+  // ────────────────────────────────────────────────────────────────────────────────────────────
+  test('a concurrent burst for ONE rep can no longer overshoot the daily ceiling by more than one run\'s cost', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'FREE_ORG_LINKED', intensitySetting: 'LOW', organizationId: null });
+    const ceiling = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED.LOW; // 40 cents
+    const store = new SpendRecordingStore(budgetStore);
+    const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
+    const model = new TieredScriptedModelClient({}, { tokenInput: 20000, tokenOutput: 8000 }); // 18 cents/run
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, runGate, costModel: new TierPricingCostModel() });
+
+    const BURST = 10; // pre-fix, if the race fired, 10 x 18 = 180 cents against a 40-cent cap
+    await Promise.all(Array.from({ length: BURST }, (_, i) => runtime.runAgent(job({ idempotencyKey: `race-${i}` }))));
+
+    const totalSpend = await budgetStore.getDailySpendCents('user-1', new Date(0));
+    // Fail-closed behavior: spend never lands more than one run's cost past the cap. Pre-fix this
+    // FAILED (every run in the burst observed spend=0 at check time and all spent, landing at 180).
+    expect(totalSpend).toBeLessThan(ceiling + 18);
+    // TIGHTER bound, now provable: with a burst LARGER than the ceiling can admit, the reservation
+    // fix actually holds spend at-or-under the ceiling exactly (no overshoot at all in this case) —
+    // burst size beyond what fits is irrelevant, admission stops itself the same way regardless.
+    expect(totalSpend).toBeLessThanOrEqual(ceiling);
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // no leaked reservations
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// T-R27 FIX (closes the QC#1 reject — "reservation estimate is a fixed generic average, so a per-rep
+// concurrent burst can STILL overshoot the daily cost ceiling"). run-gate.ts's `RESERVATION_TOKEN_BUDGET`
+// is no longer a "typical/generous average" — it is now the TRUE worst-case per-run bound:
+//   tokenOutput = HARD_MAX_OUTPUT_TOKENS_PER_RUN — ENFORCED on the wire (AnthropicRuntimeClient
+//     clamps every real call's max_tokens to this, regardless of what a caller passes/omits).
+//   tokenInput  = RESERVATION_SAFE_MAX_INPUT_TOKENS — a documented, conservative bound on
+//     prompt-assembly.ts's actual (small, templated) prompt shape.
+// THE INVARIANT: for every admitted run, real_cost <= reservationEstimateCentsFor(tier). Since the
+// ledger's admission test is committed + outstanding + estimate <= ceiling (budget-store.ts
+// `tryReserve`), and every admitted run's real cost is now bounded by its own reservation, the sum of
+// real costs across an admitted burst can never exceed the ceiling either.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('T-R27 FIX: the reservation is a TRUE worst-case bound (real_cost <= reserved_estimate)', () => {
+  const costModel = new TierPricingCostModel();
+
+  // THE INVARIANT, proven for all three Claude tiers — at the QC break-case usage (20000in/8000out,
+  // the EXACT numbers that produced the pre-fix 180-cent and 756-cent overshoots) and at the true
+  // wire-enforced worst case. TEETH: mutating RESERVATION_TOKEN_BUDGET back toward a smaller
+  // "generous average" (e.g. the old {15_000, 6_000}) makes the first assertion fail for Sonnet
+  // (14 < 18) — proven manually during verification (see build report), then reverted via
+  // `git checkout --`.
+  test.each([ClaudeModelTier.HAIKU_4_5, ClaudeModelTier.SONNET_5, ClaudeModelTier.OPUS_4_8])(
+    'reservationEstimateCentsFor(%s) >= real cost at the QC break-case usage AND equals the true worst case',
+    (tier) => {
+      const reserved = reservationEstimateCentsFor(tier);
+
+      // The exact usage QC's TieredScriptedModelClient fixtures use to reproduce the overshoot.
+      const qcBreakCaseCost = costModel.costCents({ tier, tokenInput: 20_000, tokenOutput: 8_000, batched: false });
+      expect(reserved).toBeGreaterThanOrEqual(qcBreakCaseCost);
+
+      // The true worst case this runtime can ever produce: input at the documented safe bound,
+      // output AT the wire-enforced hard cap.
+      const trueWorstCaseCost = costModel.costCents({
+        tier,
+        tokenInput: RESERVATION_SAFE_MAX_INPUT_TOKENS,
+        tokenOutput: HARD_MAX_OUTPUT_TOKENS_PER_RUN,
+        batched: false,
+      });
+      expect(reserved).toBeGreaterThanOrEqual(trueWorstCaseCost);
+      // The estimate IS this worst case (derived from the identical constants), not merely >= it by
+      // coincidence — proves the estimate is DEFINED as the bound, not just numerically above it today.
+      expect(reserved).toBe(trueWorstCaseCost);
+    }
+  );
+
+  // TEETH: proves the output-token cap is actually ENFORCED on the real wire call, not merely
+  // documented/assumed. If a future change ever let a caller's requested maxTokens exceed the hard
+  // cap, this would fail — and the invariant above would stop being a real guarantee.
+  test('AnthropicRuntimeClient clamps max_tokens to HARD_MAX_OUTPUT_TOKENS_PER_RUN even when a caller requests more', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
+    let capturedBody: { max_tokens?: number } = {};
+    const fetchSpy = async (_url: string, init: { body: string }) => {
+      capturedBody = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1, output_tokens: 1 } }),
+      };
+    };
+    const client = new AnthropicRuntimeClient({ fetchImpl: fetchSpy as never });
+    await client.generate({ tier: ClaudeModelTier.SONNET_5, systemPrompt: 's', userPrompt: 'u', maxTokens: 999_999 });
+    expect(capturedBody.max_tokens).toBe(HARD_MAX_OUTPUT_TOKENS_PER_RUN);
+  });
+
+  test('AnthropicRuntimeClient defaults to the hard cap on the wire when no maxTokens is requested at all', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
+    let capturedBody: { max_tokens?: number } = {};
+    const fetchSpy = async (_url: string, init: { body: string }) => {
+      capturedBody = JSON.parse(init.body);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: 1, output_tokens: 1 } }),
+      };
+    };
+    const client = new AnthropicRuntimeClient({ fetchImpl: fetchSpy as never });
+    await client.generate({ tier: ClaudeModelTier.SONNET_5, systemPrompt: 's', userPrompt: 'u' });
+    expect(capturedBody.max_tokens).toBe(HARD_MAX_OUTPUT_TOKENS_PER_RUN);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// T-R27 FIX (cont'd) — the GENERALIZED burst test: total admitted spend stays <= ceiling across
+// MULTIPLE tier x intensity x ceiling x burst combinations (parametrized so this can't pass by a
+// lucky ratio), INCLUDING the two exact combinations QC used to break the original generic-average
+// estimate:
+//   PAID_INDIVIDUAL/LOW  ceiling 150, burst 10 @18c/run -> PRE-FIX spent 180 (overshoot 30)
+//   PAID_INDIVIDUAL/HIGH ceiling 600, burst 60 @18c/run -> PRE-FIX spent 756 (overshoot 156)
+// Both must now land at-or-under the ceiling, with zero leaked reservations.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('T-R27 FIX: total admitted spend never exceeds the ceiling, across tiers/ceilings/bursts (QC#1 reject cases)', () => {
+  const CASES: Array<{
+    label: string;
+    accessTier: 'PAID_INDIVIDUAL' | 'FREE_ORG_LINKED';
+    intensitySetting: 'LOW' | 'MEDIUM' | 'HIGH';
+    burst: number;
+  }> = [
+    { label: 'PAID_INDIVIDUAL/LOW (QC break case #1: ceiling 150, burst 10)', accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', burst: 10 },
+    { label: 'PAID_INDIVIDUAL/HIGH (QC break case #2: ceiling 600, burst 60)', accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'HIGH', burst: 60 },
+    { label: 'PAID_INDIVIDUAL/MEDIUM (ceiling 300, burst 25)', accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'MEDIUM', burst: 25 },
+    { label: 'FREE_ORG_LINKED/LOW (ceiling 40, burst 12 — not evenly divisible by the reservation)', accessTier: 'FREE_ORG_LINKED', intensitySetting: 'LOW', burst: 12 },
+    { label: 'FREE_ORG_LINKED/HIGH (ceiling 160, burst 45)', accessTier: 'FREE_ORG_LINKED', intensitySetting: 'HIGH', burst: 45 },
+  ];
+
+  test.each(CASES)('$label: total admitted spend stays <= ceiling', async ({ accessTier, intensitySetting, burst }) => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', {
+      accessTier: accessTier as never,
+      intensitySetting: intensitySetting as never,
+      organizationId: null,
+    });
+    const ceiling = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY[accessTier][intensitySetting];
+
+    const store = new SpendRecordingStore(budgetStore);
+    const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
+    // The EXACT QC break-case usage: 20000 input / 8000 output -> 18 cents/run at Sonnet 5
+    // (Prospecting's draft-step tier) — the numbers QC used to reproduce the overshoot.
+    const model = new TieredScriptedModelClient({}, { tokenInput: 20_000, tokenOutput: 8_000 });
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, runGate, costModel: new TierPricingCostModel() });
+
+    const results = await Promise.all(
+      Array.from({ length: burst }, (_, i) =>
+        runtime.runAgent(job({ idempotencyKey: `${accessTier}-${intensitySetting}-${i}` }))
+      )
+    );
+
+    const totalSpend = await budgetStore.getDailySpendCents('user-1', new Date(0));
+    expect(totalSpend).toBeLessThanOrEqual(ceiling); // THE INVARIANT: no overshoot, at any tier/ceiling/burst size
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // no leaked reservations
+
+    const surfaced = results.filter((r) => r.outcome === 'surfaced');
+    const deferred = results.filter((r) => r.outcome === 'deferred');
+    expect(surfaced.length).toBeGreaterThan(0); // sanity: some of the burst legitimately ran
+    expect(model.calls).toHaveLength(surfaced.length); // exactly the admitted subset actually spent
+    expect(surfaced.length + deferred.length).toBe(burst); // every run resolved one way or the other
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// T-R27 FIX (cont'd) — NO LEAK ON FAILURE (the drill gap QC flagged as uncovered): a reservation
+// placed at admission must be released even when the run does NOT complete normally — a
+// thrown/errored model call, and a missing-credential HOLD, must each leave 0 outstanding after.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('T-R27 FIX: no reservation leak on failure paths', () => {
+  test('a thrown (transient) model error still releases its reservation — 0 outstanding after', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', organizationId: null });
+    const store = new InMemoryAgentRuntimeStore();
+    const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
+    const model = new TieredScriptedModelClient({ [ClaudeModelTier.SONNET_5]: genericError() });
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, runGate });
+
+    await expect(runtime.runAgent(job({ idempotencyKey: 'fail-leak-check' }))).rejects.toThrow(/400/);
+
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // NOT leaked
+    expect(store.agentRuns.at(-1)?.status).toBe('FAILED');
+  });
+
+  test('a missing-credential HOLD still releases its reservation — 0 outstanding after', async () => {
+    const budgetStore = new InMemoryBudgetKillSwitchStore();
+    budgetStore.repContexts.set('user-1', { accessTier: 'PAID_INDIVIDUAL', intensitySetting: 'LOW', organizationId: null });
+    const store = new InMemoryAgentRuntimeStore();
+    const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
+    // Real AnthropicRuntimeClient (default modelClient), no ANTHROPIC_API_KEY (deleted in beforeEach)
+    // -> MissingClaudeCredentialError -> the run HOLDS.
+    const runtime = new AgentRuntime({ cfe: clearCFE(), store, runGate });
+
+    const res = await runtime.runAgent(job({ idempotencyKey: 'no-key-leak-check' }));
+
+    expect(res.outcome).toBe('held');
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // NOT leaked
   });
 });
