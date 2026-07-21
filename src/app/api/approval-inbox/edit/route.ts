@@ -33,7 +33,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   try {
@@ -54,10 +54,13 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     language?: unknown;
   };
   if (!draftId || typeof draftId !== 'string') {
-    return NextResponse.json({ error: '"draftId" (a single string id) is required.' }, { status: 400 });
+    return NextResponse.json({ error: '"draftId" (a single string id) is required.', code: 'DRAFT_ID_REQUIRED' }, { status: 400 });
   }
   if (typeof newBody !== 'string') {
-    return NextResponse.json({ error: '"body" (the edited text) must be a string.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"body" (the edited text) must be a string.', code: 'EDIT_BODY_INVALID_TYPE' },
+      { status: 400 }
+    );
   }
 
   // T-53 — the per-draft language toggle (uiux §6.2): optional; when present it MUST be a
@@ -67,7 +70,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   let contentLanguage: ContentLanguage | undefined;
   if (language !== undefined) {
     if (!isLocale(language)) {
-      return NextResponse.json({ error: '"language" must be "en" or "es".' }, { status: 400 });
+      return NextResponse.json({ error: '"language" must be "en" or "es".', code: 'LANGUAGE_INVALID' }, { status: 400 });
     }
     contentLanguage = language;
   }
@@ -79,10 +82,10 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
 
   if (!result.ok) {
     if (result.reason === 'not_found') {
-      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Draft not found', code: 'DRAFT_NOT_FOUND' }, { status: 404 });
     }
     if (result.reason === 'empty_body') {
-      return NextResponse.json({ error: '"body" cannot be empty.' }, { status: 400 });
+      return NextResponse.json({ error: '"body" cannot be empty.', code: 'EDIT_BODY_EMPTY' }, { status: 400 });
     }
     return NextResponse.json(
       {

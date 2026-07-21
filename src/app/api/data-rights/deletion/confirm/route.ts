@@ -50,7 +50,7 @@ export const POST = withCapability(
     const body = ((await req.json().catch(() => null)) ?? {}) as ConfirmBody;
     const deletionId = body.deletion_id;
     if (!deletionId || typeof deletionId !== 'string') {
-      return NextResponse.json({ error: '"deletion_id" is required.' }, { status: 400 });
+      return NextResponse.json({ error: '"deletion_id" is required.', code: 'DELETION_ID_REQUIRED' }, { status: 400 });
     }
     if (body.confirm !== true) {
       return NextResponse.json(
@@ -66,7 +66,7 @@ export const POST = withCapability(
     const existing = await prisma.userDataDeletion.findUnique({ where: { id: deletionId } });
     if (!existing || existing.user_id !== session.user.id) {
       // Never distinguish "does not exist" from "belongs to a different rep" — both 404 identically.
-      return NextResponse.json({ error: 'Deletion request not found.' }, { status: 404 });
+      return NextResponse.json({ error: 'Deletion request not found.', code: 'DELETION_NOT_FOUND' }, { status: 404 });
     }
 
     if (existing.status !== 'PENDING') {

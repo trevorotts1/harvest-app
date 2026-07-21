@@ -5,10 +5,18 @@ import './globals.css';
 import { THEME_INIT_SCRIPT } from './theme-init-script';
 import { LOCALE_INIT_SCRIPT } from './locale-init-script';
 import { TEXT_SCALE_INIT_SCRIPT } from './text-scale-init-script';
+import { DOCUMENT_TITLE_INIT_SCRIPT } from './document-title-init-script';
 import { Providers } from './providers';
 import SkipLinkText from './skip-link-text';
 import AppShell from '@/components/AppShell/AppShell';
 
+// T-57 RE-GATE B [af7789d3] Finding 3 — this static export is necessarily English-only (Next.js
+// renders it before any client-side locale resolution runs); `./document-title-init-script.ts`
+// (wired in below, `beforeInteractive`) is the pre-paint ES correction for an es-resolved rep —
+// see that file's own header for why a client-side fix was chosen over an async
+// `generateMetadata()` (would only cover signed-in reps with a saved server preference, not the
+// browser-language-detected first-load case this app already handles client-side for everything
+// else). Keep this EN copy and that script's hand-kept ES copy in sync.
 export const metadata: Metadata = {
   title: 'The Harvest | 2 Hour CEO',
   description: 'A calm command center for building a warm-market business with focus, compliance, and momentum.',
@@ -46,6 +54,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         */}
         <Script id="lfds-text-scale-init" strategy="beforeInteractive">
           {TEXT_SCALE_INIT_SCRIPT}
+        </Script>
+        {/*
+          T-57 RE-GATE B [af7789d3] Finding 3 — corrects <title>/the description <meta> to Spanish
+          for an es-resolved rep before first paint, same rationale/pattern as the theme/locale/
+          text-scale init scripts above. See ./document-title-init-script.ts's own header.
+        */}
+        <Script id="lfds-document-title-init" strategy="beforeInteractive">
+          {DOCUMENT_TITLE_INIT_SCRIPT}
         </Script>
       </head>
       <body>

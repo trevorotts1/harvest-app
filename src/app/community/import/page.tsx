@@ -34,6 +34,8 @@ import {
 } from './CsvImportPanel';
 import styles from '../community.module.css';
 import { useT } from '@/app/locale-context';
+import { errorDisplay } from '@/lib/i18n/error-display';
+import { MAX_IMPORT_ROWS } from '@/services/warm-market/vault/csv-parser';
 
 export default function CommunityImportPage() {
   const t = useT();
@@ -99,9 +101,11 @@ export default function CommunityImportPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ source: 'CSV', csvText, idempotencyKey }),
       });
-      const body = await response.json().catch(() => ({}) as { error?: string });
+      const body = await response.json().catch(() => ({}) as { code?: string });
       if (!response.ok) {
-        setError((body as { error?: string }).error ?? t('community.import.importFailedGeneric'));
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+        setError(errorDisplay(t, (body as { code?: string }).code, { maxRows: MAX_IMPORT_ROWS }));
         return;
       }
       setOutcome({

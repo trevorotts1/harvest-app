@@ -54,12 +54,22 @@ describe('Team dashboard page — i18n (EN default + genuine ES render, T-R32c)'
     expect(t('en', 'team.dashboard.emptyHeading')).toBe('Your team starts with one.');
     expect(t('es', 'team.dashboard.emptyHeading')).toBe('Tu equipo empieza con uno.');
     expect(t('en', 'team.dashboard.tableHeader.rep')).toBe('Rep');
-    expect(t('es', 'team.dashboard.tableHeader.rep')).toBe('Rep');
+    // T-57 RE-GATE B [af7789d3] F2 fix — this was an EN-identical ES value (a real defect this
+    // test previously encoded as "expected"); ES now gets its own real word, not the bare EN one.
+    expect(t('es', 'team.dashboard.tableHeader.rep')).toBe('Representante');
+    // T-57 RE-GATE B [af7789d3] F2 fix — migrated off the mechanical English "rep(s)" pattern to
+    // real CLDR _one/_other plural forms (a genuine singular/plural distinction in ES: rep/reps).
+    expect(t('en', 'team.dashboard.downlineLeakBody', { count: 1 })).toBe(
+      "1 rep hasn't been in the field for a while — a quiet coaching nudge, not a warning."
+    );
     expect(t('en', 'team.dashboard.downlineLeakBody', { count: 3 })).toBe(
-      "3 rep(s) haven't been in the field for a while — a quiet coaching nudge, not a warning."
+      "3 reps haven't been in the field for a while — a quiet coaching nudge, not a warning."
+    );
+    expect(t('es', 'team.dashboard.downlineLeakBody', { count: 1 })).toBe(
+      '1 rep no ha estado en el campo por un tiempo — un recordatorio de coaching discreto, no una advertencia.'
     );
     expect(t('es', 'team.dashboard.downlineLeakBody', { count: 3 })).toBe(
-      '3 rep(s) no han estado en el campo por un tiempo — un recordatorio de coaching discreto, no una advertencia.'
+      '3 reps no han estado en el campo por un tiempo — un recordatorio de coaching discreto, no una advertencia.'
     );
     expect(t('en', 'team.dashboard.fieldTrainerRatioBadge')).toBe("Your Field Trainer's Ratio");
     expect(t('es', 'team.dashboard.fieldTrainerRatioBadge')).toBe('La Proporción de tu Entrenador de Campo');

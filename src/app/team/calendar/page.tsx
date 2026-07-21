@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
+import { errorDisplay } from '@/lib/i18n/error-display';
 
 interface BroadcastEvent {
   id: string;
@@ -109,7 +110,9 @@ export default function TeamCalendarPage() {
     } else if (res.ok) {
       setCoachingMessage(t('team.calendar.proposedWaitingWindow'));
     } else {
-      setCoachingMessage(body.error ?? t('team.calendar.coachingProposeFailedGeneric'));
+      // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve a
+      // locale-correct string from the `errors.*` catalog by the route's machine `code`.
+      setCoachingMessage(errorDisplay(t, body.code));
     }
     await load();
   }, [state, load, t]);
@@ -130,7 +133,9 @@ export default function TeamCalendarPage() {
         ? body.outcome === 'booked'
           ? t('team.calendar.appointmentBookedNotice')
           : t('team.calendar.appointmentProposedNotice')
-        : body.error ?? t('team.calendar.appointmentProposeFailedGeneric')
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+        : errorDisplay(t, body.code)
     );
     await load();
   }, [state, proposeContactId, load, t]);

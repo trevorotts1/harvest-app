@@ -13,6 +13,7 @@ import { useSession } from 'next-auth/react';
 
 import styles from '../grow.module.css';
 import { useT } from '@/app/locale-context';
+import { errorDisplay } from '@/lib/i18n/error-display';
 
 export interface OrgSwitchPanelProps {
   currentOrgType: 'PRIMERICA' | 'EXTERNAL';
@@ -53,7 +54,9 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
       setStage('need_step_up');
       return false;
     }
-    setMessage(body.error ?? t('grow.orgSwitch.switchFailedGeneric'));
+    // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English/token `body.error`;
+    // resolve a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+    setMessage(errorDisplay(t, body.code));
     setStage('error');
     return false;
   };

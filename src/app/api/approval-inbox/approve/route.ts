@@ -22,7 +22,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   try {
@@ -40,10 +40,13 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
 
   const { draftId, justification } = body as { draftId?: unknown; justification?: unknown };
   if (!draftId || typeof draftId !== 'string') {
-    return NextResponse.json({ error: '"draftId" (a single string id) is required.' }, { status: 400 });
+    return NextResponse.json({ error: '"draftId" (a single string id) is required.', code: 'DRAFT_ID_REQUIRED' }, { status: 400 });
   }
   if (justification !== undefined && justification !== null && typeof justification !== 'string') {
-    return NextResponse.json({ error: '"justification", if provided, must be a string.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"justification", if provided, must be a string.', code: 'JUSTIFICATION_INVALID_TYPE' },
+      { status: 400 }
+    );
   }
 
   const service = new ApprovalInboxService(prisma as unknown as ApprovalInboxPrismaClient);
@@ -56,7 +59,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
 
   if (!result.ok) {
     if (result.reason === 'not_found') {
-      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Draft not found', code: 'DRAFT_NOT_FOUND' }, { status: 404 });
     }
     // T-R16 (uiux AC-5.6-5) — a flagged draft was submitted with no/blank justification. Distinct
     // from NOT_APPROVABLE: the draft IS approvable in principle, it's just missing the required

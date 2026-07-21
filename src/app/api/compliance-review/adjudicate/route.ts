@@ -25,7 +25,10 @@ const ACTIONS: readonly AdjudicationAction[] = ['APPROVE', 'REJECT', 'MODIFY'];
 export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
   if (!hasCapability(session, 'compliance_audit', 'approve')) {
     return NextResponse.json(
-      { error: 'You are not permitted to adjudicate flagged content (§16.6 compliance_audit.approve).' },
+      {
+        error: 'You are not permitted to adjudicate flagged content (§16.6 compliance_audit.approve).',
+        code: 'NOT_PERMITTED',
+      },
       { status: 403 }
     );
   }
@@ -34,7 +37,7 @@ export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   const { queueId, draftId, action, feedback, body: newBody } = body as {
@@ -46,16 +49,22 @@ export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
   };
 
   if (typeof action !== 'string' || !ACTIONS.includes(action as AdjudicationAction)) {
-    return NextResponse.json({ error: '"action" must be one of APPROVE | REJECT | MODIFY.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"action" must be one of APPROVE | REJECT | MODIFY.', code: 'INVALID_ACTION' },
+      { status: 400 }
+    );
   }
   if ((queueId === undefined || queueId === null) && (draftId === undefined || draftId === null)) {
-    return NextResponse.json({ error: 'Either "queueId" or "draftId" (a single string id) is required.' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Either "queueId" or "draftId" (a single string id) is required.', code: 'ID_REQUIRED' },
+      { status: 400 }
+    );
   }
   if (queueId !== undefined && queueId !== null && typeof queueId !== 'string') {
-    return NextResponse.json({ error: '"queueId" must be a single string id.' }, { status: 400 });
+    return NextResponse.json({ error: '"queueId" must be a single string id.', code: 'ID_MUST_BE_STRING' }, { status: 400 });
   }
   if (draftId !== undefined && draftId !== null && typeof draftId !== 'string') {
-    return NextResponse.json({ error: '"draftId" must be a single string id.' }, { status: 400 });
+    return NextResponse.json({ error: '"draftId" must be a single string id.', code: 'ID_MUST_BE_STRING' }, { status: 400 });
   }
 
   const service = new CfeAdjudicationService({ prisma: prisma as unknown as CfeAdjudicationPrismaClient });
@@ -72,13 +81,13 @@ export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
 
   if (!result.ok) {
     if (result.reason === 'not_found') {
-      return NextResponse.json({ error: 'Review item not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Review item not found', code: 'REVIEW_NOT_FOUND' }, { status: 404 });
     }
     if (result.reason === 'empty_body') {
       return NextResponse.json({ error: 'A MODIFY requires a non-empty "body".', code: 'EMPTY_BODY' }, { status: 400 });
     }
     if (result.reason === 'invalid_action') {
-      return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
+      return NextResponse.json({ error: 'Unknown action.', code: 'INVALID_ACTION' }, { status: 400 });
     }
     // not_adjudicable — a HELD/BLOCK or already-terminal draft. Mirrors the CFE's own refusal: a
     // held/blocked item cannot be approved by ANY path, upline included (§5.2, fail-closed).

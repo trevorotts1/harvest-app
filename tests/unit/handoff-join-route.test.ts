@@ -109,10 +109,13 @@ describe('POST /api/messaging/handoff/join — T-R22 route-level teeth (ownershi
     const res = await POST(postRequest({ handoffId: 'h-belongs-to-someone-else' }), {});
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body).toEqual({ error: 'Handoff not found' });
-    // No `code` field distinguishing NOT_YOUR_HANDOFF from NOT_FOUND — the whole point of the
-    // no-leak contract.
-    expect(body.code).toBeUndefined();
+    // T-57 RE-GATE B [af7789d3] Finding 1 — the route now ALSO sets a machine `code` (so the
+    // client can resolve a localized `errors.*` display string instead of rendering the raw
+    // English `error`), but the no-leak invariant this test exists to prove is UNCHANGED: both
+    // NOT_YOUR_HANDOFF and a truly nonexistent id hit the exact SAME unconditional return
+    // statement, so they are STILL byte-identical to each other (see the next test) — there is
+    // still no way for a caller to distinguish "not yours" from "doesn't exist" by any field.
+    expect(body).toEqual({ error: 'Handoff not found', code: 'HANDOFF_NOT_FOUND' });
   });
 
   test('a truly nonexistent handoff id produces the IDENTICAL 404 body as the ownership case', async () => {
@@ -122,7 +125,7 @@ describe('POST /api/messaging/handoff/join — T-R22 route-level teeth (ownershi
 
     const res = await POST(postRequest({ handoffId: 'no-such-id' }), {});
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({ error: 'Handoff not found' });
+    expect(await res.json()).toEqual({ error: 'Handoff not found', code: 'HANDOFF_NOT_FOUND' });
   });
 
   test('NOT_JOINABLE (already joined / lapsed) → 409 with a distinguishing code', async () => {

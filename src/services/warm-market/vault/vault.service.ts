@@ -171,7 +171,8 @@ export class VaultService {
       rows = rowsInput ?? [];
       if (rows.length > MAX_IMPORT_ROWS) {
         throw new ImportLimitExceededError(
-          `Import has ${rows.length} contact rows, exceeding the ${MAX_IMPORT_ROWS}-contact limit (§7.1).`
+          `Import has ${rows.length} contact rows, exceeding the ${MAX_IMPORT_ROWS}-contact limit (§7.1).`,
+          'IMPORT_ROWS_LIMIT_EXCEEDED'
         );
       }
     }

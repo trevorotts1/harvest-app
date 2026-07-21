@@ -52,13 +52,13 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   const source = body.source;
   if (!source || !VALID_SOURCES.has(source)) {
     return NextResponse.json(
-      { error: `"source" must be one of: ${[...VALID_SOURCES].join(', ')}` },
+      { error: `"source" must be one of: ${[...VALID_SOURCES].join(', ')}`, code: 'SOURCE_INVALID' },
       { status: 400 }
     );
   }
@@ -69,6 +69,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
         error:
           '"idempotencyKey" is required — mint one per logical import attempt and reuse it on retry ' +
           'so a resumed/repeated import is idempotent (§18.5).',
+        code: 'IDEMPOTENCY_KEY_REQUIRED',
       },
       { status: 400 }
     );
@@ -105,7 +106,9 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
       return NextResponse.json({ error: err.message, code: 'MODALITY_NOT_ALLOWED' }, { status: 400 });
     }
     if (err instanceof ImportLimitExceededError) {
-      return NextResponse.json({ error: err.message, code: 'IMPORT_LIMIT_EXCEEDED' }, { status: 413 });
+      // T-57 RE-GATE B [af7789d3] Finding 1 — forward the error's OWN granular code (see the sibling
+      // onboarding-time route's identical comment) rather than one bucket code.
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 413 });
     }
     throw err;
   }

@@ -29,20 +29,29 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   const newMemberFirstName = body.newMemberFirstName;
   if (typeof newMemberFirstName !== 'string' || newMemberFirstName.trim().length === 0) {
-    return NextResponse.json({ error: '"newMemberFirstName" (string) is required.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"newMemberFirstName" (string) is required.', code: 'NEW_MEMBER_NAME_REQUIRED' },
+      { status: 400 }
+    );
   }
   const welcomeVariant = body.welcomeVariant;
   if (!WELCOME_VARIANTS.includes(welcomeVariant as WelcomeVariant)) {
-    return NextResponse.json({ error: `"welcomeVariant" must be one of ${WELCOME_VARIANTS.join(', ')}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `"welcomeVariant" must be one of ${WELCOME_VARIANTS.join(', ')}`, code: 'WELCOME_VARIANT_INVALID' },
+      { status: 400 }
+    );
   }
   const version = body.version;
   if (version !== undefined && !VERSIONS.includes(version as LaunchKitVersion)) {
-    return NextResponse.json({ error: `"version" must be one of ${VERSIONS.join(', ')}` }, { status: 400 });
+    return NextResponse.json(
+      { error: `"version" must be one of ${VERSIONS.join(', ')}`, code: 'LAUNCH_KIT_VERSION_INVALID' },
+      { status: 400 }
+    );
   }
 
   let photoUrl: string | null = typeof body.photoUrl === 'string' ? body.photoUrl : null;
@@ -66,12 +75,18 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   } catch (err) {
     if (err instanceof MissingClaudeCredentialError) {
       return NextResponse.json(
-        { error: 'Held: your agents are resting — the Claude connection is not configured. Nothing was lost.' },
+        {
+          error: 'Held: your agents are resting — the Claude connection is not configured. Nothing was lost.',
+          code: 'AGENT_CREDENTIAL_MISSING',
+        },
         { status: 503 }
       );
     }
     if (err instanceof AgentModelTimeoutError || err instanceof AgentModelError) {
-      return NextResponse.json({ error: 'Generation failed — nothing was lost. Try again shortly.' }, { status: 502 });
+      return NextResponse.json(
+        { error: 'Generation failed — nothing was lost. Try again shortly.', code: 'AGENT_GENERATION_FAILED' },
+        { status: 502 }
+      );
     }
     throw err;
   }

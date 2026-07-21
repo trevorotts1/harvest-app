@@ -21,7 +21,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   try {
@@ -38,16 +38,16 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
 
   const { draftId, reason, note } = body as { draftId?: unknown; reason?: unknown; note?: unknown };
   if (!draftId || typeof draftId !== 'string') {
-    return NextResponse.json({ error: '"draftId" (a single string id) is required.' }, { status: 400 });
+    return NextResponse.json({ error: '"draftId" (a single string id) is required.', code: 'DRAFT_ID_REQUIRED' }, { status: 400 });
   }
   if (!reason || typeof reason !== 'string') {
     return NextResponse.json(
-      { error: `"reason" is required — one of: ${DECLINE_REASONS.join(', ')}.` },
+      { error: `"reason" is required — one of: ${DECLINE_REASONS.join(', ')}.`, code: 'REASON_REQUIRED' },
       { status: 400 }
     );
   }
   if (note !== undefined && typeof note !== 'string') {
-    return NextResponse.json({ error: '"note" must be a string.' }, { status: 400 });
+    return NextResponse.json({ error: '"note" must be a string.', code: 'NOTE_INVALID_TYPE' }, { status: 400 });
   }
 
   const service = new ApprovalInboxService(prisma as unknown as ApprovalInboxPrismaClient);
@@ -55,11 +55,11 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
 
   if (!result.ok) {
     if (result.reason === 'not_found') {
-      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Draft not found', code: 'DRAFT_NOT_FOUND' }, { status: 404 });
     }
     if (result.reason === 'invalid_reason') {
       return NextResponse.json(
-        { error: `"reason" must be one of: ${DECLINE_REASONS.join(', ')}.` },
+        { error: `"reason" must be one of: ${DECLINE_REASONS.join(', ')}.`, code: 'INVALID_REASON' },
         { status: 400 }
       );
     }

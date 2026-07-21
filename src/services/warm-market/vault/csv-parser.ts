@@ -14,10 +14,20 @@ import type { RawContactImportRow } from '../../../types/warm-market';
 export const MAX_IMPORT_ROWS = 10_000;
 export const MAX_IMPORT_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// T-57 RE-GATE B [af7789d3] Finding 1 — `code` is the stable, machine-readable, locale-independent
+// discriminant every route's catch block forwards to the client (alongside `message`, kept for
+// logs/back-compat). The client NEVER renders `message` — it resolves a DISPLAY string from the
+// `errors.*` catalog keyed by `code` (see `src/lib/i18n/error-display.ts`), so a Spanish rep sees a
+// real Spanish sentence for "too many bytes" vs. "too many rows", not the English `message` prose.
+export type ImportLimitExceededCode = 'CSV_TOO_LARGE' | 'CSV_TOO_MANY_ROWS' | 'IMPORT_ROWS_LIMIT_EXCEEDED';
+
 export class ImportLimitExceededError extends Error {
-  constructor(message: string) {
+  readonly code: ImportLimitExceededCode;
+
+  constructor(message: string, code: ImportLimitExceededCode) {
     super(message);
     this.name = 'ImportLimitExceededError';
+    this.code = code;
   }
 }
 
@@ -125,7 +135,8 @@ export function parseContactCsv(csvText: string): CsvParseResult {
   if (byteLength > MAX_IMPORT_BYTES) {
     throw new ImportLimitExceededError(
       `CSV upload is ${byteLength} bytes, exceeding the ${MAX_IMPORT_BYTES}-byte (10 MB) limit (§7.1). ` +
-        'Use the streamed/chunked upload path for large lists.'
+        'Use the streamed/chunked upload path for large lists.',
+      'CSV_TOO_LARGE'
     );
   }
 
@@ -139,7 +150,8 @@ export function parseContactCsv(csvText: string): CsvParseResult {
   if (dataLines.length > MAX_IMPORT_ROWS) {
     throw new ImportLimitExceededError(
       `CSV upload has ${dataLines.length} contact rows, exceeding the ${MAX_IMPORT_ROWS}-contact ` +
-        'limit (§7.1). Split into multiple uploads or use the streamed path.'
+        'limit (§7.1). Split into multiple uploads or use the streamed path.',
+      'CSV_TOO_MANY_ROWS'
     );
   }
 

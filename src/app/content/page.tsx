@@ -14,6 +14,7 @@ import Link from 'next/link';
 import styles from './content.module.css';
 import { useLocale, useT } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
+import { errorDisplay } from '@/lib/i18n/error-display';
 
 type QueueState = 'DRAFTING' | 'COMPLIANCE_CHECK' | 'READY_FOR_REVIEW' | 'SCHEDULED' | 'PUBLISHED' | 'BLOCKED';
 
@@ -111,8 +112,10 @@ export default function ContentQueuePage() {
     try {
       const res = await fetch('/api/content/batch/generate', { method: 'POST' });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setError(body.error ?? t('content.queue.generateBatchFailedGeneric'));
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+        const body = await res.json().catch(() => ({}) as { code?: string });
+        setError(errorDisplay(t, body.code));
       } else {
         await load(filter);
       }
@@ -380,7 +383,9 @@ function LaunchKitTrigger({ onTriggered }: { onTriggered: () => void }) {
       });
       const body = await res.json();
       if (!res.ok) {
-        setResult(body.error ?? t('content.queue.launchKitTrigger.generateFailedGeneric'));
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+        setResult(errorDisplay(t, body.code));
         return;
       }
       setResult(

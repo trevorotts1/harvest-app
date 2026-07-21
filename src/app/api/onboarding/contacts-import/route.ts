@@ -39,11 +39,14 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   if (!body.csvText || typeof body.csvText !== 'string' || body.csvText.trim().length === 0) {
-    return NextResponse.json({ error: '"csvText" is required — read the selected file as text first' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"csvText" is required — read the selected file as text first', code: 'CSV_TEXT_REQUIRED' },
+      { status: 400 }
+    );
   }
   if (!body.idempotencyKey || typeof body.idempotencyKey !== 'string') {
     return NextResponse.json(
@@ -51,6 +54,7 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
         error:
           '"idempotencyKey" is required — mint one per logical import attempt and reuse it on retry ' +
           'so a resumed/repeated import is idempotent (§18.5).',
+        code: 'IDEMPOTENCY_KEY_REQUIRED',
       },
       { status: 400 }
     );
@@ -83,7 +87,10 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
     );
   } catch (err) {
     if (err instanceof ImportLimitExceededError) {
-      return NextResponse.json({ error: err.message, code: 'IMPORT_LIMIT_EXCEEDED' }, { status: 413 });
+      // T-57 RE-GATE B [af7789d3] Finding 1 — forward the error's OWN granular code (CSV_TOO_LARGE /
+      // CSV_TOO_MANY_ROWS / IMPORT_ROWS_LIMIT_EXCEEDED), not a single bucket code, so the client can
+      // resolve a distinct, correctly-worded `errors.*` display string per failure kind.
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 413 });
     }
     throw err;
   }
