@@ -627,7 +627,8 @@
     "loadError": "No pudimos cargar tu turno. Reintenta.",
     "offlineBanner": "Estás sin conexión — las acciones quedan en espera y se sincronizarán (con una nueva revisión de cumplimiento) cuando vuelvas a estar en línea.",
     "openPhase": {
-      "streakBadge": "Racha de {count} días",
+      "streakBadge_one": "Racha de {count} día",
+      "streakBadge_other": "Racha de {count} días",
       "shortModeBadge": "10 minutos enfocados",
       "graceDayBanner": "La vida pasó. Tu racha está segura — se usó un día de gracia.",
       "beginCta": "Comenzar"
@@ -1102,7 +1103,16 @@
       "eyebrow": "De las {count} personas en tu campo",
       "conversationsStat": "{count} conversaciones",
       "familiesStat": "{count} familias a las que podrías ayudar",
-      "goGetItCta": "Ve a conseguirlo."
+      "goGetItCta": "Ve a conseguirlo.",
+      "srUtterance": {
+        "communityIntro_one": "De la {count} persona en tu comunidad",
+        "communityIntro_other": "De las {count} personas en tu comunidad",
+        "conversationsPhrase_one": "un estimado de {count} conversación",
+        "conversationsPhrase_other": "un estimado de {count} conversaciones",
+        "familiesPhrase_one": "{count} familia a la que podrías ayudar",
+        "familiesPhrase_other": "{count} familias a las que podrías ayudar",
+        "sentence": "{intro}: {conversations}, {families} y {value} de valor potencial mensual."
+      }
     },
     "orgStep": {
       "headline": "¿Dónde construyes?",
@@ -1611,6 +1621,20 @@
       "toggleCta": "Ver los números detrás de esto",
       "dataPointsLearning": "Aún aprendiendo — basado en {count} puntos de datos reales hasta ahora.",
       "dataPointsReal": "Basado en {count} puntos de datos reales."
+    }
+  },
+  "briefing": {
+    "line": {
+      "ranTimes_one": "Mientras dormías: tu {agent} corrió {count} vez — {summary}.",
+      "ranTimes_other": "Mientras dormías: tu {agent} corrió {count} veces — {summary}.",
+      "clearedPart_one": "{count} conforme",
+      "clearedPart_other": "{count} conformes",
+      "flaggedPart_one": "{count} marcado para revisión",
+      "flaggedPart_other": "{count} marcados para revisión",
+      "heldPart_one": "{count} retenido",
+      "heldPart_other": "{count} retenidos",
+      "draftsWaiting_one": "{count} borrador esperando tu aprobación.",
+      "draftsWaiting_other": "{count} borradores esperando tu aprobación."
     }
   }
 }

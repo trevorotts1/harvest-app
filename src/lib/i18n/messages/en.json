@@ -627,7 +627,8 @@
     "loadError": "Could not load your shift. Retry.",
     "offlineBanner": "You're offline — actions are queued and will sync (with a compliance re-check) when you're back.",
     "openPhase": {
-      "streakBadge": "{count}-day streak",
+      "streakBadge_one": "{count}-day streak",
+      "streakBadge_other": "{count}-day streak",
       "shortModeBadge": "10 focused minutes",
       "graceDayBanner": "Life happened. Your streak is safe — one grace day used.",
       "beginCta": "Begin"
@@ -1102,7 +1103,16 @@
       "eyebrow": "From the {count} people in your field",
       "conversationsStat": "{count} conversations",
       "familiesStat": "{count} families you could help",
-      "goGetItCta": "Go get it."
+      "goGetItCta": "Go get it.",
+      "srUtterance": {
+        "communityIntro_one": "From the {count} person in your community",
+        "communityIntro_other": "From the {count} people in your community",
+        "conversationsPhrase_one": "an estimated {count} conversation",
+        "conversationsPhrase_other": "an estimated {count} conversations",
+        "familiesPhrase_one": "{count} family you could help",
+        "familiesPhrase_other": "{count} families you could help",
+        "sentence": "{intro}: {conversations}, {families}, and {value} of potential monthly value."
+      }
     },
     "orgStep": {
       "headline": "Where do you build?",
@@ -1611,6 +1621,20 @@
       "toggleCta": "See the numbers behind this",
       "dataPointsLearning": "Still learning — based on {count} real data points so far.",
       "dataPointsReal": "Based on {count} real data points."
+    }
+  },
+  "briefing": {
+    "line": {
+      "ranTimes_one": "While you slept: your {agent} ran {count} time — {summary}.",
+      "ranTimes_other": "While you slept: your {agent} ran {count} times — {summary}.",
+      "clearedPart_one": "{count} cleared",
+      "clearedPart_other": "{count} cleared",
+      "flaggedPart_one": "{count} flagged for review",
+      "flaggedPart_other": "{count} flagged for review",
+      "heldPart_one": "{count} held",
+      "heldPart_other": "{count} held",
+      "draftsWaiting_one": "{count} draft waiting for your approval.",
+      "draftsWaiting_other": "{count} drafts waiting for your approval."
     }
   }
 }
