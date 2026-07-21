@@ -135,6 +135,21 @@ function flattenCatalog(obj, prefix = '') {
 // ("embudo" needed no entry here — "embudo" is already a literal PREFIX of "embudos", so the plain
 // `.includes()` substring check already catches the plural; only terms where pluralizing changes a
 // non-trailing character, or inserts a character before word's end, need a regex override.)
+//
+// T-R34 QC-reject follow-up: the T-R34 audit ALSO widened "público objetivo" in vocabulary.ts to
+// `/\bp[uú]blicos?\s+objetivos?\b/i` (both nouns of this compound phrase can pluralize
+// independently — "públicos objetivo(s)" — when copy refers to more than one target-audience
+// segment) but the mirror into this map was missed at that time. Same gap class as "contacto en
+// frío" above: the plural inserts an "s" onto the FIRST word before the following space, which
+// breaks the plain `.includes('público objetivo')` substring check entirely (no accent-only or
+// trailing-character difference to fall back on) — "públicos objetivos" / "públicos objetivo" both
+// slipped this copy-lint even though the runtime classifier already caught them. Fixed the same
+// way, keyed by the FORBIDDEN_SUBSTRINGS_ES entry text so lookup is unchanged; regex copy-pasted
+// verbatim from vocabulary.ts. ("reclutar" needed no entry, symmetric with "embudo" above: the
+// FORBIDDEN_SUBSTRINGS_ES entry is the deliberately-short prefix "reclut" (see its own comment),
+// which is already a literal PREFIX of every inflected form the runtime regex accepts, including
+// the feminine past-participle "reclutada"/"reclutadas" — so the plain substring check already
+// catches all of them with no override needed.)
 const WORD_BOUNDARY_TERMS = new Map([
   // Mirrors src/services/compliance/vocabulary.ts FORBIDDEN_TERMS's `/\bleads?\b/i` exactly.
   ['lead', /\bleads?\b/i],
@@ -144,6 +159,9 @@ const WORD_BOUNDARY_TERMS = new Map([
   ['contacto en frío', /\bcontactos?\s+en\s+fr[ií]o\b/i],
   // Mirrors vocabulary.ts FORBIDDEN_TERMS_ES's (T-R34-fixed) presentación/discurso-de-ventas rule.
   ['presentación de ventas', /\b(?:discursos?|presentaci[oó]n(?:es)?)\s+de\s+ventas?\b/i],
+  // Mirrors vocabulary.ts FORBIDDEN_TERMS_ES's (T-R34-fixed) `/\bp[uú]blicos?\s+objetivos?\b/i`
+  // exactly. QC-reject follow-up fix — see comment above.
+  ['público objetivo', /\bp[uú]blicos?\s+objetivos?\b/i],
 ]);
 
 function termMatches(lowerValue, lowerTerm) {
