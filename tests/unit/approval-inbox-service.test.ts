@@ -30,8 +30,9 @@ class SingleClassifierClient implements ClaudeClassifierClient {
     return { flagged: c >= 0.5, confidence: c, rationale: 'test' };
   }
 }
-const clearCFE = () => new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0) });
-const blockedCFE = () => new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0.99) });
+// Exported (T-54) — see `createFakeApprovalInboxPrisma`'s own export note just below.
+export const clearCFE = () => new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0) });
+export const blockedCFE = () => new ComplianceFilterEngine({ classifierClient: new FixedConfidenceClassifierClient(0.99) });
 const flaggedCFE = () => new ComplianceFilterEngine({ classifierClient: new SingleClassifierClient('INCOME_CLAIM', 0.5) });
 
 // Every test in this suite is KEY-LESS regardless of ambient shell (deterministic fail-closed proof).
@@ -44,7 +45,11 @@ afterAll(() => {
 });
 
 // ── Fake Prisma (in-memory, real Prisma `where` semantics for what this service actually sends) ───
-function createFakeApprovalInboxPrisma(
+// Exported (T-54) so tests/unit/offline-inbox.test.ts can drive the REAL ApprovalInboxService
+// through the offline-queue replay handlers against the same in-memory double, rather than
+// reimplementing a second fake Prisma — same "import the existing test helper" convention
+// tests/unit/warm-market-offline.test.ts already uses for `createFakeMethodPrisma`.
+export function createFakeApprovalInboxPrisma(
   drafts: DraftMessageRow[],
   contacts: ContactNameRow[] = []
 ): { client: ApprovalInboxPrismaClient; updateCalls: { where: { id: string }; data: Record<string, unknown> }[] } {
@@ -79,7 +84,7 @@ function createFakeApprovalInboxPrisma(
   return { client, updateCalls };
 }
 
-function draft(overrides: Partial<DraftMessageRow> = {}): DraftMessageRow {
+export function draft(overrides: Partial<DraftMessageRow> = {}): DraftMessageRow {
   return {
     id: 'd-1',
     user_id: 'u-1',

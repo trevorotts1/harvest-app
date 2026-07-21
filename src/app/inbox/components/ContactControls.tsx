@@ -42,7 +42,12 @@ export default function ContactControls({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contactId, [field]: next }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // T-54: a real (non-network) failure — never a silent no-op; the toggle itself already
+        // stays at its pre-click value below (no optimistic flip), so nothing is misrepresented.
+        setConfirmation('This could not be saved. Try again.');
+        return;
+      }
       const body = await res.json();
       setPaused(body.agentsPaused);
       setDnc(body.doNotContact);
@@ -56,6 +61,12 @@ export default function ContactControls({
             ? `${contactName} marked do-not-contact — honored everywhere.`
             : `${contactName} is contactable again.`
       );
+    } catch {
+      // T-54 (master-spec §17.6 "no silent failures"): offline (or any other network failure) must
+      // never leave this control stuck `pending` forever via an unhandled rejection — this toggle
+      // is a live, immediate-effect control (§9.4), not a queueable draft, so there is nothing to
+      // offline-queue here; the honest behavior is "didn't happen, try again once you're back".
+      setConfirmation("Couldn't reach the server — you may be offline. Try again once you're back.");
     } finally {
       setPending(false);
     }

@@ -192,6 +192,28 @@
   font-weight: 700;
 }
 
+/* ---- Offline / queued (T-54, master-spec §17.6; uiux §4.3/§6.4) — soil-toned, informational,
+   never an error/caution color: a queued-offline action is an honest deferral, not a failure. Same
+   token pairing as ShiftView's/WarmMarketRitual's own `.offlineBanner`. ---- */
+.offlineBanner,
+.offlineQueuedBanner {
+  background: var(--soil-50);
+  border: 1px solid var(--soil-200);
+  color: var(--soil-700);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+.syncFailureNotice {
+  color: var(--color-caution-text);
+  background: var(--color-caution-bg);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
+
 /* ---- Footer actions ---- */
 .itemFooter {
   display: flex;

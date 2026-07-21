@@ -2,6 +2,13 @@
 // capped at 5 visually with a "show all (N)" count (the API returns the top 5 by priority plus the
 // real total; a full paginated queue view is the Approval Inbox's job — T-33). Empty queue renders
 // the earned-calm done-state, not emptiness.
+//
+// QUEUED-OFFLINE (T-54, master-spec §17.6; uiux §4.2 "queued-offline (sync-queued icon, 'will
+// sync')"): `queuedOfflineIds` is a PAGE-owned, ephemeral, client-local set (never a server field on
+// `QueueItem` — `src/app/today/page.tsx` tracks it alongside its `PersistentOfflineQueue`,
+// `src/app/today/offline.ts`). An item whose id is in the set renders the named queued-offline state
+// instead of its normal action buttons — honest ("will sync"), never a button that looks live but
+// silently does nothing while offline.
 
 import styles from '../today.module.css';
 import type { ActionQueueZoneData, QueueItem, ZoneResult } from '@/services/mission-control/types';
@@ -9,6 +16,9 @@ import type { ActionQueueZoneData, QueueItem, ZoneResult } from '@/services/miss
 export interface ActionQueueProps {
   result: ZoneResult<ActionQueueZoneData>;
   onAction: (item: QueueItem, action: 'approve' | 'decline' | 'confirm') => void | Promise<void>;
+  /** T-54 — see this file's header "QUEUED-OFFLINE" note. Optional; omitted/empty for every
+   *  existing caller (no behavior change when nothing is queued). */
+  queuedOfflineIds?: ReadonlySet<string>;
 }
 
 const KIND_LABEL: Record<QueueItem['kind'], string> = {
@@ -17,7 +27,7 @@ const KIND_LABEL: Record<QueueItem['kind'], string> = {
   confirm_appointment: 'Confirm',
 };
 
-export default function ActionQueue({ result, onAction }: ActionQueueProps) {
+export default function ActionQueue({ result, onAction, queuedOfflineIds }: ActionQueueProps) {
   if (result.status === 'error') {
     return (
       <section className={styles.zoneCard} data-zone="action-queue">
@@ -63,7 +73,13 @@ export default function ActionQueue({ result, onAction }: ActionQueueProps) {
               </span>
             </div>
             <div className={styles.queueActions}>
-              {item.kind === 'confirm_appointment' ? (
+              {queuedOfflineIds?.has(item.id) ? (
+                // uiux §4.2 "queued-offline (sync-queued icon, 'will sync')" — an honest deferral,
+                // never a button that looks live but silently does nothing while offline.
+                <span className={styles.queueQueuedOffline} role="status">
+                  <span aria-hidden="true">&#x21bb;</span> Queued — will sync
+                </span>
+              ) : item.kind === 'confirm_appointment' ? (
                 <button type="button" className={styles.queueActionButton} onClick={() => onAction(item, 'confirm')}>
                   {KIND_LABEL[item.kind]}
                 </button>

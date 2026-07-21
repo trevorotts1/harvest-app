@@ -1,4 +1,10 @@
 // uiux §5.2 zone 6 — Team calendar strip: next 3 team events with one-tap attendance marking.
+//
+// QUEUED-OFFLINE (T-54, master-spec §17.6; uiux §4.2 "queued-offline"): `queuedOfflineEventIds` is a
+// PAGE-owned, ephemeral, client-local set (never a server field on `CalendarEventItem` —
+// `src/app/today/page.tsx` tracks it alongside its `PersistentOfflineQueue`, `src/app/today/offline.ts`).
+// An event whose id is in the set renders the queued-offline state instead of the two attendance
+// buttons — honest ("will sync"), never a button that looks live but silently does nothing offline.
 
 import styles from '../today.module.css';
 import type { CalendarEventItem, CalendarZoneData, ZoneResult } from '@/services/mission-control/types';
@@ -6,9 +12,12 @@ import type { CalendarEventItem, CalendarZoneData, ZoneResult } from '@/services
 export interface CalendarStripProps {
   result: ZoneResult<CalendarZoneData>;
   onMarkAttendance: (event: CalendarEventItem, state: 'attended' | 'missed') => void | Promise<void>;
+  /** T-54 — see this file's header "QUEUED-OFFLINE" note. Optional; omitted/empty for every
+   *  existing caller (no behavior change when nothing is queued). */
+  queuedOfflineEventIds?: ReadonlySet<string>;
 }
 
-export default function CalendarStrip({ result, onMarkAttendance }: CalendarStripProps) {
+export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineEventIds }: CalendarStripProps) {
   if (result.status === 'error') {
     return (
       <section className={styles.zoneCard} data-zone="calendar">
@@ -48,6 +57,10 @@ export default function CalendarStrip({ result, onMarkAttendance }: CalendarStri
             </div>
             {e.attendanceState === 'attended' || e.attendanceState === 'missed' ? (
               <span className={styles.attendanceMarked}>{e.attendanceState === 'attended' ? 'I was there' : "Couldn't make it"}</span>
+            ) : queuedOfflineEventIds?.has(e.id) ? (
+              <span className={styles.queueQueuedOffline} role="status">
+                <span aria-hidden="true">&#x21bb;</span> Queued — will sync
+              </span>
             ) : (
               <div className={styles.queueActions}>
                 <button type="button" className={styles.queueActionButton} onClick={() => onMarkAttendance(e, 'attended')}>
