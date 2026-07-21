@@ -33,8 +33,10 @@ import {
   type ImportOutcome,
 } from './CsvImportPanel';
 import styles from '../community.module.css';
+import { useT } from '@/app/locale-context';
 
 export default function CommunityImportPage() {
+  const t = useT();
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText] = useState<string | null>(null);
   const [preview, setPreview] = useState<CsvPreview | null>(null);
@@ -73,7 +75,7 @@ export default function CommunityImportPage() {
       });
       const body = await response.json().catch(() => ({}) as { error?: string });
       if (!response.ok) {
-        setError((body as { error?: string }).error ?? 'Could not import that file — please try again.');
+        setError((body as { error?: string }).error ?? t('community.import.importFailedGeneric'));
         return;
       }
       setOutcome({
@@ -86,7 +88,7 @@ export default function CommunityImportPage() {
       // A successful import attempt is done — a later, separate file mints a fresh key.
       setIdempotencyKey(null);
     } catch {
-      setError('Could not import that file — please try again.');
+      setError(t('community.import.importFailedGeneric'));
     } finally {
       setSubmitting(false);
     }
@@ -96,19 +98,17 @@ export default function CommunityImportPage() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <Link href="/community" className={styles.backLink}>
-          ← Back to Community
+          {t('community.backToCommunityCta')}
         </Link>
-        <h1 className={styles.title}>Import contacts from CSV</h1>
+        <h1 className={styles.title}>{t('community.import.title')}</h1>
 
         <div className={styles.importPanel}>
           <p>
-            Choose a CSV file. We&rsquo;ll show you how each column will be read before anything is
-            imported — every contact is encrypted before it&rsquo;s stored, and duplicates are merged
-            automatically.
+            {t('community.import.intro')}
           </p>
 
           <label className={styles.fileButton}>
-            {fileName ? `Selected: ${fileName}` : 'Choose CSV file'}
+            {fileName ? t('community.import.selectedFileTemplate', { fileName }) : t('community.import.chooseFileCta')}
             <input
               type="file"
               accept=".csv,text/csv"
@@ -121,7 +121,7 @@ export default function CommunityImportPage() {
 
           {csvText && (
             <button type="button" className={styles.importButton} onClick={handleImport} disabled={submitting}>
-              {submitting ? 'Importing…' : 'Import contacts'}
+              {submitting ? t('community.import.importingCta') : t('community.import.importContactsCta')}
             </button>
           )}
 

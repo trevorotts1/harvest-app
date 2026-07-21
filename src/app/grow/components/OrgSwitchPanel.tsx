@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 
 import styles from '../grow.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface OrgSwitchPanelProps {
   currentOrgType: 'PRIMERICA' | 'EXTERNAL';
@@ -21,12 +22,15 @@ export interface OrgSwitchPanelProps {
 type Stage = 'idle' | 'need_enroll' | 'need_verify' | 'need_step_up' | 'busy' | 'error';
 
 export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitchPanelProps) {
+  const t = useT();
   const { update } = useSession();
   const [stage, setStage] = useState<Stage>('idle');
   const [code, setCode] = useState('');
   const [otpauthUri, setOtpauthUri] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const target = currentOrgType === 'PRIMERICA' ? 'EXTERNAL' : 'PRIMERICA';
+  const orgLabel = (orgType: 'PRIMERICA' | 'EXTERNAL') =>
+    t(orgType === 'PRIMERICA' ? 'grow.orgSwitch.orgTypeLabel.primerica' : 'grow.orgSwitch.orgTypeLabel.independent');
 
   const attemptSwitch = async (): Promise<boolean> => {
     const res = await fetch('/api/settings/org-switch', {
@@ -35,7 +39,7 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
       body: JSON.stringify({ toOrgType: target }),
     });
     if (res.ok) {
-      setMessage(`Switched to ${target === 'PRIMERICA' ? 'Primerica' : 'Independent'}. Gated state is wiped for this session; nothing was deleted.`);
+      setMessage(t('grow.orgSwitch.switchedStatus', { org: orgLabel(target) }));
       setStage('idle');
       onSwitched();
       return true;
@@ -49,7 +53,7 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
       setStage('need_step_up');
       return false;
     }
-    setMessage(body.error ?? 'Could not switch organization type.');
+    setMessage(body.error ?? t('grow.orgSwitch.switchFailedGeneric'));
     setStage('error');
     return false;
   };
@@ -58,7 +62,7 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
     setStage('busy');
     const res = await fetch('/api/auth/mfa/enroll', { method: 'POST' });
     if (!res.ok) {
-      setMessage('Could not start MFA enrollment.');
+      setMessage(t('grow.orgSwitch.enrollFailedGeneric'));
       setStage('error');
       return;
     }
@@ -75,7 +79,7 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
       body: JSON.stringify({ token: code }),
     });
     if (!res.ok) {
-      setMessage('That code did not verify — check your authenticator app and try again.');
+      setMessage(t('grow.orgSwitch.verifyFailedGeneric'));
       setStage('need_verify');
       return;
     }
@@ -91,7 +95,7 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
       body: JSON.stringify({ token: code }),
     });
     if (!res.ok) {
-      setMessage('That code did not verify — check your authenticator app and try again.');
+      setMessage(t('grow.orgSwitch.verifyFailedGeneric'));
       setStage('need_step_up');
       return;
     }
@@ -102,42 +106,42 @@ export default function OrgSwitchPanel({ currentOrgType, onSwitched }: OrgSwitch
   };
 
   return (
-    <section className={styles.card} aria-label="Organization type">
-      <span className={styles.badge}>Organization type</span>
+    <section className={styles.card} aria-label={t('grow.orgSwitch.title')}>
+      <span className={styles.badge}>{t('grow.orgSwitch.title')}</span>
       <p>
-        Current: <strong>{currentOrgType === 'PRIMERICA' ? 'Primerica' : 'Independent'}</strong>
+        {t('grow.orgSwitch.currentLabel')} <strong>{orgLabel(currentOrgType)}</strong>
       </p>
       {message && <p role="status">{message}</p>}
 
       {stage === 'idle' && (
         <div className={styles.formRow}>
           <button type="button" className={styles.iconButton} onClick={() => { setStage('busy'); attemptSwitch(); }}>
-            Switch to {target === 'PRIMERICA' ? 'Primerica' : 'Independent'}
+            {t('grow.orgSwitch.switchToCta', { org: orgLabel(target) })}
           </button>
         </div>
       )}
 
       {stage === 'need_enroll' && (
         <div className={styles.formRow}>
-          <p>A security check is required before switching. Set up an authenticator first.</p>
+          <p>{t('grow.orgSwitch.needEnrollNotice')}</p>
           <button type="button" className={styles.iconButton} onClick={startEnroll}>
-            Start security check-up
+            {t('grow.orgSwitch.startEnrollCta')}
           </button>
         </div>
       )}
 
       {(stage === 'need_verify' || stage === 'need_step_up') && (
         <div className={styles.formRow}>
-          {otpauthUri && stage === 'need_verify' && <p>Scan this in your authenticator app: {otpauthUri}</p>}
-          <label htmlFor="taproot-mfa-code">6-digit code</label>
+          {otpauthUri && stage === 'need_verify' && <p>{t('grow.orgSwitch.scanAuthenticatorPrefix')} {otpauthUri}</p>}
+          <label htmlFor="taproot-mfa-code">{t('grow.orgSwitch.codeLabel')}</label>
           <input id="taproot-mfa-code" value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} />
           <button type="button" className={styles.iconButton} onClick={stage === 'need_verify' ? submitVerify : submitStepUp}>
-            Confirm
+            {t('grow.orgSwitch.confirmCta')}
           </button>
         </div>
       )}
 
-      {stage === 'busy' && <p role="status">Working…</p>}
+      {stage === 'busy' && <p role="status">{t('grow.orgSwitch.workingStatus')}</p>}
     </section>
   );
 }

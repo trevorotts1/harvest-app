@@ -7,19 +7,22 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 const RELATIONSHIP_TYPES = [
-  { key: 'family', label: 'Family' },
-  { key: 'friend', label: 'Friend' },
-  { key: 'work', label: 'Work colleague' },
-  { key: 'church', label: 'Church / faith community' },
-  { key: 'neighbor', label: 'Neighbor' },
-  { key: 'former_coworker', label: 'Former coworker' },
-  { key: 'coach', label: 'Coach / mentor' },
+  { key: 'family', labelKey: 'learn.referrals.relationshipTypes.family' },
+  { key: 'friend', labelKey: 'learn.referrals.relationshipTypes.friend' },
+  { key: 'work', labelKey: 'learn.referrals.relationshipTypes.work' },
+  { key: 'church', labelKey: 'learn.referrals.relationshipTypes.church' },
+  { key: 'neighbor', labelKey: 'learn.referrals.relationshipTypes.neighbor' },
+  { key: 'former_coworker', labelKey: 'learn.referrals.relationshipTypes.formerCoworker' },
+  { key: 'coach', labelKey: 'learn.referrals.relationshipTypes.coach' },
 ];
 
 type DraftResult = { status: 'ok'; text: string; referralId: string | null } | { status: 'held'; reason: string; referralId: string | null };
 
 export default function ReferralsPage() {
+  const t = useT();
   const [relationshipType, setRelationshipType] = useState('family');
   const [channel, setChannel] = useState<'SMS' | 'EMAIL'>('SMS');
   const [loading, setLoading] = useState(false);
@@ -43,38 +46,38 @@ export default function ReferralsPage() {
 
   return (
     <main className="shell section">
-      <Link href="/learn" className="badge">← Back to Learn</Link>
+      <Link href="/learn" className="badge">{t('learn.backToLearnCta')}</Link>
 
       <section className="card panel wizard-block" style={{ marginTop: 18 }}>
-        <span className="badge">Referral script generator</span>
-        <h1 style={{ marginTop: 12 }}>Ask for a warm introduction</h1>
-        <p style={{ color: 'var(--muted)' }}>Every script is compliance-cleared before you see it.</p>
+        <span className="badge">{t('learn.referrals.title')}</span>
+        <h1 style={{ marginTop: 12 }}>{t('learn.referrals.heading')}</h1>
+        <p style={{ color: 'var(--muted)' }}>{t('learn.referrals.subtitle')}</p>
 
         <label>
-          Who are you asking?
+          {t('learn.referrals.whoAskingLabel')}
           <select value={relationshipType} onChange={(e) => setRelationshipType(e.target.value)}>
             {RELATIONSHIP_TYPES.map((r) => (
-              <option key={r.key} value={r.key}>{r.label}</option>
+              <option key={r.key} value={r.key}>{t(r.labelKey)}</option>
             ))}
           </select>
         </label>
 
         <label>
-          Length
+          {t('learn.referrals.lengthLabel')}
           <select value={channel} onChange={(e) => setChannel(e.target.value as 'SMS' | 'EMAIL')}>
-            <option value="SMS">Text message (short)</option>
-            <option value="EMAIL">Email (longer)</option>
+            <option value="SMS">{t('learn.referrals.smsOption')}</option>
+            <option value="EMAIL">{t('learn.referrals.emailOption')}</option>
           </select>
         </label>
 
         <button type="button" className="btn btn-primary" onClick={draft} disabled={loading}>
-          {loading ? 'Drafting…' : 'Draft my script'}
+          {loading ? t('learn.referrals.draftingCta') : t('learn.referrals.draftScriptCta')}
         </button>
       </section>
 
       {result && result.status === 'ok' && (
         <section className="card panel" style={{ marginTop: 18 }}>
-          <span className="badge">Cleared and ready</span>
+          <span className="badge">{t('learn.referrals.clearedBadge')}</span>
           <p style={{ marginTop: 12, whiteSpace: 'pre-wrap' }}>{result.text}</p>
         </section>
       )}
@@ -82,8 +85,12 @@ export default function ReferralsPage() {
       {result && result.status === 'held' && (
         <section className="card panel" style={{ marginTop: 18 }}>
           <p>
-            This draft is held for a compliance check ({result.reason === 'model_unavailable' ? 'your agents are resting — nothing was lost' : 'needs a quick review'}) —
-            try again in a moment.
+            {t('learn.referrals.heldTemplate', {
+              reason:
+                result.reason === 'model_unavailable'
+                  ? t('learn.referrals.heldReason.modelUnavailable')
+                  : t('learn.referrals.heldReason.needsReview'),
+            })}
           </p>
         </section>
       )}

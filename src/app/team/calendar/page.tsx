@@ -6,6 +6,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
+
 interface BroadcastEvent {
   id: string;
   type: string;
@@ -35,6 +37,7 @@ interface LinkStatus {
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: CalendarData } | { kind: 'failed' };
 
 export default function TeamCalendarPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [links, setLinks] = useState<LinkStatus[]>([]);
   const [canCreate, setCanCreate] = useState(false);
@@ -89,7 +92,7 @@ export default function TeamCalendarPage() {
 
   const proposeCoachingSession = useCallback(async () => {
     if (state.kind !== 'ready' || !state.data.myUplineId) {
-      setCoachingMessage("You don't have an upline on file yet.");
+      setCoachingMessage(t('team.calendar.noUplineOnFile'));
       return;
     }
     const res = await fetch('/api/team/coaching-sessions/propose', {
@@ -101,18 +104,18 @@ export default function TeamCalendarPage() {
     if (body.outcome === 'flooding_declined') {
       setCoachingMessage(body.suggestion);
     } else if (body.outcome === 'booked') {
-      setCoachingMessage('Booked with your upline.');
+      setCoachingMessage(t('team.calendar.bookedWithUpline'));
     } else if (res.ok) {
-      setCoachingMessage('Proposed — waiting on a confirmed window.');
+      setCoachingMessage(t('team.calendar.proposedWaitingWindow'));
     } else {
-      setCoachingMessage(body.error ?? 'Could not propose a coaching session right now.');
+      setCoachingMessage(body.error ?? t('team.calendar.coachingProposeFailedGeneric'));
     }
     await load();
-  }, [state, load]);
+  }, [state, load, t]);
 
   const proposeAppointment = useCallback(async () => {
     if (state.kind !== 'ready' || !state.data.myUplineId || !proposeContactId) {
-      setAppointmentMessage("Enter a contact id and make sure you have an upline on file.");
+      setAppointmentMessage(t('team.calendar.enterContactIdNotice'));
       return;
     }
     const res = await fetch('/api/team/appointments/propose', {
@@ -124,19 +127,19 @@ export default function TeamCalendarPage() {
     setAppointmentMessage(
       res.ok
         ? body.outcome === 'booked'
-          ? 'Booked — a confirmation draft is in your Approval Inbox.'
-          : 'Proposed — near-miss windows are in your Approval Inbox for review.'
-        : body.error ?? 'Could not propose that appointment right now.'
+          ? t('team.calendar.appointmentBookedNotice')
+          : t('team.calendar.appointmentProposedNotice')
+        : body.error ?? t('team.calendar.appointmentProposeFailedGeneric')
     );
     await load();
-  }, [state, proposeContactId, load]);
+  }, [state, proposeContactId, load, t]);
 
-  if (state.kind === 'loading') return <div className="card panel"><p>Loading the team calendar…</p></div>;
+  if (state.kind === 'loading') return <div className="card panel"><p>{t('team.calendar.loading')}</p></div>;
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>We couldn&apos;t reach the team calendar right now — your data is safe.</p>
-        <button type="button" className="btn btn-secondary" onClick={load}>Retry</button>
+        <p>{t('team.calendar.loadFailed')}</p>
+        <button type="button" className="btn btn-secondary" onClick={load}>{t('common.retry')}</button>
       </div>
     );
   }
@@ -148,30 +151,30 @@ export default function TeamCalendarPage() {
   return (
     <div className="stack">
       <section className="card panel">
-        <span className="badge">Calendar connections</span>
+        <span className="badge">{t('team.calendar.connectionsBadge')}</span>
         <div className="stack" style={{ marginTop: 12 }}>
           <div>
-            Google Calendar: <strong>{googleLink?.status ?? 'Not connected'}</strong>
-            {googleLink?.status === 'EXPIRED' && <span> — calendar disconnected; we&apos;ll propose times but won&apos;t book blind.</span>}
-            {googleLink && <button type="button" className="btn btn-secondary" onClick={() => disconnect('google')} style={{ marginLeft: 8 }}>Disconnect</button>}
+            {t('team.calendar.googleLabel')} <strong>{googleLink?.status ?? t('team.calendar.notConnected')}</strong>
+            {googleLink?.status === 'EXPIRED' && <span> {t('team.calendar.googleExpiredNotice')}</span>}
+            {googleLink && <button type="button" className="btn btn-secondary" onClick={() => disconnect('google')} style={{ marginLeft: 8 }}>{t('team.calendar.disconnectCta')}</button>}
           </div>
           <div>
-            iOS CalDAV (read-only): <strong>{caldavLink?.status ?? 'Not connected'}</strong>
-            {caldavLink && <button type="button" className="btn btn-secondary" onClick={() => disconnect('caldav_ios')} style={{ marginLeft: 8 }}>Disconnect</button>}
+            {t('team.calendar.caldavLabel')} <strong>{caldavLink?.status ?? t('team.calendar.notConnected')}</strong>
+            {caldavLink && <button type="button" className="btn btn-secondary" onClick={() => disconnect('caldav_ios')} style={{ marginLeft: 8 }}>{t('team.calendar.disconnectCta')}</button>}
           </div>
         </div>
       </section>
 
       <section className="card panel">
-        <span className="badge">Team broadcast calendar</span>
-        <p>Opportunity nights, training, and team calls — read-only unless you&apos;re the RVP.</p>
+        <span className="badge">{t('team.calendar.broadcastBadge')}</span>
+        <p>{t('team.calendar.broadcastIntro')}</p>
         <ul>
           {data.broadcastEvents.map((e) => (
             <li key={e.id}>
-              {e.type.replace(/_/g, ' ')} — {new Date(e.starts_at).toLocaleString()} — your attendance: {e.myAttendanceState}
+              {e.type.replace(/_/g, ' ')} — {new Date(e.starts_at).toLocaleString()} {t('team.calendar.attendanceLabel')} {e.myAttendanceState}
             </li>
           ))}
-          {data.broadcastEvents.length === 0 && <li>No upcoming team events yet.</li>}
+          {data.broadcastEvents.length === 0 && <li>{t('team.calendar.noUpcomingEvents')}</li>}
         </ul>
         <form
           onSubmit={createEvent}
@@ -179,50 +182,50 @@ export default function TeamCalendarPage() {
           style={{ marginTop: 12 }}
         >
           <label>
-            Event type{' '}
+            {t('team.calendar.eventTypeLabel')}{' '}
             <select name="type" defaultValue="team_call">
-              <option value="opportunity_night">Opportunity night</option>
-              <option value="training">Training</option>
-              <option value="team_call">Team call</option>
-              <option value="big_event">Big event</option>
+              <option value="opportunity_night">{t('team.calendar.eventType.opportunityNight')}</option>
+              <option value="training">{t('team.calendar.eventType.training')}</option>
+              <option value="team_call">{t('team.calendar.eventType.teamCall')}</option>
+              <option value="big_event">{t('team.calendar.eventType.bigEvent')}</option>
             </select>
           </label>
           <label>
-            Starts at <input type="datetime-local" name="startsAt" required />
+            {t('team.calendar.startsAtLabel')} <input type="datetime-local" name="startsAt" required />
           </label>
-          <button type="submit" className="btn btn-primary">Add to team calendar (RVP only)</button>
-          {!canCreate && <p style={{ color: 'var(--muted)' }}>Only the RVP/admin can add to the team calendar.</p>}
+          <button type="submit" className="btn btn-primary">{t('team.calendar.addEventCta')}</button>
+          {!canCreate && <p style={{ color: 'var(--muted)' }}>{t('team.calendar.rvpOnlyNotice')}</p>}
         </form>
       </section>
 
       <section className="card panel">
-        <span className="badge">Your agenda</span>
+        <span className="badge">{t('team.calendar.agendaBadge')}</span>
         <ul>
           {data.personalAgenda.appointments.map((a) => (
-            <li key={a.id}>Closing appointment — {a.status} — {a.startsAt ? new Date(a.startsAt).toLocaleString() : 'proposed'}</li>
+            <li key={a.id}>{t('team.calendar.closingAppointmentPrefix')} {a.status} — {a.startsAt ? new Date(a.startsAt).toLocaleString() : t('team.calendar.proposedFallback')}</li>
           ))}
           {data.personalAgenda.coachingSessions.map((c) => (
-            <li key={c.id}>Coaching session — {c.status} — {c.startsAt ? new Date(c.startsAt).toLocaleString() : 'proposed'}</li>
+            <li key={c.id}>{t('team.calendar.coachingSessionPrefix')} {c.status} — {c.startsAt ? new Date(c.startsAt).toLocaleString() : t('team.calendar.proposedFallback')}</li>
           ))}
-          {data.personalAgenda.appointments.length === 0 && data.personalAgenda.coachingSessions.length === 0 && <li>Nothing on your calendar in the next 30 days.</li>}
+          {data.personalAgenda.appointments.length === 0 && data.personalAgenda.coachingSessions.length === 0 && <li>{t('team.calendar.noAgendaItems')}</li>}
         </ul>
       </section>
 
       <section className="card panel">
-        <span className="badge">Propose a coaching session</span>
-        <p>Books (or proposes) time with your upline trainer — respects the schedule-flooding limit that protects the 2-Hour CEO promise.</p>
-        <button type="button" className="btn btn-primary" onClick={proposeCoachingSession}>Propose a coaching session with my upline</button>
+        <span className="badge">{t('team.calendar.proposeCoachingBadge')}</span>
+        <p>{t('team.calendar.proposeCoachingIntro')}</p>
+        <button type="button" className="btn btn-primary" onClick={proposeCoachingSession}>{t('team.calendar.proposeCoachingCta')}</button>
         {coachingMessage && <p style={{ color: 'var(--muted)' }}>{coachingMessage}</p>}
       </section>
 
       <section className="card panel">
-        <span className="badge">Propose a closing appointment</span>
-        <p>Merges your calendar and your upline&apos;s, and dispatches a CFE-cleared draft to your Approval Inbox.</p>
+        <span className="badge">{t('team.calendar.proposeClosingBadge')}</span>
+        <p>{t('team.calendar.proposeClosingIntro')}</p>
         <label>
-          Contact id{' '}
-          <input type="text" value={proposeContactId} onChange={(e) => setProposeContactId(e.target.value)} placeholder="from the community contact page" />
+          {t('team.calendar.contactIdLabel')}{' '}
+          <input type="text" value={proposeContactId} onChange={(e) => setProposeContactId(e.target.value)} placeholder={t('team.calendar.contactIdPlaceholder')} />
         </label>
-        <button type="button" className="btn btn-primary" onClick={proposeAppointment} style={{ marginLeft: 8 }}>Propose closing appointment</button>
+        <button type="button" className="btn btn-primary" onClick={proposeAppointment} style={{ marginLeft: 8 }}>{t('team.calendar.proposeClosingCta')}</button>
         {appointmentMessage && <p style={{ color: 'var(--muted)' }}>{appointmentMessage}</p>}
       </section>
     </div>

@@ -17,14 +17,15 @@
 import Link from 'next/link';
 
 import styles from '../community.module.css';
+import { useT } from '@/app/locale-context';
 
 export type RecencyState = 'leaf' | 'soil' | 'hollow';
 export type ContactCardState = 'rest' | 'needs-info' | 'excluded' | 'agents-paused' | 'removed-from-phone';
 
-const RECENCY_LABEL: Record<RecencyState, string> = {
-  leaf: 'Active in the last 30 days',
-  soil: 'Last contact 30-90 days ago',
-  hollow: 'No contact in over 90 days',
+const RECENCY_LABEL_KEY: Record<RecencyState, string> = {
+  leaf: 'community.contactCard.recencyLabel.leaf',
+  soil: 'community.contactCard.recencyLabel.soil',
+  hollow: 'community.contactCard.recencyLabel.hollow',
 };
 
 export interface ContactCardProps {
@@ -55,22 +56,24 @@ export default function ContactCard({
   segmentTag,
   state = 'rest',
 }: ContactCardProps) {
+  const t = useT();
   const closenessClamped = Math.max(0, Math.min(5, closeness));
+  const recencyLabel = t(RECENCY_LABEL_KEY[recency]);
 
   return (
     <article
       className={`${styles.contactCard} ${state === 'needs-info' ? styles.contactCardNeedsInfo : ''} ${
         state === 'excluded' ? styles.contactCardExcluded : ''
       }`}
-      aria-label={`Contact card for ${name}`}
+      aria-label={t('community.contactCard.cardAriaLabel', { name })}
     >
       <div className={styles.cardHeader}>
-        <div className={styles.avatar} role="img" aria-label={`${name} avatar`}>
+        <div className={styles.avatar} role="img" aria-label={t('community.contactCard.avatarAriaLabel', { name })}>
           {initials}
         </div>
         <div>
           <p className={styles.cardName}>{name}</p>
-          <div className={styles.closenessRow} role="img" aria-label={`Closeness: ${closenessClamped} of 5`}>
+          <div className={styles.closenessRow} role="img" aria-label={t('community.contactCard.closenessAriaLabel', { count: closenessClamped })}>
             {Array.from({ length: 5 }, (_, i) => (
               <span
                 key={i}
@@ -81,26 +84,26 @@ export default function ContactCard({
         </div>
       </div>
 
-      <div className={styles.recencyRow} title={RECENCY_LABEL[recency]}>
+      <div className={styles.recencyRow} title={recencyLabel}>
         <span
           className={`${styles.recencyDot} ${
             recency === 'leaf' ? styles.recencyLeaf : recency === 'soil' ? styles.recencySoil : styles.recencyHollow
           }`}
           aria-hidden="true"
         />
-        <span>{RECENCY_LABEL[recency]}</span>
+        <span>{recencyLabel}</span>
       </div>
 
       {state === 'needs-info' && (
-        <p className={styles.needsInfoNote}>No phone or email on file — add a way to reach them.</p>
+        <p className={styles.needsInfoNote}>{t('community.contactCard.needsInfoNote')}</p>
       )}
 
       {state === 'excluded' && (
-        <span className={`${styles.stateChip} ${styles.stateChipExcluded}`}>Locked &middot; requires acknowledgment</span>
+        <span className={`${styles.stateChip} ${styles.stateChipExcluded}`}>{t('community.contactCard.excludedChip')}</span>
       )}
-      {state === 'agents-paused' && <span className={`${styles.stateChip} ${styles.stateChipPaused}`}>Agents paused</span>}
+      {state === 'agents-paused' && <span className={`${styles.stateChip} ${styles.stateChipPaused}`}>{t('community.conversation.agentsPausedChip')}</span>}
       {state === 'removed-from-phone' && (
-        <span className={`${styles.stateChip} ${styles.stateChipInfo}`}>Retained in your Vault</span>
+        <span className={`${styles.stateChip} ${styles.stateChipInfo}`}>{t('community.contactCard.retainedInVaultChip')}</span>
       )}
 
       <div className={styles.flagRow}>
@@ -108,28 +111,28 @@ export default function ContactCard({
           type="button"
           role="switch"
           aria-checked={isRecruitTarget}
-          aria-label={`Recruit target: ${name}`}
+          aria-label={t('community.contactCard.recruitTargetAriaLabel', { name })}
           className={`${styles.flagToggle} ${isRecruitTarget ? styles.flagToggleOn : ''}`}
           onClick={() => onToggleRecruitTarget(id, !isRecruitTarget)}
         >
-          Recruit target
+          {t('community.contactCard.recruitTargetCta')}
         </button>
         <button
           type="button"
           role="switch"
           aria-checked={isClient}
-          aria-label={`Client: ${name}`}
+          aria-label={t('community.contactCard.clientAriaLabel', { name })}
           className={`${styles.flagToggle} ${isClient ? styles.flagToggleOn : ''}`}
           onClick={() => onToggleClient(id, !isClient)}
         >
-          Client
+          {t('community.contactCard.clientCta')}
         </button>
       </div>
 
       {segmentTag && <span className={styles.segmentTag}>{segmentTag}</span>}
 
       <Link href={`/community/${id}`} className={styles.viewConversationLink}>
-        View conversation →
+        {t('community.contactCard.viewConversationCta')}
       </Link>
     </article>
   );

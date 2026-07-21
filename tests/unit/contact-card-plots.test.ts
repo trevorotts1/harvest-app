@@ -82,13 +82,17 @@ describe('Contact Card (§4.6): avatar/initials, closeness dots, recency, indepe
     // Structural proof: two distinct `role="switch"` controls exist, each with its own aria-label —
     // there is no single combined toggle that could couple the two flags.
     expect((html.match(/role="switch"/g) ?? []).length).toBe(2);
-    expect(html).toContain('aria-label="Recruit target: Jamie Rivera"');
+    // T-R32c (i18n doctrine copy-lint, master-spec §17.5): "Recruit target" moved through the i18n
+    // catalog and got renamed to "Invite candidate" — the guard's forbidden-vocabulary check
+    // (guard:i18n) rejects "recruit" as a doctrine-forbidden noun (mirrors the runtime CFE
+    // classifier's own FORBIDDEN_TERMS row, replacement: "invite / sponsor / bring in").
+    expect(html).toContain('aria-label="Invite candidate: Jamie Rivera"');
     expect(html).toContain('aria-label="Client: Jamie Rivera"');
   });
 
   test('recruit-target ON / client OFF renders each toggle\'s aria-checked independently', () => {
     const html = render(ContactCard, { ...baseProps, isRecruitTarget: true, isClient: false });
-    const recruitSwitch = html.match(/aria-label="Recruit target:[^>]*aria-checked="(true|false)"/)?.[1];
+    const recruitSwitch = html.match(/aria-label="Invite candidate:[^>]*aria-checked="(true|false)"/)?.[1];
     // aria-checked precedes aria-label in source order — assert both states appear, one each.
     expect((html.match(/aria-checked="true"/g) ?? []).length).toBe(1);
     expect((html.match(/aria-checked="false"/g) ?? []).length).toBe(1);

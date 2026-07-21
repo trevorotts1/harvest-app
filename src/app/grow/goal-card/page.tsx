@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 interface GoalCard {
   incomeTarget: string | null;
   promotionTimeline: string | null;
@@ -15,6 +17,7 @@ interface GoalCard {
 }
 
 export default function GoalCardPage() {
+  const t = useT();
   const [card, setCard] = useState<GoalCard | null>(null);
   const [incomeTarget, setIncomeTarget] = useState('');
   const [promotionTimeline, setPromotionTimeline] = useState('');
@@ -58,46 +61,46 @@ export default function GoalCardPage() {
 
   return (
     <main className="shell section">
-      <Link href="/today" className="badge">← Back to Today</Link>
+      <Link href="/today" className="badge">{t('learn.backToToday')}</Link>
 
       <section className="card panel wizard-block" style={{ marginTop: 18 }}>
-        <span className="badge">Goal Commitment Card</span>
-        <h1 style={{ marginTop: 12 }}>What you&apos;re building toward</h1>
+        <span className="badge">{t('learn.goalCard.badge')}</span>
+        <h1 style={{ marginTop: 12 }}>{t('learn.goalCard.title')}</h1>
         <p style={{ color: 'var(--muted)' }}>
-          This is potential, not a promise — it depends on your effort, consistency, and market.
+          {t('grow.goalCard.potentialNotPromise')}
         </p>
 
         <label>
-          Income target
-          <input value={incomeTarget} onChange={(e) => setIncomeTarget(e.target.value)} placeholder="e.g. Replace my current income" />
+          {t('grow.goalCard.incomeTargetLabel')}
+          <input value={incomeTarget} onChange={(e) => setIncomeTarget(e.target.value)} placeholder={t('grow.goalCard.incomeTargetPlaceholder')} />
         </label>
 
         <label>
-          Promotion timeline
-          <input value={promotionTimeline} onChange={(e) => setPromotionTimeline(e.target.value)} placeholder="e.g. Next rank in 6 months" />
+          {t('grow.goalCard.promotionTimelineLabel')}
+          <input value={promotionTimeline} onChange={(e) => setPromotionTimeline(e.target.value)} placeholder={t('grow.goalCard.promotionTimelinePlaceholder')} />
         </label>
 
         <label>
-          Top three dreams (comma-separated)
-          <input value={dreams} onChange={(e) => setDreams(e.target.value)} placeholder="e.g. Pay off debt, Travel with family, Own a home" />
+          {t('grow.goalCard.topDreamsLabel')}
+          <input value={dreams} onChange={(e) => setDreams(e.target.value)} placeholder={t('grow.goalCard.topDreamsPlaceholder')} />
         </label>
 
         <label>
-          Financial goals (comma-separated)
-          <input value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="e.g. Build an emergency fund, Save for retirement" />
+          {t('grow.goalCard.financialGoalsLabel')}
+          <input value={goals} onChange={(e) => setGoals(e.target.value)} placeholder={t('grow.goalCard.financialGoalsPlaceholder')} />
         </label>
 
-        <button type="button" className="btn btn-primary" onClick={save}>Save my commitment</button>
-        {saved && <p className="badge">Saved</p>}
+        <button type="button" className="btn btn-primary" onClick={save}>{t('grow.goalCard.saveCommitmentCta')}</button>
+        {saved && <p className="badge">{t('grow.goalCard.savedBadge')}</p>}
       </section>
 
       {card?.weeklyActivityMath && (
         <section className="card panel" style={{ marginTop: 18 }}>
-          <span className="badge">Weekly activity math</span>
+          <span className="badge">{t('grow.goalCard.weeklyActivityMathBadge')}</span>
           <div className="metric-grid" style={{ marginTop: 16 }}>
-            <div className="metric"><strong>{card.weeklyActivityMath.introductions}</strong><span>introductions/week</span></div>
-            <div className="metric"><strong>{card.weeklyActivityMath.appointments}</strong><span>appointments/week</span></div>
-            <div className="metric"><strong>{card.weeklyActivityMath.closes}</strong><span>closes/week</span></div>
+            <div className="metric"><strong>{card.weeklyActivityMath.introductions}</strong><span>{t('grow.goalCard.introductionsPerWeek')}</span></div>
+            <div className="metric"><strong>{card.weeklyActivityMath.appointments}</strong><span>{t('grow.goalCard.appointmentsPerWeek')}</span></div>
+            <div className="metric"><strong>{card.weeklyActivityMath.closes}</strong><span>{t('grow.goalCard.closesPerWeek')}</span></div>
           </div>
         </section>
       )}

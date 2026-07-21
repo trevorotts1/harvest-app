@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 
 import type { OrgTreeNode } from '@/types/taprooting';
 import styles from '../grow.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface TimeLapseShareProps {
   ownerDisplayName: string;
@@ -70,27 +71,28 @@ export function ShareResultActions({
   onNativeShare,
   onCopy,
 }: ShareResultActionsProps) {
+  const t = useT();
   if (state.kind === 'blocked') {
-    return <p role="alert">Could not clear this for sharing right now ({state.reason}) — nothing left the app.</p>;
+    return <p role="alert">{t('grow.timeLapseShare.blockedMessageTemplate', { reason: state.reason })}</p>;
   }
 
   if (state.kind !== 'released') return null; // 'idle' | 'checking' — nothing cleared yet, nothing to share
 
   return (
     <>
-      <p role="status">Cleared to share — structure and growth only, no income figures.</p>
-      <div className={styles.formRow} role="group" aria-label="Share this time-lapse">
+      <p role="status">{t('grow.timeLapseShare.clearedStatus')}</p>
+      <div className={styles.formRow} role="group" aria-label={t('grow.timeLapseShare.shareGroupAriaLabel')}>
         {canShare ? (
           <button type="button" className={styles.iconButton} onClick={onNativeShare}>
-            Share…
+            {t('grow.timeLapseShare.shareCta')}
           </button>
         ) : (
           <>
             <a className={styles.iconButton} href={downloadHref} download="harvest-timelapse.txt">
-              Download
+              {t('grow.timeLapseShare.downloadCta')}
             </a>
             <button type="button" className={styles.iconButton} onClick={onCopy}>
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('grow.timeLapseShare.copiedLabel') : t('grow.timeLapseShare.copyLabel')}
             </button>
           </>
         )}
@@ -100,6 +102,7 @@ export function ShareResultActions({
 }
 
 export default function TimeLapseShare({ ownerDisplayName, nodes }: TimeLapseShareProps) {
+  const t = useT();
   const [state, setState] = useState<ShareState>({ kind: 'idle' });
   const [copied, setCopied] = useState(false);
 
@@ -132,7 +135,7 @@ export default function TimeLapseShare({ ownerDisplayName, nodes }: TimeLapseSha
     if (res.ok && body.allowed) {
       setState({ kind: 'released', summary: body.exportSummary });
     } else {
-      setState({ kind: 'blocked', reason: body.reason ?? 'blocked' });
+      setState({ kind: 'blocked', reason: body.reason ?? t('grow.timeLapseShare.blockedReasonFallback') });
     }
   };
 
@@ -143,7 +146,7 @@ export default function TimeLapseShare({ ownerDisplayName, nodes }: TimeLapseSha
     if (state.kind !== 'released') return;
     try {
       await (navigator as Navigator & { share: (data: { title?: string; text?: string }) => Promise<void> }).share({
-        title: 'Org growth time-lapse',
+        title: t('grow.timeLapseShare.shareTitle'),
         text: state.summary,
       });
     } catch {
@@ -164,7 +167,7 @@ export default function TimeLapseShare({ ownerDisplayName, nodes }: TimeLapseSha
   return (
     <div className={styles.formRow}>
       <button type="button" className={styles.iconButton} onClick={handleShare} disabled={state.kind === 'checking'}>
-        {state.kind === 'checking' ? 'Checking compliance…' : 'Share time-lapse'}
+        {state.kind === 'checking' ? t('grow.timeLapseShare.checkingCta') : t('grow.timeLapseShare.shareTimeLapseCta')}
       </button>
       <ShareResultActions
         state={state}

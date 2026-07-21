@@ -8,6 +8,7 @@
 import { useRef } from 'react';
 
 import styles from '../community.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface Plot {
   key: string;
@@ -27,6 +28,7 @@ export interface PlotsRowProps {
 export const A_LIST_PLOT_KEY = 'a-list';
 
 export default function PlotsRow({ plots, selectedKey, onSelect, scrollLeft, onScrollPositionChange }: PlotsRowProps) {
+  const t = useT();
   const rowRef = useRef<HTMLDivElement | null>(null);
 
   return (
@@ -37,7 +39,7 @@ export default function PlotsRow({ plots, selectedKey, onSelect, scrollLeft, onS
       }}
       className={styles.plotsRow}
       role="tablist"
-      aria-label="Segments"
+      aria-label={t('community.plotsRow.segmentsAriaLabel')}
       onScroll={(e) => onScrollPositionChange?.(e.currentTarget.scrollLeft)}
     >
       <button
@@ -51,7 +53,7 @@ export default function PlotsRow({ plots, selectedKey, onSelect, scrollLeft, onS
           <span className={styles.plotAListStar} aria-hidden="true">
             ★
           </span>{' '}
-          A-list
+          {t('community.plotsRow.aListLabel')}
         </span>
       </button>
 

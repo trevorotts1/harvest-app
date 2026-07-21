@@ -7,6 +7,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 interface MomentumDetail {
   levelName: string;
   criteria: Record<string, { label: string; score: number }>;
@@ -17,6 +19,7 @@ interface MomentumDetail {
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: MomentumDetail } | { kind: 'failed' };
 
 export default function MomentumDetailPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -28,30 +31,30 @@ export default function MomentumDetailPage() {
 
   return (
     <main className="shell section">
-      <Link href="/today" className="badge">← Back to Today</Link>
+      <Link href="/today" className="badge">{t('learn.backToToday')}</Link>
 
       {state.kind === 'loading' && (
         <section className="card panel" style={{ marginTop: 18 }}>
-          <p>Gathering your momentum…</p>
+          <p>{t('today.momentumPage.loading')}</p>
         </section>
       )}
 
       {state.kind === 'failed' && (
         <section className="card panel" style={{ marginTop: 18 }}>
-          <p>We couldn&apos;t load this right now — your work is safe. <Link href="/today">Back to Today</Link>.</p>
+          <p>{t('today.momentumPage.loadFailed')} <Link href="/today">{t('today.momentumPage.backToTodayPlain')}</Link>.</p>
         </section>
       )}
 
       {state.kind === 'ready' && (
         <>
           <section className="card panel" style={{ marginTop: 18 }}>
-            <span className="badge">Your level</span>
+            <span className="badge">{t('today.momentumPage.yourLevelBadge')}</span>
             <h1 style={{ marginTop: 12 }}>{state.data.levelName}</h1>
             <p style={{ color: 'var(--muted)' }}>{state.data.suggestedAction}</p>
           </section>
 
           <section className="card panel" style={{ marginTop: 18 }}>
-            <span className="badge">The ten criteria feeding your Grove</span>
+            <span className="badge">{t('today.criteriaHeading')}</span>
             <div className="stack" style={{ marginTop: 18 }}>
               {Object.entries(state.data.criteria).map(([key, value]) => (
                 <div key={key}>

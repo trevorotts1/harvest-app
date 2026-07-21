@@ -16,6 +16,8 @@
 
 import styles from '../grow.module.css';
 import type { GhostSeedling, HealthTint, OrgTreeNode } from '@/types/taprooting';
+import { useT } from '@/app/locale-context';
+import type { TVars } from '@/lib/i18n/catalog';
 
 export interface OrchardCanvasProps {
   branch: 'primerica' | 'universal';
@@ -49,21 +51,32 @@ function tintClass(tint: HealthTint): string {
   return styles.nodeRed;
 }
 
-function tintLabel(tint: HealthTint): string {
-  if (tint === 'green') return 'active/growth';
-  if (tint === 'yellow') return 'stagnant — retention risk';
-  return 'needs attention';
+function tintLabelKey(tint: HealthTint): string {
+  if (tint === 'green') return 'grow.orchardCanvas.tintLabel.green';
+  if (tint === 'yellow') return 'grow.orchardCanvas.tintLabel.yellow';
+  return 'grow.orchardCanvas.tintLabel.red';
 }
 
-function buildSummary(branch: 'primerica' | 'universal', nodes: OrgTreeNode[], ghosts: GhostSeedling[]): string {
+function buildSummary(
+  branch: 'primerica' | 'universal',
+  nodes: OrgTreeNode[],
+  ghosts: GhostSeedling[],
+  t: (key: string, vars?: TVars) => string
+): string {
   const count = (function countAll(list: OrgTreeNode[]): number {
     return list.reduce((sum, n) => sum + 1 + countAll(n.children), 0);
   })(nodes);
-  const base = branch === 'primerica' ? 'Orchard' : 'Network rings';
-  return `${base}: ${count} real member${count === 1 ? '' : 's'}${branch === 'primerica' ? `, ${ghosts.length} open future position${ghosts.length === 1 ? '' : 's'}` : ''}.`;
+  const base = t(branch === 'primerica' ? 'grow.orchardCanvas.summaryBasePrimerica' : 'grow.orchardCanvas.summaryBaseUniversal');
+  const members = t('grow.orchardCanvas.summaryMembers', { count, plural: count === 1 ? '' : 's' });
+  const ghostPart =
+    branch === 'primerica'
+      ? t('grow.orchardCanvas.summaryGhosts', { count: ghosts.length, plural: ghosts.length === 1 ? '' : 's' })
+      : '';
+  return `${base}: ${members}${ghostPart}.`;
 }
 
 export default function OrchardCanvas({ branch, nodes, ghosts, zoom, onZoomIn, onZoomOut }: OrchardCanvasProps) {
+  const t = useT();
   const byLevel = flattenByLevel(nodes);
   const maxLevel = Math.max(0, ...Array.from(byLevel.keys()));
   const maxGhostLevel = ghosts.length > 0 ? Math.max(...ghosts.map((g) => g.level)) : 0;
@@ -76,11 +89,11 @@ export default function OrchardCanvas({ branch, nodes, ghosts, zoom, onZoomIn, o
   return (
     <div>
       <div className={styles.toolbar} style={{ marginBottom: 8 }}>
-        <button type="button" className={styles.iconButton} onClick={onZoomOut} aria-label="Zoom out">
+        <button type="button" className={styles.iconButton} onClick={onZoomOut} aria-label={t('grow.orchardCanvas.zoomOutAria')}>
           -
         </button>
         <span aria-hidden="true">{Math.round(zoom * 100)}%</span>
-        <button type="button" className={styles.iconButton} onClick={onZoomIn} aria-label="Zoom in">
+        <button type="button" className={styles.iconButton} onClick={onZoomIn} aria-label={t('grow.orchardCanvas.zoomInAria')}>
           +
         </button>
       </div>
@@ -88,7 +101,7 @@ export default function OrchardCanvas({ branch, nodes, ghosts, zoom, onZoomIn, o
         <svg
           className={styles.canvasSvg}
           role="img"
-          aria-label={buildSummary(branch, nodes, ghosts)}
+          aria-label={buildSummary(branch, nodes, ghosts, t)}
           width={width * zoom}
           height={height * zoom}
           viewBox={`0 0 ${width} ${height}`}
@@ -97,7 +110,7 @@ export default function OrchardCanvas({ branch, nodes, ghosts, zoom, onZoomIn, o
           <line x1={0} y1={height - 20} x2={width} y2={height - 20} stroke="var(--line)" strokeWidth={1} />
           <circle cx={width / 2} cy={height - 20} r={NODE_R} className={styles.nodeGreen} />
           <text x={width / 2} y={height - 20} textAnchor="middle" dominantBaseline="middle" className={styles.nodeLabel}>
-            You
+            {t('grow.orchardCanvas.youLabel')}
           </text>
 
           {/* Real nodes, tiered by generation (see module doc — a legible simplification; the list
@@ -114,10 +127,10 @@ export default function OrchardCanvas({ branch, nodes, ghosts, zoom, onZoomIn, o
                   </text>
                   {node.health.tint === 'red' && (
                     <text x={x} y={y + NODE_R + 14} textAnchor="middle" className={styles.nodeLabel} aria-hidden="true">
-                      ⚠ needs attention
+                      {t('grow.orchardCanvas.needsAttentionLabel')}
                     </text>
                   )}
-                  <title>{`${node.displayName}, level ${node.level}, ${tintLabel(node.health.tint)}`}</title>
+                  <title>{t('grow.orchardCanvas.nodeTitleTemplate', { name: node.displayName, level: node.level, tint: t(tintLabelKey(node.health.tint)) })}</title>
                 </g>
               );
             })
@@ -139,7 +152,7 @@ export default function OrchardCanvas({ branch, nodes, ghosts, zoom, onZoomIn, o
                     fillOpacity={0.38}
                     strokeOpacity={0.38}
                   />
-                  <title>{`Open position, level ${g.level}`}</title>
+                  <title>{t('grow.openPositionTemplate', { level: g.level })}</title>
                 </g>
               );
             })}

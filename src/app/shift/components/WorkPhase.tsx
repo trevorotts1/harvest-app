@@ -19,6 +19,8 @@ import { Fragment } from 'react';
 import type { ShiftCardAction, ShiftQueueCard } from '@/types/learning-state';
 import DraftApprovalCard from './DraftApprovalCard';
 import styles from '../shift.module.css';
+import { useT } from '@/app/locale-context';
+import type { TVars } from '@/lib/i18n/catalog';
 
 export interface WorkPhaseProps {
   stack: ShiftQueueCard[];
@@ -42,38 +44,39 @@ function isDraftCard(card: ShiftQueueCard): boolean {
   return card.type === 'APPROVE_DRAFT' || card.type === 'RESPOND_FLAGGED';
 }
 
-function actionsFor(card: ShiftQueueCard): { label: string; action: ShiftCardAction; primary?: boolean }[] {
+function actionsFor(card: ShiftQueueCard, t: (key: string, vars?: TVars) => string): { label: string; action: ShiftCardAction; primary?: boolean }[] {
   switch (card.type) {
     case 'CONFIRM_APPOINTMENT':
       return [
-        { label: 'Confirm', action: 'CONFIRM', primary: true },
-        { label: 'Later today', action: 'SKIP' },
+        { label: t('today.actionQueue.kind.confirm'), action: 'CONFIRM', primary: true },
+        { label: t('shift.workPhase.laterTodayCta'), action: 'SKIP' },
       ];
     case 'LOG_INTRODUCTION':
     case 'MARK_ATTENDANCE':
     default:
       return [
-        { label: 'Log it', action: 'LOG', primary: true },
-        { label: 'Later today', action: 'SKIP' },
+        { label: t('shift.workPhase.logItCta'), action: 'LOG', primary: true },
+        { label: t('shift.workPhase.laterTodayCta'), action: 'SKIP' },
       ];
   }
 }
 
 export default function WorkPhase({ stack, elapsedSeconds, onAction, onSaveAndLeave }: WorkPhaseProps) {
+  const t = useT();
   const current = stack[0];
 
   return (
     <Fragment>
       <div className={styles.topBar}>
         <button type="button" className={styles.saveLeave} onClick={onSaveAndLeave}>
-          Save & leave
+          {t('shift.workPhase.saveLeaveCta')}
         </button>
-        <span className={styles.timer} aria-label="Shift time elapsed" data-testid="shift-timer">
+        <span className={styles.timer} aria-label={t('shift.workPhase.timeElapsedAria')} data-testid="shift-timer">
           {formatElapsed(elapsedSeconds)}
         </span>
       </div>
 
-      <div className={styles.progressDots} role="list" aria-label="Queue position">
+      <div className={styles.progressDots} role="list" aria-label={t('shift.workPhase.queuePositionAria')}>
         {stack.map((c, i) => (
           <span
             key={c.id}
@@ -94,7 +97,7 @@ export default function WorkPhase({ stack, elapsedSeconds, onAction, onSaveAndLe
                   className={styles.secondaryButton}
                   onClick={() => onAction(current.id, 'SKIP')}
                 >
-                  Later today
+                  {t('shift.workPhase.laterTodayCta')}
                 </button>
               </div>
             </Fragment>
@@ -103,7 +106,7 @@ export default function WorkPhase({ stack, elapsedSeconds, onAction, onSaveAndLe
               <h2 className={styles.cardTitle}>{current.title}</h2>
               <p className={styles.cardDetail}>{current.detail}</p>
               <div className={styles.cardActions}>
-                {actionsFor(current).map((a) => (
+                {actionsFor(current, t).map((a) => (
                   <button
                     key={a.action}
                     type="button"

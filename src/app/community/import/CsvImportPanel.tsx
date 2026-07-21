@@ -13,6 +13,7 @@
 
 import { mapHeader, splitCsvLine, type MappedField } from '@/services/warm-market/vault/csv-parser';
 import styles from '../community.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface CsvPreview {
   headers: string[];
@@ -39,30 +40,33 @@ export function parseCsvPreview(csvText: string, maxRows = 5): CsvPreview {
   };
 }
 
-const FIELD_LABELS: Record<MappedField, string> = {
-  name: 'Name',
-  phone: 'Phone',
-  email: 'Email',
-  notes: 'Notes',
-  industry: 'Industry',
-  birthdate: 'Birthdate',
-  jurisdiction: 'State',
+const FIELD_LABEL_KEY: Record<MappedField, string> = {
+  name: 'community.csvImport.fieldLabels.name',
+  phone: 'community.csvImport.fieldLabels.phone',
+  email: 'community.csvImport.fieldLabels.email',
+  notes: 'community.csvImport.fieldLabels.notes',
+  industry: 'community.csvImport.fieldLabels.industry',
+  birthdate: 'community.csvImport.fieldLabels.birthdate',
+  jurisdiction: 'community.csvImport.fieldLabels.jurisdiction',
 };
 
 /** Pure, prop-driven — the mapping-preview table. */
 export function ImportPreviewTable({ preview }: { preview: CsvPreview }) {
+  const t = useT();
   if (preview.headers.length === 0) return null;
 
   return (
     <div className={styles.previewTableWrap}>
-      <table className={styles.previewTable} aria-label="CSV column mapping preview">
+      <table className={styles.previewTable} aria-label={t('community.csvImport.previewAriaLabel')}>
         <thead>
           <tr>
             {preview.headers.map((header, i) => (
               <th key={`${header}-${i}`}>
                 {header}
                 <div className={styles.previewFieldLabel}>
-                  {preview.mappedFields[i] ? `→ ${FIELD_LABELS[preview.mappedFields[i] as MappedField]}` : '(unmapped)'}
+                  {preview.mappedFields[i]
+                    ? t('community.csvImport.mappedTo', { label: t(FIELD_LABEL_KEY[preview.mappedFields[i] as MappedField]) })
+                    : t('community.csvImport.unmappedLabel')}
                 </div>
               </th>
             ))}
@@ -80,7 +84,7 @@ export function ImportPreviewTable({ preview }: { preview: CsvPreview }) {
       </table>
       {preview.totalDataRows > preview.rows.length && (
         <p className={styles.previewFieldLabel}>
-          Showing {preview.rows.length} of {preview.totalDataRows} rows.
+          {t('community.csvImport.showingRows', { shown: preview.rows.length, total: preview.totalDataRows })}
         </p>
       )}
     </div>
@@ -98,6 +102,7 @@ export interface ImportOutcome {
 /** Pure, prop-driven — the real result banner (or a real failure banner). Never renders an
  *  outcome until the server has actually responded — no fabricated/optimistic count. */
 export function ImportResultBanner({ outcome, error }: { outcome: ImportOutcome | null; error: string | null }) {
+  const t = useT();
   if (error) {
     return (
       <div className={`${styles.resultBanner} ${styles.resultBannerError}`} role="alert">
@@ -110,16 +115,18 @@ export function ImportResultBanner({ outcome, error }: { outcome: ImportOutcome 
   return (
     <div className={styles.resultBanner} role="status">
       <p>
-        Imported {outcome.importedCount} · Merged {outcome.mergedCount}
-        {outcome.minorFlaggedCount > 0 && ` · ${outcome.minorFlaggedCount} flagged as minors (excluded from outreach)`}
+        {t('community.csvImport.importedMerged', { imported: outcome.importedCount, merged: outcome.mergedCount })}
+        {outcome.minorFlaggedCount > 0 && t('community.csvImport.minorsFlaggedSuffix', { count: outcome.minorFlaggedCount })}
       </p>
       {outcome.errorRows.length > 0 && (
         <p className={styles.previewFieldLabel}>
-          {outcome.errorRows.length} row{outcome.errorRows.length === 1 ? '' : 's'} could not be imported (missing
-          required fields).
+          {t(
+            outcome.errorRows.length === 1 ? 'community.csvImport.errorRowsOne' : 'community.csvImport.errorRowsMany',
+            { count: outcome.errorRows.length }
+          )}
         </p>
       )}
-      {outcome.resumable && <p className={styles.previewFieldLabel}>Still processing — check back to resume.</p>}
+      {outcome.resumable && <p className={styles.previewFieldLabel}>{t('community.csvImport.stillProcessingNotice')}</p>}
     </div>
   );
 }

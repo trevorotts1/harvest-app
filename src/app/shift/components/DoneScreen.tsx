@@ -6,6 +6,7 @@
 
 import styles from '../shift.module.css';
 import { recapLine } from './ClosePhase';
+import { useT } from '@/app/locale-context';
 
 export interface DoneScreenProps {
   streakCount: number;
@@ -20,10 +21,11 @@ export interface DoneScreenProps {
 }
 
 export default function DoneScreen({ streakCount, recap, onBackToToday }: DoneScreenProps) {
+  const t = useT();
   // uiux §6.1 item 5 "The Shift close" narration script, verbatim: "You're done for today.
   // {recap line}. Your agents take it from here." `recapLine` (ClosePhase.tsx) already appends
   // "Your agents take it from here." itself, so no separate trailer is composed here.
-  const srUtterance = `You’re done for today. ${recapLine(recap ?? null)}`;
+  const srUtterance = `${t('shift.doneScreen.doneMessage')} ${recapLine(recap ?? null, t)}`;
 
   return (
     <div className={styles.doneCard} role="status">
@@ -33,12 +35,12 @@ export default function DoneScreen({ streakCount, recap, onBackToToday }: DoneSc
           group — it must remain independently focusable/operable, never hidden from AT. */}
       <div aria-hidden="true">
         <span aria-hidden="true">🌿</span>
-        <p className={styles.doneMessage}>You&rsquo;re done for today.</p>
-        <p className={styles.recapLine}>{streakCount}-day streak.</p>
+        <p className={styles.doneMessage}>{t('shift.doneScreen.doneMessage')}</p>
+        <p className={styles.recapLine}>{t('shift.doneScreen.streakLine', { count: streakCount })}</p>
       </div>
       <p className={styles.srOnly}>{srUtterance}</p>
       <button type="button" className={styles.primaryButton} onClick={onBackToToday}>
-        Back to your day
+        {t('shift.doneScreen.backToTodayCta')}
       </button>
     </div>
   );

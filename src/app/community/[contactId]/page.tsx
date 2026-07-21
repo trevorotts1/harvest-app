@@ -26,6 +26,7 @@ import SequenceEnrollPanel from '../components/SequenceEnrollPanel';
 import ObjectionCoachPanel from '../components/ObjectionCoachPanel';
 import BridgeUplinePanel from '../components/BridgeUplinePanel';
 import styles from '../conversation.module.css';
+import { useT } from '@/app/locale-context';
 
 interface ConversationContact {
   id: string;
@@ -39,6 +40,7 @@ interface PageProps {
 }
 
 export default function ContactConversationPage({ params }: PageProps) {
+  const t = useT();
   const { contactId } = params;
 
   const [contact, setContact] = useState<ConversationContact | null>(null);
@@ -60,18 +62,18 @@ export default function ContactConversationPage({ params }: PageProps) {
         return;
       }
       if (!res.ok) {
-        setError('Could not load this conversation. Try again.');
+        setError(t('community.conversation.loadFailedGeneric'));
         return;
       }
       const body = await res.json();
       setContact(body.contact);
       setEntries((body.entries ?? []) as TimelineEntry[]);
     } catch {
-      setError('Could not load this conversation. Try again.');
+      setError(t('community.conversation.loadFailedGeneric'));
     } finally {
       setLoading(false);
     }
-  }, [contactId]);
+  }, [contactId, t]);
 
   useEffect(() => {
     load();
@@ -81,18 +83,18 @@ export default function ContactConversationPage({ params }: PageProps) {
     <div className={styles.conversationPage}>
       <div className={styles.conversationShell}>
         <Link href="/community" className={styles.backLink}>
-          ← Back to Community
+          {t('community.backToCommunityCta')}
         </Link>
 
         {loading && (
           <p className={styles.timelineEmpty} role="status">
-            Loading this conversation…
+            {t('community.conversation.loading')}
           </p>
         )}
 
         {!loading && notFound && (
           <p className={styles.timelineEmpty} role="status">
-            This contact could not be found in your community.
+            {t('community.conversation.notFound')}
           </p>
         )}
 
@@ -100,7 +102,7 @@ export default function ContactConversationPage({ params }: PageProps) {
           <div className={styles.timelineEmpty}>
             <p>{error}</p>
             <button type="button" className={styles.retryButton} onClick={() => load()}>
-              Retry
+              {t('common.retry')}
             </button>
           </div>
         )}
@@ -110,8 +112,8 @@ export default function ContactConversationPage({ params }: PageProps) {
             <div className={styles.conversationHeader}>
               <h1 className={styles.conversationTitle}>{contact.name}</h1>
               <div className={styles.chipRow}>
-                {contact.doNotContact && <span className={styles.identityChip}>Do not contact</span>}
-                {contact.agentsPaused && <span className={styles.identityChip}>Agents paused</span>}
+                {contact.doNotContact && <span className={styles.identityChip}>{t('community.conversation.doNotContactChip')}</span>}
+                {contact.agentsPaused && <span className={styles.identityChip}>{t('community.conversation.agentsPausedChip')}</span>}
               </div>
             </div>
             <ConversationTimeline entries={entries} />

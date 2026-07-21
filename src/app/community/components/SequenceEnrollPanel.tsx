@@ -11,13 +11,14 @@
 import { useState } from 'react';
 
 import styles from '../conversation.module.css';
+import { useT } from '@/app/locale-context';
 
 /** §10.2 sequence types — the closed doctrine-safe set (mirrors sequence-cadence.ts's SequenceType). */
-const SEQUENCE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'FAST_TRACK', label: 'Fast Track (5 days, 3 touches)' },
-  { value: 'STANDARD', label: 'Standard (14 days, 4 touches)' },
-  { value: 'NURTURE', label: 'Nurture (30 days, gentle)' },
-  { value: 'RE_ENGAGEMENT', label: 'Re-engagement (light, custom)' },
+const SEQUENCE_OPTION_KEYS: { value: string; labelKey: string }[] = [
+  { value: 'FAST_TRACK', labelKey: 'community.sequenceEnroll.sequenceOptions.fastTrack' },
+  { value: 'STANDARD', labelKey: 'community.sequenceEnroll.sequenceOptions.standard' },
+  { value: 'NURTURE', labelKey: 'community.sequenceEnroll.sequenceOptions.nurture' },
+  { value: 'RE_ENGAGEMENT', labelKey: 'community.sequenceEnroll.sequenceOptions.reEngagement' },
 ];
 
 export interface SequenceEnrollPanelProps {
@@ -25,6 +26,7 @@ export interface SequenceEnrollPanelProps {
 }
 
 export default function SequenceEnrollPanel({ contactId }: SequenceEnrollPanelProps) {
+  const t = useT();
   const [sequenceType, setSequenceType] = useState<string>('STANDARD');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -39,27 +41,26 @@ export default function SequenceEnrollPanel({ contactId }: SequenceEnrollPanelPr
         body: JSON.stringify({ contactId, sequenceType }),
       });
       if (!res.ok) {
-        setStatus('Could not start this sequence. Try again.');
+        setStatus(t('community.sequenceEnroll.failedGenericStatus'));
         return;
       }
-      setStatus('Sequence started — each touch is prepared for your approval before it can send.');
+      setStatus(t('community.sequenceEnroll.successStatus'));
     } catch {
-      setStatus('Could not start this sequence. Try again.');
+      setStatus(t('community.sequenceEnroll.failedGenericStatus'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section className={styles.repActionPanel} aria-label="Start an outreach sequence">
-      <h2 className={styles.repActionTitle}>Start a sequence</h2>
+    <section className={styles.repActionPanel} aria-label={t('community.sequenceEnroll.ariaLabel')}>
+      <h2 className={styles.repActionTitle}>{t('community.sequenceEnroll.title')}</h2>
       <p className={styles.repActionNote}>
-        A doctrine-safe cadence — warm open, honest social proof, a soft ask. Every touch waits for your
-        approval and clears compliance before it can send.
+        {t('community.sequenceEnroll.note')}
       </p>
       <div className={styles.repActionRow}>
         <label className={styles.repActionLabel} htmlFor={`seq-type-${contactId}`}>
-          Cadence
+          {t('community.sequenceEnroll.cadenceLabel')}
         </label>
         <select
           id={`seq-type-${contactId}`}
@@ -68,14 +69,14 @@ export default function SequenceEnrollPanel({ contactId }: SequenceEnrollPanelPr
           onChange={(e) => setSequenceType(e.target.value)}
           disabled={busy}
         >
-          {SEQUENCE_OPTIONS.map((o) => (
+          {SEQUENCE_OPTION_KEYS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.labelKey)}
             </option>
           ))}
         </select>
         <button type="button" className={styles.repActionButton} onClick={start} disabled={busy}>
-          {busy ? 'Starting…' : 'Start sequence'}
+          {busy ? t('community.sequenceEnroll.startingCta') : t('community.sequenceEnroll.startCta')}
         </button>
       </div>
       {status && (

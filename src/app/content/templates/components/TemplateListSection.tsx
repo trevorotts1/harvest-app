@@ -8,6 +8,7 @@
 // an empty `itemList` div with no narrative at all — a narrative-free blank region (SC9).
 
 import styles from '../../content.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface TemplateData {
   key: string;
@@ -31,6 +32,7 @@ export interface TemplateListSectionProps {
 }
 
 export default function TemplateListSection({ categories, filter, visible, onSelectFilter }: TemplateListSectionProps) {
+  const t = useT();
   return (
     <>
       <div className={styles.filterRow}>
@@ -48,26 +50,26 @@ export default function TemplateListSection({ categories, filter, visible, onSel
 
       {visible.length === 0 && (
         <p className={styles.emptyState}>
-          No templates in this category yet.{' '}
+          {t('content.templates.list.emptyState')}{' '}
           {filter !== 'ALL' && (
             <button type="button" className={styles.secondaryLink} onClick={() => onSelectFilter('ALL')} style={{ cursor: 'pointer' }}>
-              Show all templates
+              {t('content.templates.list.showAllCta')}
             </button>
           )}
         </p>
       )}
 
       <div className={styles.itemList}>
-        {visible.map((t) => (
-          <div key={t.key} className={styles.item}>
+        {visible.map((tpl) => (
+          <div key={tpl.key} className={styles.item}>
             <div className={styles.itemHeader}>
-              <p className={styles.headline}>{t.name}</p>
-              <span className={styles.stateChip}>{t.contentType}</span>
+              <p className={styles.headline}>{tpl.name}</p>
+              <span className={styles.stateChip}>{tpl.contentType}</span>
             </div>
-            <p className={styles.itemBody}>{t.copySkeleton}</p>
-            {t.imageConceptPrompt && <p className={styles.itemMeta}>Image concept: {t.imageConceptPrompt}</p>}
+            <p className={styles.itemBody}>{tpl.copySkeleton}</p>
+            {tpl.imageConceptPrompt && <p className={styles.itemMeta}>{t('content.templates.list.imageConceptLabel')} {tpl.imageConceptPrompt}</p>}
             <p className={styles.itemMeta}>
-              Tone: {t.toneGuidance} · Personalization: {t.defaultPersonalizationTier.replace(/_/g, ' ').toLowerCase()} · v{t.version} · doctrine-verified
+              {t('content.templates.list.toneLabel')} {tpl.toneGuidance} {t('content.templates.list.personalizationSeparator')} {tpl.defaultPersonalizationTier.replace(/_/g, ' ').toLowerCase()} · v{tpl.version} {t('content.templates.list.doctrineVerifiedSuffix')}
             </p>
           </div>
         ))}

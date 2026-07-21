@@ -22,12 +22,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
 import PendingBridgesList from './components/PendingBridgesList';
 import type { PendingBridgeData } from './components/PendingBridgeItem';
 
 type LoadState = { kind: 'loading' } | { kind: 'ready'; items: PendingBridgeData[] } | { kind: 'failed' };
 
 export default function TeamBridgesPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   const load = useCallback(async () => {
@@ -57,9 +59,9 @@ export default function TeamBridgesPage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
-      if (res.status === 409) return { ok: false, error: 'This request can no longer be joined.' };
-      if (res.status === 404) return { ok: false, error: 'This request is no longer available.' };
-      return { ok: false, error: data.error ?? 'Could not join this conversation.' };
+      if (res.status === 409) return { ok: false, error: t('team.bridges.joinErrors.conflict') };
+      if (res.status === 404) return { ok: false, error: t('team.bridges.joinErrors.notFound') };
+      return { ok: false, error: data.error ?? t('team.bridges.joinErrors.generic') };
     }
     // The joined bridge is no longer a PENDING one — drop it from this list rather than refetch.
     setState((prev) =>
@@ -69,13 +71,13 @@ export default function TeamBridgesPage() {
   }
 
   if (state.kind === 'loading') {
-    return <div className="card panel"><p>Loading your pending bridges…</p></div>;
+    return <div className="card panel"><p>{t('team.bridges.loading')}</p></div>;
   }
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>We couldn&apos;t load your pending bridges right now — your data is safe.</p>
-        <button type="button" className="btn btn-secondary" onClick={load}>Retry</button>
+        <p>{t('team.bridges.loadFailed')}</p>
+        <button type="button" className="btn btn-secondary" onClick={load}>{t('common.retry')}</button>
       </div>
     );
   }
@@ -85,10 +87,9 @@ export default function TeamBridgesPage() {
   return (
     <div className="stack">
       <section className="card panel">
-        <span className="badge">Pending bridges</span>
+        <span className="badge">{t('team.bridges.badge')}</span>
         <p style={{ marginTop: 8 }}>
-          When a rep on your team bridges you into a conversation, it waits here. Join within 24
-          hours or it returns to them with a coached next step.
+          {t('team.bridges.intro')}
         </p>
 
         <PendingBridgesList items={items} onJoin={handleJoin} />

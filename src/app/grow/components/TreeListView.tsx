@@ -6,6 +6,8 @@
 
 import type { GhostSeedling, HealthTint, OrgTreeNode } from '@/types/taprooting';
 import styles from '../grow.module.css';
+import { useT } from '@/app/locale-context';
+import type { TVars } from '@/lib/i18n/catalog';
 
 export interface TreeListViewProps {
   branch: 'primerica' | 'universal';
@@ -23,12 +25,18 @@ interface FlatRow {
   robLabel: string;
 }
 
-function healthLabel(tint: HealthTint, stagnant: boolean): string {
-  const base = tint === 'green' ? 'Active / growth' : tint === 'yellow' ? 'Stagnant / retention risk' : 'Needs attention (reverse-maxxing)';
-  return stagnant ? `${base} — no advance in 30+ days` : base;
+function healthLabel(tint: HealthTint, stagnant: boolean, t: (key: string, vars?: TVars) => string): string {
+  const baseKey =
+    tint === 'green'
+      ? 'grow.treeList.healthLabel.green'
+      : tint === 'yellow'
+        ? 'grow.treeList.healthLabel.yellow'
+        : 'grow.treeList.healthLabel.red';
+  const base = t(baseKey);
+  return stagnant ? `${base}${t('grow.treeList.stagnantSuffix')}` : base;
 }
 
-function flatten(nodes: OrgTreeNode[]): FlatRow[] {
+function flatten(nodes: OrgTreeNode[], t: (key: string, vars?: TVars) => string): FlatRow[] {
   const rows: FlatRow[] = [];
   const walk = (n: OrgTreeNode) => {
     rows.push({
@@ -37,8 +45,8 @@ function flatten(nodes: OrgTreeNode[]): FlatRow[] {
       displayName: n.displayName,
       level: n.level,
       rank: n.rank,
-      healthLabel: healthLabel(n.health.tint, n.health.stagnant),
-      robLabel: n.hasOwnRecruit ? 'Has their own recruit' : 'No recruit yet',
+      healthLabel: healthLabel(n.health.tint, n.health.stagnant, t),
+      robLabel: t(n.hasOwnRecruit ? 'grow.treeList.robHasRecruit' : 'grow.treeList.robNoRecruit'),
     });
     n.children.forEach(walk);
   };
@@ -47,23 +55,24 @@ function flatten(nodes: OrgTreeNode[]): FlatRow[] {
 }
 
 export default function TreeListView({ branch, nodes, ghosts }: TreeListViewProps) {
-  const rows = flatten(nodes);
+  const t = useT();
+  const rows = flatten(nodes, t);
 
   return (
-    <table className={styles.listTable} aria-label={branch === 'primerica' ? 'Orchard structure list' : 'Network rings list'}>
+    <table className={styles.listTable} aria-label={t(branch === 'primerica' ? 'grow.treeList.ariaLabelPrimerica' : 'grow.treeList.ariaLabelUniversal')}>
       <thead>
         <tr>
-          <th scope="col">Name</th>
-          <th scope="col">Level</th>
-          <th scope="col">Rank</th>
-          <th scope="col">Health</th>
-          <th scope="col">Rules of Building</th>
+          <th scope="col">{t('grow.treeList.nameHeader')}</th>
+          <th scope="col">{t('grow.treeList.levelHeader')}</th>
+          <th scope="col">{t('grow.treeList.rankHeader')}</th>
+          <th scope="col">{t('grow.treeList.healthHeader')}</th>
+          <th scope="col">{t('grow.rulesOfBuilding.title')}</th>
         </tr>
       </thead>
       <tbody>
         {rows.length === 0 && (
           <tr>
-            <td colSpan={5}>No members yet — invite your first to start growing the field.</td>
+            <td colSpan={5}>{t('grow.treeList.emptyState')}</td>
           </tr>
         )}
         {rows.map((r) => (
@@ -78,7 +87,7 @@ export default function TreeListView({ branch, nodes, ghosts }: TreeListViewProp
         {branch === 'primerica' &&
           ghosts.map((g) => (
             <tr key={`ghost-${g.position}`} className={styles.ghostRow}>
-              <td colSpan={5}>{`Open position, level ${g.level}`}</td>
+              <td colSpan={5}>{t('grow.openPositionTemplate', { level: g.level })}</td>
             </tr>
           ))}
       </tbody>

@@ -13,6 +13,8 @@
 
 import { useState } from 'react';
 
+import { useT } from '@/app/locale-context';
+
 export interface PendingBridgeData {
   id: string;
   repName: string;
@@ -21,10 +23,10 @@ export interface PendingBridgeData {
   returnDeadlineAt: string;
 }
 
-const REASON_LABELS: Record<string, string> = {
-  BUYING_SIGNAL: "They're showing real interest",
-  HARD_QUESTION: "A question they couldn't answer well",
-  MANUAL: 'They just wanted the introduction',
+const REASON_LABEL_KEY: Record<string, string> = {
+  BUYING_SIGNAL: 'team.bridges.item.reasonLabel.buyingSignal',
+  HARD_QUESTION: 'team.bridges.item.reasonLabel.hardQuestion',
+  MANUAL: 'team.bridges.item.reasonLabel.manual',
 };
 
 export interface PendingBridgeItemProps {
@@ -33,6 +35,7 @@ export interface PendingBridgeItemProps {
 }
 
 export default function PendingBridgeItem({ item, onJoin }: PendingBridgeItemProps) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
@@ -43,23 +46,24 @@ export default function PendingBridgeItem({ item, onJoin }: PendingBridgeItemPro
     const result = await onJoin(item.id);
     setBusy(false);
     if (!result.ok) {
-      setError(result.error ?? 'Could not join this conversation. Try again.');
+      setError(result.error ?? t('team.bridges.item.errorFallback'));
       return;
     }
     setJoined(true);
   }
 
-  const reasonLabel = REASON_LABELS[item.triggerReason] ?? 'Wants to bring you into a conversation';
+  const reasonLabelKey = REASON_LABEL_KEY[item.triggerReason];
+  const reasonLabel = reasonLabelKey ? t(reasonLabelKey) : t('team.bridges.item.reasonLabel.fallback');
 
   return (
-    <article className="action-row" aria-label={`Bridge request from ${item.repName}`}>
+    <article className="action-row" aria-label={t('team.bridges.item.ariaLabel', { name: item.repName })}>
       <span className="priority">!</span>
       <div>
-        <strong>{item.repName}</strong> &middot; {reasonLabel}
+        <strong>{item.repName}</strong> {t('inbox.item.separator')} {reasonLabel}
         <br />
         <span style={{ color: 'var(--muted)' }}>
-          Invited {new Date(item.invitedAt).toLocaleString()} &middot; returns to them at{' '}
-          {new Date(item.returnDeadlineAt).toLocaleString()} if you don&apos;t join
+          {t('team.bridges.item.invitedLabel')} {new Date(item.invitedAt).toLocaleString()} {t('team.bridges.item.returnsToThemAtLabel')}{' '}
+          {new Date(item.returnDeadlineAt).toLocaleString()} {t('team.bridges.item.ifYouDontJoin')}
         </span>
         {error && (
           <p className="notice notice-danger" role="alert" style={{ marginTop: 8 }}>
@@ -68,13 +72,13 @@ export default function PendingBridgeItem({ item, onJoin }: PendingBridgeItemPro
         )}
         {joined && (
           <p role="status" style={{ color: 'var(--muted)', marginTop: 8 }}>
-            You joined this conversation.
+            {t('team.bridges.item.joinedNotice')}
           </p>
         )}
       </div>
       {!joined && (
         <button type="button" className="btn btn-primary" onClick={handleJoin} disabled={busy}>
-          {busy ? 'Joining…' : 'Join conversation'}
+          {busy ? t('team.bridges.item.joiningCta') : t('team.bridges.item.joinCta')}
         </button>
       )}
     </article>

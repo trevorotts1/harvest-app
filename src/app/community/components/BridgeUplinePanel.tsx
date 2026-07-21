@@ -12,11 +12,12 @@
 import { useState } from 'react';
 
 import styles from '../conversation.module.css';
+import { useT } from '@/app/locale-context';
 
-const REASON_OPTIONS: { value: string; label: string }[] = [
-  { value: 'BUYING_SIGNAL', label: 'They are showing real interest' },
-  { value: 'HARD_QUESTION', label: 'A question I cannot answer well' },
-  { value: 'MANUAL', label: 'I would just like the introduction' },
+const REASON_OPTION_KEYS: { value: string; labelKey: string }[] = [
+  { value: 'BUYING_SIGNAL', labelKey: 'community.bridgeUpline.reasonOptions.buyingSignal' },
+  { value: 'HARD_QUESTION', labelKey: 'community.bridgeUpline.reasonOptions.hardQuestion' },
+  { value: 'MANUAL', labelKey: 'community.bridgeUpline.reasonOptions.manual' },
 ];
 
 export interface BridgeUplinePanelProps {
@@ -24,6 +25,7 @@ export interface BridgeUplinePanelProps {
 }
 
 export default function BridgeUplinePanel({ contactId }: BridgeUplinePanelProps) {
+  const t = useT();
   const [reason, setReason] = useState<string>('BUYING_SIGNAL');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -40,33 +42,32 @@ export default function BridgeUplinePanel({ contactId }: BridgeUplinePanelProps)
         body: JSON.stringify({ contactId, reason }),
       });
       if (res.status === 409) {
-        setStatus('You do not have an upline on file to bridge in.');
+        setStatus(t('community.bridgeUpline.noUplineStatus'));
         return;
       }
       if (!res.ok) {
-        setStatus('Could not bridge your upline. Try again.');
+        setStatus(t('community.bridgeUpline.failedGenericStatus'));
         return;
       }
       const body = await res.json();
-      setStatus('Your upline has been invited into this conversation.');
+      setStatus(t('community.bridgeUpline.successStatus'));
       if (body.edification?.sms) setSmsBridge(body.edification.sms as string);
     } catch {
-      setStatus('Could not bridge your upline. Try again.');
+      setStatus(t('community.bridgeUpline.failedGenericStatus'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section className={styles.repActionPanel} aria-label="Bridge my upline">
-      <h2 className={styles.repActionTitle}>Bridge my upline</h2>
+    <section className={styles.repActionPanel} aria-label={t('community.bridgeUpline.title')}>
+      <h2 className={styles.repActionTitle}>{t('community.bridgeUpline.title')}</h2>
       <p className={styles.repActionNote}>
-        Warmly introduce your upline into this thread. If they cannot join within 24 hours, it returns
-        to you with a coached next step.
+        {t('community.bridgeUpline.intro')}
       </p>
       <div className={styles.repActionRow}>
         <label className={styles.repActionLabel} htmlFor={`bridge-reason-${contactId}`}>
-          Why
+          {t('community.bridgeUpline.whyLabel')}
         </label>
         <select
           id={`bridge-reason-${contactId}`}
@@ -75,14 +76,14 @@ export default function BridgeUplinePanel({ contactId }: BridgeUplinePanelProps)
           onChange={(e) => setReason(e.target.value)}
           disabled={busy}
         >
-          {REASON_OPTIONS.map((o) => (
+          {REASON_OPTION_KEYS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.labelKey)}
             </option>
           ))}
         </select>
         <button type="button" className={styles.repActionButton} onClick={bridge} disabled={busy}>
-          {busy ? 'Bridging…' : 'Bridge my upline'}
+          {busy ? t('community.bridgeUpline.bridgingCta') : t('community.bridgeUpline.title')}
         </button>
       </div>
       {status && (
@@ -92,7 +93,7 @@ export default function BridgeUplinePanel({ contactId }: BridgeUplinePanelProps)
       )}
       {smsBridge && (
         <p className={styles.repActionBridgeCopy}>
-          <span className={styles.repActionBridgeLabel}>Intro you can send</span> {smsBridge}
+          <span className={styles.repActionBridgeLabel}>{t('community.bridgeUpline.introLabel')}</span> {smsBridge}
         </p>
       )}
     </section>

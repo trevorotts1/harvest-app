@@ -11,6 +11,8 @@ import { useState } from 'react';
 
 import styles from '../shift.module.css';
 import { formatElapsed } from './WorkPhase';
+import { useT } from '@/app/locale-context';
+import type { TVars } from '@/lib/i18n/catalog';
 
 export interface ClosePhaseProps {
   recap: { approvals: number; confirmations: number; logs: number } | null;
@@ -23,42 +25,49 @@ export interface ClosePhaseProps {
 // "Shift close" narration script ("You're done for today. {recap line}. Your agents take it from
 // here.") from the SAME recap-composition logic this screen already uses, rather than a second,
 // driftable copy of it.
-export function recapLine(recap: ClosePhaseProps['recap']): string {
-  if (!recap) return 'Nothing needed you today — your field is working.';
+export function recapLine(recap: ClosePhaseProps['recap'], t: (key: string, vars?: TVars) => string): string {
+  if (!recap) return t('shift.closePhase.recap.nothingNeeded');
   const parts: string[] = [];
-  if (recap.approvals > 0) parts.push(`approved ${recap.approvals} introduction${recap.approvals === 1 ? '' : 's'}`);
-  if (recap.confirmations > 0) parts.push(`confirmed ${recap.confirmations} appointment${recap.confirmations === 1 ? '' : 's'}`);
-  if (recap.logs > 0) parts.push(`logged ${recap.logs} item${recap.logs === 1 ? '' : 's'}`);
-  if (parts.length === 0) return 'Nothing needed you today — your field is working.';
-  return `You ${parts.join('; ')}. Your agents take it from here.`;
+  if (recap.approvals > 0) {
+    parts.push(t(recap.approvals === 1 ? 'shift.closePhase.recap.approvedOne' : 'shift.closePhase.recap.approvedMany', { count: recap.approvals }));
+  }
+  if (recap.confirmations > 0) {
+    parts.push(t(recap.confirmations === 1 ? 'shift.closePhase.recap.confirmedOne' : 'shift.closePhase.recap.confirmedMany', { count: recap.confirmations }));
+  }
+  if (recap.logs > 0) {
+    parts.push(t(recap.logs === 1 ? 'shift.closePhase.recap.loggedOne' : 'shift.closePhase.recap.loggedMany', { count: recap.logs }));
+  }
+  if (parts.length === 0) return t('shift.closePhase.recap.nothingNeeded');
+  return t('shift.closePhase.recap.wrapper', { parts: parts.join('; ') });
 }
 
 export default function ClosePhase({ recap, elapsedSeconds, targetSeconds, onFinish }: ClosePhaseProps) {
+  const t = useT();
   const [reflection, setReflection] = useState('');
   const beatPlan = elapsedSeconds < targetSeconds;
 
   return (
     <div className={styles.card}>
-      <p className={styles.recapLine}>{recapLine(recap)}</p>
+      <p className={styles.recapLine}>{recapLine(recap, t)}</p>
 
       {beatPlan ? (
-        <p className={styles.celebrateLine}>{formatElapsed(elapsedSeconds)} — you beat your own plan.</p>
+        <p className={styles.celebrateLine}>{formatElapsed(elapsedSeconds)} {t('shift.closePhase.beatPlanSuffix')}</p>
       ) : null}
 
       <textarea
         className={styles.reflectionInput}
-        placeholder="One-line reflection (optional)"
-        aria-label="One-line reflection, optional"
+        placeholder={t('shift.closePhase.reflectionPlaceholder')}
+        aria-label={t('shift.closePhase.reflectionAria')}
         value={reflection}
         onChange={(e) => setReflection(e.target.value)}
       />
 
       <div className={styles.reflectionActions}>
         <button type="button" className={styles.secondaryButton} onClick={() => onFinish(reflection || undefined)}>
-          Save & finish
+          {t('shift.closePhase.saveFinishCta')}
         </button>
         <button type="button" className={styles.secondaryButton} onClick={() => onFinish(undefined)}>
-          Skip
+          {t('shift.closePhase.skipCta')}
         </button>
       </div>
     </div>

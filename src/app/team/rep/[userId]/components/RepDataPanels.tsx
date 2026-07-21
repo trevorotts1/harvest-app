@@ -7,17 +7,20 @@
 // Before this extraction, a rep with no pipeline activity yet (or literally zero names in play)
 // rendered a bare section header over an empty grid/list — a narrative-free blank region (SC9).
 
+import { useT } from '@/app/locale-context';
+
 export interface PipelineStatesPanelProps {
   counts: Record<string, number>;
 }
 
 export function PipelineStatesPanel({ counts }: PipelineStatesPanelProps) {
+  const t = useT();
   const entries = Object.entries(counts);
   return (
     <section className="card panel">
-      <span className="badge">Pipeline states</span>
+      <span className="badge">{t('team.rep.pipelineStatesBadge')}</span>
       {entries.length === 0 ? (
-        <p style={{ color: 'var(--muted)', marginTop: 12 }}>Learning this rep&apos;s community — nothing in the pipeline yet.</p>
+        <p style={{ color: 'var(--muted)', marginTop: 12 }}>{t('team.rep.pipelineStatesEmpty')}</p>
       ) : (
         <div className="metric-grid" style={{ marginTop: 12 }}>
           {entries.map(([stage, count]) => (
@@ -43,11 +46,12 @@ export interface NamesInPlayPanelProps {
 }
 
 export function NamesInPlayPanel({ names }: NamesInPlayPanelProps) {
+  const t = useT();
   return (
     <section className="card panel">
-      <span className="badge">Names in play</span>
+      <span className="badge">{t('team.rep.namesInPlayBadge')}</span>
       {names.length === 0 ? (
-        <p style={{ color: 'var(--muted)' }}>No names in play yet — nothing to review.</p>
+        <p style={{ color: 'var(--muted)' }}>{t('team.rep.namesInPlayEmpty')}</p>
       ) : (
         <ul>
           {names.map((n) => (

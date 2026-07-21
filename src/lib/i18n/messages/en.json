@@ -1,5 +1,6 @@
 {
   "common": {
+    "skipToContent": "Skip to content",
     "retry": "Retry",
     "loading": "Loading…",
     "cancel": "Cancel",
@@ -169,6 +170,12 @@
     },
     "pipelineGlance": {
       "heading": "Pipeline"
+    },
+    "momentumPage": {
+      "loading": "Gathering your momentum…",
+      "loadFailed": "We couldn't load this right now — your work is safe.",
+      "backToTodayPlain": "Back to Today",
+      "yourLevelBadge": "Your level"
     }
   },
   "community": {
@@ -180,6 +187,111 @@
     "retry": "Retry",
     "emptyState": "No contacts yet — import or add contacts to start building your community.",
     "toggleError": "This contact could not be updated. Try again.",
+    "backToCommunityCta": "← Back to Community",
+    "conversation": {
+      "loading": "Loading this conversation…",
+      "notFound": "This contact could not be found in your community.",
+      "loadFailedGeneric": "Could not load this conversation. Try again.",
+      "doNotContactChip": "Do not contact",
+      "agentsPausedChip": "Agents paused"
+    },
+    "contactCard": {
+      "recencyLabel": {
+        "leaf": "Active in the last 30 days",
+        "soil": "Last contact 30-90 days ago",
+        "hollow": "No contact in over 90 days"
+      },
+      "cardAriaLabel": "Contact card for {name}",
+      "avatarAriaLabel": "{name} avatar",
+      "closenessAriaLabel": "Closeness: {count} of 5",
+      "needsInfoNote": "No phone or email on file — add a way to reach them.",
+      "excludedChip": "Locked · requires acknowledgment",
+      "retainedInVaultChip": "Retained in your Vault",
+      "recruitTargetAriaLabel": "Invite candidate: {name}",
+      "recruitTargetCta": "Invite candidate",
+      "clientAriaLabel": "Client: {name}",
+      "clientCta": "Client",
+      "viewConversationCta": "View conversation →"
+    },
+    "bridgeUpline": {
+      "title": "Bridge my upline",
+      "intro": "Warmly introduce your upline into this thread. If they cannot join within 24 hours, it returns to you with a coached next step.",
+      "whyLabel": "Why",
+      "reasonOptions": {
+        "buyingSignal": "They are showing real interest",
+        "hardQuestion": "A question I cannot answer well",
+        "manual": "I would just like the introduction"
+      },
+      "bridgingCta": "Bridging…",
+      "noUplineStatus": "You do not have an upline on file to bridge in.",
+      "failedGenericStatus": "Could not bridge your upline. Try again.",
+      "successStatus": "Your upline has been invited into this conversation.",
+      "introLabel": "Intro you can send"
+    },
+    "objectionCoach": {
+      "title": "Objection coach",
+      "note": "Only you see this. Start with the question, then choose an honest response.",
+      "loadFailedGeneric": "Could not load the objection coach. Try again.",
+      "prepareCta": "Prepare this response",
+      "prepareFailedGeneric": "Could not prepare that response. Try again.",
+      "preparedStatus": "A draft response was prepared — it waits for your approval and clears compliance before it can send."
+    },
+    "plotsRow": {
+      "segmentsAriaLabel": "Segments",
+      "aListLabel": "A-list"
+    },
+    "sequenceEnroll": {
+      "ariaLabel": "Start an outreach sequence",
+      "title": "Start a sequence",
+      "note": "A doctrine-safe cadence — warm open, honest social proof, a soft ask. Every touch waits for your approval and clears compliance before it can send.",
+      "cadenceLabel": "Cadence",
+      "sequenceOptions": {
+        "fastTrack": "Fast Track (5 days, 3 touches)",
+        "standard": "Standard (14 days, 4 touches)",
+        "nurture": "Nurture (30 days, gentle)",
+        "reEngagement": "Re-engagement (light, custom)"
+      },
+      "startingCta": "Starting…",
+      "startCta": "Start sequence",
+      "failedGenericStatus": "Could not start this sequence. Try again.",
+      "successStatus": "Sequence started — each touch is prepared for your approval before it can send."
+    },
+    "threeWayHandoff": {
+      "ariaLabel": "Three-way handoff with {name}",
+      "invitedLine": "{name} has been invited into this conversation.",
+      "joinedLine": "{name} joined the conversation.",
+      "returnedLine": "Returned to you — {name} could not join in time.",
+      "coachingLabel": "Coaching"
+    },
+    "csvImport": {
+      "previewAriaLabel": "CSV column mapping preview",
+      "fieldLabels": {
+        "name": "Name",
+        "phone": "Phone",
+        "email": "Email",
+        "notes": "Notes",
+        "industry": "Industry",
+        "birthdate": "Birthdate",
+        "jurisdiction": "State"
+      },
+      "unmappedLabel": "(unmapped)",
+      "mappedTo": "→ {label}",
+      "showingRows": "Showing {shown} of {total} rows.",
+      "importedMerged": "Imported {imported} · Merged {merged}",
+      "minorsFlaggedSuffix": " · {count} flagged as minors (excluded from outreach)",
+      "errorRowsOne": "{count} row could not be imported (missing required fields).",
+      "errorRowsMany": "{count} rows could not be imported (missing required fields).",
+      "stillProcessingNotice": "Still processing — check back to resume."
+    },
+    "import": {
+      "title": "Import contacts from CSV",
+      "intro": "Choose a CSV file. We’ll show you how each column will be read before anything is imported — every contact is encrypted before it’s stored, and duplicates are merged automatically.",
+      "selectedFileTemplate": "Selected: {fileName}",
+      "chooseFileCta": "Choose CSV file",
+      "importingCta": "Importing…",
+      "importContactsCta": "Import contacts",
+      "importFailedGeneric": "Could not import that file — please try again."
+    },
     "agentBadge": {
       "sentFromRepNumber": "sent from your number",
       "fromPlatformNumber": "from your Harvest number",
@@ -210,9 +322,180 @@
       }
     }
   },
+  "theme": {
+    "label": {
+      "system": "System",
+      "goldenHour": "Golden Hour",
+      "preDawn": "Pre-Dawn"
+    },
+    "ariaLabelTemplate": "Appearance: {label}. Activate to change.",
+    "displayTemplate": "Appearance: {label}"
+  },
+  "grow": {
+    "openPositionTemplate": "Open position, level {level}",
+    "page": {
+      "loading": "Gathering your field…",
+      "loadFailed": "We couldn't load Grow right now — showing your last field is not yet cached.",
+      "backToToday": "Back to Today",
+      "titlePrimerica": "The Orchard",
+      "titleExternal": "Your Network",
+      "viewToggleAria": "View toggle",
+      "canvasCta": "Canvas",
+      "listCta": "List",
+      "emptyPrimericaBody": "Your orchard is just planted — the full 3-wide × 4-deep vision is ready for your first real team member.",
+      "emptyExternalBody": "Your network is just getting started.",
+      "inviteFirstCta": "Invite your first"
+    },
+    "goalCard": {
+      "potentialNotPromise": "This is potential, not a promise — it depends on your effort, consistency, and market.",
+      "incomeTargetLabel": "Income target",
+      "incomeTargetPlaceholder": "e.g. Replace my current income",
+      "promotionTimelineLabel": "Promotion timeline",
+      "promotionTimelinePlaceholder": "e.g. Next rank in 6 months",
+      "topDreamsLabel": "Top three dreams (comma-separated)",
+      "topDreamsPlaceholder": "e.g. Pay off debt, Travel with family, Own a home",
+      "financialGoalsLabel": "Financial goals (comma-separated)",
+      "financialGoalsPlaceholder": "e.g. Build an emergency fund, Save for retirement",
+      "saveCommitmentCta": "Save my commitment",
+      "savedBadge": "Saved",
+      "weeklyActivityMathBadge": "Weekly activity math",
+      "introductionsPerWeek": "introductions/week",
+      "appointmentsPerWeek": "appointments/week",
+      "closesPerWeek": "closes/week"
+    },
+    "orchardCanvas": {
+      "zoomOutAria": "Zoom out",
+      "zoomInAria": "Zoom in",
+      "youLabel": "You",
+      "needsAttentionLabel": "⚠ needs attention",
+      "tintLabel": {
+        "green": "active/growth",
+        "yellow": "stagnant — retention risk",
+        "red": "needs attention"
+      },
+      "summaryBasePrimerica": "Orchard",
+      "summaryBaseUniversal": "Network rings",
+      "summaryMembers": "{count} real member{plural}",
+      "summaryGhosts": ", {count} open future position{plural}",
+      "nodeTitleTemplate": "{name}, level {level}, {tint}"
+    },
+    "treeList": {
+      "ariaLabelPrimerica": "Orchard structure list",
+      "ariaLabelUniversal": "Network rings list",
+      "nameHeader": "Name",
+      "levelHeader": "Level",
+      "rankHeader": "Rank",
+      "healthHeader": "Health",
+      "emptyState": "No members yet — invite your first to start growing the field.",
+      "healthLabel": {
+        "green": "Active / growth",
+        "yellow": "Stagnant / retention risk",
+        "red": "Needs attention (reverse-maxxing)"
+      },
+      "stagnantSuffix": " — no advance in 30+ days",
+      "robHasRecruit": "Has brought in their own team member",
+      "robNoRecruit": "No team member yet"
+    },
+    "rulesOfBuilding": {
+      "title": "Rules of Building",
+      "loadingDepthTemplate": "Loading the depth-{depth} math…",
+      "stateLabel": {
+        "met": "met",
+        "countdown": "in progress",
+        "notStarted": "not started"
+      },
+      "chipAriaLabel": "{label}: {state}, {count}",
+      "potentialNotPromise": "Potential — not a promise",
+      "overrideMathAriaLabel": "Override math for depth {depth}",
+      "closeCta": "Close"
+    },
+    "phasedTimeline": {
+      "ariaLabel": "Phased new-member timeline",
+      "badge": "New-member timeline",
+      "lockedNote": "Unlocks once the prior phase's activity is complete.",
+      "markDoneCta": "Mark done",
+      "detectedAutoNote": "(detected automatically)",
+      "hardBlockTemplate": "Insurance-recommendation content is hard-blocked until you are fully licensed ({state}).",
+      "previewCta": "Preview the licensing hard-block",
+      "phaseStatus": {
+        "complete": "Complete",
+        "inProgress": "In progress",
+        "locked": "Locked"
+      },
+      "releasedStatus": "Released — you are fully licensed.",
+      "blockedStatusTemplate": "Blocked ({state}) — insurance content stays held until you're licensed."
+    },
+    "orgSwitch": {
+      "title": "Organization type",
+      "currentLabel": "Current:",
+      "orgTypeLabel": {
+        "primerica": "Primerica",
+        "independent": "Independent"
+      },
+      "switchedStatus": "Switched to {org}. Gated state is wiped for this session; nothing was deleted.",
+      "switchFailedGeneric": "Could not switch organization type.",
+      "switchToCta": "Switch to {org}",
+      "needEnrollNotice": "A security check is required before switching. Set up an authenticator first.",
+      "startEnrollCta": "Start security check-up",
+      "enrollFailedGeneric": "Could not start MFA enrollment.",
+      "scanAuthenticatorPrefix": "Scan this in your authenticator app:",
+      "codeLabel": "6-digit code",
+      "confirmCta": "Confirm",
+      "verifyFailedGeneric": "That code did not verify — check your authenticator app and try again.",
+      "workingStatus": "Working…"
+    },
+    "timeLapseShare": {
+      "blockedMessageTemplate": "Could not clear this for sharing right now ({reason}) — nothing left the app.",
+      "clearedStatus": "Cleared to share — structure and growth only, no income figures.",
+      "shareGroupAriaLabel": "Share this time-lapse",
+      "shareCta": "Share…",
+      "downloadCta": "Download",
+      "copiedLabel": "Copied",
+      "copyLabel": "Copy",
+      "checkingCta": "Checking compliance…",
+      "shareTimeLapseCta": "Share time-lapse",
+      "shareTitle": "Org growth time-lapse",
+      "blockedReasonFallback": "blocked"
+    }
+  },
   "shift": {
     "loadError": "Could not load your shift. Retry.",
-    "offlineBanner": "You're offline — actions are queued and will sync (with a compliance re-check) when you're back."
+    "offlineBanner": "You're offline — actions are queued and will sync (with a compliance re-check) when you're back.",
+    "openPhase": {
+      "streakBadge": "{count}-day streak",
+      "shortModeBadge": "10 focused minutes",
+      "graceDayBanner": "Life happened. Your streak is safe — one grace day used.",
+      "beginCta": "Begin"
+    },
+    "closePhase": {
+      "beatPlanSuffix": "— you beat your own plan.",
+      "reflectionPlaceholder": "One-line reflection (optional)",
+      "reflectionAria": "One-line reflection, optional",
+      "saveFinishCta": "Save & finish",
+      "skipCta": "Skip",
+      "recap": {
+        "nothingNeeded": "Nothing needed you today — your field is working.",
+        "approvedOne": "approved {count} introduction",
+        "approvedMany": "approved {count} introductions",
+        "confirmedOne": "confirmed {count} appointment",
+        "confirmedMany": "confirmed {count} appointments",
+        "loggedOne": "logged {count} item",
+        "loggedMany": "logged {count} items",
+        "wrapper": "You {parts}. Your agents take it from here."
+      }
+    },
+    "workPhase": {
+      "saveLeaveCta": "Save & leave",
+      "timeElapsedAria": "Shift time elapsed",
+      "queuePositionAria": "Queue position",
+      "laterTodayCta": "Later today",
+      "logItCta": "Log it"
+    },
+    "doneScreen": {
+      "doneMessage": "You’re done for today.",
+      "streakLine": "{count}-day streak.",
+      "backToTodayCta": "Back to your day"
+    }
   },
   "inbox": {
     "title": "Approval Inbox",
@@ -295,8 +578,155 @@
       }
     }
   },
+  "content": {
+    "launchKit": {
+      "loading": "Loading the launch kit…",
+      "loadFailedGeneric": "Could not load this launch kit.",
+      "notFound": "Not found.",
+      "backToQueueCta": "Back to Content Queue",
+      "titlePrefix": "Launch kit for",
+      "joinedViaSeparator": "· joined via",
+      "photoAlt": "{name}'s real onboarding photo",
+      "noPhotoNotice": "No photo on file — the share assets render an initials avatar (never a stock photo).",
+      "wholeKitHoldPrefix": "WHOLE-KIT HOLD — one piece was blocked (",
+      "wholeKitHoldSuffix": "). The entire kit is held until every piece clears.",
+      "pieceNeedsRevision": "This piece needs doctrine revision before the kit can proceed.",
+      "approveKitCta": "Approve whole kit",
+      "withdrawKitCta": "New member withdrew — move to drafts"
+    },
+    "queue": {
+      "title": "Content Queue",
+      "subtitle": "Every social post, blog, and email draft waits here — compliance-cleared before it can go out. Nothing publishes without your review.",
+      "pausedBanner": "PUBLISHING PAUSED — COMPLIANCE OFFLINE. Nothing can publish right now; there is no manual bypass. Your drafts are safe.",
+      "generateBatchCta": "Generate this week's batch",
+      "triggerLaunchKitCta": "Trigger a launch kit",
+      "templateLibraryLink": "Template library",
+      "filterAriaLabel": "Filter the content queue",
+      "filters": {
+        "all": "All",
+        "drafting": "Drafting",
+        "readyForReview": "Ready for Review",
+        "scheduled": "Scheduled",
+        "published": "Published",
+        "blocked": "Blocked",
+        "followups": "Follow-ups"
+      },
+      "selectedSuffix": "selected",
+      "bulkApproveCta": "Bulk-approve selected",
+      "loading": "Loading the content queue…",
+      "noFollowups": "No engagement follow-ups waiting — nothing published in the last 48 hours needs a check-in yet.",
+      "followupDuePrefix": "Engagement follow-up due",
+      "markDoneCta": "Mark done",
+      "emptyState": "Nothing here yet — generate this week's batch to get started.",
+      "vocabViolationNote": "Doctrine vocabulary violation — this draft was held, not published.",
+      "holdReasonLabel": "Hold reason:",
+      "scheduledForLabel": "Scheduled for",
+      "selectForBulkApproveAria": "Select for bulk-approve",
+      "approveScheduleCta": "Approve & schedule",
+      "editCta": "Edit",
+      "saveEditCta": "Save edit",
+      "publishNowCta": "Publish now",
+      "publishManuallyPrefix": "Publish manually (automated publish failed",
+      "declineCta": "Decline",
+      "viewLaunchKitCta": "View launch kit",
+      "loadFailedGeneric": "Could not load the content queue. Try again.",
+      "generateBatchFailedGeneric": "Could not generate this week's batch.",
+      "launchKitTrigger": {
+        "newMemberFirstNameLabel": "New member's first name",
+        "firstNamePlaceholder": "e.g. Jordan",
+        "howTheyJoinedLabel": "How they joined",
+        "welcomeVariant": {
+          "personalReferral": "Personal referral",
+          "eventAttendee": "Event attendee",
+          "baseMemberIntroduced": "Base-member introduced"
+        },
+        "generateCta": "Generate launch kit",
+        "generateFailedGeneric": "Could not generate the launch kit.",
+        "resultGenerated": "Launch kit generated in {ms}ms.",
+        "heldForReview": " Held for review — one piece needs your attention.",
+        "readyForReview": " Ready for review."
+      }
+    },
+    "templates": {
+      "title": "Template Library",
+      "subtitleTemplate": "{count} doctrine-verified templates across every category — automatic, AI-inferred, and rep-provided personalization.",
+      "loading": "Loading templates…",
+      "loadFailedGeneric": "Could not load the template library.",
+      "list": {
+        "emptyState": "No templates in this category yet.",
+        "showAllCta": "Show all templates",
+        "imageConceptLabel": "Image concept:",
+        "toneLabel": "Tone:",
+        "personalizationSeparator": "· Personalization:",
+        "doctrineVerifiedSuffix": "· doctrine-verified"
+      }
+    }
+  },
   "learn": {
     "backToToday": "← Back to Today",
+    "backToLearnCta": "← Back to Learn",
+    "streakBar": {
+      "ariaLabel": "7 day streak bar",
+      "dayTitle": {
+        "graceDayUsed": "grace day used",
+        "qualified": "qualified",
+        "readyWhenYouAre": "ready when you are"
+      }
+    },
+    "referrals": {
+      "title": "Referral script generator",
+      "heading": "Ask for a warm introduction",
+      "subtitle": "Every script is compliance-cleared before you see it.",
+      "relationshipTypes": {
+        "family": "Family",
+        "friend": "Friend",
+        "work": "Work colleague",
+        "church": "Church / faith community",
+        "neighbor": "Neighbor",
+        "formerCoworker": "Former coworker",
+        "coach": "Coach / mentor"
+      },
+      "whoAskingLabel": "Who are you asking?",
+      "lengthLabel": "Length",
+      "smsOption": "Text message (short)",
+      "emailOption": "Email (longer)",
+      "draftingCta": "Drafting…",
+      "draftScriptCta": "Draft my script",
+      "clearedBadge": "Cleared and ready",
+      "heldTemplate": "This draft is held for a compliance check ({reason}) — try again in a moment.",
+      "heldReason": {
+        "modelUnavailable": "your agents are resting — nothing was lost",
+        "needsReview": "needs a quick review"
+      }
+    },
+    "ask": {
+      "badge": "Ask Harvest — coaching, not sent to anyone",
+      "heading": "What do you need help saying?",
+      "subtitle": "Grounded in the Downline Maxxing course and the objection scripts — never legal, tax, or earnings advice.",
+      "youAskedLabel": "You asked:",
+      "heldFallback": "Held — try again in a moment.",
+      "questionLabel": "Your question",
+      "questionPlaceholder": "e.g. What do I say when someone thinks this is a pyramid scheme?",
+      "thinkingCta": "Thinking…",
+      "askCta": "Ask"
+    },
+    "courseModules": {
+      "loadFailed": "We couldn't load your course modules right now — nothing was lost.",
+      "emptyState": "Your course is being prepared — check back shortly, or start with",
+      "referralScriptLink": "a referral script",
+      "status": {
+        "done": "Done",
+        "inProgress": "In progress",
+        "start": "Start"
+      }
+    },
+    "courseModule": {
+      "notFound": "That module doesn't exist — here's the course home instead.",
+      "moduleBadge": "Module {order}",
+      "completedCta": "Completed",
+      "savingCta": "Saving…",
+      "markCompleteCta": "Mark complete"
+    },
     "courseBadge": "Downline Maxxing course",
     "title": "Learn",
     "loadingCourse": "Gathering your course…",
@@ -379,6 +809,9 @@
   },
   "dataRights": {
     "heading": "Data & Privacy",
+    "stepUp": {
+      "needEnrollNotice": "A security check-up is required before this action. Set up an authenticator first."
+    },
     "subhead": "Your data is yours. Export a full copy, or ask us to delete it — GDPR/CCPA, plain terms.",
     "export": {
       "sectionTitle": "Export your data",
@@ -643,6 +1076,156 @@
     }
   },
   "team": {
+    "layout": {
+      "todayLink": "Today",
+      "pendingBridgesLink": "Pending Bridges",
+      "calendarLink": "Team Calendar",
+      "cockpitLink": "Sponsor Cockpit"
+    },
+    "dashboard": {
+      "loadingReport": "Gathering your team's report…",
+      "forbidden": {
+        "badge": "Team view",
+        "heading": "This view is for team leaders",
+        "body": "Reps see their own Today view. If you sponsor someone, check the Sponsor Cockpit instead.",
+        "cta": "Go to Sponsor Cockpit"
+      },
+      "loadFailed": "We couldn't load your team dashboard right now — your data is safe.",
+      "emptyBadge": "Team",
+      "emptyHeading": "Your team starts with one.",
+      "emptyBody": "Invite your first downline member to see their pace and outcomes here.",
+      "emptyCta": "Start the invitation flow",
+      "needsYouNowBadge": "Needs you now",
+      "needsYouNowItemBody": "A downline rep needs you in a three-way today.",
+      "joinThreeWayCta": "Join the three-way",
+      "rosterBadge": "Roster",
+      "rosterHeading": "Pace and outcomes — never a ranking",
+      "sortByLabel": "Sort by",
+      "sortOption": {
+        "name": "Name",
+        "pace": "Pace",
+        "momentum": "Momentum"
+      },
+      "rosterCaption": "Team roster with pace status and momentum band",
+      "tableHeader": {
+        "rep": "Rep",
+        "pace": "Pace",
+        "momentum": "Momentum"
+      },
+      "noDataMomentum": "Learning your community",
+      "viewCta": "View",
+      "downlineLeakBadge": "Downline Leak",
+      "downlineLeakBody": "{count} rep(s) haven't been in the field for a while — a quiet coaching nudge, not a warning.",
+      "fieldTrainerRatioBadge": "Your Field Trainer's Ratio",
+      "metric": {
+        "appointmentsRun": "appointments run",
+        "completed": "completed",
+        "noShows": "no-shows (owned honestly)"
+      }
+    },
+    "rep": {
+      "notFound": "We couldn't find that rep.",
+      "loadFailed": "We couldn't load this view right now.",
+      "badge": "Rep drill-in",
+      "milestonesBadge": "Milestones",
+      "pipelineStatesBadge": "Pipeline states",
+      "pipelineStatesEmpty": "Learning this rep's community — nothing in the pipeline yet.",
+      "namesInPlayBadge": "Names in play",
+      "namesInPlayEmpty": "No names in play yet — nothing to review."
+    },
+    "bridges": {
+      "loading": "Loading your pending bridges…",
+      "loadFailed": "We couldn't load your pending bridges right now — your data is safe.",
+      "badge": "Pending bridges",
+      "intro": "When a rep on your team bridges you into a conversation, it waits here. Join within 24 hours or it returns to them with a coached next step.",
+      "joinErrors": {
+        "conflict": "This request can no longer be joined.",
+        "notFound": "This request is no longer available.",
+        "generic": "Could not join this conversation."
+      },
+      "item": {
+        "ariaLabel": "Bridge request from {name}",
+        "reasonLabel": {
+          "buyingSignal": "They're showing real interest",
+          "hardQuestion": "A question they couldn't answer well",
+          "manual": "They just wanted the introduction",
+          "fallback": "Wants to bring you into a conversation"
+        },
+        "invitedLabel": "Invited",
+        "returnsToThemAtLabel": "· returns to them at",
+        "ifYouDontJoin": "if you don't join",
+        "joinedNotice": "You joined this conversation.",
+        "joiningCta": "Joining…",
+        "joinCta": "Join conversation",
+        "errorFallback": "Could not join this conversation. Try again."
+      },
+      "list": {
+        "emptyNotice": "No pending bridge requests right now — a quiet queue.",
+        "backToTeamCta": "Back to your team dashboard"
+      }
+    },
+    "calendar": {
+      "loading": "Loading the team calendar…",
+      "loadFailed": "We couldn't reach the team calendar right now — your data is safe.",
+      "connectionsBadge": "Calendar connections",
+      "googleLabel": "Google Calendar:",
+      "notConnected": "Not connected",
+      "googleExpiredNotice": "— calendar disconnected; we'll propose times but won't book blind.",
+      "disconnectCta": "Disconnect",
+      "caldavLabel": "iOS CalDAV (read-only):",
+      "broadcastBadge": "Team broadcast calendar",
+      "broadcastIntro": "Opportunity nights, training, and team calls — read-only unless you're the RVP.",
+      "attendanceLabel": "— your attendance:",
+      "noUpcomingEvents": "No upcoming team events yet.",
+      "eventTypeLabel": "Event type",
+      "eventType": {
+        "opportunityNight": "Opportunity night",
+        "training": "Training",
+        "teamCall": "Team call",
+        "bigEvent": "Big event"
+      },
+      "startsAtLabel": "Starts at",
+      "addEventCta": "Add to team calendar (RVP only)",
+      "rvpOnlyNotice": "Only the RVP/admin can add to the team calendar.",
+      "agendaBadge": "Your agenda",
+      "closingAppointmentPrefix": "Closing appointment —",
+      "coachingSessionPrefix": "Coaching session —",
+      "proposedFallback": "proposed",
+      "noAgendaItems": "Nothing on your calendar in the next 30 days.",
+      "proposeCoachingBadge": "Propose a coaching session",
+      "proposeCoachingIntro": "Books (or proposes) time with your upline trainer — respects the schedule-flooding limit that protects the 2-Hour CEO promise.",
+      "proposeCoachingCta": "Propose a coaching session with my upline",
+      "proposeClosingBadge": "Propose a closing appointment",
+      "proposeClosingIntro": "Merges your calendar and your upline's, and dispatches a CFE-cleared draft to your Approval Inbox.",
+      "contactIdLabel": "Contact id",
+      "contactIdPlaceholder": "from the community contact page",
+      "proposeClosingCta": "Propose closing appointment",
+      "noUplineOnFile": "You don't have an upline on file yet.",
+      "bookedWithUpline": "Booked with your upline.",
+      "proposedWaitingWindow": "Proposed — waiting on a confirmed window.",
+      "coachingProposeFailedGeneric": "Could not propose a coaching session right now.",
+      "enterContactIdNotice": "Enter a contact id and make sure you have an upline on file.",
+      "appointmentBookedNotice": "Booked — a confirmation draft is in your Approval Inbox.",
+      "appointmentProposedNotice": "Proposed — near-miss windows are in your Approval Inbox for review.",
+      "appointmentProposeFailedGeneric": "Could not propose that appointment right now."
+    },
+    "cockpit": {
+      "loading": "Loading the Sponsor Cockpit…",
+      "loadFailed": "We can't reach the Sponsor Cockpit right now.",
+      "emptyHeading": "You're not sponsoring anyone yet.",
+      "emptyBody": "When you cover a new member's free tier, their activation, seat cost, and ROI story will show up here.",
+      "statusLabel": "Status:",
+      "seatCostLabel": "Seat cost this period: $",
+      "recruitsActivatedLabel": "New members activated:",
+      "appointmentsGeneratedLabel": "· Appointments generated:",
+      "renewsLabel": "Renews:",
+      "enterpriseConsoleBadge": "Enterprise console",
+      "seatPoolHeading": "Seat pool",
+      "noSeatsAssigned": "No enterprise seats assigned yet.",
+      "orgAnalyticsHeading": "Org analytics narrative",
+      "noNarrativeYet": "No narrative generated yet.",
+      "refreshNarrativeCta": "Refresh narrative (Opus 4.8, batched)"
+    },
     "complianceLink": {
       "badge": "Compliance review",
       "body": "Flagged drafts from your team awaiting your review.",

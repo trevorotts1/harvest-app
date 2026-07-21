@@ -5,6 +5,7 @@
 // here the copy is passed in). Tokens only, icon + text (never color alone).
 
 import styles from '../conversation.module.css';
+import { useT } from '@/app/locale-context';
 
 export type HandoffState = 'INVITED' | 'JOINED' | 'RETURNED';
 
@@ -16,12 +17,13 @@ export interface ThreeWayHandoffCardProps {
 }
 
 export default function ThreeWayHandoffCard({ repName, uplineName, state, coachedNextStep }: ThreeWayHandoffCardProps) {
+  const t = useT();
   return (
-    <article className={styles.handoffCard} role="group" aria-label={`Three-way handoff with ${uplineName}`}>
+    <article className={styles.handoffCard} role="group" aria-label={t('community.threeWayHandoff.ariaLabel', { name: uplineName })}>
       {state === 'INVITED' && (
         <p className={styles.handoffLine} role="status">
           <span className={styles.handoffIcon} aria-hidden="true">→</span>
-          {uplineName} has been invited into this conversation.
+          {t('community.threeWayHandoff.invitedLine', { name: uplineName })}
         </p>
       )}
 
@@ -29,7 +31,7 @@ export default function ThreeWayHandoffCard({ repName, uplineName, state, coache
         <>
           <p className={styles.handoffLine} role="status">
             <span className={styles.handoffIcon} aria-hidden="true">✓</span>
-            {uplineName} joined the conversation.
+            {t('community.threeWayHandoff.joinedLine', { name: uplineName })}
           </p>
           <div className={styles.chipRow}>
             <span className={styles.identityChip}>{repName}</span>
@@ -42,11 +44,11 @@ export default function ThreeWayHandoffCard({ repName, uplineName, state, coache
         <>
           <p className={styles.handoffLine} role="status">
             <span className={styles.handoffIcon} aria-hidden="true">↩</span>
-            Returned to you — {uplineName} could not join in time.
+            {t('community.threeWayHandoff.returnedLine', { name: uplineName })}
           </p>
           {coachedNextStep && (
             <p className={styles.coachedStep}>
-              <span className={styles.coachLabel}>Coaching</span> {coachedNextStep}
+              <span className={styles.coachLabel}>{t('community.threeWayHandoff.coachingLabel')}</span> {coachedNextStep}
             </p>
           )}
         </>

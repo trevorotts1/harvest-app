@@ -73,11 +73,17 @@ export default function LearnPage() {
           <span className="badge">
             {t('learn.streakBadge', { count: streak.currentStreakDays, plural: streak.currentStreakDays === 1 ? '' : 's' })}
           </span>
-          <div style={{ display: 'flex', gap: 6, marginTop: 12 }} aria-label="7 day streak bar">
+          <div style={{ display: 'flex', gap: 6, marginTop: 12 }} aria-label={t('learn.streakBar.ariaLabel')}>
             {streak.last7Days.map((day) => (
               <span
                 key={day.date}
-                title={day.wasGraceDay ? 'grace day used' : day.qualified ? 'qualified' : 'ready when you are'}
+                title={
+                  day.wasGraceDay
+                    ? t('learn.streakBar.dayTitle.graceDayUsed')
+                    : day.qualified
+                      ? t('learn.streakBar.dayTitle.qualified')
+                      : t('learn.streakBar.dayTitle.readyWhenYouAre')
+                }
                 style={{
                   width: 28,
                   height: 28,
