@@ -29,6 +29,9 @@ export type PersistedChannel = 'SMS_HANDOFF' | 'SMS_PLATFORM' | 'EMAIL' | 'SOCIA
 export interface ContactControls {
   do_not_contact: boolean;
   agents_paused: boolean;
+  /** T-57 R3c-2: Contact.manual_mode (§9.4 "hand a thread to manual mode") — read here so
+   *  `AgentRuntime.runAgent`'s per-contact halt (agent-runtime.ts) can branch on it. */
+  manual_mode: boolean;
 }
 
 export interface CreateAgentRunInput {
@@ -89,8 +92,8 @@ interface PrismaLike {
   contact: {
     findFirst(args: {
       where: { id: string; user_id: string };
-      select: { do_not_contact: true; agents_paused: true };
-    }): Promise<{ do_not_contact: boolean; agents_paused: boolean } | null>;
+      select: { do_not_contact: true; agents_paused: true; manual_mode: true };
+    }): Promise<{ do_not_contact: boolean; agents_paused: boolean; manual_mode: boolean } | null>;
   };
   idempotencyLog: {
     findUnique(args: { where: { key: string }; select: { id: true } }): Promise<{ id: string } | null>;
@@ -112,7 +115,7 @@ export class PrismaAgentRuntimeStore implements AgentRuntimeStore {
   async getContactControls(contactId: string, userId: string): Promise<ContactControls | null> {
     const row = await this.db.contact.findFirst({
       where: { id: contactId, user_id: userId },
-      select: { do_not_contact: true, agents_paused: true },
+      select: { do_not_contact: true, agents_paused: true, manual_mode: true },
     });
     return row ?? null;
   }

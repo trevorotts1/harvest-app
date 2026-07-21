@@ -361,7 +361,7 @@ describe('durable queue (Inngest, D-4)', () => {
 describe('per-contact controls (§9.4)', () => {
   test('do_not_contact halts the run immediately — no generation, no draft', async () => {
     const store = new InMemoryAgentRuntimeStore();
-    store.contactControls.set('contact-1', { do_not_contact: true, agents_paused: false });
+    store.contactControls.set('contact-1', { do_not_contact: true, agents_paused: false, manual_mode: false });
     const model = new ScriptedModelClient();
     const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store });
     const res = await runtime.runAgent(job());
@@ -372,12 +372,27 @@ describe('per-contact controls (§9.4)', () => {
 
   test('agents_paused halts the run immediately', async () => {
     const store = new InMemoryAgentRuntimeStore();
-    store.contactControls.set('contact-1', { do_not_contact: false, agents_paused: true });
+    store.contactControls.set('contact-1', { do_not_contact: false, agents_paused: true, manual_mode: false });
     const model = new ScriptedModelClient();
     const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store });
     const res = await runtime.runAgent(job());
     expect(res.outcome).toBe('skipped_paused');
     expect(model.calls).toHaveLength(0);
+  });
+
+  // T-57 R3c-2: closes the gap the R3c-2 write-path (contact-controls.service.ts) left open — the
+  // toggle persisted `Contact.manual_mode` but the runtime never read it. TEETH: if the manual_mode
+  // branch is removed from AgentRuntime, this run falls through to generation — the model gets
+  // called, a draft is created, and the outcome is 'surfaced' instead of 'skipped_manual'.
+  test('manual_mode halts the run immediately — no generation, no draft', async () => {
+    const store = new InMemoryAgentRuntimeStore();
+    store.contactControls.set('contact-1', { do_not_contact: false, agents_paused: false, manual_mode: true });
+    const model = new ScriptedModelClient();
+    const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store });
+    const res = await runtime.runAgent(job());
+    expect(res.outcome).toBe('skipped_manual');
+    expect(model.calls).toHaveLength(0);
+    expect(store.draftMessages).toHaveLength(0);
   });
 });
 

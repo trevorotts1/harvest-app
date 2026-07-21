@@ -69,6 +69,7 @@ export type RunOutcome =
   | 'held' // non-released CFE verdict, CFE unavailable, or missing key → NOT sendable
   | 'skipped_paused' // Contact.agents_paused
   | 'skipped_dnc' // Contact.do_not_contact
+  | 'skipped_manual' // Contact.manual_mode — thread handed to the rep; no automated per-contact action
   | 'deferred' // RunGate denied (budget / kill-switch, T-31)
   | 'idempotent_replay' // key already processed
   | 'completed_internal'; // numeric/analytic output (no CFE content decision needed)
@@ -196,6 +197,11 @@ export class AgentRuntime {
         const runId = await this.recordTerminalRun(spec, input, 'HELD', `${spec.displayName} stood down: agents are paused for this contact.`);
         await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
         return this.result(spec.key, 'skipped_paused', runId, null, 'Agents paused for this contact — no outreach produced.', null);
+      }
+      if (controls?.manual_mode) {
+        const runId = await this.recordTerminalRun(spec, input, 'HELD', `${spec.displayName} stood down: this contact's thread is handled manually.`);
+        await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
+        return this.result(spec.key, 'skipped_manual', runId, null, 'Manual mode — no outreach produced.', null);
       }
     }
 
