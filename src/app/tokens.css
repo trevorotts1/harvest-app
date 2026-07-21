@@ -284,7 +284,14 @@
        either. Do not add one back (T-05 QC round-4 regression). */
     --color-harvest-fill: var(--harvest-500);
     --color-harvest-fill-strong: var(--harvest-500);
-    --on-harvest-fill: var(--ink-inverse);
+    /* T-57 R3d (A5-FOLLOWUP): --harvest-500 is bright enough that it needs
+       the SAME dark-ink pairing light theme uses (--soil-900), not a
+       light-on-dark inversion — --ink-inverse on --harvest-500 measured
+       2.67:1 (AA FAIL, needs 4.5:1). --soil-900 on --harvest-500 measures
+       5.47:1 (AA PASS). See KNOWN_PRE_EXISTING_FAILURES's own header
+       comment in scripts/verify-rendered-contrast.mjs for the full defect
+       writeup (fixed by this change — do not regress). */
+    --on-harvest-fill: var(--soil-900);
 
     --color-caution-text: var(--wheat-300);
     --color-caution-bg: var(--grove-800);
@@ -335,7 +342,11 @@
      verify-contrast.mjs) — this property is simply absent from both. */
   --color-harvest-fill: var(--harvest-500);
   --color-harvest-fill-strong: var(--harvest-500);
-  --on-harvest-fill: var(--ink-inverse);
+  /* T-57 R3d (A5-FOLLOWUP): keep in sync with the prefers-color-scheme
+     block above — --soil-900 on --harvest-500 = 5.47:1 (AA PASS), was
+     --ink-inverse on --harvest-500 = 2.67:1 (AA FAIL). See that block's
+     comment for the full rationale. */
+  --on-harvest-fill: var(--soil-900);
 
   --color-caution-text: var(--wheat-300);
   --color-caution-bg: var(--grove-800);

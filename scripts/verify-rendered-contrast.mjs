@@ -39,8 +39,12 @@
  * (MAJOR-A5: "Rendered-contrast gate covers 2/9 marquee screens... this class recurred 3x") extends
  * TARGETS to the 9 §5 marquee screens + the two emotional/gradient widgets named in that finding
  * (Hidden Earnings reveal's `--gradient-reveal`, the Today Grove's milestone "full-bloom" narration
- * widget) — see the TARGETS array below for the full, current list and per-entry notes on exactly
- * how (or whether) each one is actually reachable by this headless script today.
+ * widget). T-57 R3d (A5-FOLLOWUP) closes two coverage gaps R1b's own QC flagged: O-1 Vision Splash
+ * (the very first `/onboarding` screen, reachable with no `drive` script and no auth) full-page, and
+ * its "begin" button specifically (`.btnHarvest` — the same class the O-8 fix targets, so this is a
+ * second live re-check of that fix, not a duplicate) — see the TARGETS array below for the full,
+ * current list and per-entry notes on exactly how (or whether) each one is actually reachable by
+ * this headless script today.
  *
  * A REAL CONSTRAINT, not glossed over: `src/middleware.ts` (T-04, §16.4) puts a NextAuth session
  * gate in front of every one of those marquee screens except the public `/` and `/design-tokens`
@@ -93,9 +97,12 @@
  *     after a preceding "Install Playwright Chromium" step installs the
  *     browser binary CI needs.
  *
- * Exits 0 on success, 1 with a per-node report on any NEW (non-grandfathered) AA failure — see
- * `KNOWN_PRE_EXISTING_FAILURES` below for the one pre-existing, out-of-T-57-R1b-scope defect this
- * script's own new (A5) coverage surfaced the moment it started actually rendering `/onboarding`.
+ * Exits 0 on success, 1 with a per-node report on any NEW (non-grandfathered) AA failure —
+ * `KNOWN_PRE_EXISTING_FAILURES` below is now EMPTY: the one defect this script's new (A5) coverage
+ * surfaced (the `.btnHarvest` dark-theme `--on-harvest-fill`/`--color-harvest-fill` pairing, 2.67:1)
+ * was fixed at the token layer in T-57 R3d (A5-FOLLOWUP) — see that Set's own header comment. The
+ * Set stays wired up (not deleted) as the mechanism for the NEXT genuinely-out-of-scope defect a
+ * future coverage expansion surfaces.
  */
 import { chromium } from 'playwright';
 import { PNG } from 'pngjs';
@@ -153,42 +160,27 @@ function stripCssModuleHash(className) {
 
 /**
  * T-57 R1b (MAJOR-A5) surfaced exactly ONE real, pre-existing AA failure the moment `/onboarding`'s
- * Hidden Earnings Reveal (O-8) started actually being rendered — never caught before because this
- * script's TARGETS only covered 2/9 marquee screens (the whole point of A5). Per this fixer's brief
- * ("do not fix component colors in this unit... flag it for a follow-up; only fix if trivial and in
- * an owned file"): this is NOT trivial (a shared design-TOKEN pairing, `tokens.css`'s dark-theme
- * `--on-harvest-fill` on `--color-harvest-fill`, not a component-local color — `tokens.css` is not
- * one of this fixer's owned files, and every `.btnHarvest`-styled CTA app-wide inherits it, e.g.
- * `VisionSplash`'s "begin" button too, not just this one screen), so it is GRANDFATHERED here — the
- * exact same shrink-only-baseline discipline `guard-no-opacity-on-text.mjs` /
- * `guard-no-literals-in-components.mjs` / `guard-touch-target.mjs` all already apply to their own
- * pre-existing debt — rather than either silently hard-failing `npm test`/`postbuild`'s consumers
- * for a defect this unit isn't scoped to fix, or (worse) silently dropping the finding.
+ * Hidden Earnings Reveal (O-8) started actually being rendered — never caught before because that
+ * round's TARGETS only covered 2/9 marquee screens (the whole point of A5). It was GRANDFATHERED at
+ * the time (R1b's brief: "do not fix component colors in this unit... flag it for a follow-up") as
+ * `.btnHarvest` (onboarding.module.css) `background: var(--color-harvest-fill); color:
+ * var(--on-harvest-fill)`: light theme `--harvest-400` bg + `--soil-900` (dark ink) text = 7.37:1
+ * (fine); dark theme repointed `--color-harvest-fill` to the brighter `--harvest-500` while ALSO
+ * repointing `--on-harvest-fill` to `--ink-inverse` (light text) = 2.67:1, an AA FAIL.
  *
- * THE DEFECT, for the follow-up: `.btnHarvest` (onboarding.module.css) sets `background:
- * var(--color-harvest-fill); color: var(--on-harvest-fill)`. Light theme: `--harvest-400` bg +
- * `--soil-900` (dark ink) text = 7.37:1 (measured) — fine. Dark theme: tokens.css repoints
- * `--color-harvest-fill` to the DARKER-BUT-STILL-BRIGHT `--harvest-500` while ALSO repointing
- * `--on-harvest-fill` to `--ink-inverse` (light text) — measured 2.67:1, an AA FAIL (need 4.5:1).
- * `--harvest-500` is bright enough that dark theme needs the SAME dark-ink pairing light theme
- * uses, not a light-on-dark inversion; fixing this token pairing (not a per-component override) is
- * the correct fix, and it must be re-verified against `verify-contrast.mjs` + this script across
- * every `.btnHarvest` use site, not just this one — real, non-trivial, cross-cutting work.
- *
- * Each entry is `${target.label}::${theme}::${tag} ${stripCssModuleHash(className)}::${text}` —
- * per-instance, exactly like the other guards' own fingerprinting rationale (a different
- * button/theme/text combo on the same selector would need its own, separate entry, never silently
- * covered by this one) — with the CSS-Modules build hash stripped from the class list so this
- * fingerprint survives an unrelated rebuild (see `stripCssModuleHash`). Delete an entry the moment
- * its underlying token pairing is actually fixed — this baseline is frozen, pre-existing debt, never
- * an escape hatch for a NEW regression (any failure not an exact match here still hard-fails, same
- * as ever).
+ * T-57 R3d (A5-FOLLOWUP) FIXED this at the token layer: `src/app/tokens.css`'s dark-theme
+ * `--on-harvest-fill` now resolves to `--soil-900` (the SAME dark-ink pairing light theme already
+ * used) instead of `--ink-inverse` — `--harvest-500` was simply too bright for a light-on-dark
+ * inversion. New dark-theme ratio: `--soil-900` on `--harvest-500` = 5.47:1 (AA PASS). Verified
+ * against every real consumer of the `--color-harvest-fill`/`--on-harvest-fill` pairing (grep across
+ * src/), not just this one screen — `.btnHarvest` (this widget + `VisionSplash`'s "begin" button,
+ * both now covered by TARGETS below) and `.currentBadge` (me/subscription/subscription.module.css)
+ * — none regress, both go from FAIL to PASS. `KNOWN_PRE_EXISTING_FAILURES` is intentionally EMPTY
+ * now: this Set exists for the NEXT genuinely-out-of-scope defect this gate's coverage surfaces, not
+ * as a permanent home for this one — a failure that reappears here must hard-fail for real, exactly
+ * like any other non-grandfathered result (see `resultFingerprint` / the main loop below).
  */
-const KNOWN_PRE_EXISTING_FAILURES = new Set([
-  fingerprint(
-    'Onboarding O-8 Hidden Earnings Reveal — .reveal / --gradient-reveal widget::dark::BUTTON onboarding_btn onboarding_btnHarvest::Go get it.'
-  ),
-]);
+const KNOWN_PRE_EXISTING_FAILURES = new Set([]);
 
 /** Builds the same fingerprint shape as `KNOWN_PRE_EXISTING_FAILURES`'s entries, from a real
  *  measured result — see that Set's own header comment for the exact field shape. */
@@ -299,6 +291,19 @@ const TARGETS = [
     label: 'Onboarding O-8 Hidden Earnings Reveal — .reveal / --gradient-reveal widget',
     scope: '[class*="reveal"]',
     drive: driveOnboardingToReveal,
+  },
+
+  // --- T-57 R3d (A5-FOLLOWUP) — R1b-QC coverage gaps: O-1 Vision Splash was never in TARGETS even
+  // though it's the very FIRST screen `/onboarding` renders (no `drive` needed — a plain `goto` lands
+  // here directly) and, like O-8, needs no auth (see header comment: `/onboarding` is deliberately
+  // never gated). Its "begin" button is `.btnHarvest` — the SAME class/tokens as the O-8 CTA above,
+  // so this is also a live, independent re-check of the T-57 R3d token fix (see
+  // KNOWN_PRE_EXISTING_FAILURES's header comment) on a second real render, not just a duplicate. ----
+  { path: '/onboarding', scope: null, label: 'Onboarding O-1 Vision Splash (§5.1) — full page' },
+  {
+    path: '/onboarding',
+    scope: '[class*="btnHarvest"]',
+    label: 'Onboarding O-1 Vision Splash — "begin" button (.btnHarvest)',
   },
 ];
 
