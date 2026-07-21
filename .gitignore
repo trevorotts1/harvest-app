@@ -9,3 +9,6 @@ _foundation-draft.md
 .worktrees/
 .vercel
 .next/
+
+# TS incremental build cache — regenerates every build/typecheck, should never be tracked
+*.tsbuildinfo
