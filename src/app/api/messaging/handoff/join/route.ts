@@ -26,12 +26,15 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
   const { handoffId } = body as { handoffId?: unknown };
   if (!handoffId || typeof handoffId !== 'string') {
-    return NextResponse.json({ error: '"handoffId" (a single string id) is required.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"handoffId" (a single string id) is required.', code: 'HANDOFF_ID_REQUIRED' },
+      { status: 400 }
+    );
   }
 
   const service = new ThreeWayHandoffService(prisma as unknown as ThreeWayHandoffPrismaClient);
@@ -47,7 +50,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     }
     // NOT_FOUND or NOT_YOUR_HANDOFF both resolve to a plain 404 — never distinguish "does not exist"
     // from "is not yours" (no leak of another rep-line's handoff).
-    return NextResponse.json({ error: 'Handoff not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Handoff not found', code: 'HANDOFF_NOT_FOUND' }, { status: 404 });
   }
 
   return NextResponse.json({

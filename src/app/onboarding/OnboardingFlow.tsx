@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 import { useLocale } from '@/app/locale-context';
+import { errorDisplay } from '@/lib/i18n/error-display';
+import { MAX_IMPORT_ROWS } from '@/services/warm-market/vault/csv-parser';
 import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
@@ -168,8 +170,12 @@ export default function OnboardingFlow({
     try {
       const response = await fetch('/api/onboarding/consent', { method: 'POST' });
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}) as { error?: string });
-        setConsentError(body.error ?? t('onboarding.gdprConsent.failedGeneric'));
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the response's machine `code`
+        // (falls back to `errors.generic` for the generic session/RBAC-gate failure, which sets no
+        // `code` of its own — still real, translated Spanish, never English).
+        const body = await response.json().catch(() => ({}) as { code?: string });
+        setConsentError(errorDisplay(t, body.code));
         return;
       }
       advance();
@@ -206,9 +212,11 @@ export default function OnboardingFlow({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ csvText, idempotencyKey: csvIdempotencyKeyRef.current }),
       });
-      const body = await response.json().catch(() => ({}) as { error?: string });
+      const body = await response.json().catch(() => ({}) as { code?: string });
       if (!response.ok) {
-        setCsvError((body as { error?: string }).error ?? t('onboarding.contactImport.denied.importFailedGeneric'));
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+        setCsvError(errorDisplay(t, body.code, { maxRows: MAX_IMPORT_ROWS }));
         return;
       }
       // This attempt is done — a later, separate file selection mints a fresh idempotency key.

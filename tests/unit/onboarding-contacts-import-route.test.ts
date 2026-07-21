@@ -146,14 +146,19 @@ describe('POST /api/onboarding/contacts-import — session-gated, NOT onboarding
     expect(mockImportBatch).not.toHaveBeenCalled();
   });
 
-  test('an oversized import surfaces as 413 IMPORT_LIMIT_EXCEEDED, never a 500', async () => {
+  test('an oversized import surfaces as 413 with the granular machine code, never a 500', async () => {
     mockedSession.mockResolvedValue(fakeSession());
-    mockImportBatch.mockRejectedValue(new ImportLimitExceededError('too many rows'));
+    mockImportBatch.mockRejectedValue(new ImportLimitExceededError('too many rows', 'CSV_TOO_MANY_ROWS'));
 
     const res = await POST(postRequest({ csvText: SAMPLE_CSV, idempotencyKey: 'k' }), {});
     expect(res.status).toBe(413);
     const body = await res.json();
-    expect(body.code).toBe('IMPORT_LIMIT_EXCEEDED');
+    // T-57 RE-GATE B [af7789d3] Finding 1 — the route forwards the ERROR'S OWN granular `code`
+    // (CSV_TOO_LARGE vs CSV_TOO_MANY_ROWS vs IMPORT_ROWS_LIMIT_EXCEEDED), not a single bucket code,
+    // so the client can resolve a DISTINCT, correctly-worded Spanish `errors.*` catalog string per
+    // failure kind (never the raw English `body.error`, which this test does NOT assert on).
+    expect(body.code).toBe('CSV_TOO_MANY_ROWS');
+    expect(typeof body.error).toBe('string');
   });
 
   test('malformed body (invalid JSON) → 400, never throws unhandled', async () => {

@@ -33,6 +33,7 @@
 
 import { MutationHandler, PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isPermanentRejectionStatus, postJson, type PostJsonFn, type RawJsonResponse } from '@/lib/offline/http';
+import { errorDisplay, type Translate } from '@/lib/i18n/error-display';
 
 export { isPermanentRejectionStatus, postJson, type PostJsonFn, type RawJsonResponse };
 
@@ -79,6 +80,10 @@ export function declineMutationId(draftId: string): string {
 interface ApiOkShape {
   ok?: boolean;
   error?: string;
+  // T-57 RE-GATE B [af7789d3] Finding 1 — the machine code every mutation route now sets alongside
+  // `error` (kept for logs only); `onPermanentRejection`'s message is resolved through it, never
+  // through the raw `error` prose.
+  code?: string;
 }
 
 export interface PermanentRejectionInfo {
@@ -98,8 +103,16 @@ export interface PermanentRejectionInfo {
  */
 export function createInboxQueueHandlers(
   postJsonFn: PostJsonFn,
-  onPermanentRejection?: (info: PermanentRejectionInfo) => void
+  onPermanentRejection?: (info: PermanentRejectionInfo) => void,
+  // T-57 RE-GATE B [af7789d3] Finding 1 — injected by the page (which already holds the live
+  // locale's `t` via `useLocale()`); this module stays framework-free (see header) by taking a
+  // plain function rather than importing React/the locale context itself. `onPermanentRejection`'s
+  // `message` is ALWAYS resolved through `errorDisplay(t, data.code)`, never through the raw
+  // `data.error` prose — see `src/lib/i18n/error-display.ts`'s own header for why.
+  t?: Translate
 ): Record<string, MutationHandler<unknown>> {
+  const display = (code: string | undefined): string =>
+    t ? errorDisplay(t, code) : (code ?? 'errors.generic');
   return {
     [INBOX_MUTATION_KIND.APPROVE]: async (payload) => {
       const { draftId, justification } = payload as ApproveMutationPayload;
@@ -112,10 +125,11 @@ export function createInboxQueueHandlers(
         onPermanentRejection?.({
           kind: INBOX_MUTATION_KIND.APPROVE,
           draftId,
-          message: data.error ?? 'This approval could not complete — it needs review again.',
+          message: display(data.code),
         });
         return; // finished processing (never retryable) — resolved, not thrown.
       }
+      // Thrown/logged only (never rendered to the rep) — the raw `error` prose is fine here.
       throw new Error(`Approve replay failed (${status}): ${data.error ?? 'unknown error'}`);
     },
     [INBOX_MUTATION_KIND.DECLINE]: async (payload) => {
@@ -126,7 +140,7 @@ export function createInboxQueueHandlers(
         onPermanentRejection?.({
           kind: INBOX_MUTATION_KIND.DECLINE,
           draftId,
-          message: data.error ?? 'This decline could not complete.',
+          message: display(data.code),
         });
         return;
       }
@@ -144,7 +158,7 @@ export function createInboxQueueHandlers(
         onPermanentRejection?.({
           kind: INBOX_MUTATION_KIND.EDIT,
           draftId,
-          message: data.error ?? 'This edit could not be saved — it needs review again.',
+          message: display(data.code),
         });
         return;
       }

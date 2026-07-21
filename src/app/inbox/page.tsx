@@ -34,6 +34,7 @@ import Link from 'next/link';
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useLocale } from '@/app/locale-context';
+import { errorDisplay, errorStateLabel } from '@/lib/i18n/error-display';
 
 import ComposerHandoffSheet from '@/app/community/components/ComposerHandoffSheet';
 
@@ -137,7 +138,7 @@ export default function ApprovalInboxPage() {
     const total = q.length;
     setSyncing({ total, remaining: total });
     const rejections: PermanentRejectionInfo[] = [];
-    const handlers = createInboxQueueHandlers(postJson, (info) => rejections.push(info));
+    const handlers = createInboxQueueHandlers(postJson, (info) => rejections.push(info), t);
     const result = await q.replay(handlers, () => {
       setQueueLength(q.length);
       setSyncing((prev) => (prev ? { ...prev, remaining: q.length } : prev));
@@ -167,7 +168,7 @@ export default function ApprovalInboxPage() {
     if (result.synced > 0 || rejections.length > 0) {
       await load(filter);
     }
-  }, [filter, load]);
+  }, [filter, load, t]);
 
   useEffect(() => {
     const unsubscribe = subscribeOnlineStatus((online) => {
@@ -204,7 +205,15 @@ export default function ApprovalInboxPage() {
       body: JSON.stringify({ draftId, justification }),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.approveFailed') };
+    if (!res.ok || !data.ok) {
+      // T-57 RE-GATE B [af7789d3] Finding 1 — NEVER render `data.error` (raw English from the
+      // server); resolve a locale-correct DISPLAY string from the `errors.*` catalog, keyed by the
+      // route's machine `code`, mirroring `ComposerHandoffSheet`'s code→catalog pattern.
+      return {
+        ok: false,
+        error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+      };
+    }
     setItems((prev) => prev.filter((it) => it.id !== draftId));
     // AC-5.6-6 — own-number first touch chains into the Composer Handoff Sheet on approval.
     if (approvedItem && approvedItem.channel === 'SMS_HANDOFF') {
@@ -234,7 +243,12 @@ export default function ApprovalInboxPage() {
       body: JSON.stringify({ draftId, reason, note }),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.declineFailed') };
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+      };
+    }
     setItems((prev) => prev.filter((it) => it.id !== draftId));
     return { ok: true };
   }
@@ -261,7 +275,12 @@ export default function ApprovalInboxPage() {
       body: JSON.stringify({ draftId, body }),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.editFailed') };
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+      };
+    }
 
     const existing = items.find((it) => it.id === draftId);
     if (!existing) return { ok: false, error: t('inbox.errors.draftNotInView') };

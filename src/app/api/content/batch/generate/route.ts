@@ -20,12 +20,18 @@ export const POST = withOnboardingGate(async (_req, _ctx, _session, identity) =>
     if (err instanceof MissingClaudeCredentialError) {
       // Fail CLOSED (§0.3 rule 3): no key -> no fabricated batch, ever.
       return NextResponse.json(
-        { error: 'Held: your agents are resting — the Claude connection is not configured. Nothing was lost.' },
+        {
+          error: 'Held: your agents are resting — the Claude connection is not configured. Nothing was lost.',
+          code: 'AGENT_CREDENTIAL_MISSING',
+        },
         { status: 503 }
       );
     }
     if (err instanceof AgentModelTimeoutError || err instanceof AgentModelError) {
-      return NextResponse.json({ error: 'Generation failed — nothing was lost. Try again shortly.' }, { status: 502 });
+      return NextResponse.json(
+        { error: 'Generation failed — nothing was lost. Try again shortly.', code: 'AGENT_GENERATION_FAILED' },
+        { status: 502 }
+      );
     }
     throw err;
   }

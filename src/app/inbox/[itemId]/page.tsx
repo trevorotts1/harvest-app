@@ -37,6 +37,7 @@ import Link from 'next/link';
 
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useT } from '@/app/locale-context';
+import { errorDisplay, errorStateLabel } from '@/lib/i18n/error-display';
 import ComposerHandoffSheet from '@/app/community/components/ComposerHandoffSheet';
 import ApprovalInboxItem, { type InboxItemData } from '../components/ApprovalInboxItem';
 import inboxStyles from '../inbox.module.css';
@@ -102,7 +103,12 @@ export default function InboxSingleItemPage() {
           body: JSON.stringify({ draftId, justification }),
         });
         const data = await res.json();
-        if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.approveFailed') };
+        if (!res.ok || !data.ok) {
+          return {
+            ok: false,
+            error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+          };
+        }
         setState({ kind: 'ready', item: { ...existing, approval_state: 'APPROVED' } });
         // AC-5.6-6 — own-number first touch chains into the Composer Handoff Sheet on approval,
         // same as ../page.tsx's own handleApprove.
@@ -129,7 +135,12 @@ export default function InboxSingleItemPage() {
           body: JSON.stringify({ draftId, reason, note }),
         });
         const data = await res.json();
-        if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.declineFailed') };
+        if (!res.ok || !data.ok) {
+          return {
+            ok: false,
+            error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+          };
+        }
         setState({ kind: 'ready', item: { ...existing, approval_state: 'DECLINED' } });
         return { ok: true };
       } catch {
@@ -150,7 +161,12 @@ export default function InboxSingleItemPage() {
           body: JSON.stringify({ draftId, body }),
         });
         const data = await res.json();
-        if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.editFailed') };
+        if (!res.ok || !data.ok) {
+          return {
+            ok: false,
+            error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+          };
+        }
         // The re-checked band ALWAYS replaces the stale one — never a pre-edit field survives.
         const merged: InboxItemData = {
           ...existing,

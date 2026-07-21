@@ -12,6 +12,7 @@ import Link from 'next/link';
 
 import ClassifierAdjudicationDrawer from '../../inbox/components/ClassifierAdjudicationDrawer';
 import { useT } from '@/app/locale-context';
+import { errorDisplay, errorStateLabel } from '@/lib/i18n/error-display';
 
 interface QueueItem {
   queueId: string;
@@ -69,8 +70,10 @@ export default function ComplianceReviewPage() {
           body: JSON.stringify({ queueId, action, feedback }),
         });
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          setError(body?.error ?? t('team.complianceReview.adjudicateFailedGeneric'));
+          // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`;
+          // resolve a locale-correct string from the `errors.*` catalog by the route's `code`.
+          const body = await res.json().catch(() => ({}) as { code?: string; currentState?: string });
+          setError(errorDisplay(t, body?.code, { currentState: errorStateLabel(t, body?.currentState) }));
           setBusyId(null);
           return;
         }

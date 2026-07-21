@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/app/locale-context';
+import { errorDisplay } from '@/lib/i18n/error-display';
 import PendingBridgesList from './components/PendingBridgesList';
 import type { PendingBridgeData } from './components/PendingBridgeItem';
 
@@ -61,7 +62,9 @@ export default function TeamBridgesPage() {
     if (!res.ok || !data.ok) {
       if (res.status === 409) return { ok: false, error: t('team.bridges.joinErrors.conflict') };
       if (res.status === 404) return { ok: false, error: t('team.bridges.joinErrors.notFound') };
-      return { ok: false, error: data.error ?? t('team.bridges.joinErrors.generic') };
+      // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `data.error`; resolve a
+      // locale-correct string from the `errors.*` catalog by the route's machine `code`.
+      return { ok: false, error: errorDisplay(t, data.code) };
     }
     // The joined bridge is no longer a PENDING one — drop it from this list rather than refetch.
     setState((prev) =>

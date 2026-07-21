@@ -25,6 +25,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
+import { errorDisplay } from '@/lib/i18n/error-display';
 import type { Locale } from '@/lib/i18n/locale';
 import styles from './data-rights.module.css';
 import StepUpPrompt from './components/StepUpPrompt';
@@ -152,7 +153,9 @@ export default function DataRightsPage() {
           message: t('dataRights.deletion.confirmStartingAt', { date: fmt(locale, body.readyAt) }),
         };
       }
-      return { ok: false, code: 'ERROR', message: body.error ?? t('dataRights.deletion.confirmFailedGeneric') };
+      // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve a
+      // locale-correct string from the `errors.*` catalog by the route's machine `code`.
+      return { ok: false, code: 'ERROR', message: errorDisplay(t, body.code) };
     }
     const body = (await res.json()) as { deletion: UserDataDeletionRecord; certificate: DeletionCertificate };
     return { ok: true, value: { record: body.deletion, certificate: body.certificate } };

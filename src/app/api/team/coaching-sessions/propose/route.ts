@@ -21,23 +21,26 @@ interface ProposeBody {
 
 export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
   if (!hasCapability(session, 'coaching_session', 'write')) {
-    return NextResponse.json({ error: 'Not permitted.' }, { status: 403 });
+    return NextResponse.json({ error: 'Not permitted.', code: 'NOT_PERMITTED' }, { status: 403 });
   }
 
   let body: ProposeBody;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON body.', code: 'INVALID_JSON' }, { status: 400 });
   }
   const repId = body.repId ?? identity.userId;
   const trainerId = body.trainerId ?? identity.userId;
   if (repId === trainerId) {
-    return NextResponse.json({ error: '"repId" and "trainerId" must be different people.' }, { status: 400 });
+    return NextResponse.json(
+      { error: '"repId" and "trainerId" must be different people.', code: 'SAME_PERSON' },
+      { status: 400 }
+    );
   }
   // The caller must be one of the two parties (never a third party booking on others' behalf).
   if (identity.userId !== repId && identity.userId !== trainerId && identity.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Not permitted.' }, { status: 403 });
+    return NextResponse.json({ error: 'Not permitted.', code: 'NOT_PERMITTED' }, { status: 403 });
   }
 
   const [rep, trainer] = await Promise.all([
@@ -45,7 +48,7 @@ export const POST = withOnboardingGate(async (req, _ctx, session, identity) => {
     prisma.user.findUnique({ where: { id: trainerId }, select: { organization_id: true } }),
   ]);
   if (!rep || !trainer || rep.organization_id !== identity.organizationId || trainer.organization_id !== identity.organizationId) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ error: 'Not found', code: 'CALENDAR_PARTY_NOT_FOUND' }, { status: 404 });
   }
 
   const service = new BookingService(prisma as unknown as BookingPrismaClient);

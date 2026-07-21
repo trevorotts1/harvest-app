@@ -32,13 +32,21 @@ export const POST = withRole(
     const body = await req.json().catch(() => null);
     const toOrgType = (body as { toOrgType?: unknown } | null)?.toOrgType;
     if (!isOrgType(toOrgType)) {
-      return NextResponse.json({ error: '"toOrgType" must be PRIMERICA or EXTERNAL.' }, { status: 400 });
+      return NextResponse.json(
+        { error: '"toOrgType" must be PRIMERICA or EXTERNAL.', code: 'ORG_TYPE_INVALID' },
+        { status: 400 }
+      );
     }
 
     const outcome = await switchOrgType(session.user.id, toOrgType);
     if (!outcome.ok) {
       const status = outcome.reason === 'not_found' ? 404 : 400;
-      return NextResponse.json({ error: outcome.reason }, { status });
+      // T-57 RE-GATE B [af7789d3] Finding 1 — `outcome.reason` was ITSELF a bare machine token
+      // ("not_found"/"same_org_type") being handed to the client as `error` — not even English
+      // prose, just an untranslated code rendered verbatim. Now surfaced via an explicit `code` the
+      // client resolves through the `errors.*` catalog instead.
+      const code = outcome.reason === 'not_found' ? 'NOT_FOUND' : 'SAME_ORG_TYPE';
+      return NextResponse.json({ error: outcome.reason, code }, { status });
     }
     return NextResponse.json(outcome);
   })
