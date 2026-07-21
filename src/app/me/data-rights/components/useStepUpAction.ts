@@ -10,7 +10,7 @@ import { useSession } from 'next-auth/react';
 
 export type StepUpStage = 'idle' | 'need_enroll' | 'need_verify' | 'need_step_up' | 'busy' | 'error';
 
-export interface StepUpAction<T> {
+export interface StepUpAction {
   stage: StepUpStage;
   code: string;
   setCode: (code: string) => void;
@@ -36,7 +36,7 @@ export type StepUpAttemptResult<T> =
 export function useStepUpAction<T>(
   attempt: () => Promise<StepUpAttemptResult<T>>,
   onSuccess: (value: T) => void
-): StepUpAction<T> {
+): StepUpAction {
   const { update } = useSession();
   const [stage, setStage] = useState<StepUpStage>('idle');
   const [code, setCode] = useState('');

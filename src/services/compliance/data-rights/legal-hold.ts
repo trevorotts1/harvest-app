@@ -14,10 +14,23 @@ import { DataRightsAuditSink, buildDataRightsAuditEvent } from './audit-emit';
 
 // Minimal shape of the Prisma `legalHold` delegate this service needs — kept narrow so a plain
 // mock object satisfies it in tests without pulling in the real PrismaClient.
+/** Raw shape of a `LegalHold` row as returned by the Prisma delegate. */
+interface PrismaLegalHoldRow {
+  id: string;
+  user_id: string;
+  status: string;
+  reason: string;
+  placed_by: string;
+  placed_at: string | Date;
+  lifted_by?: string | null;
+  lifted_at?: string | Date | null;
+  note?: string | null;
+}
+
 export interface LegalHoldPrismaDelegate {
-  create(args: { data: Record<string, unknown> }): Promise<any>;
-  findFirst(args: { where: Record<string, unknown> }): Promise<any>;
-  update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<any>;
+  create(args: { data: Record<string, unknown> }): Promise<PrismaLegalHoldRow>;
+  findFirst(args: { where: Record<string, unknown> }): Promise<PrismaLegalHoldRow | null>;
+  update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<PrismaLegalHoldRow>;
 }
 
 export interface LegalHoldRepository {
@@ -26,7 +39,7 @@ export interface LegalHoldRepository {
   lift(hold_id: string, lifted_by: string): Promise<LegalHoldRecord>;
 }
 
-function toRecord(row: any): LegalHoldRecord {
+function toRecord(row: PrismaLegalHoldRow): LegalHoldRecord {
   return {
     id: row.id,
     user_id: row.user_id,

@@ -3,12 +3,12 @@
 // no pipeline activity yet (or literally zero names in play) rendered a bare section header over an
 // empty grid/list with no narrative at all.
 
-import { createElement } from 'react';
+import { createElement, type ElementType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { NamesInPlayPanel, PipelineStatesPanel, type NameInPlay } from '@/app/team/rep/[userId]/components/RepDataPanels';
 
-const render = (el: any, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
+const render = (el: ElementType, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
 
 describe('PipelineStatesPanel — zero pipeline activity never renders blank (SC9)', () => {

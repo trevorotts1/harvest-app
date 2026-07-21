@@ -27,6 +27,7 @@ import {
   estimateDepthSignal,
 } from '../../src/services/onboarding/wp01/seven-whys';
 import type { CFEInput, CFEVerdict } from '../../src/types/compliance';
+import { Role } from '@prisma/client';
 
 /**
  * Deep, specific, emotionally-grounded answers for all seven levels — should clear the invisible
@@ -305,7 +306,7 @@ describe('Seven Whys — (e) routing the anchor to outreach is CFE-gated, fail-c
     };
   }
 
-  const userContext: CFEInput['userContext'] = { user_id: 'rep-1', role: 'REP' as any };
+  const userContext: CFEInput['userContext'] = { user_id: 'rep-1', role: Role.REP };
 
   test('consent=false never calls the CFE and is refused', async () => {
     const cfe = mockCFE({ released: true } as CFEVerdict);
@@ -378,9 +379,9 @@ describe('Seven Whys — Claude-only, DI-mockable conversation client (§0.3, §
 
   test('the real client targets claude-sonnet-5 in its request body', async () => {
     process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
-    const calls: any[] = [];
-    const fetchImpl = async (_url: string, init: any) => {
-      calls.push(JSON.parse(init.body));
+    const calls: unknown[] = [];
+    const fetchImpl = async (_url: string, init: RequestInit) => {
+      calls.push(JSON.parse(init.body as string));
       return {
         ok: true,
         status: 200,
@@ -408,7 +409,7 @@ describe('Seven Whys — Claude-only, DI-mockable conversation client (§0.3, §
       transcript: [],
     });
     expect(calls).toHaveLength(1);
-    expect(calls[0].model).toBe('claude-sonnet-5');
+    expect((calls[0] as { model: string }).model).toBe('claude-sonnet-5');
   });
 });
 

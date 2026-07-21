@@ -33,8 +33,9 @@ function runGuard(dir: string): { status: number; stdout: string; stderr: string
   try {
     const stdout = execFileSync('node', ['scripts/guard-i18n.mjs'], { cwd: dir, encoding: 'utf8' });
     return { status: 0, stdout, stderr: '' };
-  } catch (err: any) {
-    return { status: err.status ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
+  } catch (err) {
+    const e = err as { status?: number; stdout?: string; stderr?: string };
+    return { status: e.status ?? 1, stdout: e.stdout ?? '', stderr: e.stderr ?? '' };
   }
 }
 

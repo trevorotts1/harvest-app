@@ -1,4 +1,4 @@
-import { ConsentType, ALL_CONSENT_TYPES, TCPA_CONSENT_TYPE } from '../../../types/compliance';
+import { ConsentType, ALL_CONSENT_TYPES } from '../../../types/compliance';
 import { randomUUID } from 'crypto';
 
 /**

@@ -16,7 +16,12 @@
 
 import { OrgType, PipelineStage, QualityCluster, ReadinessTier } from '@prisma/client';
 
-import { MethodStateService, type HarvestMethodPrismaClient } from '../../src/services/harvest-method/method-state.service';
+import {
+  MethodStateService,
+  type ContactMethodProfileRow,
+  type HarvestMethodPrismaClient,
+  type HarvestMethodStateRow,
+} from '../../src/services/harvest-method/method-state.service';
 import {
   PrioritizedQueueService,
   type QueueContactRow,
@@ -28,12 +33,13 @@ import { buildPrimericaVelocityContext } from '../../src/services/harvest-method
 import { assertAggregateOnly, computeUplineAggregateStats, UplineVisibilityLeakError } from '../../src/services/harvest-method/upline-aggregate';
 import { encryptRequiredField } from '../../src/services/warm-market/vault/vault-encryption';
 import { ALL_QUALITY_CLUSTERS } from '../../src/services/harvest-method/clusters';
+import { MethodLayer } from '../../src/types/harvest-method';
 
 // ── In-memory fake QueuePrismaClient (no live DB, per repo pattern) ────────────────────────────
 
 function createFakeQueuePrisma() {
-  const states = new Map<string, any>();
-  const profiles = new Map<string, any>();
+  const states = new Map<string, HarvestMethodStateRow>();
+  const profiles = new Map<string, ContactMethodProfileRow>();
   const contacts = new Map<string, QueueContactRow & { user_id: string }>();
   const interactions: { contact_id: string; created_at: Date }[] = [];
   const optOuts = new Map<string, { identifier_hash: string }>();
@@ -85,8 +91,8 @@ function createFakeQueuePrisma() {
     },
     contactMethodProfile: {
       findMany: async ({ where }) => {
-        const all = [...profiles.values()].filter((p) => p.user_id === (where as any).user_id);
-        return (where as any).is_seed !== undefined ? all.filter((p) => p.is_seed === (where as any).is_seed) : all;
+        const all = [...profiles.values()].filter((p) => p.user_id === where.user_id);
+        return where.is_seed !== undefined ? all.filter((p) => p.is_seed === where.is_seed) : all;
       },
       findUnique: async ({ where }) => profiles.get(`${where.user_id_contact_id.user_id}::${where.user_id_contact_id.contact_id}`) ?? null,
       upsert: async ({ where, create, update }) => {
@@ -152,7 +158,7 @@ function seedContact(
     phone_hash: input.phone_hash ?? null,
     email_hash: null,
     jurisdiction: input.jurisdiction ?? null,
-  } as any);
+  });
 }
 
 /** Drives all three layers to completion for the given contact ids, with clean data guaranteed to
@@ -190,7 +196,7 @@ describe('(a) three-layer short-circuit — named WP03 critical failure "3-layer
 
   test('Layer 1 + 2 complete but Layer 3 NOT complete -> still blocked (a short-circuit attempt is refused)', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
+    seedContact(contacts, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
     const method = new MethodStateService(prisma);
     await method.submitBlankCanvas('user-1', {
       vaultCountAtStart: 40,
@@ -206,18 +212,18 @@ describe('(a) three-layer short-circuit — named WP03 critical failure "3-layer
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
     expect(result.available).toBe(false);
-    expect((result as any).queue).toEqual([]);
+    expect(result.queue).toEqual([]);
   });
 
   test('all three layers complete -> available:true, non-empty queue', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
+    seedContact(contacts, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
     await completeAllThreeLayers(prisma, 'user-1', ['c1']);
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
     expect(result.available).toBe(true);
-    expect((result as any).queue.length).toBe(1);
+    expect(result.queue.length).toBe(1);
   });
 });
 
@@ -228,15 +234,15 @@ describe('(a) three-layer short-circuit — named WP03 critical failure "3-layer
 describe('(b) the readiness score never appears in any user-facing payload — named WP03 critical failure "readiness score SHOWN to user"', () => {
   test('the full getQueue() JSON payload contains no numeric score field anywhere', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
-    seedContact(contacts as any, { id: 'c2', userId: 'user-1', firstName: 'Bob', lastName: 'Smith' });
+    seedContact(contacts, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
+    seedContact(contacts, { id: 'c2', userId: 'user-1', firstName: 'Bob', lastName: 'Smith' });
     await completeAllThreeLayers(prisma, 'user-1', ['c1', 'c2']);
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
 
     expect(result.available).toBe(true);
-    const queue = (result as any).queue as any[];
+    const queue = result.queue;
     expect(queue.length).toBe(2);
     for (const item of queue) {
       expect(Object.keys(item)).not.toContain('score');
@@ -262,26 +268,26 @@ describe('(b) the readiness score never appears in any user-facing payload — n
 describe('(c) org-gate — named WP03 critical failure "Primerica leak"', () => {
   test('a universal (non-Primerica) org gets NO primericaVelocity field, even when a rank is on file', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
+    seedContact(contacts, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
     await completeAllThreeLayers(prisma, 'user-1', ['c1']);
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true, rank: 'Senior Vice President' });
 
-    expect((result as any).primericaVelocity).toBeUndefined();
+    expect(result.primericaVelocity).toBeUndefined();
     expect(JSON.stringify(result).toLowerCase()).not.toContain('primerica');
   });
 
   test('a Primerica org WITH a rank on file gets the velocity overlay', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'c1', userId: 'user-2', firstName: 'Alice', lastName: 'Jones' });
+    seedContact(contacts, { id: 'c1', userId: 'user-2', firstName: 'Alice', lastName: 'Jones' });
     await completeAllThreeLayers(prisma, 'user-2', ['c1']);
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-2', OrgType.PRIMERICA, { includeExcluded: true, rank: 'RVP' });
 
-    expect((result as any).primericaVelocity).toBeDefined();
-    expect((result as any).primericaVelocity.rank).toBe('RVP');
+    expect(result.primericaVelocity).toBeDefined();
+    expect(result.primericaVelocity!.rank).toBe('RVP');
   });
 
   test('the underlying org-gate tripwire (assertNoPrimericaLeak) has real teeth: throws for a universal org carrying a Primerica string, no-ops for a Primerica org', () => {
@@ -302,11 +308,11 @@ describe('(c) org-gate — named WP03 critical failure "Primerica leak"', () => 
 describe('(d) excluded contacts — named WP03 critical failure "excluded-contact in queue"', () => {
   test('do_not_contact / DO_NOT_CONTACT-stage / minor / opted-out never appear in the action-queue view (includeExcluded:false)', async () => {
     const { prisma, contacts, optOuts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'clean', userId: 'user-1', firstName: 'Clean', lastName: 'Contact' });
-    seedContact(contacts as any, { id: 'dnc', userId: 'user-1', firstName: 'DNC', lastName: 'Flag', do_not_contact: true });
-    seedContact(contacts as any, { id: 'stage', userId: 'user-1', firstName: 'Stage', lastName: 'Flag', pipeline_stage: PipelineStage.DO_NOT_CONTACT });
-    seedContact(contacts as any, { id: 'minor', userId: 'user-1', firstName: 'Minor', lastName: 'Flag', is_minor_flag: true });
-    seedContact(contacts as any, { id: 'optedout', userId: 'user-1', firstName: 'OptedOut', lastName: 'Flag', phone_hash: 'hash-opted-out' });
+    seedContact(contacts, { id: 'clean', userId: 'user-1', firstName: 'Clean', lastName: 'Contact' });
+    seedContact(contacts, { id: 'dnc', userId: 'user-1', firstName: 'DNC', lastName: 'Flag', do_not_contact: true });
+    seedContact(contacts, { id: 'stage', userId: 'user-1', firstName: 'Stage', lastName: 'Flag', pipeline_stage: PipelineStage.DO_NOT_CONTACT });
+    seedContact(contacts, { id: 'minor', userId: 'user-1', firstName: 'Minor', lastName: 'Flag', is_minor_flag: true });
+    seedContact(contacts, { id: 'optedout', userId: 'user-1', firstName: 'OptedOut', lastName: 'Flag', phone_hash: 'hash-opted-out' });
     optOuts.set('hash-opted-out', { identifier_hash: 'hash-opted-out' });
 
     const allIds = ['clean', 'dnc', 'stage', 'minor', 'optedout'];
@@ -317,7 +323,7 @@ describe('(d) excluded contacts — named WP03 critical failure "excluded-contac
     // The §8.3 action-queue view: EXCLUDED never appears here at all.
     const actionQueue = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: false });
     expect(actionQueue.available).toBe(true);
-    const actionIds = (actionQueue as any).queue.map((q: any) => q.contactId);
+    const actionIds = actionQueue.queue.map((q) => q.contactId);
     expect(actionIds).toEqual(['clean']);
     expect(actionIds).not.toContain('dnc');
     expect(actionIds).not.toContain('stage');
@@ -327,7 +333,7 @@ describe('(d) excluded contacts — named WP03 critical failure "excluded-contac
     // The ritual-review view (includeExcluded:true): they DO appear, tagged EXCLUDED, needing
     // acknowledgment — never silently dropped, per uiux §5.4 "never a silent removal".
     const fullQueue = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
-    const byId = new Map<string, any>((fullQueue as any).queue.map((q: any) => [q.contactId, q]));
+    const byId = new Map(fullQueue.queue.map((q) => [q.contactId, q] as const));
     for (const excludedId of ['dnc', 'stage', 'minor', 'optedout']) {
       expect(byId.get(excludedId)?.tier).toBe(ReadinessTier.EXCLUDED);
       expect(byId.get(excludedId)?.needsAcknowledgment).toBe(true);
@@ -337,7 +343,7 @@ describe('(d) excluded contacts — named WP03 critical failure "excluded-contac
 
   test('the Layer-3 "existing licensee" soft-exclusion flag also lands a contact in EXCLUDED, never the action queue', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'licensee', userId: 'user-1', firstName: 'Already', lastName: 'Licensed' });
+    seedContact(contacts, { id: 'licensee', userId: 'user-1', firstName: 'Already', lastName: 'Licensed' });
 
     const method = new MethodStateService(prisma);
     await method.submitBlankCanvas('user-1', {
@@ -355,10 +361,10 @@ describe('(d) excluded contacts — named WP03 critical failure "excluded-contac
 
     const service = new PrioritizedQueueService(prisma);
     const actionQueue = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: false });
-    expect((actionQueue as any).queue).toEqual([]);
+    expect(actionQueue.queue).toEqual([]);
 
     const fullQueue = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
-    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    expect(fullQueue.queue[0].tier).toBe(ReadinessTier.EXCLUDED);
 
     // markActionComplete on an existing-licensee contact ALSO stamps the required acknowledgment.
     const before = await prisma.contactMethodProfile.findUnique({ where: { user_id_contact_id: { user_id: 'user-1', contact_id: 'licensee' } } });
@@ -377,7 +383,7 @@ describe('(d) excluded contacts — named WP03 critical failure "excluded-contac
 describe('(e) six clusters present end-to-end in the queue data path', () => {
   test('a contact assigned all six clusters carries all six through to the public queue item', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
+    seedContact(contacts, { id: 'c1', userId: 'user-1', firstName: 'Alice', lastName: 'Jones' });
 
     const method = new MethodStateService(prisma);
     await method.submitBlankCanvas('user-1', {
@@ -395,7 +401,7 @@ describe('(e) six clusters present end-to-end in the queue data path', () => {
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
-    const item = (result as any).queue[0];
+    const item = result.queue[0];
     expect(new Set(item.clusters)).toEqual(new Set(ALL_QUALITY_CLUSTERS));
     expect(item.clusters).toHaveLength(6);
   });
@@ -412,7 +418,7 @@ describe('(e) six clusters present end-to-end in the queue data path', () => {
 describe('(f) state-unlicensed exclusion — T-29R', () => {
   test('(a) a REGULATED (Primerica) rep + a contact in a state the rep is NOT licensed in -> excluded from the action queue, tagged EXCLUDED in the ritual view', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'ny-contact', userId: 'rep-1', firstName: 'Nadia', lastName: 'York', jurisdiction: 'NY' });
+    seedContact(contacts, { id: 'ny-contact', userId: 'rep-1', firstName: 'Nadia', lastName: 'York', jurisdiction: 'NY' });
     await completeAllThreeLayers(prisma, 'rep-1', ['ny-contact']);
 
     // The rep is licensed ONLY in TX — never NY, where this contact lives.
@@ -420,31 +426,31 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     const service = new PrioritizedQueueService(prisma, undefined, licensedOnlyTX);
 
     const actionQueue = await service.getQueue('rep-1', OrgType.PRIMERICA, { includeExcluded: false });
-    expect((actionQueue as any).queue).toEqual([]);
+    expect(actionQueue.queue).toEqual([]);
 
     const fullQueue = await service.getQueue('rep-1', OrgType.PRIMERICA, { includeExcluded: true });
-    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
-    expect((fullQueue as any).queue[0].needsAcknowledgment).toBe(true);
+    expect(fullQueue.queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    expect(fullQueue.queue[0].needsAcknowledgment).toBe(true);
   });
 
   test('(b) a REGULATED rep with EMPTY/unavailable licensed jurisdictions -> fail-closed (excluded even though the contact would otherwise be A-tier)', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'tx-contact', userId: 'rep-2', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
+    seedContact(contacts, { id: 'tx-contact', userId: 'rep-2', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
     await completeAllThreeLayers(prisma, 'rep-2', ['tx-contact']);
 
     const noLicensesOnFile = { getLicensedJurisdictions: async () => [] };
     const service = new PrioritizedQueueService(prisma, undefined, noLicensesOnFile);
 
     const actionQueue = await service.getQueue('rep-2', OrgType.PRIMERICA, { includeExcluded: false });
-    expect((actionQueue as any).queue).toEqual([]);
+    expect(actionQueue.queue).toEqual([]);
 
     const fullQueue = await service.getQueue('rep-2', OrgType.PRIMERICA, { includeExcluded: true });
-    expect((fullQueue as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    expect(fullQueue.queue[0].tier).toBe(ReadinessTier.EXCLUDED);
   });
 
   test('(b2) an UNAVAILABLE (throwing) licensing lookup for a regulated rep ALSO fails closed — degrades to excluded, never throws the whole queue request', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'tx-contact', userId: 'rep-2b', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
+    seedContact(contacts, { id: 'tx-contact', userId: 'rep-2b', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
     await completeAllThreeLayers(prisma, 'rep-2b', ['tx-contact']);
 
     const unavailable = {
@@ -456,13 +462,13 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
 
     const result = await service.getQueue('rep-2b', OrgType.PRIMERICA, { includeExcluded: true });
     expect(result.available).toBe(true);
-    expect((result as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    expect(result.queue[0].tier).toBe(ReadinessTier.EXCLUDED);
   });
 
   test('(c) a UNIVERSAL (non-Primerica) rep -> NO state-based exclusion; contacts in any state (or with no jurisdiction at all) remain eligible, and the licensing provider is never even consulted', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'ny', userId: 'rep-3', firstName: 'Nadia', lastName: 'York', jurisdiction: 'NY' });
-    seedContact(contacts as any, { id: 'unknown', userId: 'rep-3', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction on file
+    seedContact(contacts, { id: 'ny', userId: 'rep-3', firstName: 'Nadia', lastName: 'York', jurisdiction: 'NY' });
+    seedContact(contacts, { id: 'unknown', userId: 'rep-3', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction on file
     await completeAllThreeLayers(prisma, 'rep-3', ['ny', 'unknown']);
 
     // T-29R2 TEETH: a bare "throws if called" provider is not actually proof of anything — if a
@@ -477,28 +483,28 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     const service = new PrioritizedQueueService(prisma, undefined, { getLicensedJurisdictions: licensingProviderSpy });
 
     const actionQueue = await service.getQueue('rep-3', OrgType.EXTERNAL, { includeExcluded: false });
-    const ids = (actionQueue as any).queue.map((q: any) => q.contactId).sort();
+    const ids = actionQueue.queue.map((q) => q.contactId).sort();
     expect(ids).toEqual(['ny', 'unknown']);
     expect(licensingProviderSpy).not.toHaveBeenCalled();
   });
 
   test('(d) a REGULATED rep + a contact in a state the rep IS licensed in -> remains eligible (not excluded on this dimension)', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'tx-contact', userId: 'rep-4', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
+    seedContact(contacts, { id: 'tx-contact', userId: 'rep-4', firstName: 'Tex', lastName: 'Anderson', jurisdiction: 'TX' });
     await completeAllThreeLayers(prisma, 'rep-4', ['tx-contact']);
 
     const licensedTXandCA = { getLicensedJurisdictions: async () => ['TX', 'CA'] };
     const service = new PrioritizedQueueService(prisma, undefined, licensedTXandCA);
 
     const actionQueue = await service.getQueue('rep-4', OrgType.PRIMERICA, { includeExcluded: false });
-    const ids = (actionQueue as any).queue.map((q: any) => q.contactId);
+    const ids = actionQueue.queue.map((q) => q.contactId);
     expect(ids).toEqual(['tx-contact']);
-    expect((actionQueue as any).queue[0].tier).not.toBe(ReadinessTier.EXCLUDED);
+    expect(actionQueue.queue[0].tier).not.toBe(ReadinessTier.EXCLUDED);
   });
 
   test('(e) T-29R2: a REGULATED rep + a contact with an UNKNOWN jurisdiction -> a DISTINCT "needs jurisdiction" state, never EXCLUDED, never silently dropped — and the data gap is remediable', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'unknown', userId: 'rep-5', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction set
+    seedContact(contacts, { id: 'unknown', userId: 'rep-5', firstName: 'Uma', lastName: 'Unknown' }); // no jurisdiction set
     await completeAllThreeLayers(prisma, 'rep-5', ['unknown']);
 
     const licensedTX = { getLicensedJurisdictions: async () => ['TX'] };
@@ -507,12 +513,12 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     // Held out of the actionable §8.3 action queue — an unknown state can't be drafted compliant
     // outreach for either — but this is NOT the same thing as EXCLUDED.
     const actionQueue = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: false });
-    expect((actionQueue as any).queue).toEqual([]);
+    expect(actionQueue.queue).toEqual([]);
 
     // Surfaced (never silently dropped) in the ritual-review view as the DISTINCT NEEDS_JURISDICTION
     // state — assert the distinct state explicitly, not merely "not visible."
     const fullQueue = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: true });
-    const item = (fullQueue as any).queue[0];
+    const item = fullQueue.queue[0];
     expect(item.tier).toBe(ReadinessTier.NEEDS_JURISDICTION);
     expect(item.tier).not.toBe(ReadinessTier.EXCLUDED);
     expect(item.needsJurisdiction).toBe(true);
@@ -522,8 +528,8 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     // contact eligible/actionable — proving the data gap, once filled, no longer gates the queue.
     contacts.get('unknown')!.jurisdiction = 'TX';
     const afterLicensed = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: false });
-    expect((afterLicensed as any).queue.map((q: any) => q.contactId)).toEqual(['unknown']);
-    const licensedItem = (afterLicensed as any).queue[0];
+    expect(afterLicensed.queue.map((q) => q.contactId)).toEqual(['unknown']);
+    const licensedItem = afterLicensed.queue[0];
     expect(licensedItem.tier).not.toBe(ReadinessTier.EXCLUDED);
     expect(licensedItem.tier).not.toBe(ReadinessTier.NEEDS_JURISDICTION);
 
@@ -532,19 +538,19 @@ describe('(f) state-unlicensed exclusion — T-29R', () => {
     // proving this is a genuine three-way split, not unknown/known collapsing back together.
     contacts.get('unknown')!.jurisdiction = 'NY';
     const afterUnlicensed = await service.getQueue('rep-5', OrgType.PRIMERICA, { includeExcluded: true });
-    expect((afterUnlicensed as any).queue[0].tier).toBe(ReadinessTier.EXCLUDED);
+    expect(afterUnlicensed.queue[0].tier).toBe(ReadinessTier.EXCLUDED);
   });
 
   test('case-insensitive / whitespace-tolerant jurisdiction match: a lowercase-imported "tx" still matches a licensed "TX"', async () => {
     const { prisma, contacts } = createFakeQueuePrisma();
-    seedContact(contacts as any, { id: 'tx-lower', userId: 'rep-6', firstName: 'Tex', lastName: 'Lower', jurisdiction: ' tx ' });
+    seedContact(contacts, { id: 'tx-lower', userId: 'rep-6', firstName: 'Tex', lastName: 'Lower', jurisdiction: ' tx ' });
     await completeAllThreeLayers(prisma, 'rep-6', ['tx-lower']);
 
     const licensedTX = { getLicensedJurisdictions: async () => ['TX'] };
     const service = new PrioritizedQueueService(prisma, undefined, licensedTX);
 
     const actionQueue = await service.getQueue('rep-6', OrgType.PRIMERICA, { includeExcluded: false });
-    expect((actionQueue as any).queue.map((q: any) => q.contactId)).toEqual(['tx-lower']);
+    expect(actionQueue.queue.map((q) => q.contactId)).toEqual(['tx-lower']);
   });
 
   // Mutation-proof: exercises the pure boundary function directly. If `checkJurisdictionExclusion`'s
@@ -575,9 +581,9 @@ describe('queue ordering — tier precedence (A > B > Slow Burn > Excluded), sco
     const { prisma, contacts } = createFakeQueuePrisma();
     // "a" -> full context, top score (A). "b" -> full context, moderate (B). "slow" -> needs_time (Slow Burn), even
     // though its own context is fully filled (so its RAW score could exceed b's) — tier precedence must still win.
-    seedContact(contacts as any, { id: 'a', userId: 'user-1', firstName: 'A', lastName: 'One' });
-    seedContact(contacts as any, { id: 'b', userId: 'user-1', firstName: 'B', lastName: 'Two' });
-    seedContact(contacts as any, { id: 'slow', userId: 'user-1', firstName: 'S', lastName: 'Three' });
+    seedContact(contacts, { id: 'a', userId: 'user-1', firstName: 'A', lastName: 'One' });
+    seedContact(contacts, { id: 'b', userId: 'user-1', firstName: 'B', lastName: 'Two' });
+    seedContact(contacts, { id: 'slow', userId: 'user-1', firstName: 'S', lastName: 'Three' });
 
     const method = new MethodStateService(prisma);
     await method.submitBlankCanvas('user-1', {
@@ -607,7 +613,7 @@ describe('queue ordering — tier precedence (A > B > Slow Burn > Excluded), sco
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('user-1', OrgType.EXTERNAL, { includeExcluded: true });
-    const order = (result as any).queue.map((q: any) => q.contactId);
+    const order = result.queue.map((q) => q.contactId);
     expect(order).toEqual(['a', 'b', 'slow']); // tier precedence, not raw score, decides ordering
   });
 });
@@ -624,7 +630,7 @@ describe('upline-aggregate — named WP03 critical failure "upline non-aggregate
         { tier: ReadinessTier.B, score: 60 },
         { tier: ReadinessTier.SLOW_BURN, score: 20 },
       ],
-      layersCompleted: ['BLANK_CANVAS', 'QUALITIES_FLIP', 'BACKGROUND_MATCHING'] as any,
+      layersCompleted: [MethodLayer.BLANK_CANVAS, MethodLayer.QUALITIES_FLIP, MethodLayer.BACKGROUND_MATCHING],
     });
     expect(stats.countsByTier[ReadinessTier.A]).toBe(1);
     expect(stats.countsByTier[ReadinessTier.B]).toBe(1);

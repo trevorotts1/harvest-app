@@ -5,7 +5,7 @@
 // any caller reading `.first_name` off the result got an AES-256-GCM envelope, not a name. Every
 // PII field returned by this service is now decrypted via `decryptContactPII`.
 
-import { PrismaClient } from '@prisma/client';
+import { Contact, PrismaClient } from '@prisma/client';
 
 import {
   AgentQueueContact,
@@ -30,6 +30,21 @@ export const AGENT_QUEUE_MAX_LIMIT = 200;
 export interface AgentQueueOptions {
   status?: 'ready';
   limit?: number;
+}
+
+/** Decrypted, per-contact shape pushed into a `getPipelineSummary` stage bucket. */
+export interface PipelineContactSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  industry: string | null;
+  pipelineStage: string;
+  segmentScore: number;
+  isRecruitTarget: boolean;
+  isClient: boolean;
 }
 
 export class PipelineService {
@@ -64,7 +79,7 @@ export class PipelineService {
       where: { user_id: userId },
     });
 
-    const summary: Record<PipelineStage, any[]> = {
+    const summary: Record<PipelineStage, PipelineContactSummary[]> = {
       IDENTIFIED: [],
       INTRODUCED: [],
       RESPONDED: [],
@@ -77,7 +92,7 @@ export class PipelineService {
       DO_NOT_CONTACT: [],
     };
 
-    contacts.forEach((c: any) => {
+    contacts.forEach((c) => {
       const pii = decryptContactPII(
         { first_name: c.first_name, last_name: c.last_name, phone: c.phone, email: c.email, notes: c.notes },
         this.encryptionKey
@@ -127,7 +142,7 @@ export class PipelineService {
       take: limit,
     });
 
-    return (contacts as any[]).map((c) => this.toAgentQueueContact(c));
+    return contacts.map((c) => this.toAgentQueueContact(c));
   }
 
   /** §7.5: "after outreach it updates last_contact_date and pipeline_stage." */
@@ -141,7 +156,7 @@ export class PipelineService {
     });
   }
 
-  private toAgentQueueContact(c: any): AgentQueueContact {
+  private toAgentQueueContact(c: Contact): AgentQueueContact {
     const pii = decryptContactPII(
       { first_name: c.first_name, last_name: c.last_name, phone: c.phone, email: c.email, notes: c.notes },
       this.encryptionKey

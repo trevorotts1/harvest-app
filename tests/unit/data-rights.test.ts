@@ -1,4 +1,8 @@
-import { DataRightsService, DSAR_FIELD_DECRYPTION_UNAVAILABLE } from '../../src/services/compliance/data-rights/data-rights';
+import {
+  DataRightsService,
+  DSAR_FIELD_DECRYPTION_UNAVAILABLE,
+  type DataRightsPrismaClient,
+} from '../../src/services/compliance/data-rights/data-rights';
 import { LegalHoldService, InMemoryLegalHoldRepository } from '../../src/services/compliance/data-rights/legal-hold';
 import { InMemoryDataRightsAuditSink } from '../../src/services/compliance/data-rights/audit-emit';
 import { RetentionService } from '../../src/services/compliance/data-rights/retention';
@@ -46,7 +50,7 @@ function makeMockPrisma(seed: {
   licensingRecords?: Row[];
   agentRuns?: Row[];
   milestones?: Row[];
-}): any {
+}) {
   const users = new Map<string, Row>();
   if (seed.user) users.set(seed.user.id as string, { ...seed.user });
 
@@ -81,14 +85,14 @@ function makeMockPrisma(seed: {
   let agentRuns: Row[] = seed.agentRuns ? seed.agentRuns.map((r) => ({ ...r })) : [];
   let milestones: Row[] = seed.milestones ? seed.milestones.map((m) => ({ ...m })) : [];
 
-  const userUpdate = jest.fn(async ({ where, data }: any) => {
+  const userUpdate = jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
     const existing = users.get(where.id) ?? {};
     const updated = { ...existing, ...data };
     users.set(where.id, updated);
     return updated;
   });
 
-  const contactUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const contactUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     contacts = contacts.map((c) => {
       if (c.user_id === where.user_id) {
@@ -100,7 +104,7 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
-  const whySessionUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const whySessionUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     whySessions = whySessions.map((w) => {
       if (w.user_id === where.user_id) {
@@ -112,7 +116,7 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
-  const onboardingSessionUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const onboardingSessionUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     onboardingSessions = onboardingSessions.map((o) => {
       if (o.user_id === where.user_id) {
@@ -124,37 +128,41 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
-  const contactInteractionUpdateMany = jest.fn(async ({ where, data }: any) => {
-    const ids: string[] = where?.contact_id?.in ?? [];
-    let count = 0;
-    contactInteractions = contactInteractions.map((ci) => {
-      if (ids.includes(ci.contact_id as string)) {
-        count++;
-        return { ...ci, ...data };
-      }
-      return ci;
-    });
-    return { count };
-  });
+  const contactInteractionUpdateMany = jest.fn(
+    async ({ where, data }: { where?: { contact_id?: { in?: string[] } }; data: Row }) => {
+      const ids: string[] = where?.contact_id?.in ?? [];
+      let count = 0;
+      contactInteractions = contactInteractions.map((ci) => {
+        if (ids.includes(ci.contact_id as string)) {
+          count++;
+          return { ...ci, ...data };
+        }
+        return ci;
+      });
+      return { count };
+    }
+  );
 
-  const messageThreadFindMany = jest.fn(async ({ where }: any) =>
+  const messageThreadFindMany = jest.fn(async ({ where }: { where: { user_id: string } }) =>
     messageThreads.filter((t) => t.user_id === where.user_id)
   );
 
-  const messageUpdateMany = jest.fn(async ({ where, data }: any) => {
-    const ids: string[] = where?.thread_id?.in ?? [];
-    let count = 0;
-    messages = messages.map((m) => {
-      if (ids.includes(m.thread_id as string)) {
-        count++;
-        return { ...m, ...data };
-      }
-      return m;
-    });
-    return { count };
-  });
+  const messageUpdateMany = jest.fn(
+    async ({ where, data }: { where?: { thread_id?: { in?: string[] } }; data: Row }) => {
+      const ids: string[] = where?.thread_id?.in ?? [];
+      let count = 0;
+      messages = messages.map((m) => {
+        if (ids.includes(m.thread_id as string)) {
+          count++;
+          return { ...m, ...data };
+        }
+        return m;
+      });
+      return { count };
+    }
+  );
 
-  const draftMessageUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const draftMessageUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     draftMessages = draftMessages.map((d) => {
       if (d.user_id === where.user_id) {
@@ -166,7 +174,7 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
-  const warmMarketExerciseUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const warmMarketExerciseUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     warmMarketExercises = warmMarketExercises.map((w) => {
       if (w.user_id === where.user_id) {
@@ -183,22 +191,24 @@ function makeMockPrisma(seed: {
   // `where.recipient_email` (the cross-user case) — the real service calls it once with each
   // shape, never both keys at once, but a mock that only understood one shape would silently pass
   // a test seeded with only that shape while missing a regression in the other.
-  const uplineInviteUpdateMany = jest.fn(async ({ where, data }: any) => {
-    let count = 0;
-    uplineInvites = uplineInvites.map((inv) => {
-      const matchesSponsor = where.sponsor_id !== undefined && inv.sponsor_id === where.sponsor_id;
-      const matchesRecipient =
-        where.recipient_email !== undefined && inv.recipient_email === where.recipient_email;
-      if (matchesSponsor || matchesRecipient) {
-        count++;
-        return { ...inv, ...data };
-      }
-      return inv;
-    });
-    return { count };
-  });
+  const uplineInviteUpdateMany = jest.fn(
+    async ({ where, data }: { where: { sponsor_id?: string; recipient_email?: string }; data: Row }) => {
+      let count = 0;
+      uplineInvites = uplineInvites.map((inv) => {
+        const matchesSponsor = where.sponsor_id !== undefined && inv.sponsor_id === where.sponsor_id;
+        const matchesRecipient =
+          where.recipient_email !== undefined && inv.recipient_email === where.recipient_email;
+        if (matchesSponsor || matchesRecipient) {
+          count++;
+          return { ...inv, ...data };
+        }
+        return inv;
+      });
+      return { count };
+    }
+  );
 
-  const licensingRecordUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const licensingRecordUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     licensingRecords = licensingRecords.map((l) => {
       if (l.user_id === where.user_id) {
@@ -210,7 +220,7 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
-  const agentRunUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const agentRunUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     agentRuns = agentRuns.map((r) => {
       if (r.user_id === where.user_id) {
@@ -222,7 +232,7 @@ function makeMockPrisma(seed: {
     return { count };
   });
 
-  const milestoneUpdateMany = jest.fn(async ({ where, data }: any) => {
+  const milestoneUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
     let count = 0;
     milestones = milestones.map((m) => {
       if (m.user_id === where.user_id) {
@@ -237,32 +247,34 @@ function makeMockPrisma(seed: {
   const auditEntryDelete = jest.fn();
   const auditEntryDeleteMany = jest.fn();
 
-  const userDataDeletionUpdate = jest.fn(async ({ where, data }: any) => {
+  const userDataDeletionUpdate = jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
     const existing = deletions.get(where.id) ?? {};
     const updated = { ...existing, ...data };
     deletions.set(where.id, updated);
     return updated;
   });
 
-  const userDataExportUpdate = jest.fn(async ({ where, data }: any) => {
+  const userDataExportUpdate = jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
     const existing = exports.get(where.id) ?? {};
     const updated = { ...existing, ...data };
     exports.set(where.id, updated);
     return updated;
   });
 
-  // Typed loosely (`as any` at the call site below) — mirrors the mock-Prisma convention already
-  // established in tests/unit/warm-market.test.ts, which avoids fighting structural typing on a
-  // deliberately-narrow, test-only mock shape (and lets `auditEntry.delete`/`deleteMany` exist on
-  // the mock purely so proof test (b) can assert they are never called, even though the real
-  // DataRightsPrismaClient contract has no such methods).
+  // Typed loosely (bridged through `unknown` at the `return` below) — mirrors the mock-Prisma
+  // convention already established in tests/unit/warm-market.test.ts, which avoids fighting
+  // structural typing on a deliberately-narrow, test-only mock shape (and lets
+  // `auditEntry.delete`/`deleteMany` exist on the mock purely so proof test (b) can assert they are
+  // never called, even though the real DataRightsPrismaClient contract has no such methods).
   const prisma = {
     user: {
-      findUnique: jest.fn(async ({ where }: any) => users.get(where.id) ?? null),
+      findUnique: jest.fn(async ({ where }: { where: { id: string } }) => users.get(where.id) ?? null),
       update: userUpdate,
     },
     contact: {
-      findMany: jest.fn(async ({ where }: any) => contacts.filter((c) => c.user_id === where.user_id)),
+      findMany: jest.fn(async ({ where }: { where: { user_id: string } }) =>
+        contacts.filter((c) => c.user_id === where.user_id)
+      ),
       updateMany: contactUpdateMany,
     },
     whySession: {
@@ -315,32 +327,62 @@ function makeMockPrisma(seed: {
       getMilestones: () => milestones,
     },
     auditEntry: {
-      findMany: jest.fn(async ({ where }: any) =>
+      findMany: jest.fn(async ({ where }: { where: { user_id: string; regulation?: unknown } }) =>
         auditEntries.filter((a) => a.user_id === where.user_id && a.regulation === where.regulation)
       ),
       delete: auditEntryDelete,
       deleteMany: auditEntryDeleteMany,
     },
     userDataDeletion: {
-      create: jest.fn(async ({ data }: any) => {
-        deletions.set(data.id, { ...data });
+      create: jest.fn(async ({ data }: { data: Row }) => {
+        deletions.set(data.id as string, { ...data });
         return { ...data };
       }),
       update: userDataDeletionUpdate,
-      findUnique: jest.fn(async ({ where }: any) => deletions.get(where.id) ?? null),
+      findUnique: jest.fn(async ({ where }: { where: { id: string } }) => deletions.get(where.id) ?? null),
     },
     userDataExport: {
-      create: jest.fn(async ({ data }: any) => {
-        exports.set(data.id, { ...data });
+      create: jest.fn(async ({ data }: { data: Row }) => {
+        exports.set(data.id as string, { ...data });
         return { ...data };
       }),
       update: userDataExportUpdate,
-      findUnique: jest.fn(async ({ where }: any) => exports.get(where.id) ?? null),
+      findUnique: jest.fn(async ({ where }: { where: { id: string } }) => exports.get(where.id) ?? null),
     },
   };
 
-  return prisma;
+  // Deliberately loose (see the mock-shape comment above `prisma` — mirrors the
+  // tests/unit/warm-market.test.ts convention): this mock's per-model shape is intentionally
+  // narrower than the full `DataRightsPrismaClient` contract (e.g. `Row`-typed rows). Bridging
+  // through `unknown` — rather than fighting structural typing model-by-model, or asserting a
+  // literal `any` — keeps every call site typed as `MockDataRightsPrisma` (which is assignable
+  // anywhere a plain `DataRightsPrismaClient` is expected) without requiring this fixture to
+  // duplicate that interface's exact row shapes.
+  return prisma as unknown as MockDataRightsPrisma;
 }
+
+/** `DataRightsPrismaClient`, widened with the test-only extras this mock also carries:
+ *  `__state` (read-back accessors proving a mutation was actually applied — see the comment
+ *  above `prisma`, below) and `auditEntry.delete`/`deleteMany` (present purely so proof test (b)
+ *  can assert they're never called; the real contract has no such methods). */
+type MockDataRightsPrisma = DataRightsPrismaClient & {
+  __state: {
+    getWhySessions: () => Row[];
+    getOnboardingSessions: () => Row[];
+    getContactInteractions: () => Row[];
+    getMessages: () => Row[];
+    getDraftMessages: () => Row[];
+    getWarmMarketExercises: () => Row[];
+    getUplineInvites: () => Row[];
+    getLicensingRecords: () => Row[];
+    getAgentRuns: () => Row[];
+    getMilestones: () => Row[];
+  };
+  auditEntry: DataRightsPrismaClient['auditEntry'] & {
+    delete: jest.Mock;
+    deleteMany: jest.Mock;
+  };
+};
 
 const BASE_USER: Row = {
   id: 'user-1',
@@ -934,8 +976,8 @@ describe('T-11 QC fix — every user-owned PII model is scrubbed on a COMPLETED 
     await service.processDeletion('del-1', 'user-1');
 
     const stored = prisma.__state.getMessages();
-    expect(stored.find((m: Row) => m.id === 'msg-1').body).toBe('');
-    expect(stored.find((m: Row) => m.id === 'msg-2').body).toBe(otherUsersMessage.body);
+    expect(stored.find((m: Row) => m.id === 'msg-1')!.body).toBe('');
+    expect(stored.find((m: Row) => m.id === 'msg-2')!.body).toBe(otherUsersMessage.body);
   });
 
   test('DraftMessage: body text AND cfe_classifier_data are scrubbed', async () => {
@@ -1507,8 +1549,8 @@ describe('T-R9 Data Rights — DSAR export decrypts User PII and excludes secret
     expect(parsed.user.solution_number).toBe(RAW_USER_SOLUTION_NUMBER);
     expect(parsed.user.anchor_statement).toBe(RAW_USER_ANCHOR_STATEMENT);
     // Never the raw ciphertext string, under any key name the envelope might have been nested at.
-    expect(payload).not.toContain((JSON.parse(ENCRYPTED_BASE_USER.solution_number as string) as any).ciphertext);
-    expect(payload).not.toContain((JSON.parse(ENCRYPTED_BASE_USER.anchor_statement as string) as any).ciphertext);
+    expect(payload).not.toContain(JSON.parse(ENCRYPTED_BASE_USER.solution_number as string).ciphertext);
+    expect(payload).not.toContain(JSON.parse(ENCRYPTED_BASE_USER.anchor_statement as string).ciphertext);
   });
 
   // (b) THE PROOF: password_hash and ALL MFA secret material are absent from the export, while
@@ -1682,7 +1724,7 @@ describe('T-11 Data Rights — data minimization', () => {
     expect(droppedFields.sort()).toEqual(['annual_income', 'marketing_tracking_id', 'ssn']);
     expect(minimized).not.toHaveProperty('ssn');
     expect(minimized).not.toHaveProperty('annual_income');
-    expect((minimized as any).email).toBe('rep@example.com');
+    expect(minimized.email).toBe('rep@example.com');
     expect(isMinimized('signup', minimized as Record<string, unknown>)).toBe(true);
   });
 

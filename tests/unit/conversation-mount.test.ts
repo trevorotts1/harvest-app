@@ -11,7 +11,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { createElement } from 'react';
+import { createElement, type ElementType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { isGatedDownstreamPage } from '@/lib/auth/onboarding-gate-edge';
@@ -58,7 +58,7 @@ describe('T-39 QC FIX 1 — /community/<contactId> is session-gated (no middlewa
 });
 
 describe('T-39 QC FIX 1 — the Community list is a real path INTO the conversation surface', () => {
-  const render = (props: Record<string, unknown>) => renderToStaticMarkup(createElement(ContactCard as any, props));
+  const render = (props: Record<string, unknown>) => renderToStaticMarkup(createElement(ContactCard as ElementType, props));
 
   const baseProps = {
     id: 'contact-77',

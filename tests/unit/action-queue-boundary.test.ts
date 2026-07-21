@@ -23,7 +23,12 @@ import {
   rejectSortOverride,
   rejectTierOverride,
 } from '../../src/services/harvest-method/action-boundary';
-import { MethodStateService, type HarvestMethodPrismaClient } from '../../src/services/harvest-method/method-state.service';
+import {
+  MethodStateService,
+  type ContactMethodProfileRow,
+  type HarvestMethodPrismaClient,
+  type HarvestMethodStateRow,
+} from '../../src/services/harvest-method/method-state.service';
 import {
   PrioritizedQueueService,
   type QueueContactRow,
@@ -153,8 +158,8 @@ describe('rejectSortOverride — §8.5 "extraction-first sorting (by perceived w
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 function createFakeQueuePrisma() {
-  const states = new Map<string, any>();
-  const profiles = new Map<string, any>();
+  const states = new Map<string, HarvestMethodStateRow>();
+  const profiles = new Map<string, ContactMethodProfileRow>();
   const contacts = new Map<string, QueueContactRow & { user_id: string }>();
 
   function defaultProfileRow(user_id: string, contact_id: string) {
@@ -204,8 +209,8 @@ function createFakeQueuePrisma() {
     },
     contactMethodProfile: {
       findMany: async ({ where }) => {
-        const all = [...profiles.values()].filter((p) => p.user_id === (where as any).user_id);
-        return (where as any).is_seed !== undefined ? all.filter((p) => p.is_seed === (where as any).is_seed) : all;
+        const all = [...profiles.values()].filter((p) => p.user_id === where.user_id);
+        return where.is_seed !== undefined ? all.filter((p) => p.is_seed === where.is_seed) : all;
       },
       findUnique: async ({ where }) =>
         profiles.get(`${where.user_id_contact_id.user_id}::${where.user_id_contact_id.contact_id}`) ?? null,
@@ -250,7 +255,8 @@ function seedContact(
     is_minor_flag: false,
     phone_hash: null,
     email_hash: null,
-  } as any);
+    jurisdiction: null,
+  });
 }
 
 async function completeAllThreeLayers(prisma: HarvestMethodPrismaClient, userId: string, contactIds: string[]) {
@@ -288,7 +294,7 @@ describe('(a) action queue — readiness-sorted, empty until all three layers co
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('rep-1', OrgType.EXTERNAL, { includeExcluded: false });
     expect(result.available).toBe(true);
-    const item = (result as any).queue[0];
+    const item = result.queue[0];
     expect(item).toMatchObject({
       contactId: 'top',
       firstName: 'Top',
@@ -346,7 +352,7 @@ describe('(d) excluded contacts never appear in the (§8.3) action-queue view', 
 
     const service = new PrioritizedQueueService(prisma);
     const result = await service.getQueue('rep-1', OrgType.EXTERNAL, { includeExcluded: false });
-    const ids = (result as any).queue.map((q: any) => q.contactId);
+    const ids = result.queue.map((q) => q.contactId);
     expect(ids).toEqual(['clean']);
     expect(ids).not.toContain('dnc');
   });

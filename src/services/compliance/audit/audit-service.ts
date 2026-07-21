@@ -236,36 +236,41 @@ export function mapChannelForPersistence(channel: string | null | undefined): st
 // `LegalHoldPrismaDelegate`'s convention in `../data-rights/legal-hold.ts`) so a plain mock object
 // satisfies it in tests without pulling in a real PrismaClient/DATABASE_URL.
 export interface AuditEntryPrismaDelegate {
-  create(args: { data: Record<string, unknown> }): Promise<any>;
-  findMany(args: { where?: Record<string, unknown>; orderBy?: Record<string, unknown> }): Promise<any[]>;
-  findUnique(args: { where: { id: string } }): Promise<any | null>;
-  findFirst(args: { where?: Record<string, unknown>; orderBy?: Record<string, unknown> }): Promise<any | null>;
+  create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  findMany(args: { where?: Record<string, unknown>; orderBy?: Record<string, unknown> }): Promise<unknown[]>;
+  findUnique(args: { where: { id: string } }): Promise<unknown>;
+  findFirst(args: { where?: Record<string, unknown>; orderBy?: Record<string, unknown> }): Promise<unknown>;
 }
 
-function fromPrismaRow(row: any): AuditEntryRecord {
+function fromPrismaRow(rawRow: unknown): AuditEntryRecord {
   // T-R4: deep-frozen, matching `InMemoryAuditRepository`'s posture — a consumer of the
   // Prisma-backed production repository must get exactly the same "cannot mutate this in place"
   // guarantee a consumer of the in-memory/test repository already gets (see `deepFreeze` below and
   // the module doc comment's "T-R4 hardening" section).
+  //
+  // `AuditEntryPrismaDelegate` is deliberately kept maximally permissive (see its doc comment above)
+  // so both the real Prisma client and a plain test mock satisfy it without a cast at the call site
+  // — this function is the one place that then trusts the row's shape, field by field.
+  const row = rawRow as Record<string, unknown>;
   return deepFreeze({
-    id: row.id,
-    sequence: row.sequence,
-    user_id: row.user_id,
-    content_hash: row.content_hash,
-    risk_score: row.risk_score,
-    outcome: row.outcome,
-    classifier_data: row.classifier_data ?? {},
-    role: row.role,
-    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    prev_hash: row.prev_hash ?? null,
-    entry_hash: row.entry_hash,
-    content_id: row.content_id ?? null,
-    content_text: row.content_text,
-    channel: row.channel ?? null,
-    rule_version: row.rule_version,
-    regulation: row.regulation,
-    reviewer_id: row.reviewer_id ?? null,
-    reviewer_action: row.reviewer_action ?? null,
+    id: row.id as string,
+    sequence: row.sequence as number,
+    user_id: row.user_id as string,
+    content_hash: row.content_hash as string,
+    risk_score: row.risk_score as number,
+    outcome: row.outcome as CFEDecision | 'RECORDED',
+    classifier_data: (row.classifier_data as Record<string, unknown> | null | undefined) ?? {},
+    role: row.role as Role,
+    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : (row.created_at as string),
+    prev_hash: (row.prev_hash as string | null | undefined) ?? null,
+    entry_hash: row.entry_hash as string,
+    content_id: (row.content_id as string | null | undefined) ?? null,
+    content_text: row.content_text as string,
+    channel: (row.channel as Channel | string | null | undefined) ?? null,
+    rule_version: row.rule_version as string,
+    regulation: row.regulation as Regulation[] | string,
+    reviewer_id: (row.reviewer_id as string | null | undefined) ?? null,
+    reviewer_action: (row.reviewer_action as string | null | undefined) ?? null,
   });
 }
 
@@ -346,7 +351,9 @@ export class PrismaAuditRepository implements AuditRepository {
   }
 
   async getChainTail(): Promise<{ sequence: number; entry_hash: string } | null> {
-    const row = await this.prisma.auditEntry.findFirst({ orderBy: { sequence: 'desc' } });
+    const row = (await this.prisma.auditEntry.findFirst({ orderBy: { sequence: 'desc' } })) as
+      | { sequence: number; entry_hash: string }
+      | null;
     return row ? { sequence: row.sequence, entry_hash: row.entry_hash } : null;
   }
 }

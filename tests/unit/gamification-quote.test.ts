@@ -10,7 +10,7 @@ const USER_CONTEXT = { user_id: 'rep-1', role: 'REP' as const };
 
 function passingCFE(): CFEContentEvaluator {
   return {
-    async evaluateContent(input): Promise<CFEVerdict> {
+    async evaluateContent(_input): Promise<CFEVerdict> {
       return {
         band: 'clear',
         score: 0,
@@ -21,28 +21,6 @@ function passingCFE(): CFEContentEvaluator {
         heldReason: null,
         safeHarbor: { injected: false, disclaimers: [] },
         httpStatus: 200,
-        ruleVersion: 'test',
-        auditEvent: {} as CFEVerdict['auditEvent'],
-      };
-    },
-  };
-}
-
-/** Rejects any content containing an income-promise-style phrase; passes everything else. */
-function incomePromiseCatchingCFE(): CFEContentEvaluator {
-  return {
-    async evaluateContent(input): Promise<CFEVerdict> {
-      const isIncomePromise = /guaranteed income|you will earn|\$\d+k? a (month|week|year)/i.test(input.content);
-      return {
-        band: isIncomePromise ? 'blocked' : 'clear',
-        score: isIncomePromise ? 90 : 0,
-        classifierResults: [],
-        held: false,
-        released: !isIncomePromise,
-        reason: isIncomePromise ? 'income_claim' : 'clean',
-        heldReason: null,
-        safeHarbor: { injected: false, disclaimers: [] },
-        httpStatus: isIncomePromise ? 403 : 200,
         ruleVersion: 'test',
         auditEvent: {} as CFEVerdict['auditEvent'],
       };

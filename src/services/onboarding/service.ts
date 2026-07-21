@@ -4,8 +4,6 @@ import {
   Role,
   OrgType,
   AccessTier,
-  IntensitySetting,
-  IntensityData,
   ROLE_STEP_MAP,
   MIN_COMMITMENT_SCORE,
   ROLE_VISIBILITY,
@@ -40,6 +38,15 @@ import { assignAccessTierFromSignals } from './wp01/access-tier';
 //     only). It was dead code (no live caller) but a reachable weaker duplicate of
 //     `assignAccessTier`; removing it leaves `assignAccessTierFromSignals` as the single tier source.
 
+/** Loosely-typed onboarding step submission payload. Supports both the current snake_case wire
+ *  shape and legacy camelCase property names some API routes/tests still submit (see
+ *  `canProgressTo` below), and is deliberately exercised with malformed/wrong-typed values in
+ *  tests (e.g. a non-boolean `gdpr_consent`) to prove the fail-closed checks below — every field
+ *  is read as `unknown` and narrowed at the point of use, never trusted structurally. */
+export interface OnboardingStepPayload {
+  [key: string]: unknown;
+}
+
 export class OnboardingService {
   getStepsForRole(role: Role): OnboardingStep[] {
     return ROLE_STEP_MAP[role] ?? ROLE_STEP_MAP[Role.REP];
@@ -64,7 +71,7 @@ export class OnboardingService {
   validateStep(
     session: OnboardingSession,
     step: OnboardingStep,
-    data: any
+    data: OnboardingStepPayload
   ): ValidationResult {
     const forbidden = findForbiddenTerms(JSON.stringify(data));
     if (forbidden.length > 0) {
@@ -72,7 +79,7 @@ export class OnboardingService {
     }
 
     if (step === OnboardingStep.ROLE_ORG_CONTEXT && session.org_type === OrgType.PRIMERICA) {
-      return this.validateSolutionNumberFormat(data.solution_number);
+      return this.validateSolutionNumberFormat(data.solution_number as string | null | undefined);
     }
 
     // SEVEN_WHYS is DELIBERATELY not gated here anymore (T-20): the authoritative gate is the T-18
@@ -80,7 +87,8 @@ export class OnboardingService {
     // lives in this legacy service — see the retirement note at the top of the file.
 
     if (step === OnboardingStep.INTENSITY) {
-      if (!data.intensity_data || data.intensity_data.commitmentScore < MIN_COMMITMENT_SCORE) {
+      const intensityData = data.intensity_data as { commitmentScore?: number } | null | undefined;
+      if (!intensityData || (intensityData.commitmentScore as number) < MIN_COMMITMENT_SCORE) {
         return { valid: false, error: 'Intensity data insufficient' };
       }
     }
@@ -100,13 +108,13 @@ export class OnboardingService {
     return { valid: true };
   }
 
-  canProgressTo(step: OnboardingStep, data: any): ValidationResult {
+  canProgressTo(step: OnboardingStep, data: OnboardingStepPayload): ValidationResult {
     // Legacy support for API routes/tests using different property names
     const orgType = data.orgType || data.org_type;
     const solutionNumber = data.solutionNumber || data.solution_number;
     
     if (step === OnboardingStep.ROLE_ORG_CONTEXT && orgType === OrgType.PRIMERICA) {
-      return this.validateSolutionNumberFormat(solutionNumber);
+      return this.validateSolutionNumberFormat(solutionNumber as string | null | undefined);
     }
     return { valid: true };
   }

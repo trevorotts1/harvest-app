@@ -13,7 +13,7 @@
 // contact is rendered as an actionable top match, or the soft gate disables continuing instead of
 // merely asking once.
 
-import { createElement } from 'react';
+import { createElement, type ElementType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import { QualityCluster, ReadinessTier } from '@prisma/client';
@@ -34,7 +34,7 @@ import RitualConfirmation, {
 import { QUALITY_CLUSTER_COUNT, QUALITY_CLUSTER_DEFINITIONS } from '@/services/harvest-method/clusters';
 import type { PublicQueueItem } from '@/types/harvest-method';
 
-const render = (el: any, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
+const render = (el: ElementType, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
 /** Visible text only (tags/attrs stripped) — digit checks must reflect what the rep actually SEES. */
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
 

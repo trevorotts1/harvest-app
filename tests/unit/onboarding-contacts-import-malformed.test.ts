@@ -10,64 +10,68 @@ import { Role } from '@prisma/client';
 import { NextRequest } from 'next/server';
 import type { Session } from 'next-auth';
 
-import type { VaultPrismaClient } from '@/services/warm-market/vault/vault.service';
+import type {
+  VaultPrismaClient,
+  ImportBatchRow,
+  ContactRow,
+} from '@/services/warm-market/vault/vault.service';
 
 function createFakeVaultPrisma() {
-  const contacts = new Map<string, any>();
-  const batchesByKey = new Map<string, any>();
-  const batchesById = new Map<string, any>();
-  const optOuts = new Map<string, any>();
+  const contacts = new Map<string, Record<string, unknown>>();
+  const batchesByKey = new Map<string, Record<string, unknown>>();
+  const batchesById = new Map<string, Record<string, unknown>>();
+  const optOuts = new Map<string, Record<string, unknown>>();
   let contactSeq = 0;
   let batchSeq = 0;
 
   const prisma: VaultPrismaClient = {
     importBatch: {
-      findUnique: async ({ where }: any) => {
+      findUnique: async ({ where }) => {
         const key = `${where.user_id_idempotency_key.user_id}::${where.user_id_idempotency_key.idempotency_key}`;
-        return batchesByKey.get(key) ?? null;
+        return (batchesByKey.get(key) as unknown as ImportBatchRow) ?? null;
       },
-      create: async ({ data }: any) => {
+      create: async ({ data }) => {
         const id = `batch-${++batchSeq}`;
         const row = { id, ...data };
         batchesByKey.set(`${data.user_id}::${data.idempotency_key}`, row);
         batchesById.set(id, row);
-        return row;
+        return row as unknown as ImportBatchRow;
       },
-      update: async ({ where, data }: any) => {
-        const row = batchesById.get(where.id);
+      update: async ({ where, data }) => {
+        const row = batchesById.get(where.id)!;
         Object.assign(row, data);
-        return row;
+        return row as unknown as ImportBatchRow;
       },
     },
     contact: {
-      findFirst: async ({ where }: any) => {
+      findFirst: async ({ where }: { where: { user_id: string; OR?: Array<{ phone_hash?: string; email_hash?: string }> } }) => {
         for (const c of contacts.values()) {
           if (c.user_id !== where.user_id) continue;
           const or = where.OR ?? [];
           const matches = or.some(
-            (cond: any) =>
+            (cond) =>
               (cond.phone_hash && c.phone_hash === cond.phone_hash) ||
               (cond.email_hash && c.email_hash === cond.email_hash)
           );
-          if (matches) return c;
+          if (matches) return c as unknown as ContactRow;
         }
         return null;
       },
-      create: async ({ data }: any) => {
+      create: async ({ data }) => {
         const id = `contact-${++contactSeq}`;
         const row = { id, ...data };
         contacts.set(id, row);
-        return row;
+        return row as unknown as ContactRow;
       },
-      update: async ({ where, data }: any) => {
-        const row = contacts.get(where.id);
+      update: async ({ where, data }) => {
+        const row = contacts.get(where.id)!;
         Object.assign(row, data);
-        return row;
+        return row as unknown as ContactRow;
       },
     },
-    contactInteraction: { create: async (args: any) => args.data },
+    contactInteraction: { create: async (args) => args.data },
     optOutRegistry: {
-      upsert: async ({ create }: any) => {
+      upsert: async ({ create }) => {
         const key = `${create.identifier_hash}::${create.channel}`;
         if (!optOuts.has(key)) optOuts.set(key, create);
         return optOuts.get(key);
@@ -148,7 +152,7 @@ describe('POST /api/onboarding/contacts-import — real Vault, malformed CSV iso
     expect(JSON.stringify(landed)).not.toContain('312-555-0199');
     expect(JSON.stringify(landed)).not.toContain('john@example.com');
     // The keyed-HMAC dedupe hash IS present in plaintext (it is a hash, not the PII itself).
-    expect(landed.phone_hash).toBeTruthy();
+    expect(landed!.phone_hash).toBeTruthy();
   });
 
   test('an entirely empty CSV (header only) imports zero rows without error, never a crash', async () => {

@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
+import type { PrismaClient } from '@prisma/client';
+
 import { ContactService } from '../../src/services/warm-market/contact.service';
 import { PipelineService } from '../../src/services/warm-market/pipeline.service';
 import { MemoryJoggerService, MemoryJoggerVocabViolationError } from '../../src/services/warm-market/memory-jogger.service';
@@ -17,6 +19,9 @@ import {
   SegmentationResult,
   HaikuSegmentationClient,
   MissingClaudeCredentialError,
+  type SegmentationContactRow,
+  type SegmentationInteractionRow,
+  type SegmentationPrismaClient,
 } from '../../src/services/warm-market/segmentation';
 import { MemoryJoggerCategory } from '../../src/services/warm-market/memory-jogger/types';
 import type { MemoryJoggerCategoryClient } from '../../src/services/warm-market/memory-jogger/category-client';
@@ -42,7 +47,7 @@ const mockPrisma = {
     findFirst: mockInteractionFindFirst,
     findMany: mockInteractionFindMany,
   },
-} as any;
+} as unknown as PrismaClient;
 
 // T-23 (§16.4/§7.1): a real, deterministic encrypted Contact row — every PII field run through the
 // SAME `encryptRequiredField`/`encryptOptionalField` helpers T-22's Vault write path uses, so tests
@@ -164,9 +169,10 @@ describe('Warm Market Engine', () => {
     }
 
     test('importContacts/normalize/splitName no longer exist on ContactService', () => {
-      expect(typeof (ContactService.prototype as any).importContacts).toBe('undefined');
-      expect(typeof (ContactService.prototype as any).normalize).toBe('undefined');
-      expect(typeof (ContactService.prototype as any).splitName).toBe('undefined');
+      const proto = ContactService.prototype as unknown as Record<string, unknown>;
+      expect(typeof proto.importContacts).toBe('undefined');
+      expect(typeof proto.normalize).toBe('undefined');
+      expect(typeof proto.splitName).toBe('undefined');
     });
 
     test('ContactInput is no longer exported from contact.service', () => {
@@ -234,7 +240,7 @@ describe('Warm Market Engine', () => {
       expect(summary.IDENTIFIED).toHaveLength(2);
       expect(summary.RESPONDED).toHaveLength(1);
       expect(summary.INTRODUCED).toHaveLength(0);
-      expect(summary.IDENTIFIED.map((c: any) => c.firstName).sort()).toEqual(['Alice', 'Bob']);
+      expect(summary.IDENTIFIED.map((c) => c.firstName).sort()).toEqual(['Alice', 'Bob']);
       expect(summary.RESPONDED[0].firstName).toBe('Charlie');
       // Never the raw ciphertext envelope.
       expect(summary.IDENTIFIED[0].firstName).not.toContain('ciphertext');
@@ -258,8 +264,8 @@ describe('Warm Market Engine', () => {
       ]);
 
       const summary = await pipelineService.getPipelineSummary(userId);
-      const flagged = summary.IDENTIFIED.find((c: any) => c.id === 'c1');
-      const unflagged = summary.IDENTIFIED.find((c: any) => c.id === 'c2');
+      const flagged = summary.IDENTIFIED.find((c) => c.id === 'c1');
+      const unflagged = summary.IDENTIFIED.find((c) => c.id === 'c2');
       expect(flagged).toMatchObject({ isRecruitTarget: true, isClient: false });
       expect(unflagged).toMatchObject({ isRecruitTarget: false, isClient: true });
     });
@@ -274,7 +280,7 @@ describe('Warm Market Engine', () => {
       });
 
       const summaryForRepA = await pipelineService.getPipelineSummary('rep-a');
-      expect(summaryForRepA.IDENTIFIED.map((c: any) => c.id)).toEqual(['rep-a-contact']);
+      expect(summaryForRepA.IDENTIFIED.map((c) => c.id)).toEqual(['rep-a-contact']);
 
       const summaryForRepB = await pipelineService.getPipelineSummary('rep-b');
       expect(summaryForRepB.IDENTIFIED).toHaveLength(0);
@@ -457,7 +463,10 @@ describe('Warm Market Engine', () => {
   });
 
   describe('SegmentationService (§7.2 segmentation & scoring)', () => {
-    function makeSegPrisma(contact: any, interactions: any[] = []) {
+    function makeSegPrisma(
+      contact: SegmentationContactRow | null,
+      interactions: SegmentationInteractionRow[] = []
+    ): SegmentationPrismaClient {
       return {
         contact: {
           findUnique: jest.fn().mockResolvedValue(contact),
@@ -483,7 +492,7 @@ describe('Warm Market Engine', () => {
         }),
       };
 
-      const service = new SegmentationService(segPrisma as any, mockClient);
+      const service = new SegmentationService(segPrisma, mockClient);
       const result = await service.segmentContact('contact-1');
 
       expect(mockClient.inferRelationshipType).toHaveBeenCalledTimes(1);
@@ -506,7 +515,7 @@ describe('Warm Market Engine', () => {
       const segPrisma = makeSegPrisma({ id: 'contact-2', notes: null, industry: null }, []);
       const mockClient: SegmentationClient = { inferRelationshipType: jest.fn() };
 
-      const service = new SegmentationService(segPrisma as any, mockClient);
+      const service = new SegmentationService(segPrisma, mockClient);
       const result = await service.segmentContact('contact-2');
 
       expect(mockClient.inferRelationshipType).not.toHaveBeenCalled();
@@ -517,7 +526,7 @@ describe('Warm Market Engine', () => {
 
     test('returns null for a contact that no longer exists (never throws)', async () => {
       const segPrisma = makeSegPrisma(null);
-      const service = new SegmentationService(segPrisma as any, { inferRelationshipType: jest.fn() });
+      const service = new SegmentationService(segPrisma, { inferRelationshipType: jest.fn() });
       const result = await service.segmentContact('gone');
       expect(result).toBeNull();
     });
@@ -533,7 +542,7 @@ describe('Warm Market Engine', () => {
       });
 
       try {
-        const client = new HaikuSegmentationClient({ fetchImpl: fetchSpy as any });
+        const client = new HaikuSegmentationClient({ fetchImpl: fetchSpy });
         await expect(
           client.inferRelationshipType({
             contactId: 'contact-1',

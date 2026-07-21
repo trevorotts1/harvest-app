@@ -91,15 +91,25 @@ export class InMemoryAuditCheckpointRepository implements AuditCheckpointReposit
   }
 }
 
+/** Raw shape of an `AuditCheckpoint` row as returned by the Prisma delegate. */
+interface PrismaCheckpointRow {
+  id: string;
+  sequence: number;
+  head_entry_hash: string;
+  entry_count: number;
+  checkpoint_hash: string;
+  created_at: string | Date;
+}
+
 /** Minimal shape of the Prisma `auditCheckpoint` delegate this repository needs — kept narrow
  *  (mirrors `AuditEntryPrismaDelegate`'s convention in `./audit-service.ts`) so a plain mock object
  *  satisfies it in tests without pulling in a real PrismaClient/DATABASE_URL. */
 export interface AuditCheckpointPrismaDelegate {
-  create(args: { data: Record<string, unknown> }): Promise<any>;
-  findFirst(args: { orderBy?: Record<string, unknown> }): Promise<any | null>;
+  create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  findFirst(args: { orderBy?: Record<string, unknown> }): Promise<PrismaCheckpointRow | null>;
 }
 
-function fromPrismaCheckpointRow(row: any): AuditCheckpoint {
+function fromPrismaCheckpointRow(row: PrismaCheckpointRow): AuditCheckpoint {
   return deepFreezeCheckpoint({
     id: row.id,
     sequence: row.sequence,

@@ -25,6 +25,7 @@ import {
   ContactFlagsService,
   type ContactFlagsPrismaClient,
   type ContactFlagsRow,
+  type SetContactFlagsResult,
 } from '../../src/services/warm-market/contact-flags.service';
 
 // ─── (c) Service-level: in-memory fake Prisma, independence proof ─────────────────────────────────
@@ -147,7 +148,7 @@ describe('(c) ContactFlagsService.setFlags — independent toggle write-path (ui
     const result = await service.setFlags('u-1', 'c-8', { jurisdiction: null });
 
     expect(result.ok).toBe(true);
-    expect((result as any).jurisdiction).toBeNull();
+    expect((result as SetContactFlagsResult & { ok: true }).jurisdiction).toBeNull();
     expect(updateCalls[0].data).toEqual({ jurisdiction: null });
   });
 

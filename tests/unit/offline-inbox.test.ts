@@ -41,7 +41,7 @@ import {
 import ApprovalInboxItem, { type InboxItemData } from '../../src/app/inbox/components/ApprovalInboxItem';
 import { PersistentOfflineQueue } from '../../src/lib/offline/offline-queue';
 import { ComplianceFilterEngine } from '../../src/services/compliance/engine';
-import { ApprovalInboxService, type DraftMessageRow } from '../../src/services/approval-inbox/approval-inbox.service';
+import { ApprovalInboxService } from '../../src/services/approval-inbox/approval-inbox.service';
 import { clearCFE, blockedCFE, createFakeApprovalInboxPrisma, draft } from './approval-inbox-service.test';
 
 const render = (el: unknown, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el as never, props));

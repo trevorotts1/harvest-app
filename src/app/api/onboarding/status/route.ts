@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OnboardingStep } from '@/types/onboarding';
 
 // @internal test store — not exported to avoid Next.js route type pollution
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
       goalCard: session.goal_card,
       intensityData: session.intensity_data,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

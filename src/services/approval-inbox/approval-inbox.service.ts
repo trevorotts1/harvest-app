@@ -38,7 +38,7 @@ import { PrismaClient, Role } from '@prisma/client';
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { Channel, CFEVerdict, ContentLanguage } from '@/types/compliance';
 import { CFE_RULE_VERSION } from '@/types/compliance';
-import type { ApprovalState, PersistedCfeOutcome, PersistedChannel } from '@/services/agent-runtime';
+import type { PersistedCfeOutcome, PersistedChannel } from '@/services/agent-runtime';
 import {
   AuditService,
   PrismaAuditRepository,

@@ -35,8 +35,8 @@ function run(overrides: Partial<AgentRunLedgerRow> = {}): AgentRunLedgerRow {
 describe('AgentActivityLedgerService.listForUser — §9.3 read-only, ownership-scoped', () => {
   test('has no update/delete method on its public surface (read-only by construction)', () => {
     const service = new AgentActivityLedgerService({ agentRun: { findMany: jest.fn() } } as unknown as ActivityLedgerPrismaClient);
-    expect((service as any).update).toBeUndefined();
-    expect((service as any).delete).toBeUndefined();
+    expect((service as unknown as Record<string, unknown>).update).toBeUndefined();
+    expect((service as unknown as Record<string, unknown>).delete).toBeUndefined();
   });
 
   test('returns only the caller\'s OWN runs, newest first', async () => {

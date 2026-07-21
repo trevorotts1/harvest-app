@@ -2,7 +2,6 @@ import {
   SAFE_HARBOR_DISCLAIMERS,
   Classifier,
   ClassifierResult,
-  CFEResult,
 } from '../../types/compliance';
 
 /**
@@ -89,7 +88,7 @@ export function injectSafeHarborLanguage(
   content: string,
   classifierResults: ClassifierResult[]
 ): { content: string; disclaimers: string[]; injected: boolean } {
-  const { disclaimers, injected } = determineSafeHarborInjections(classifierResults);
+  const { disclaimers } = determineSafeHarborInjections(classifierResults);
 
   if (disclaimers.length === 0) {
     return { content, disclaimers, injected: false };

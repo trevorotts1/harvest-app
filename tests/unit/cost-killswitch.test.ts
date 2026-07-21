@@ -33,7 +33,7 @@ import {
 } from '@/services/agent-runtime/cost-killswitch';
 import type { CreateAgentRunInput, UpdateAgentRunInput } from '@/services/agent-runtime';
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
-import type { ClaudeClassifierClient, ClassifierRequest } from '@/services/compliance/claude';
+import type { ClaudeClassifierClient } from '@/services/compliance/claude';
 import type { ClassifierVerdict } from '@/types/compliance';
 
 // ── Test doubles (mirrors tests/unit/agent-runtime.test.ts's conventions) ─────────────────────────

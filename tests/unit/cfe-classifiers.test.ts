@@ -56,9 +56,9 @@ describe('CFE — real Haiku call path (§4.4), driven with a fake transport', (
     const prevKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = 'test-only-not-a-real-key';
     let capturedUrl = '';
-    let capturedInit: any = null;
+    let capturedInit: RequestInit | null = null;
 
-    const fakeFetch = jest.fn(async (url: string, init: any) => {
+    const fakeFetch = jest.fn(async (url: string, init: RequestInit) => {
       capturedUrl = url;
       capturedInit = init;
       return {
@@ -74,7 +74,7 @@ describe('CFE — real Haiku call path (§4.4), driven with a fake transport', (
     });
 
     try {
-      const client = new HaikuClassifierClient({ fetchImpl: fakeFetch as any });
+      const client = new HaikuClassifierClient({ fetchImpl: fakeFetch });
       const verdict = await client.classify({
         classifier: 'INCOME_CLAIM',
         systemPrompt: 'sys',
@@ -85,11 +85,12 @@ describe('CFE — real Haiku call path (§4.4), driven with a fake transport', (
       expect(verdict.confidence).toBeCloseTo(0.87);
 
       expect(capturedUrl).toBe('https://api.anthropic.com/v1/messages');
-      const body = JSON.parse(capturedInit.body);
+      const body = JSON.parse(capturedInit!.body as string);
       expect(body.model).toBe('claude-haiku-4-5-20251001'); // Claude-only, Haiku 4.5
       expect(body.output_config.format.type).toBe('json_schema');
-      expect(capturedInit.headers['anthropic-version']).toBe('2023-06-01');
-      expect(capturedInit.headers['x-api-key']).toBeDefined();
+      const headers = capturedInit!.headers as Record<string, string>;
+      expect(headers['anthropic-version']).toBe('2023-06-01');
+      expect(headers['x-api-key']).toBeDefined();
     } finally {
       if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
       else process.env.ANTHROPIC_API_KEY = prevKey;
@@ -101,7 +102,7 @@ describe('CFE — real Haiku call path (§4.4), driven with a fake transport', (
     process.env.ANTHROPIC_API_KEY = 'test-only-not-a-real-key';
     const fakeFetch = jest.fn(async () => ({ ok: false, status: 503, text: async () => 'err' }));
     try {
-      const client = new HaikuClassifierClient({ fetchImpl: fakeFetch as any });
+      const client = new HaikuClassifierClient({ fetchImpl: fakeFetch });
       await expect(
         client.classify({ classifier: 'INCOME_CLAIM', systemPrompt: 's', content: 'x' })
       ).rejects.toBeInstanceOf(ClaudeClassifierError);

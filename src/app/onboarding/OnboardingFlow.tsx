@@ -31,7 +31,6 @@ import UplineTrack from './components/UplineTrack';
 import VisionSplash from './components/VisionSplash';
 import {
   nextScreen,
-  resumeScreen,
   trackKindForRole,
   type OnboardingScreen,
 } from './flow-model';

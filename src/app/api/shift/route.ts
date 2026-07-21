@@ -24,7 +24,7 @@ export const GET = withOnboardingGate(async (req, _ctx, _session, identity) => {
     const service = new ShiftService();
     const view = await service.getOrCreateToday(identity.userId, mode);
     return NextResponse.json(view);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 });

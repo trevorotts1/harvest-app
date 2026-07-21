@@ -3,7 +3,7 @@
 // / tests/unit/agent-runtime.test.ts) so the CFE-gate proofs are real end-to-end CFE calls, not a
 // mocked `evaluateContent`.
 
-import type { ClaudeClassifierClient, ClassifierRequest } from '@/services/compliance/claude';
+import type { ClaudeClassifierClient } from '@/services/compliance/claude';
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { ClassifierVerdict } from '@/types/compliance';
 

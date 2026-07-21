@@ -12,7 +12,7 @@
 //   AC-5.3-5: the reflection controls render as two EQUAL-WEIGHT buttons (identical class), never a
 //       primary/ghost pairing that would make "skip" feel like a lesser choice.
 
-import { createElement } from 'react';
+import { createElement, type ElementType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import RatioCard from '@/app/shift/components/RatioCard';
@@ -22,7 +22,7 @@ import ClosePhase, { recapLine } from '@/app/shift/components/ClosePhase';
 import DoneScreen from '@/app/shift/components/DoneScreen';
 import type { RatioCardView, ShiftQueueCard } from '@/types/learning-state';
 
-const render = (el: any, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
+const render = (el: ElementType, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
 /** Visible text only (tags/attrs stripped) — digit checks must reflect what the rep actually SEES. */
 const textOf = (html: string) =>
   html

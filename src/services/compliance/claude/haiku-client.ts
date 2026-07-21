@@ -14,11 +14,18 @@ import {
   VERDICT_JSON_SCHEMA,
 } from './client';
 
-type FetchLike = (url: string, init: any) => Promise<{
+type FetchLike = (url: string, init: RequestInit) => Promise<{
   ok: boolean;
   status: number;
   text: () => Promise<string>;
 }>;
+
+/** Loosely-typed Anthropic Messages API response body — fields are validated with `typeof`
+ *  narrowing at each read site rather than trusted structurally. */
+interface MessagesResponseBody {
+  content?: Array<{ type?: string; text?: string }>;
+  [key: string]: unknown;
+}
 
 export interface HaikuClientOptions {
   /** Env-var NAME the key is read from (never its value, §0.4). */
@@ -63,7 +70,7 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
     }
 
     const fetchFn: FetchLike | undefined =
-      this.fetchImpl ?? (globalThis as any).fetch;
+      this.fetchImpl ?? (globalThis.fetch as FetchLike | undefined);
     if (!fetchFn) {
       // No transport available — treat as unavailable, fail closed.
       throw new ClaudeClassifierError('No fetch implementation available for Haiku client.');
@@ -99,13 +106,14 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
         );
       }
       raw = await res.text();
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
+    } catch (err) {
+      const errName = err instanceof Error ? err.name : undefined;
+      if (errName === 'AbortError') {
         throw new ClassifierTimeoutError(req.classifier, this.timeoutMs);
       }
       if (err instanceof ClaudeClassifierError) throw err;
       throw new ClaudeClassifierError(
-        `Haiku classifier transport error: ${err?.name ?? 'unknown'}`
+        `Haiku classifier transport error: ${errName ?? 'unknown'}`
       );
     } finally {
       clearTimeout(timer);
@@ -115,7 +123,7 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
   }
 
   private parse(raw: string): ClassifierVerdict {
-    let json: any;
+    let json: MessagesResponseBody;
     try {
       json = JSON.parse(raw);
     } catch {
@@ -123,10 +131,10 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
     }
 
     // Extract the structured JSON payload from the Messages API content blocks.
-    let payload: any = json;
+    let payload: MessagesResponseBody = json;
     if (Array.isArray(json?.content)) {
       const textBlock = json.content.find(
-        (b: any) => b && b.type === 'text' && typeof b.text === 'string'
+        (b): b is { type: string; text: string } => !!b && b.type === 'text' && typeof b.text === 'string'
       );
       if (!textBlock) {
         throw new ClaudeClassifierError('Haiku response contained no text block.');
@@ -138,7 +146,9 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
       }
     }
 
-    if (typeof payload?.flagged !== 'boolean' || typeof payload?.confidence !== 'number') {
+    const flagged = payload.flagged;
+    const confidence = payload.confidence;
+    if (typeof flagged !== 'boolean' || typeof confidence !== 'number') {
       throw new ClaudeClassifierError('Haiku verdict missing required fields.');
     }
 
@@ -146,17 +156,17 @@ export class HaikuClassifierClient implements ClaudeClassifierClient {
     // ±Infinity, negative, or >1) is an out-of-contract verdict — throw so the
     // engine HOLDS the item CLOSED rather than silently clamping a fabricated
     // value to 0/1 and acting on it.
-    const { confidence } = payload;
     if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
       throw new ClaudeClassifierError(
         'Haiku verdict confidence out of contract range [0,1].'
       );
     }
 
+    const rationale = payload.rationale;
     return {
-      flagged: payload.flagged,
+      flagged,
       confidence,
-      rationale: typeof payload.rationale === 'string' ? payload.rationale : undefined,
+      rationale: typeof rationale === 'string' ? rationale : undefined,
     };
   }
 }

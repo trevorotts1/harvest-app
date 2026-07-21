@@ -21,7 +21,7 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
 
     const result = await service.submitBlankCanvas(identity.userId, body);
     return NextResponse.json(result);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 });

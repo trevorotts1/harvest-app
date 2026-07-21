@@ -56,23 +56,23 @@ function makeFakeItemDb(): ContentItemPrismaClient {
   let n = 0;
   return {
     contentItem: {
-      async findMany({ where }: any) {
+      async findMany({ where }: { where: Record<string, unknown> }) {
         return rows.filter((r) => (!where.user_id || r.user_id === where.user_id) && (!where.launch_kit_id || r.launch_kit_id === where.launch_kit_id));
       },
-      async findFirst({ where }: any) {
+      async findFirst({ where }: { where: { id: string; user_id: string } }) {
         return rows.find((r) => r.id === where.id && r.user_id === where.user_id) ?? null;
       },
-      async create({ data }: any) {
+      async create({ data }: { data: Record<string, unknown> }) {
         const row = { id: `item-${++n}`, created_at: new Date(), updated_at: new Date(), publish_attempts: 0, ...data } as ContentItemRow;
         rows.push(row);
         return row;
       },
-      async update({ where, data }: any) {
+      async update({ where, data }: { where: { id: string }; data: Record<string, unknown> }) {
         const row = rows.find((r) => r.id === where.id)!;
         Object.assign(row, data);
         return row;
       },
-      async updateMany({ where, data }: any) {
+      async updateMany({ where, data }: { where: { launch_kit_id: string }; data: Record<string, unknown> }) {
         rows.filter((r) => r.launch_kit_id === where.launch_kit_id).forEach((r) => Object.assign(r, data));
       },
     },
@@ -92,7 +92,7 @@ function makeFakeKitDb(itemDb: ContentItemPrismaClient): LaunchKitPrismaClient {
       async findFirst({ where }) {
         return kits.find((k) => k.id === where.id && k.user_id === where.user_id) ?? null;
       },
-      async findMany({ where }: any) {
+      async findMany({ where }: { where: Record<string, unknown> }) {
         return kits.filter((k) => !where.user_id || k.user_id === where.user_id);
       },
       async update({ where, data }) {
@@ -101,7 +101,11 @@ function makeFakeKitDb(itemDb: ContentItemPrismaClient): LaunchKitPrismaClient {
         return row;
       },
     },
-    contentItem: (itemDb as any).contentItem,
+    // `itemDb`'s declared `ContentItemPrismaClient` type doesn't expose `updateMany` (it's not part
+    // of that production interface); the mock built by `makeFakeItemDb()` has it at runtime, hidden
+    // behind that function's own `as unknown as` cast — mirror that same narrowing convention here
+    // rather than widening the production interface for a test-only method.
+    contentItem: (itemDb as unknown as { contentItem: LaunchKitPrismaClient['contentItem'] }).contentItem,
   };
 }
 
