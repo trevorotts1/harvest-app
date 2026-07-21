@@ -66,6 +66,14 @@
       "approved": "Approved",
       "declined": "Declined",
       "all": "All"
+    },
+    "adjudication": {
+      "complianceDetail": "Compliance detail",
+      "classifierSignals": "Classifier signals",
+      "noSignal": "No individual classifier signal.",
+      "recommendationLabel": "Recommendation (advisory",
+      "suggestedRewrite": "Suggested compliant rewrite",
+      "advisoryOnly": "Advisory only — a person still decides. Nothing here approves or sends anything."
     }
   },
   "learn": {
@@ -141,6 +149,29 @@
       "spanish": "Español",
       "saved": "Saved.",
       "saveFailed": "Could not save your language preference. Try again."
+    }
+  },
+  "team": {
+    "complianceLink": {
+      "badge": "Compliance review",
+      "body": "Flagged drafts from your team awaiting your review.",
+      "cta": "Open compliance review"
+    },
+    "complianceReview": {
+      "loading": "Gathering flagged drafts for review…",
+      "badge": "Compliance review",
+      "forbiddenBody": "Compliance review is for uplines and admins. Reps see their own Approval Inbox.",
+      "forbiddenCta": "Go to your Approval Inbox",
+      "loadError": "Couldn't load the review queue.",
+      "retry": "Retry",
+      "emptyHeading": "Nothing flagged for you right now",
+      "emptyBody": "When a teammate's draft is flagged for review, it will appear here for your decision.",
+      "readyHeading": "Flagged drafts awaiting your decision",
+      "readyBody": "You are the principal reviewer for these. Approving clears the draft for your teammate to send; rejecting sends it back. Held or blocked content can never be approved here.",
+      "toLabel": "To",
+      "escalatedBadge": "Escalated · 48h SLA",
+      "flaggedBadge": "Flagged",
+      "reject": "Reject"
     }
   }
 }

@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 interface RosterRow {
   userId: string;
   name: string;
@@ -30,6 +32,7 @@ const PACE_GLYPH: Record<RosterRow['paceIcon'], string> = { 'leaf-check': '🌿'
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: DashboardData } | { kind: 'forbidden' } | { kind: 'failed' };
 
 export default function TeamDashboardPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [sort, setSort] = useState<'name' | 'pace' | 'momentum'>('name');
 
@@ -94,9 +97,9 @@ export default function TeamDashboardPage() {
     <div className="stack">
       {/* T-09 (§5.5 AC-3b) — reachable affordance into the upline's CFE FLAG adjudication queue. */}
       <section className="card panel">
-        <span className="badge">Compliance review</span>
-        <p style={{ marginTop: 8 }}>Flagged drafts from your team awaiting your review.</p>
-        <Link className="btn btn-secondary" href="/team/compliance-review">Open compliance review</Link>
+        <span className="badge">{t('team.complianceLink.badge')}</span>
+        <p style={{ marginTop: 8 }}>{t('team.complianceLink.body')}</p>
+        <Link className="btn btn-secondary" href="/team/compliance-review">{t('team.complianceLink.cta')}</Link>
       </section>
 
       {data.needsYouNow.length > 0 && (

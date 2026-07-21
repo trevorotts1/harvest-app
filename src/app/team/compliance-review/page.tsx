@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import ClassifierAdjudicationDrawer from '../../inbox/components/ClassifierAdjudicationDrawer';
+import { useT } from '@/app/locale-context';
 
 interface QueueItem {
   queueId: string;
@@ -35,6 +36,7 @@ type LoadState =
   | { kind: 'failed' };
 
 export default function ComplianceReviewPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,22 +87,22 @@ export default function ComplianceReviewPage() {
   );
 
   if (state.kind === 'loading') {
-    return <div className="card panel"><p>Gathering flagged drafts for review…</p></div>;
+    return <div className="card panel"><p>{t('team.complianceReview.loading')}</p></div>;
   }
   if (state.kind === 'forbidden') {
     return (
       <div className="card panel">
-        <span className="badge">Compliance review</span>
-        <p>Compliance review is for team leads. Reps see their own Approval Inbox.</p>
-        <Link className="btn btn-secondary" href="/inbox">Go to your Approval Inbox</Link>
+        <span className="badge">{t('team.complianceReview.badge')}</span>
+        <p>{t('team.complianceReview.forbiddenBody')}</p>
+        <Link className="btn btn-secondary" href="/inbox">{t('team.complianceReview.forbiddenCta')}</Link>
       </div>
     );
   }
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>Couldn&apos;t load the review queue.</p>
-        <button type="button" className="btn btn-secondary" onClick={() => void load()}>Retry</button>
+        <p>{t('team.complianceReview.loadError')}</p>
+        <button type="button" className="btn btn-secondary" onClick={() => void load()}>{t('team.complianceReview.retry')}</button>
       </div>
     );
   }
@@ -108,9 +110,9 @@ export default function ComplianceReviewPage() {
   if (state.items.length === 0) {
     return (
       <div className="card panel">
-        <span className="badge">Compliance review</span>
-        <h2 style={{ marginTop: 8 }}>Nothing flagged for you right now</h2>
-        <p>When a teammate&apos;s draft is flagged for review, it will appear here for your decision.</p>
+        <span className="badge">{t('team.complianceReview.badge')}</span>
+        <h2 style={{ marginTop: 8 }}>{t('team.complianceReview.emptyHeading')}</h2>
+        <p>{t('team.complianceReview.emptyBody')}</p>
       </div>
     );
   }
@@ -118,11 +120,10 @@ export default function ComplianceReviewPage() {
   return (
     <div className="stack">
       <section className="card panel">
-        <span className="badge">Compliance review</span>
-        <h2 style={{ marginTop: 8 }}>Flagged drafts awaiting your decision</h2>
+        <span className="badge">{t('team.complianceReview.badge')}</span>
+        <h2 style={{ marginTop: 8 }}>{t('team.complianceReview.readyHeading')}</h2>
         <p style={{ color: 'var(--muted)' }}>
-          You are the principal reviewer for these. Approving clears the draft for your teammate to
-          send; rejecting sends it back. Held or blocked content can never be approved here.
+          {t('team.complianceReview.readyBody')}
         </p>
       </section>
 
@@ -132,8 +133,8 @@ export default function ComplianceReviewPage() {
         return (
           <section key={item.queueId} className="card panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <strong>To {name} · {item.channel.replace(/_/g, ' ')}</strong>
-              {item.status === 'ESCALATED' ? <span className="badge">Escalated · 48h SLA</span> : <span className="badge">Flagged</span>}
+              <strong>{t('team.complianceReview.toLabel')} {name} · {item.channel.replace(/_/g, ' ')}</strong>
+              {item.status === 'ESCALATED' ? <span className="badge">{t('team.complianceReview.escalatedBadge')}</span> : <span className="badge">{t('team.complianceReview.flaggedBadge')}</span>}
             </div>
             <p style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{item.body}</p>
 
@@ -161,7 +162,7 @@ export default function ComplianceReviewPage() {
                 disabled={busy}
                 onClick={() => void adjudicate(item.queueId, 'REJECT')}
               >
-                Reject
+                {t('team.complianceReview.reject')}
               </button>
             </div>
           </section>

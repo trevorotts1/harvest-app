@@ -12,6 +12,7 @@
 'use client';
 
 import styles from '../inbox.module.css';
+import { useT } from '@/app/locale-context';
 
 interface ClassifierResultLike {
   classifier: string;
@@ -72,6 +73,7 @@ export default function ClassifierAdjudicationDrawer({
   recommendationModel,
   escalationReason,
 }: ClassifierAdjudicationDrawerProps) {
+  const t = useT();
   const results = coerce(classifierData)
     .filter((r) => r.confidence > 0)
     .sort((a, b) => b.confidence - a.confidence);
@@ -79,13 +81,13 @@ export default function ClassifierAdjudicationDrawer({
   return (
     <details className={styles.adjudicationDrawer}>
       <summary className={styles.adjudicationSummary}>
-        Compliance detail{typeof riskScore === 'number' ? ` · risk ${riskScore}` : ''}
+        {t('inbox.adjudication.complianceDetail')}{typeof riskScore === 'number' ? ` · risk ${riskScore}` : ''}
       </summary>
 
       <div className={styles.adjudicationBody}>
-        <p className={styles.adjudicationHeading}>Classifier signals</p>
+        <p className={styles.adjudicationHeading}>{t('inbox.adjudication.classifierSignals')}</p>
         {results.length === 0 ? (
-          <p className={styles.itemMeta}>No individual classifier signal.</p>
+          <p className={styles.itemMeta}>{t('inbox.adjudication.noSignal')}</p>
         ) : (
           <ul className={styles.classifierList}>
             {results.map((r) => {
@@ -108,7 +110,7 @@ export default function ClassifierAdjudicationDrawer({
         {recommendedAction ? (
           <div className={styles.recommendationBlock}>
             <p className={styles.adjudicationHeading}>
-              Recommendation (advisory
+              {t('inbox.adjudication.recommendationLabel')}
               {recommendationModel && MODEL_LABELS[recommendationModel]
                 ? ` · ${MODEL_LABELS[recommendationModel]}`
                 : ''}
@@ -120,12 +122,12 @@ export default function ClassifierAdjudicationDrawer({
             <p className={styles.itemBody}>{recommendedAction}</p>
             {suggestedRewrite ? (
               <>
-                <p className={styles.adjudicationHeading}>Suggested compliant rewrite</p>
+                <p className={styles.adjudicationHeading}>{t('inbox.adjudication.suggestedRewrite')}</p>
                 <p className={styles.suggestedRewrite}>{suggestedRewrite}</p>
               </>
             ) : null}
             <p className={styles.itemMeta}>
-              Advisory only — a person still decides. Nothing here approves or sends anything.
+              {t('inbox.adjudication.advisoryOnly')}
             </p>
           </div>
         ) : null}

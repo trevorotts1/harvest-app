@@ -66,6 +66,14 @@
       "approved": "Aprobados",
       "declined": "Rechazados",
       "all": "Todos"
+    },
+    "adjudication": {
+      "complianceDetail": "Detalle de cumplimiento",
+      "classifierSignals": "Señales del clasificador",
+      "noSignal": "No hay señal individual del clasificador.",
+      "recommendationLabel": "Recomendación (asesoría",
+      "suggestedRewrite": "Redacción alternativa conforme",
+      "advisoryOnly": "Solo asesoría — una persona sigue decidiendo. Esto no aprueba ni envía nada."
     }
   },
   "learn": {
@@ -141,6 +149,29 @@
       "spanish": "Español",
       "saved": "Guardado.",
       "saveFailed": "No se pudo guardar tu preferencia de idioma. Inténtalo de nuevo."
+    }
+  },
+  "team": {
+    "complianceLink": {
+      "badge": "Revisión de cumplimiento",
+      "body": "Borradores marcados de tu equipo en espera de tu revisión.",
+      "cta": "Abrir revisión de cumplimiento"
+    },
+    "complianceReview": {
+      "loading": "Preparando los borradores marcados para revisión…",
+      "badge": "Revisión de cumplimiento",
+      "forbiddenBody": "La revisión de cumplimiento es para uplines y administradores. Los reps ven su propia Bandeja de aprobación.",
+      "forbiddenCta": "Ir a tu Bandeja de aprobación",
+      "loadError": "No se pudo cargar la cola de revisión.",
+      "retry": "Reintentar",
+      "emptyHeading": "No hay nada marcado para ti en este momento",
+      "emptyBody": "Cuando se marque un borrador de un compañero de equipo para revisión, aparecerá aquí para tu decisión.",
+      "readyHeading": "Borradores marcados en espera de tu decisión",
+      "readyBody": "Eres el revisor principal de estos. Aprobar libera el borrador para que tu compañero de equipo lo envíe; rechazar lo devuelve. El contenido retenido o bloqueado nunca puede aprobarse aquí.",
+      "toLabel": "Para",
+      "escalatedBadge": "Escalado · SLA de 48 h",
+      "flaggedBadge": "Marcado",
+      "reject": "Rechazar"
     }
   }
 }
