@@ -7,6 +7,8 @@
 // in this repo's no-jsdom, single-pass `renderToStaticMarkup` Jest environment.
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import * as fs from 'fs';
+import * as path from 'path';
 
 import TreeListView from '@/app/grow/components/TreeListView';
 import type { GhostSeedling, OrgTreeNode } from '@/types/taprooting';
@@ -34,6 +36,18 @@ describe('Orchard list-view (TreeListView) — overflow container (T-57 R1c, C4)
     // styleMock.js proxies CSS-module class lookups to their bare key name, so
     // `styles.listTableWrap` / `styles.listTable` survive into the static-render HTML unchanged.
     expect(html).toMatch(/<div class="listTableWrap"><table class="listTable"/);
+  });
+
+  test('.listTableWrap CSS rule contains overflow-x: auto property', () => {
+    // Read the CSS module to verify that the .listTableWrap rule has overflow-x: auto.
+    // This ensures the markup change isn't just cosmetic but actually backed by the scroll behavior.
+    const cssPath = path.resolve(__dirname, '../../src/app/grow/grow.module.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf-8');
+
+    // Find the .listTableWrap rule block. The regex captures the rule and its properties.
+    const ruleMatch = cssContent.match(/\.listTableWrap\s*\{([^}]+)\}/);
+    expect(ruleMatch).toBeDefined();
+    expect(ruleMatch?.[1]).toMatch(/overflow-x\s*:\s*auto/);
   });
 
   test('real rows and the ghost-lattice row (Primerica only) still render inside the wrapped table', () => {
