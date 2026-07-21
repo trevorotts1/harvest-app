@@ -626,6 +626,9 @@
   "shift": {
     "loadError": "Could not load your shift. Retry.",
     "offlineBanner": "You're offline — actions are queued and will sync (with a compliance re-check) when you're back.",
+    "loading": {
+      "narrativeLine": "Gathering your shift…"
+    },
     "openPhase": {
       "streakBadge_one": "{count}-day streak",
       "streakBadge_other": "{count}-day streak",

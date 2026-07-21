@@ -202,3 +202,42 @@ describe('T-34 QC fix (D3): ShiftView renders the offline banner when offline at
     expect(html).not.toMatch(/queued and will sync/i);
   });
 });
+
+// ─── T-57 RE-GATE fix (D2 BLOCKER): the `!shift` branch is a NARRATED loading state, never a
+// blank `aria-busy` div ────────────────────────────────────────────────────────────────────────
+//
+// Omitting `initialShift` puts ShiftView in its real, live-fetch first-mount state (`shift ===
+// null`) — exactly what every real mount looks like before `/api/shift` resolves. `useEffect`
+// never runs under `renderToStaticMarkup` (SSR-only, no DOM), so the live `fetch()` call inside it
+// is never reached — this test exercises ONLY the render-time `!shift` branch itself, the same
+// isolation this file's other structural test already relies on.
+describe('T-57 RE-GATE fix — ShiftView\'s `!shift` first-mount branch renders narrated content, never a blank div', () => {
+  test('RED (pre-fix) would be: renderToStaticMarkup(<ShiftView />) === \'<div class="..." aria-busy="true"></div>\' — no text content at all', () => {
+    const html = renderToStaticMarkup(createElement(ShiftView, {}));
+    const text = html.replace(/<[^>]*>/g, ' ').trim();
+    expect(text.length).toBeGreaterThan(0);
+  });
+
+  test('GREEN: the real narrated title/text ("Gathering your shift…") is present', () => {
+    const html = renderToStaticMarkup(createElement(ShiftView, {}));
+    const text = html.replace(/<[^>]*>/g, ' ').trim();
+    expect(text).toMatch(/Gathering your shift/i);
+  });
+
+  test('GREEN: the loading region stays aria-busy (assistive tech still knows a load is in progress)', () => {
+    const html = renderToStaticMarkup(createElement(ShiftView, {}));
+    expect(html).toMatch(/aria-busy="true"/);
+  });
+
+  test('GREEN: the decorative skeleton bars are aria-hidden — they carry no information of their own, only the narrated text does', () => {
+    const html = renderToStaticMarkup(createElement(ShiftView, {}));
+    const skeletonBarCount = (html.match(/aria-hidden="true"/g) ?? []).length;
+    expect(skeletonBarCount).toBeGreaterThanOrEqual(3);
+  });
+
+  test('TEETH: the OLD blank markup shape (`aria-busy` div with no text) would fail the narrated-text assertion above — proves this test actually distinguishes narrated from blank', () => {
+    const oldBlankHtml = '<div class="shell" aria-busy="true"></div>';
+    const oldText = oldBlankHtml.replace(/<[^>]*>/g, ' ').trim();
+    expect(oldText.length).toBe(0); // the pre-fix shape has zero text — this is what SC9 flags
+  });
+});

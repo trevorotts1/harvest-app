@@ -65,6 +65,59 @@
   letter-spacing: 0.02em;
 }
 
+/* ---- Open-phase loading skeleton (T-57 RE-GATE fix, D2 BLOCKER) ----
+   Every real mount renders THIS first, before the initial fetch resolves — must be a narrated
+   state (uiux SC9), never a blank `aria-busy` div (see ShiftView.tsx's `!shift` branch). `.card`-
+   alike shell so the real Open-phase `.card` doesn't visibly "jump" in size when data lands.
+   `.skeletonBar` is purely decorative (rendered with `aria-hidden="true"` — a screen reader never
+   sees it; `.loadingNarrative`'s real text is what actually informs). Its shimmer is gated behind
+   `prefers-reduced-motion`, same pattern as `.groveSway`/`.groveBloomBurst` in
+   today/today.module.css. */
+.loadingCard {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.loadingNarrative {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.skeletonBar {
+  height: var(--space-4);
+  width: 100%;
+  border-radius: var(--radius-control);
+  background: var(--surface-3);
+}
+.skeletonBarMedium {
+  width: 70%;
+}
+.skeletonBarNarrow {
+  width: 40%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .skeletonBar {
+    animation: shiftSkeletonShimmer 1.6s ease-in-out infinite;
+  }
+}
+@keyframes shiftSkeletonShimmer {
+  0%,
+  100% {
+    background: var(--surface-3);
+  }
+  50% {
+    background: var(--surface-2);
+  }
+}
+
 /* ---- Open phase ---- */
 .card {
   background: var(--surface-1);

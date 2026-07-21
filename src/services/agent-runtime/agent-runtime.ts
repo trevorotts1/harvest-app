@@ -105,6 +105,15 @@ const HELD_CFE_DOWN_REASON =
  * server-side reasoning_log stream has no locale threaded through it today (every other reason
  * string in this file is the same plain, untranslated English), so it is not itself routed through
  * `t()`; only the OTHER reason (`'kill_switch'`) still passes through raw, unchanged.
+ *
+ * T-57 RE-GATE fix (D states re-gate, sibling to the D2 BLOCKER): the ORIGINAL fix below matched
+ * `gate.reason` by exact string equality against `'budget_exhausted'` alone. `cost-killswitch/
+ * run-gate.ts` can also deny with `'budget_exhausted_org'` (:198, enterprise-org daily ceiling) or
+ * `'budget_exhausted_platform'` (:227, platform-wide daily ceiling) — the exact-equality check
+ * missed both, so THOSE two holds still leaked the raw enum token into the rep's receipts, the
+ * same defect this constant exists to prevent. The match below is now a PREFIX check
+ * (`reason?.startsWith('budget_exhausted')`) so every budget-scope reason — today's three and any
+ * future one RunGate adds — renders this same honest sentence without another call-site edit.
  */
 const HELD_BUDGET_EXHAUSTED_REASON =
   'your agents reach their daily limit at your current intensity — change your intensity anytime in Me → Intensity.';
@@ -209,12 +218,22 @@ export class AgentRuntime {
     const criticality = criticalityFor(spec.key);
     const gate = await this.runGate.check({ userId: input.userId, agentKey: spec.key, criticality, primaryTier: spec.primaryTier });
     if (!gate.allowed) {
-      // T-57 R3c-1 (MINOR-D5): humanize the ONE reason (`budget_exhausted`) §4.6 names explicitly;
-      // any other/unknown reason (e.g. `kill_switch`) keeps the prior raw-token rendering
-      // unchanged (same trailing-period shape as before this fix) — scoped to the documented
-      // defect, not a rewrite of every hold path.
-      const deferredReason =
-        gate.reason === 'budget_exhausted' ? HELD_BUDGET_EXHAUSTED_REASON : `${gate.reason ?? 'budget/kill-switch'}.`;
+      // T-57 R3c-1 (MINOR-D5) humanized the ONE reason (`budget_exhausted`) §4.6 names explicitly.
+      // T-57 RE-GATE fix (D states, sibling to D2): the RunGate (cost-killswitch/run-gate.ts) can
+      // ALSO deny with `'budget_exhausted_org'` (enterprise-org daily ceiling, :198) or
+      // `'budget_exhausted_platform'` (platform-wide ceiling, :227) — both are still, honestly,
+      // "your agents hit a daily budget ceiling", just a different scope than the per-rep case the
+      // original fix matched by exact string-equality. A strict `=== 'budget_exhausted'` check
+      // missed both siblings, so those two holds fell through to the raw-token fallback and leaked
+      // the internal enum verbatim into the rep's own briefing receipts (AC-4-10) — exactly the
+      // defect the original fix existed to close, just for two reasons it didn't yet know about.
+      // Matched by PREFIX (not a 3-way enum list) so any future `budget_exhausted_*` scope RunGate
+      // adds is humanized automatically without another call site edit. `kill_switch`/
+      // `kill_switch_org`/any other reason is untouched — still the prior raw-token rendering,
+      // same trailing-period shape as before — scoped to budget reasons only, per §4.6.
+      const deferredReason = gate.reason?.startsWith('budget_exhausted')
+        ? HELD_BUDGET_EXHAUSTED_REASON
+        : `${gate.reason ?? 'budget/kill-switch'}.`;
       const runId = await this.recordTerminalRun(spec, input, 'HELD', `${spec.displayName} deferred: ${deferredReason}`);
       await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
       return this.result(spec.key, 'deferred', runId, null, deferredReason, null);

@@ -149,9 +149,29 @@ function OnboardingInvitePageInner() {
   );
 }
 
+// T-57 RE-GATE fix (D states re-gate sibling): `fallback={null}` rendered a truly blank screen for
+// the brief window `useSearchParams()` needs to resolve — before this fix, an unauthenticated
+// invite recipient's FIRST paint of this route could be nothing at all. Narrated instead, reusing
+// the exact same `invite.loading` copy `OnboardingInvitePageInner`'s own `state.kind === 'loading'`
+// branch renders one tick later (this boundary clears before that component even mounts, so it
+// doesn't need a separate catalog key) — same page shell (`.page`/`.shell`/`.card`) so there's no
+// visible flash/jump once the inner component takes over.
+function OnboardingInviteLoadingFallback() {
+  const t = useT();
+  return (
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <div className={styles.card}>
+          <p>{t('invite.loading')}</p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export default function OnboardingInvitePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<OnboardingInviteLoadingFallback />}>
       <OnboardingInvitePageInner />
     </Suspense>
   );

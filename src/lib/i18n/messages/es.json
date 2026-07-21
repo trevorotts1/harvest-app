@@ -626,6 +626,9 @@
   "shift": {
     "loadError": "No pudimos cargar tu turno. Reintenta.",
     "offlineBanner": "Estás sin conexión — las acciones quedan en espera y se sincronizarán (con una nueva revisión de cumplimiento) cuando vuelvas a estar en línea.",
+    "loading": {
+      "narrativeLine": "Preparando tu turno…"
+    },
     "openPhase": {
       "streakBadge_one": "Racha de {count} día",
       "streakBadge_other": "Racha de {count} días",
