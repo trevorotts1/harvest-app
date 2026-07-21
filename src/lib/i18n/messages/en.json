@@ -1100,9 +1100,12 @@
     },
     "hiddenEarnings": {
       "addPeopleCta": "Add people",
-      "eyebrow": "From the {count} people in your field",
-      "conversationsStat": "{count} conversations",
-      "familiesStat": "{count} families you could help",
+      "eyebrow_one": "From the {count} person in your field",
+      "eyebrow_other": "From the {count} people in your field",
+      "conversationsStat_one": "{count} conversation",
+      "conversationsStat_other": "{count} conversations",
+      "familiesStat_one": "{count} family you could help",
+      "familiesStat_other": "{count} families you could help",
       "goGetItCta": "Go get it.",
       "srUtterance": {
         "communityIntro_one": "From the {count} person in your community",
