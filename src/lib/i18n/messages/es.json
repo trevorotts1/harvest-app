@@ -359,6 +359,156 @@
     "vision": {
       "body": "Las personas que ya están en tu teléfono representan cientos de miles de dólares en potencial. Estamos a punto de mostrarte exactamente qué significa eso — y luego vamos a ayudarte a conseguirlo.",
       "cta": "Comencemos"
+    },
+    "continueCta": "Continuar",
+    "contactImport": {
+      "value": {
+        "headline": "Tu comunidad es tu campo",
+        "lede": "The Harvest trabaja a partir de las personas que ya te conocen."
+      },
+      "preview": {
+        "headline": "Esto es lo que haremos",
+        "lede": "Los organizaremos en parcelas y te mostraremos lo que tu campo podría producir.",
+        "connectCta": "Conectar mis contactos",
+        "notNowCta": "Ahora no"
+      },
+      "denied": {
+        "headline": "No hay problema.",
+        "lede": "Agrega personas por CSV o una a la vez — te lo preguntaremos de nuevo más adelante.",
+        "importingCta": "Importando…",
+        "importCsvCta": "Importar un CSV",
+        "addManuallyCta": "Agregar una a la vez"
+      },
+      "permission": {
+        "headline": "Incorporando tu comunidad…",
+        "lede": "Permite el acceso y organizaremos a todos en parcelas."
+      },
+      "csvFileInputAria": "Elige un archivo CSV para importar"
+    },
+    "identity": {
+      "headline": "Completemos tus datos",
+      "photoAddedAria": "Foto agregada",
+      "photoAddedCaption": "Foto agregada",
+      "takePhotoCta": "Tomar una foto",
+      "chooseFromLibraryCta": "Elegir de la biblioteca",
+      "skipPhotoCta": "Omitir foto",
+      "nameLabel": "Tu nombre",
+      "emailLabel": "Correo electrónico",
+      "photoCaption": "Tu foto aparece en tu kit de lanzamiento — no en anuncios."
+    },
+    "sponsor": {
+      "linkedHeadline": "Encontramos a tu patrocinador de línea descendente",
+      "fallbackName": "Tu patrocinador",
+      "coversFirstYear": "Cubre tu primer año — $0 para ti.",
+      "acceptCta": "Aceptar",
+      "noUplineYetCta": "Sin línea ascendente aún",
+      "waitlistedHeadline": "No hay un patrocinador disponible para tu organización en este momento",
+      "waitlistedLede": "Únete a la lista de espera y te emparejaremos en cuanto se abra un patrocinador — o comienza hoy.",
+      "joinWaitlistCta": "Unirme a la lista de espera",
+      "startPaidCta": "Comenzar hoy por $297/mes",
+      "noUplineYetContinueCta": "Sin línea ascendente aún — continuar"
+    },
+    "uplineTrack": {
+      "headline": "Configura tu cuenta de equipo",
+      "lede": "Unos pocos pasos requeridos — esto toma solo unos minutos.",
+      "personaAriaLabel": "Persona",
+      "requiredLabel": "Requerido",
+      "blockedTitle": "No podemos terminar la configuración hasta que se apruebe tu licencia.",
+      "blockedBody": "Aquí tienes a quién contactar — te dirigiremos al equipo de asesoría de cumplimiento.",
+      "contactComplianceCta": "Contactar a cumplimiento",
+      "finishSetupCta": "Finalizar configuración",
+      "license": {
+        "cleared": "Aprobada",
+        "prelicensing": "En pre-licenciamiento",
+        "notStarted": "No iniciada",
+        "expired": "Vencida"
+      },
+      "persona": {
+        "rep": "Mi configuración de rep",
+        "upline": "Mi configuración de equipo"
+      }
+    },
+    "hiddenEarnings": {
+      "addPeopleCta": "Agregar personas",
+      "eyebrow": "De las {count} personas en tu campo",
+      "conversationsStat": "{count} conversaciones",
+      "familiesStat": "{count} familias a las que podrías ayudar",
+      "goGetItCta": "Ve a conseguirlo."
+    },
+    "orgStep": {
+      "headline": "¿Dónde construyes?",
+      "lede": "Esto define todo tu campo — elige dónde construyes.",
+      "organizationAria": "Organización",
+      "universalBody": "Estás construyendo de forma independiente. The Harvest adapta todo tu campo a cómo construyes.",
+      "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
+      "enterAllDigits": "Ingresa los 7 dígitos.",
+      "choices": {
+        "primerica": {
+          "label": "Primerica",
+          "blurb": "Construyo con Primerica."
+        },
+        "external": {
+          "label": "Independiente / otro",
+          "blurb": "Construyo por mi cuenta o con otro equipo."
+        }
+      }
+    },
+    "gdprConsent": {
+      "headline": "Tus datos, tu consentimiento",
+      "lede": "Una última cosa antes de terminar de configurar tu negocio — necesitamos tu consentimiento para procesar tus datos personales.",
+      "notPreSelectedCaption": "No está preseleccionado — esta es tu elección explícita. Revocable en cualquier momento."
+    },
+    "intensityDial": {
+      "headline": "¿Con qué intensidad deben trabajar tus agentes mientras vives tu vida?",
+      "caption": "Puedes cambiar esto en cualquier momento.",
+      "ariaLabel": "Intensidad",
+      "pickAPrompt": "Elige un nivel para ver qué harán y qué no harán tus agentes.",
+      "positions": {
+        "low": {
+          "label": "Baja",
+          "consequence": "Tus agentes redactan un poco y mantienen un ritmo tranquilo — apoyo silencioso de fondo."
+        },
+        "medium": {
+          "label": "Media",
+          "consequence": "Un ritmo diario constante: una sesión matutina, una cola enfocada y seguimientos suaves."
+        },
+        "high": {
+          "label": "Alta",
+          "consequence": "Tus agentes trabajan más fuerte y más rápido — más borradores al día, seguimiento más rápido."
+        }
+      }
+    },
+    "first48Handoff": {
+      "headline": "Tu campo está sembrado.",
+      "lede": "Tres introducciones en 48 horas — esa es toda la primera misión.",
+      "showTodayCta": "Mostrarme Hoy"
+    },
+    "outreachConsent": {
+      "question": "¿Pueden tus agentes mencionar tu porqué cuando se comunican con tus contactos?",
+      "caption": "(Puedes cambiar esto en cualquier momento.)"
+    },
+    "sevenSeedStepper": {
+      "progressAriaLabel": "Tu porqué — progreso",
+      "levels": {
+        "goal": "Meta",
+        "urgency": "Urgencia",
+        "history": "Historia",
+        "challenge": "Desafío",
+        "fear": "Miedo",
+        "transformation": "Transformación",
+        "commitment": "Compromiso"
+      },
+      "state": {
+        "complete": "completo",
+        "pulsing": "quedándose aquí un poco más",
+        "notYet": "todavía no"
+      }
+    },
+    "sevenWhys": {
+      "agentThinkingAria": "Tu agente está pensando",
+      "answerLabel": "Tu respuesta",
+      "repromptPlaceholder": "Tómate tu tiempo — cuéntame un poco más cuando estés listo.",
+      "typePlaceholder": "Escribe aquí…"
     }
   },
   "settings": {

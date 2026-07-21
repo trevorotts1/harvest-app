@@ -27,6 +27,7 @@ import {
   SAFE_HARBOR_LINE_SPOKEN,
 } from '@/services/warm-market/hidden-earnings';
 import { formatCurrencyUSD } from '@/lib/i18n/format';
+import { t } from '@/lib/i18n/catalog';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 /** Re-exported from the engine (§4.13 / §5.1 O-8) — the exact FTC safe-harbor wording. */
@@ -99,10 +100,10 @@ export default function HiddenEarningsReveal({
         </div>
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnHarvest}`} onClick={onAddContacts}>
-            Add people
+            {t(locale, 'onboarding.hiddenEarnings.addPeopleCta')}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onContinue}>
-            Continue
+            {t(locale, 'onboarding.continueCta')}
           </button>
         </div>
       </section>
@@ -124,10 +125,10 @@ export default function HiddenEarningsReveal({
 
       {/* Visual composition — decorative to screen readers (the SR line above is authoritative). */}
       <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)' }}>
-        <p className={styles.revealEyebrow}>From the {contactCount} people in your field</p>
+        <p className={styles.revealEyebrow}>{t(locale, 'onboarding.hiddenEarnings.eyebrow', { count: contactCount })}</p>
         <p className={styles.revealFigure}>{formatUsd(monthlyValueUsd, locale)}</p>
-        <p className={styles.revealStat}>{estimatedAppointments} conversations</p>
-        <p className={styles.revealStat}>{estimatedClients} families you could help</p>
+        <p className={styles.revealStat}>{t(locale, 'onboarding.hiddenEarnings.conversationsStat', { count: estimatedAppointments })}</p>
+        <p className={styles.revealStat}>{t(locale, 'onboarding.hiddenEarnings.familiesStat', { count: estimatedClients })}</p>
         {/* Safe harbor: same composition, vision voice, screenshot-inseparable, not dismissible. */}
         <p className={styles.safeHarbor}>{SAFE_HARBOR_LINE}</p>
       </div>
@@ -135,7 +136,7 @@ export default function HiddenEarningsReveal({
       {/* Exactly one action — no share affordance exists on this screen (§5.1 O-8). */}
       <div className={styles.actions}>
         <button type="button" className={`${styles.btn} ${styles.btnHarvest}`} onClick={onContinue}>
-          Go get it.
+          {t(locale, 'onboarding.hiddenEarnings.goGetItCta')}
         </button>
       </div>
     </section>

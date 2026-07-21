@@ -5,6 +5,7 @@
 import type { SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface SponsorStepProps {
   outcome: SponsorMatchOutcome;
@@ -24,20 +25,22 @@ export default function SponsorStep({
   onStartPaid,
   onNoUplineYet,
 }: SponsorStepProps) {
+  const t = useT();
+
   if (outcome.kind === 'linked') {
     return (
       <div className={styles.stepInner}>
-        <h1 className={styles.headline}>We found your Downline Sponsor</h1>
+        <h1 className={styles.headline}>{t('onboarding.sponsor.linkedHeadline')}</h1>
         <div className={styles.sponsorCard}>
-          <p className={styles.label}>{sponsorName ?? 'Your sponsor'}</p>
-          <p className={styles.sponsorCovers}>Covers your first year — $0 to you.</p>
+          <p className={styles.label}>{sponsorName ?? t('onboarding.sponsor.fallbackName')}</p>
+          <p className={styles.sponsorCovers}>{t('onboarding.sponsor.coversFirstYear')}</p>
         </div>
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onAccept}>
-            Accept
+            {t('onboarding.sponsor.acceptCta')}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onNoUplineYet}>
-            No upline yet
+            {t('onboarding.sponsor.noUplineYetCta')}
           </button>
         </div>
       </div>
@@ -47,20 +50,20 @@ export default function SponsorStep({
   // Waitlisted — honest, designed, never a dead end: two equal-weight paths.
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>No sponsor is available for your organization right now</h1>
+      <h1 className={styles.headline}>{t('onboarding.sponsor.waitlistedHeadline')}</h1>
       <p className={styles.lede}>
-        Join the waitlist and we&rsquo;ll match you the moment a sponsor opens up — or start today.
+        {t('onboarding.sponsor.waitlistedLede')}
       </p>
       <div className={styles.actions}>
         <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onJoinWaitlist}>
-          Join the waitlist
+          {t('onboarding.sponsor.joinWaitlistCta')}
         </button>
         <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onStartPaid}>
-          Start today for $297/month
+          {t('onboarding.sponsor.startPaidCta')}
         </button>
       </div>
       <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onNoUplineYet}>
-        No upline yet — continue
+        {t('onboarding.sponsor.noUplineYetContinueCta')}
       </button>
     </div>
   );

@@ -359,6 +359,156 @@
     "vision": {
       "body": "The people already in your phone represent hundreds of thousands of dollars in potential. We're about to show you exactly what that means — and then we're going to go get it for you.",
       "cta": "Let's begin"
+    },
+    "continueCta": "Continue",
+    "contactImport": {
+      "value": {
+        "headline": "Your community is your field",
+        "lede": "The Harvest works from the people who already know you."
+      },
+      "preview": {
+        "headline": "Here’s what we’ll do",
+        "lede": "We’ll organize them into plots and show you what your field could yield.",
+        "connectCta": "Connect my contacts",
+        "notNowCta": "Not now"
+      },
+      "denied": {
+        "headline": "No problem.",
+        "lede": "Add people by CSV or one at a time — we’ll ask again later.",
+        "importingCta": "Importing…",
+        "importCsvCta": "Import a CSV",
+        "addManuallyCta": "Add one at a time"
+      },
+      "permission": {
+        "headline": "Bringing in your community…",
+        "lede": "Allow access and we’ll organize everyone into plots."
+      },
+      "csvFileInputAria": "Choose a CSV file to import"
+    },
+    "identity": {
+      "headline": "Let’s get your details",
+      "photoAddedAria": "Photo added",
+      "photoAddedCaption": "Photo added",
+      "takePhotoCta": "Take a photo",
+      "chooseFromLibraryCta": "Choose from library",
+      "skipPhotoCta": "Skip photo",
+      "nameLabel": "Your name",
+      "emailLabel": "Email",
+      "photoCaption": "Your face shows up in your launch kit — not in ads."
+    },
+    "sponsor": {
+      "linkedHeadline": "We found your Downline Sponsor",
+      "fallbackName": "Your sponsor",
+      "coversFirstYear": "Covers your first year — $0 to you.",
+      "acceptCta": "Accept",
+      "noUplineYetCta": "No upline yet",
+      "waitlistedHeadline": "No sponsor is available for your organization right now",
+      "waitlistedLede": "Join the waitlist and we’ll match you the moment a sponsor opens up — or start today.",
+      "joinWaitlistCta": "Join the waitlist",
+      "startPaidCta": "Start today for $297/month",
+      "noUplineYetContinueCta": "No upline yet — continue"
+    },
+    "uplineTrack": {
+      "headline": "Set up your team account",
+      "lede": "A few required steps — this takes just a few minutes.",
+      "personaAriaLabel": "Persona",
+      "requiredLabel": "Required",
+      "blockedTitle": "We can’t finish setup until your license clears.",
+      "blockedBody": "Here’s who to contact — we’ll route you to the compliance advisory team.",
+      "contactComplianceCta": "Contact compliance",
+      "finishSetupCta": "Finish setup",
+      "license": {
+        "cleared": "Cleared",
+        "prelicensing": "In pre-licensing",
+        "notStarted": "Not started",
+        "expired": "Expired"
+      },
+      "persona": {
+        "rep": "My rep setup",
+        "upline": "My team setup"
+      }
+    },
+    "hiddenEarnings": {
+      "addPeopleCta": "Add people",
+      "eyebrow": "From the {count} people in your field",
+      "conversationsStat": "{count} conversations",
+      "familiesStat": "{count} families you could help",
+      "goGetItCta": "Go get it."
+    },
+    "orgStep": {
+      "headline": "Where do you build?",
+      "lede": "This shapes your whole field — pick where you build.",
+      "organizationAria": "Organization",
+      "universalBody": "You’re building independently. The Harvest tailors your whole field to how you build.",
+      "solutionNumberSavedAria": "Solution number (saved, masked)",
+      "enterAllDigits": "Enter all 7 digits.",
+      "choices": {
+        "primerica": {
+          "label": "Primerica",
+          "blurb": "I build with Primerica."
+        },
+        "external": {
+          "label": "Independent / other",
+          "blurb": "I build on my own or with another team."
+        }
+      }
+    },
+    "gdprConsent": {
+      "headline": "Your data, your consent",
+      "lede": "One last thing before we finish setting up your business — we need your consent to process your personal data.",
+      "notPreSelectedCaption": "Not pre-selected — this is your explicit choice. Revocable any time."
+    },
+    "intensityDial": {
+      "headline": "How hard should your agents work while you live your life?",
+      "caption": "You can change this any time.",
+      "ariaLabel": "Intensity",
+      "pickAPrompt": "Pick a level to see what your agents will and won’t do.",
+      "positions": {
+        "low": {
+          "label": "Low",
+          "consequence": "Your agents draft a little and keep a calm cadence — quiet support in the background."
+        },
+        "medium": {
+          "label": "Medium",
+          "consequence": "A steady daily rhythm: a morning briefing, a focused queue, and gentle follow-ups."
+        },
+        "high": {
+          "label": "High",
+          "consequence": "Your agents work harder and faster — more drafts a day, quicker follow-through."
+        }
+      }
+    },
+    "first48Handoff": {
+      "headline": "Your field is planted.",
+      "lede": "Three introductions in 48 hours — that’s the whole first mission.",
+      "showTodayCta": "Show me Today"
+    },
+    "outreachConsent": {
+      "question": "May your agents reference your why in your outreach?",
+      "caption": "(You can change this any time.)"
+    },
+    "sevenSeedStepper": {
+      "progressAriaLabel": "Your why — progress",
+      "levels": {
+        "goal": "Goal",
+        "urgency": "Urgency",
+        "history": "History",
+        "challenge": "Challenge",
+        "fear": "Fear",
+        "transformation": "Transformation",
+        "commitment": "Commitment"
+      },
+      "state": {
+        "complete": "complete",
+        "pulsing": "staying here a little longer",
+        "notYet": "not yet"
+      }
+    },
+    "sevenWhys": {
+      "agentThinkingAria": "Your agent is thinking",
+      "answerLabel": "Your answer",
+      "repromptPlaceholder": "Take your time — say a little more when you're ready.",
+      "typePlaceholder": "Type here…"
     }
   },
   "settings": {

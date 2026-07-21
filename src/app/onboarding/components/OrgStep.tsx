@@ -21,6 +21,7 @@ import {
 } from '@/services/onboarding/wp01/solution-number';
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface OrgBranchPanelProps {
   orgContext: OrgContext;
@@ -42,13 +43,14 @@ export function OrgBranchPanel({
   onSolutionNumberChange,
   confirmed = false,
 }: OrgBranchPanelProps) {
+  const t = useT();
   const field = orgContext.solutionNumberField;
   if (!field) {
     // Universal branch — nothing Primerica-shaped exists to render.
     return (
       <div className={styles.card}>
         <p className={styles.lede}>
-          You&rsquo;re building independently. The Harvest tailors your whole field to how you build.
+          {t('onboarding.orgStep.universalBody')}
         </p>
       </div>
     );
@@ -63,7 +65,7 @@ export function OrgBranchPanel({
         </label>
         {confirmed ? (
           // §6.10-4: after entry the number is NEVER displayed again — only the mask.
-          <output className={styles.input} aria-label="Solution number (saved, masked)">
+          <output className={styles.input} aria-label={t('onboarding.orgStep.solutionNumberSavedAria')}>
             {maskSolutionNumber(solutionNumber) /* always the mask, never the digits */}
           </output>
         ) : (
@@ -83,7 +85,7 @@ export function OrgBranchPanel({
           {field.caption}
         </p>
         {!confirmed && solutionNumber && !formatOk ? (
-          <p className={styles.caption}>Enter all 7 digits.</p>
+          <p className={styles.caption}>{t('onboarding.orgStep.enterAllDigits')}</p>
         ) : null}
       </div>
     </div>
@@ -100,11 +102,6 @@ export interface OrgStepProps {
   confirmed?: boolean;
 }
 
-const ORG_CHOICES: { orgType: OrgType; label: string; blurb: string }[] = [
-  { orgType: OrgType.PRIMERICA, label: 'Primerica', blurb: 'I build with Primerica.' },
-  { orgType: OrgType.EXTERNAL, label: 'Independent / other', blurb: 'I build on my own or with another team.' },
-];
-
 export default function OrgStep({
   selectedOrgType,
   onSelectOrgType,
@@ -112,13 +109,21 @@ export default function OrgStep({
   onSolutionNumberChange,
   confirmed,
 }: OrgStepProps) {
+  const t = useT();
+  // T-R32b — moved from a module-level constant into the component body: the labels/blurbs now
+  // route through the catalog (`t()`, a hook-backed lookup), which can only run inside a component.
+  const orgChoices: { orgType: OrgType; label: string; blurb: string }[] = [
+    { orgType: OrgType.PRIMERICA, label: t('onboarding.orgStep.choices.primerica.label'), blurb: t('onboarding.orgStep.choices.primerica.blurb') },
+    { orgType: OrgType.EXTERNAL, label: t('onboarding.orgStep.choices.external.label'), blurb: t('onboarding.orgStep.choices.external.blurb') },
+  ];
+
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>Where do you build?</h1>
-      <p className={styles.lede}>This shapes your whole field — pick where you build.</p>
+      <h1 className={styles.headline}>{t('onboarding.orgStep.headline')}</h1>
+      <p className={styles.lede}>{t('onboarding.orgStep.lede')}</p>
 
-      <div className={styles.orgGrid} role="radiogroup" aria-label="Organization">
-        {ORG_CHOICES.map((choice) => {
+      <div className={styles.orgGrid} role="radiogroup" aria-label={t('onboarding.orgStep.organizationAria')}>
+        {orgChoices.map((choice) => {
           const selected = selectedOrgType === choice.orgType;
           return (
             <button

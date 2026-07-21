@@ -17,6 +17,7 @@ import type { SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-why
 import styles from '../onboarding.module.css';
 import OutreachConsentToggle from './OutreachConsentToggle';
 import SevenSeedStepper from './SevenSeedStepper';
+import { useT } from '@/app/locale-context';
 
 export interface SevenWhysConversationProps {
   turn: SevenWhysRenderedTurn;
@@ -41,6 +42,7 @@ export default function SevenWhysConversation({
   outreachConsent,
   onOutreachConsentChange,
 }: SevenWhysConversationProps) {
+  const t = useT();
   return (
     <div className={styles.stepInner}>
       <SevenSeedStepper filledLevels={turn.filledLevels} pulsingLevel={turn.pulsingLevel} />
@@ -49,7 +51,7 @@ export default function SevenWhysConversation({
         {turn.acknowledgment ? <p className={styles.ack}>{turn.acknowledgment}</p> : null}
 
         {typing ? (
-          <span className={styles.typing} aria-label="Your agent is thinking">
+          <span className={styles.typing} aria-label={t('onboarding.sevenWhys.agentThinkingAria')}>
             <span className={styles.typingDot} />
             <span className={styles.typingDot} />
             <span className={styles.typingDot} />
@@ -80,7 +82,7 @@ export default function SevenWhysConversation({
           }}
         >
           <label className={styles.label} htmlFor="seven-whys-answer">
-            Your answer
+            {t('onboarding.sevenWhys.answerLabel')}
           </label>
           <textarea
             id="seven-whys-answer"
@@ -89,11 +91,11 @@ export default function SevenWhysConversation({
             value={answer}
             onChange={(e) => onAnswerChange?.(e.target.value)}
             // A re-prompt is care, never a failure — no error styling, no error message.
-            placeholder={turn.reprompt ? "Take your time — say a little more when you're ready." : 'Type here…'}
+            placeholder={turn.reprompt ? t('onboarding.sevenWhys.repromptPlaceholder') : t('onboarding.sevenWhys.typePlaceholder')}
           />
           <div className={styles.actions}>
             <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={!answer.trim()}>
-              Continue
+              {t('onboarding.continueCta')}
             </button>
           </div>
         </form>

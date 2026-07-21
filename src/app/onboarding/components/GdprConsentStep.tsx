@@ -18,6 +18,7 @@
 // caller; it does not talk to the network itself.
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface GdprConsentStepProps {
   /** Current consent choice. Owned by the caller; defaults to false — an explicit affirmative act is
@@ -41,19 +42,19 @@ export default function GdprConsentStep({
   submitting = false,
   error = null,
 }: GdprConsentStepProps) {
+  const t = useT();
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>Your data, your consent</h1>
+      <h1 className={styles.headline}>{t('onboarding.gdprConsent.headline')}</h1>
       <p className={styles.lede}>
-        One last thing before we finish setting up your business — we need your consent to process
-        your personal data.
+        {t('onboarding.gdprConsent.lede')}
       </p>
 
       <div className={styles.consentRow}>
         <div className={styles.consentText}>
           <p className={styles.label}>{GDPR_CONSENT_LABEL}</p>
           <p className={styles.caption}>
-            Not pre-selected — this is your explicit choice. Revocable any time.
+            {t('onboarding.gdprConsent.notPreSelectedCaption')}
           </p>
         </div>
         <button
@@ -81,7 +82,7 @@ export default function GdprConsentStep({
           onClick={onContinue}
           disabled={!consented || submitting}
         >
-          Continue
+          {t('onboarding.continueCta')}
         </button>
       </div>
     </div>

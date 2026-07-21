@@ -73,7 +73,7 @@ export default function OnboardingFlow({
   licensingState = 'LICENSED',
 }: OnboardingFlowProps) {
   const router = useRouter();
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
   const [screen, setScreen] = useState<OnboardingScreen>(initialScreen);
 
   const [name, setName] = useState('');
@@ -280,7 +280,7 @@ export default function OnboardingFlow({
               advance();
             }}
           >
-            Continue
+            {t('onboarding.continueCta')}
           </button>
         </div>
       )}
@@ -305,7 +305,7 @@ export default function OnboardingFlow({
       {screen === 'seven_whys' && whyTurn.complete && (
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={advance}>
-            Continue
+            {t('onboarding.continueCta')}
           </button>
         </div>
       )}
@@ -313,7 +313,10 @@ export default function OnboardingFlow({
       {screen === 'sponsor' && (
         <SponsorStep
           outcome={sponsorOutcome}
-          sponsorName="Your sponsor"
+          // T-R32b — was a hardcoded `sponsorName="Your sponsor"` literal, which shadowed
+          // `SponsorStep`'s own (now-localized) `sponsorName ?? t('onboarding.sponsor.fallbackName')`
+          // default with an always-English value regardless of locale. Omitted so that child default
+          // applies — identical EN behavior, genuinely translated under `es`.
           onAccept={advance}
           onJoinWaitlist={advance}
           onStartPaid={advance}
@@ -347,7 +350,7 @@ export default function OnboardingFlow({
             ref={csvInputRef}
             type="file"
             accept=".csv,text/csv"
-            aria-label="Choose a CSV file to import"
+            aria-label={t('onboarding.contactImport.csvFileInputAria')}
             className={styles.srOnly}
             onChange={handleCsvFileSelected}
           />
