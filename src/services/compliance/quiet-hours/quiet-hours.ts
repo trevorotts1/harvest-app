@@ -29,6 +29,31 @@ export const QUIET_HOURS_WINDOW = {
  * Resolves the recipient-local minute-of-day (0–1439) for `now` in IANA timezone `timezone`,
  * DST-correct via `Intl.DateTimeFormat`. Returns `null` if `timezone` is missing/empty/unrecognized
  * — the caller (`isWithinQuietHours`) treats `null` as fail-closed (within quiet hours).
+ *
+ * T-R32b (§17.5 locale-aware date/number handling) — audited, and DELIBERATELY left on the
+ * `'en-US'` locale tag below, documented rather than "fixed," for three independent reasons:
+ *
+ *   1. NO RECIPIENT LOCALE EXISTS TO CONSUME. `Contact` (prisma/schema.prisma) has a `timezone`
+ *      field for exactly this gate but no `locale` field — a rep's own `User.locale` (src/lib/i18n)
+ *      is a REP preference, not the recipient's; using it here would be guessing/fabricating a
+ *      contact locale from an unrelated signal, which this build unit's brief explicitly forbids
+ *      ("do NOT fabricate a contact locale"). Adding a `Contact.locale` column is a schema change,
+ *      out of scope for an additive, no-schema-change i18n pass.
+ *   2. NO VISIBLE OUTPUT EXISTS TO LOCALIZE. Unlike `formatCurrencyUSD`/`formatDate` (src/lib/i18n/
+ *      format.ts), this function's `locale` argument never reaches a human — it only controls how
+ *      `Intl.DateTimeFormat` renders the hour/minute DIGITS internally, which this function then
+ *      immediately `parseInt()`s into a number (never displayed to the rep or the recipient; see
+ *      `isWithinQuietHours` below, a pure boolean gate consumed only by
+ *      `send-compliance-gate.ts`'s send/hold decision).
+ *   3. IT WOULD BE A NO-OP FOR THIS APP'S ACTUAL LOCALES ANYWAY. `'en-US'` and `'es-US'` (this
+ *      app's only two supported locales, `src/lib/i18n/locale.ts`) both use Western Arabic numerals
+ *      for `Intl.DateTimeFormat`'s numeric hour/minute parts — swapping the locale tag would
+ *      produce byte-identical `hourPart`/`minutePart` strings either way. (A locale with a distinct
+ *      numbering system — Arabic-Indic, Devanagari, etc. — WOULD change these digits and silently
+ *      break the `parseInt()` below; if a genuinely non-Latin-numeral locale is ever added to
+ *      `SUPPORTED_LOCALES`, this is the one spot in the compliance-gate lane that would need it
+ *      threaded through for real, at that time, from a real (not fabricated) recipient-locale
+ *      source.)
  */
 export function resolveLocalMinuteOfDay(timezone: string | null | undefined, now: Date): number | null {
   if (!timezone || timezone.trim() === '') return null;
