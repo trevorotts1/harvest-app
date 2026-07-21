@@ -111,7 +111,9 @@ function fingerprint(text) {
 // with `fingerprint('<prop>: <value>')` (exact matched declaration text)
 // if one of these ever needs to move; do not hand-guess the hex.
 const KNOWN_PRE_EXISTING_EXEMPTIONS = new Set([
-  `src/app/auth/page.tsx:87::${fingerprint("color: rgba(255,255,255,.72)")}`,
+  // T-R28: line shifted 87 -> 92 by additive comments in the login-success handler (uiux AC-2-1
+  // landing-surface fix) — same pre-existing, out-of-T-05-scope violation, not a new one.
+  `src/app/auth/page.tsx:92::${fingerprint("color: rgba(255,255,255,.72)")}`,
   `src/app/onboarding/page.tsx:130::${fingerprint("color: rgba(255,255,255,.72)")}`,
   `src/app/globals.css::.side-link::${fingerprint('color: rgba(255,255,255,0.72)')}`,
   `src/app/globals.css::.visual-root span::${fingerprint('color: rgba(255,255,255,.72)')}`,
