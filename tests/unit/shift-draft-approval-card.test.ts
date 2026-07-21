@@ -100,10 +100,24 @@ describe('cardToInboxItem — maps ShiftQueueCard.draft into the exact InboxItem
 
 // ─── makeApproveHandler: reuses `onAction` (the Shift's own /api/shift/action path) — TEETH ───────
 
+// T-57 RE-GATE ROUND-3 (B [a7133fce] residual) — `onAction` rejecting no longer bubbles its raw
+// `.message` (always English prose from `ShiftOwnershipError`/`ShiftApprovalRequiresReviewError`)
+// straight to the rendered card. It now resolves a DISPLAY string from the `code` a rejection MAY
+// carry (see `ShiftView.tsx`'s `postJson`/`CodedActionError`, the OTHER half of this fix) via
+// `errorDisplay` — proven below against the REAL `es.json` catalog (`tEs`), not a mock, so a
+// passing test is proof a Spanish rep gets Spanish, never the raw English these two service errors
+// default to. `codedError` simulates exactly what `postJson` now attaches to a rejected `onAction`.
+function codedError(message: string, code?: string, currentState?: string): Error {
+  const err = new Error(message) as Error & { code?: string; currentState?: string };
+  if (code !== undefined) err.code = code;
+  if (currentState !== undefined) err.currentState = currentState;
+  return err;
+}
+
 describe('makeApproveHandler — Approve is wired through the SAME onAction every other Work-phase button uses', () => {
   test('onAction resolving -> {ok: true}, and onAction is called with exactly (draftId, "APPROVE")', async () => {
     const onAction = jest.fn().mockResolvedValue(undefined);
-    const approve = makeApproveHandler(onAction);
+    const approve = makeApproveHandler(onAction, tEs);
 
     const result = await approve('d1');
 
@@ -111,27 +125,36 @@ describe('makeApproveHandler — Approve is wired through the SAME onAction ever
     expect(onAction).toHaveBeenCalledWith('d1', 'APPROVE');
   });
 
-  test('TEETH — fail-closed preserved: onAction rejecting (mirrors ShiftApprovalRequiresReviewError / the 409 the route surfaces for a non-PASS draft) is NEVER swallowed into a success', async () => {
-    const onAction = jest
-      .fn()
-      .mockRejectedValue(
-        new Error(
-          'This draft was flagged by compliance review and cannot be approved from the Shift ritual — review it in the Approval Inbox.'
-        )
-      );
-    const approve = makeApproveHandler(onAction);
+  test('TEETH — fail-closed preserved AND localized: a REQUIRES_REVIEW refusal (mirrors ShiftApprovalRequiresReviewError / the 409 the route surfaces for a non-PASS draft) is NEVER swallowed into a success, and resolves the REAL Spanish errors.REQUIRES_REVIEW catalog string — never the raw English `.message` the rejection carries', async () => {
+    const onAction = jest.fn().mockRejectedValue(
+      codedError(
+        'This draft was flagged by compliance review and cannot be approved from the Shift ritual — review it in the Approval Inbox.',
+        'REQUIRES_REVIEW'
+      )
+    );
+    const approve = makeApproveHandler(onAction, tEs);
 
     const result = await approve('flagged-draft');
 
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/flagged by compliance review/);
+    expect(result.error).toBe(catalog('es', 'errors.REQUIRES_REVIEW'));
+    expect(result.error).not.toMatch(/flagged by compliance review/i);
   });
 
-  test('a rejection with a non-Error value still resolves to a safe fallback message, never throws', async () => {
+  test('a NOT_OWNED refusal (mirrors ShiftOwnershipError) resolves the REAL Spanish errors.NOT_OWNED catalog string, never the raw English message', async () => {
+    const onAction = jest.fn().mockRejectedValue(codedError('That item does not belong to you.', 'NOT_OWNED'));
+    const approve = makeApproveHandler(onAction, tEs);
+
+    const result = await approve('not-mine');
+
+    expect(result).toEqual({ ok: false, error: catalog('es', 'errors.NOT_OWNED') });
+  });
+
+  test('a rejection with no usable code (incl. a non-Error value) still resolves to the REAL localized errors.generic — never English, never a crash', async () => {
     const onAction = jest.fn().mockRejectedValue('not an Error instance');
-    const approve = makeApproveHandler(onAction);
+    const approve = makeApproveHandler(onAction, tEs);
     const result = await approve('d1');
-    expect(result).toEqual({ ok: false, error: 'This draft could not be approved.' });
+    expect(result).toEqual({ ok: false, error: catalog('es', 'errors.generic') });
   });
 });
 
@@ -140,7 +163,7 @@ describe('makeApproveHandler — Approve is wired through the SAME onAction ever
 describe('makeDeclineHandler — Decline reuses the same onAction path; a server refusal still surfaces, never silently', () => {
   test('onAction resolving -> {ok: true} regardless of the reason/note the embedded selector collected', async () => {
     const onAction = jest.fn().mockResolvedValue(undefined);
-    const decline = makeDeclineHandler(onAction);
+    const decline = makeDeclineHandler(onAction, tEs);
 
     const result = await decline('d1', 'wrong_person', 'not the right contact');
 
@@ -148,11 +171,19 @@ describe('makeDeclineHandler — Decline reuses the same onAction path; a server
     expect(onAction).toHaveBeenCalledWith('d1', 'DECLINE');
   });
 
-  test('onAction rejecting surfaces {ok: false, error}, not a silent success', async () => {
-    const onAction = jest.fn().mockRejectedValue(new Error('That item does not belong to you.'));
-    const decline = makeDeclineHandler(onAction);
+  test('onAction rejecting with a NOT_OWNED code surfaces {ok: false, error}, resolved to the REAL Spanish errors.NOT_OWNED string — never the raw English `.message`, not a silent success', async () => {
+    const onAction = jest.fn().mockRejectedValue(codedError('That item does not belong to you.', 'NOT_OWNED'));
+    const decline = makeDeclineHandler(onAction, tEs);
     const result = await decline('not-mine', 'other');
-    expect(result).toEqual({ ok: false, error: 'That item does not belong to you.' });
+    expect(result).toEqual({ ok: false, error: catalog('es', 'errors.NOT_OWNED') });
+    expect(result.error).not.toBe('That item does not belong to you.');
+  });
+
+  test('a rejection with no usable code still resolves to the REAL localized errors.generic, never English', async () => {
+    const onAction = jest.fn().mockRejectedValue('not an Error instance');
+    const decline = makeDeclineHandler(onAction, tEs);
+    const result = await decline('d1', 'other');
+    expect(result).toEqual({ ok: false, error: catalog('es', 'errors.generic') });
   });
 });
 

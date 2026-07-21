@@ -1722,6 +1722,8 @@
     "QUEUE_KIND_INVALID": "That queue item type isn't supported.",
     "EVENT_ID_REQUIRED": "Select an event before continuing.",
     "ATTENDANCE_STATE_INVALID": "Choose Attended or Missed for this event.",
-    "EVENT_NOT_FOUND": "This event could not be found for your organization."
+    "EVENT_NOT_FOUND": "This event could not be found for your organization.",
+    "NOT_OWNED": "That item doesn't belong to you.",
+    "REQUIRES_REVIEW": "This draft was flagged by compliance review and can't be approved from your Shift — edit it or review it in the Approval Inbox."
   }
 }

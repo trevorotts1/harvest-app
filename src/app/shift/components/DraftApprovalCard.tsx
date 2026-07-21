@@ -27,6 +27,23 @@ export interface DraftApprovalCardProps {
   onAction: (cardId: string, action: ShiftCardAction) => Promise<void> | undefined;
 }
 
+/** T-57 RE-GATE ROUND-3 (B [a7133fce] residual) — duck-types the `code`/`currentState` a rejected
+ *  `onAction` MAY carry (see `ShiftView.tsx`'s `CodedActionError` / `postJson`) without importing
+ *  that orchestrator type here: `onAction` is a generic prop, and a caller-supplied stub (as every
+ *  test in this file uses) may reject with anything — a plain `Error`, a non-Error value, or a
+ *  real `CodedActionError`. Reading defensively, rather than an `instanceof` check tied to one
+ *  concrete class, is what keeps `errorDisplay`'s own fail-safe intact: an absent/unrecognized
+ *  `code` (including every non-Error rejection) resolves to `errors.generic`, never a crash and
+ *  never a raw English `.message`. */
+function codedFromCaught(error: unknown): { code?: string; currentState?: string } {
+  if (!error || typeof error !== 'object') return {};
+  const e = error as { code?: unknown; currentState?: unknown };
+  return {
+    code: typeof e.code === 'string' ? e.code : undefined,
+    currentState: typeof e.currentState === 'string' ? e.currentState : undefined,
+  };
+}
+
 /** Builds the `InboxItemData` `ApprovalInboxItem` needs straight from the `ShiftQueueCard.draft`
  * payload `ShiftService.buildCandidateStack` already hydrates from the real DraftMessage row — no
  * second source of truth for any of these fields. */
@@ -58,16 +75,27 @@ export function cardToInboxItem(card: ShiftQueueCard): InboxItemData {
  * concept of a justification and, per that class's own doc comment, unconditionally refuses any
  * non-PASS APPROVE regardless of what the caller sends; the intended path for a flagged draft
  * remains "edit it into a clean re-checked PASS first" or "review it in the real Approval Inbox"
- * (the 409 message already says so). This host loses nothing by ignoring the argument. */
+ * (the 409 message already says so). This host loses nothing by ignoring the argument.
+ *
+ * T-57 RE-GATE ROUND-3 (B [a7133fce]) — the previous version rendered `error.message` (or a
+ * hardcoded English fallback) verbatim: since `/api/shift/action`'s `ShiftOwnershipError`/
+ * `ShiftApprovalRequiresReviewError` refusals are ALWAYS raw English prose, a Spanish rep saw
+ * untranslated English on this exact card every time either fail-closed check fired. Fixed
+ * exactly like `makeEditHandler` below: never read `.message` for display — resolve the DISPLAY
+ * string from the machine `code` `ShiftView.tsx`'s `postJson` now attaches to the rejection (see
+ * `codedFromCaught` above) via `errorDisplay`. An absent/unrecognized `code` (including every
+ * non-Error rejection) safely resolves to `errors.generic` — never English, never blank. */
 export function makeApproveHandler(
-  onAction: DraftApprovalCardProps['onAction']
+  onAction: DraftApprovalCardProps['onAction'],
+  t: Translate
 ): (draftId: string, justification?: string) => Promise<{ ok: boolean; error?: string }> {
   return async (draftId: string) => {
     try {
       await onAction(draftId, 'APPROVE');
       return { ok: true };
     } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : 'This draft could not be approved.' };
+      const { code, currentState } = codedFromCaught(error);
+      return { ok: false, error: errorDisplay(t, code, { currentState: errorStateLabel(t, currentState) }) };
     }
   };
 }
@@ -75,16 +103,22 @@ export function makeApproveHandler(
 /** Decline — same `onAction` path, same offline queue; never gated (rejecting risky content is
  * always safe, unchanged since before T-R13). The embedded item's own reason selector (uiux
  * AC-5.6-9) still always intercepts the decline interaction — Shift's one-tap decline action itself
- * carries no reason/note field, same as it did before this build unit. */
+ * carries no reason/note field, same as it did before this build unit.
+ *
+ * T-57 RE-GATE ROUND-3 (B [a7133fce]) — same fix as `makeApproveHandler` above: e.g. a
+ * `ShiftOwnershipError` (a decline on a card that isn't the rep's own) resolves via `errorDisplay`,
+ * never the raw English `.message`. */
 export function makeDeclineHandler(
-  onAction: DraftApprovalCardProps['onAction']
+  onAction: DraftApprovalCardProps['onAction'],
+  t: Translate
 ): (draftId: string, reason: string, note?: string) => Promise<{ ok: boolean; error?: string }> {
   return async (draftId: string) => {
     try {
       await onAction(draftId, 'DECLINE');
       return { ok: true };
     } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : 'This draft could not be declined.' };
+      const { code, currentState } = codedFromCaught(error);
+      return { ok: false, error: errorDisplay(t, code, { currentState: errorStateLabel(t, currentState) }) };
     }
   };
 }
@@ -149,8 +183,8 @@ export default function DraftApprovalCard({ card, onAction }: DraftApprovalCardP
   return (
     <ApprovalInboxItem
       item={item}
-      onApprove={makeApproveHandler(onAction)}
-      onDecline={makeDeclineHandler(onAction)}
+      onApprove={makeApproveHandler(onAction, t)}
+      onDecline={makeDeclineHandler(onAction, t)}
       onEdit={makeEditHandler(item, t)}
     />
   );
