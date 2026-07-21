@@ -7,6 +7,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 interface AskResult {
   status: 'ok' | 'refused' | 'held';
   label: 'coaching';
@@ -14,6 +16,7 @@ interface AskResult {
 }
 
 export default function AskHarvestPage() {
+  const t = useT();
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<{ question: string; result: AskResult }[]>([]);
@@ -37,34 +40,33 @@ export default function AskHarvestPage() {
 
   return (
     <main className="shell section">
-      <Link href="/learn" className="badge">← Back to Learn</Link>
+      <Link href="/learn" className="badge">{t('learn.backToLearnCta')}</Link>
 
       <section className="card panel" style={{ marginTop: 18 }}>
-        <span className="badge">Ask Harvest — coaching, not sent to anyone</span>
-        <h1 style={{ marginTop: 12 }}>What do you need help saying?</h1>
+        <span className="badge">{t('learn.ask.badge')}</span>
+        <h1 style={{ marginTop: 12 }}>{t('learn.ask.heading')}</h1>
         <p style={{ color: 'var(--muted)' }}>
-          Grounded in the Downline Maxxing course and the objection scripts — never legal, tax, or
-          earnings advice.
+          {t('learn.ask.subtitle')}
         </p>
 
         <div className="stack" style={{ marginTop: 16 }}>
           {history.map((entry, i) => (
             <div key={i} className="action-row" style={{ display: 'block' }}>
-              <strong>You asked:</strong> {entry.question}
+              <strong>{t('learn.ask.youAskedLabel')}</strong> {entry.question}
               <p style={{ marginTop: 8 }}>
                 <span className="badge">{entry.result.label}</span>{' '}
-                {entry.result.answer ?? 'Held — try again in a moment.'}
+                {entry.result.answer ?? t('learn.ask.heldFallback')}
               </p>
             </div>
           ))}
         </div>
 
         <label style={{ marginTop: 16, display: 'block' }}>
-          Your question
-          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="e.g. What do I say when someone thinks this is a pyramid scheme?" />
+          {t('learn.ask.questionLabel')}
+          <textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('learn.ask.questionPlaceholder')} />
         </label>
         <button type="button" className="btn btn-primary" onClick={ask} disabled={loading}>
-          {loading ? 'Thinking…' : 'Ask'}
+          {loading ? t('learn.ask.thinkingCta') : t('learn.ask.askCta')}
         </button>
       </section>
     </main>

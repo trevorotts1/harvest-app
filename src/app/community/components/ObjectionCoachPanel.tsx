@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import styles from '../conversation.module.css';
+import { useT } from '@/app/locale-context';
 
 interface ObjectionBranch {
   key: string;
@@ -31,6 +32,7 @@ export interface ObjectionCoachPanelProps {
 }
 
 export default function ObjectionCoachPanel({ contactId }: ObjectionCoachPanelProps) {
+  const t = useT();
   const [objections, setObjections] = useState<ObjectionNode[]>([]);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -45,15 +47,15 @@ export default function ObjectionCoachPanel({ contactId }: ObjectionCoachPanelPr
         body: JSON.stringify({ action: 'list' }),
       });
       if (!res.ok) {
-        setLoadError('Could not load the objection coach. Try again.');
+        setLoadError(t('community.objectionCoach.loadFailedGeneric'));
         return;
       }
       const body = await res.json();
       setObjections((body.objections ?? []) as ObjectionNode[]);
     } catch {
-      setLoadError('Could not load the objection coach. Try again.');
+      setLoadError(t('community.objectionCoach.loadFailedGeneric'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -68,25 +70,25 @@ export default function ObjectionCoachPanel({ contactId }: ObjectionCoachPanelPr
         body: JSON.stringify({ action: 'prepare', contactId, objectionKey, branchKey }),
       });
       if (!res.ok) {
-        setStatus('Could not prepare that response. Try again.');
+        setStatus(t('community.objectionCoach.prepareFailedGeneric'));
         return;
       }
-      setStatus('A draft response was prepared — it waits for your approval and clears compliance before it can send.');
+      setStatus(t('community.objectionCoach.preparedStatus'));
     } catch {
-      setStatus('Could not prepare that response. Try again.');
+      setStatus(t('community.objectionCoach.prepareFailedGeneric'));
     }
   }
 
   return (
-    <section className={styles.repActionPanel} aria-label="Objection coach">
-      <h2 className={styles.repActionTitle}>Objection coach</h2>
-      <p className={styles.repActionNote}>Only you see this. Lead with the question, then choose an honest response.</p>
+    <section className={styles.repActionPanel} aria-label={t('community.objectionCoach.title')}>
+      <h2 className={styles.repActionTitle}>{t('community.objectionCoach.title')}</h2>
+      <p className={styles.repActionNote}>{t('community.objectionCoach.note')}</p>
 
       {loadError && (
         <div className={styles.repActionStatus}>
           <p>{loadError}</p>
           <button type="button" className={styles.repActionButton} onClick={() => load()}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       )}
@@ -116,7 +118,7 @@ export default function ObjectionCoachPanel({ contactId }: ObjectionCoachPanelPr
                         className={styles.repActionButton}
                         onClick={() => prepare(o.key, b.key)}
                       >
-                        Prepare this response
+                        {t('community.objectionCoach.prepareCta')}
                       </button>
                     </div>
                   ))}

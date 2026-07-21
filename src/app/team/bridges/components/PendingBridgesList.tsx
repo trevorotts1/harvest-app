@@ -8,6 +8,7 @@
 
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
 import PendingBridgeItem, { type PendingBridgeData } from './PendingBridgeItem';
 
 export interface PendingBridgesListProps {
@@ -16,10 +17,11 @@ export interface PendingBridgesListProps {
 }
 
 export default function PendingBridgesList({ items, onJoin }: PendingBridgesListProps) {
+  const t = useT();
   if (items.length === 0) {
     return (
       <p style={{ color: 'var(--muted)', marginTop: 12 }}>
-        No pending bridge requests right now — a quiet queue. <Link href="/team">Back to your team dashboard</Link>.
+        {t('team.bridges.list.emptyNotice')} <Link href="/team">{t('team.bridges.list.backToTeamCta')}</Link>.
       </p>
     );
   }

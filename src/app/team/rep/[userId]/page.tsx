@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
+import { useT } from '@/app/locale-context';
 import { NamesInPlayPanel, PipelineStatesPanel } from './components/RepDataPanels';
 
 interface DrillIn {
@@ -23,6 +24,7 @@ interface DrillIn {
 type LoadState = { kind: 'loading' } | { kind: 'ready'; data: DrillIn } | { kind: 'not_found' } | { kind: 'failed' };
 
 export default function RepDrillInPage() {
+  const t = useT();
   const params = useParams<{ userId: string }>();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
@@ -51,16 +53,16 @@ export default function RepDrillInPage() {
     };
   }, [params.userId]);
 
-  if (state.kind === 'loading') return <div className="card panel"><p>Loading…</p></div>;
-  if (state.kind === 'not_found') return <div className="card panel"><p>We couldn&apos;t find that rep.</p></div>;
-  if (state.kind === 'failed') return <div className="card panel"><p>We couldn&apos;t load this view right now.</p></div>;
+  if (state.kind === 'loading') return <div className="card panel"><p>{t('common.loading')}</p></div>;
+  if (state.kind === 'not_found') return <div className="card panel"><p>{t('team.rep.notFound')}</p></div>;
+  if (state.kind === 'failed') return <div className="card panel"><p>{t('team.rep.loadFailed')}</p></div>;
 
   const { data } = state;
 
   return (
     <div className="stack">
       <section className="card panel">
-        <span className="badge">Rep drill-in</span>
+        <span className="badge">{t('team.rep.badge')}</span>
         <h2 style={{ marginTop: 8 }}>{data.repName}</h2>
       </section>
 
@@ -70,7 +72,7 @@ export default function RepDrillInPage() {
 
       {data.milestones.length > 0 && (
         <section className="card panel">
-          <span className="badge">Milestones</span>
+          <span className="badge">{t('team.rep.milestonesBadge')}</span>
           <ul>
             {data.milestones.map((m) => (
               <li key={m.key}>{m.key.replace(/_/g, ' ')} — {new Date(m.achievedAtIso).toLocaleDateString()}</li>

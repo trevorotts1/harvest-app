@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
+
 /**
  * Real, working light/dark theme control (T-05, spec §1.2.2): "Theme
  * follows the OS by default with a manual override in Me -> Appearance."
@@ -20,10 +22,10 @@ type ThemeOverride = 'system' | 'light' | 'dark';
 
 const CYCLE: ThemeOverride[] = ['system', 'light', 'dark'];
 
-const LABEL: Record<ThemeOverride, string> = {
-  system: 'System',
-  light: 'Golden Hour',
-  dark: 'Pre-Dawn',
+const LABEL_KEY: Record<ThemeOverride, string> = {
+  system: 'theme.label.system',
+  light: 'theme.label.goldenHour',
+  dark: 'theme.label.preDawn',
 };
 
 function readStoredOverride(): ThemeOverride {
@@ -43,6 +45,7 @@ function applyOverride(next: ThemeOverride) {
 }
 
 export function ThemeToggle() {
+  const t = useT();
   const [override, setOverride] = useState<ThemeOverride>('system');
 
   // Reconcile with whatever the pre-hydration script already applied.
@@ -56,14 +59,16 @@ export function ThemeToggle() {
     setOverride(next);
   };
 
+  const label = t(LABEL_KEY[override]);
+
   return (
     <button
       type="button"
       onClick={handleClick}
       className="theme-toggle"
-      aria-label={`Appearance: ${LABEL[override]}. Activate to change.`}
+      aria-label={t('theme.ariaLabelTemplate', { label })}
     >
-      Appearance: {LABEL[override]}
+      {t('theme.displayTemplate', { label })}
     </button>
   );
 }

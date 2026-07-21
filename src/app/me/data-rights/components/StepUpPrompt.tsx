@@ -3,6 +3,7 @@
 
 import styles from '../data-rights.module.css';
 import type { StepUpStage } from './useStepUpAction';
+import { useT } from '@/app/locale-context';
 
 export interface StepUpPromptProps {
   stage: StepUpStage;
@@ -25,12 +26,13 @@ export default function StepUpPrompt({
   onSubmitStepUp,
   idPrefix,
 }: StepUpPromptProps) {
+  const t = useT();
   if (stage === 'need_enroll') {
     return (
       <div className={styles.btnRow}>
-        <p className={styles.body}>A security check-up is required before this action. Set up an authenticator first.</p>
+        <p className={styles.body}>{t('dataRights.stepUp.needEnrollNotice')}</p>
         <button type="button" className={styles.secondaryBtn} onClick={onStartEnroll}>
-          Start security check-up
+          {t('grow.orgSwitch.startEnrollCta')}
         </button>
       </div>
     );
@@ -41,10 +43,10 @@ export default function StepUpPrompt({
     return (
       <div className={styles.btnRow} style={{ display: 'grid', gap: 'var(--space-2)' }}>
         {otpauthUri && stage === 'need_verify' && (
-          <p className={styles.meta}>Scan this in your authenticator app: {otpauthUri}</p>
+          <p className={styles.meta}>{t('grow.orgSwitch.scanAuthenticatorPrefix')} {otpauthUri}</p>
         )}
         <label className={styles.fieldLabel} htmlFor={inputId}>
-          6-digit code
+          {t('grow.orgSwitch.codeLabel')}
         </label>
         <input
           id={inputId}
@@ -60,7 +62,7 @@ export default function StepUpPrompt({
             className={styles.actionBtn}
             onClick={stage === 'need_verify' ? onSubmitVerify : onSubmitStepUp}
           >
-            Confirm
+            {t('grow.orgSwitch.confirmCta')}
           </button>
         </div>
       </div>
@@ -68,7 +70,7 @@ export default function StepUpPrompt({
   }
 
   if (stage === 'busy') {
-    return <p role="status" className={styles.meta}>Working…</p>;
+    return <p role="status" className={styles.meta}>{t('grow.orgSwitch.workingStatus')}</p>;
   }
 
   return null;

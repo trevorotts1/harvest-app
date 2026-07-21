@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import styles from './content.module.css';
+import { useT } from '@/app/locale-context';
 
 type QueueState = 'DRAFTING' | 'COMPLIANCE_CHECK' | 'READY_FOR_REVIEW' | 'SCHEDULED' | 'PUBLISHED' | 'BLOCKED';
 
@@ -41,14 +42,14 @@ interface FollowUpTask {
 
 type FilterKey = 'ALL' | QueueState | 'FOLLOWUPS';
 
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: 'ALL', label: 'All' },
-  { key: 'DRAFTING', label: 'Drafting' },
-  { key: 'READY_FOR_REVIEW', label: 'Ready for Review' },
-  { key: 'SCHEDULED', label: 'Scheduled' },
-  { key: 'PUBLISHED', label: 'Published' },
-  { key: 'BLOCKED', label: 'Blocked' },
-  { key: 'FOLLOWUPS', label: 'Follow-ups' },
+const FILTERS: { key: FilterKey; labelKey: string }[] = [
+  { key: 'ALL', labelKey: 'content.queue.filters.all' },
+  { key: 'DRAFTING', labelKey: 'content.queue.filters.drafting' },
+  { key: 'READY_FOR_REVIEW', labelKey: 'content.queue.filters.readyForReview' },
+  { key: 'SCHEDULED', labelKey: 'content.queue.filters.scheduled' },
+  { key: 'PUBLISHED', labelKey: 'content.queue.filters.published' },
+  { key: 'BLOCKED', labelKey: 'content.queue.filters.blocked' },
+  { key: 'FOLLOWUPS', labelKey: 'content.queue.filters.followups' },
 ];
 
 const STATE_CLASS: Record<QueueState, string> = {
@@ -61,6 +62,7 @@ const STATE_CLASS: Record<QueueState, string> = {
 };
 
 export default function ContentQueuePage() {
+  const t = useT();
   const [filter, setFilter] = useState<FilterKey>('ALL');
   const [items, setItems] = useState<ContentItemData[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpTask[]>([]);
@@ -92,12 +94,12 @@ export default function ContentQueuePage() {
       setItems(body.items ?? []);
       setBanner(body.banner ?? null);
     } catch {
-      setError('Could not load the content queue. Try again.');
+      setError(t('content.queue.loadFailedGeneric'));
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     load(filter);
@@ -109,7 +111,7 @@ export default function ContentQueuePage() {
       const res = await fetch('/api/content/batch/generate', { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.error ?? 'Could not generate this week\'s batch.');
+        setError(body.error ?? t('content.queue.generateBatchFailedGeneric'));
       } else {
         await load(filter);
       }
@@ -191,32 +193,32 @@ export default function ContentQueuePage() {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <h1 className={styles.title}>Content Queue</h1>
+        <h1 className={styles.title}>{t('content.queue.title')}</h1>
         <p className={styles.subtitle}>
-          Every social post, blog, and email draft waits here — compliance-cleared before it can go out. Nothing publishes without your review.
+          {t('content.queue.subtitle')}
         </p>
 
         {banner?.publishingPaused && (
           <div className={styles.pausedBanner} role="alert">
-            PUBLISHING PAUSED — COMPLIANCE OFFLINE. Nothing can publish right now; there is no manual bypass. Your drafts are safe.
+            {t('content.queue.pausedBanner')}
           </div>
         )}
 
         <div className={styles.headerActions}>
           <button type="button" className={styles.primaryButton} onClick={generateBatch} disabled={busy}>
-            Generate this week&apos;s batch
+            {t('content.queue.generateBatchCta')}
           </button>
           <button type="button" className={styles.secondaryLink} onClick={() => setTriggerOpen((v) => !v)}>
-            Trigger a launch kit
+            {t('content.queue.triggerLaunchKitCta')}
           </button>
           <Link href="/content/templates" className={styles.secondaryLink}>
-            Template library
+            {t('content.queue.templateLibraryLink')}
           </Link>
         </div>
 
         {triggerOpen && <LaunchKitTrigger onTriggered={() => setTriggerOpen(false)} />}
 
-        <div className={styles.filterRow} role="tablist" aria-label="Filter the content queue">
+        <div className={styles.filterRow} role="tablist" aria-label={t('content.queue.filterAriaLabel')}>
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -226,41 +228,41 @@ export default function ContentQueuePage() {
               className={`${styles.filterChip} ${filter === f.key ? styles.filterChipActive : ''}`}
               onClick={() => setFilter(f.key)}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
 
         {filter === 'READY_FOR_REVIEW' && items.length > 0 && (
           <div className={styles.bulkRow}>
-            <span>{selected.size} selected</span>
+            <span>{selected.size} {t('content.queue.selectedSuffix')}</span>
             <button type="button" className={styles.actionButton} onClick={bulkApprove} disabled={busy || selected.size === 0}>
-              Bulk-approve selected
+              {t('content.queue.bulkApproveCta')}
             </button>
           </div>
         )}
 
-        {loading && <p className={styles.loadingState}>Loading the content queue…</p>}
+        {loading && <p className={styles.loadingState}>{t('content.queue.loading')}</p>}
         {!loading && error && (
           <div className={styles.errorState}>
             <p>{error}</p>
             <button type="button" className={styles.retryButton} onClick={() => load(filter)}>
-              Retry
+              {t('common.retry')}
             </button>
           </div>
         )}
 
         {!loading && !error && filter === 'FOLLOWUPS' && followUps.length === 0 && (
-          <p className={styles.emptyState}>No engagement follow-ups waiting — nothing published in the last 48 hours needs a check-in yet.</p>
+          <p className={styles.emptyState}>{t('content.queue.noFollowups')}</p>
         )}
         {!loading && !error && filter === 'FOLLOWUPS' && followUps.length > 0 && (
           <div className={styles.itemList}>
             {followUps.map((task) => (
               <div key={task.id} className={styles.item}>
-                <p className={styles.itemMeta}>Engagement follow-up due {new Date(task.due_at).toLocaleString()}</p>
+                <p className={styles.itemMeta}>{t('content.queue.followupDuePrefix')} {new Date(task.due_at).toLocaleString()}</p>
                 <div className={styles.itemFooter}>
                   <button type="button" className={styles.actionButton} onClick={() => completeFollowUp(task.id)}>
-                    Mark done
+                    {t('content.queue.markDoneCta')}
                   </button>
                 </div>
               </div>
@@ -269,7 +271,7 @@ export default function ContentQueuePage() {
         )}
 
         {!loading && !error && filter !== 'FOLLOWUPS' && items.length === 0 && (
-          <p className={styles.emptyState}>Nothing here yet — generate this week&apos;s batch to get started.</p>
+          <p className={styles.emptyState}>{t('content.queue.emptyState')}</p>
         )}
 
         {!loading && !error && filter !== 'FOLLOWUPS' && items.length > 0 && (
@@ -293,21 +295,21 @@ export default function ContentQueuePage() {
                   <p className={styles.itemBody}>{item.body}</p>
                 )}
 
-                {!item.vocab_clean && <p className={styles.violationNote}>Doctrine vocabulary violation — this draft was held, not published.</p>}
-                {item.publish_hold_reason && <p className={styles.violationNote}>Hold reason: {item.publish_hold_reason}</p>}
-                {item.scheduled_for && <p className={styles.itemMeta}>Scheduled for {new Date(item.scheduled_for).toLocaleString()}</p>}
+                {!item.vocab_clean && <p className={styles.violationNote}>{t('content.queue.vocabViolationNote')}</p>}
+                {item.publish_hold_reason && <p className={styles.violationNote}>{t('content.queue.holdReasonLabel')} {item.publish_hold_reason}</p>}
+                {item.scheduled_for && <p className={styles.itemMeta}>{t('content.queue.scheduledForLabel')} {new Date(item.scheduled_for).toLocaleString()}</p>}
 
                 <div className={styles.itemFooter}>
                   {item.state === 'READY_FOR_REVIEW' && (
                     <>
                       <input
                         type="checkbox"
-                        aria-label="Select for bulk-approve"
+                        aria-label={t('content.queue.selectForBulkApproveAria')}
                         checked={selected.has(item.id)}
                         onChange={() => toggleSelected(item.id)}
                       />
                       <button type="button" className={`${styles.actionButton} ${styles.approveButton}`} onClick={() => approveOne(item.id)}>
-                        Approve &amp; schedule
+                        {t('content.queue.approveScheduleCta')}
                       </button>
                     </>
                   )}
@@ -320,32 +322,32 @@ export default function ContentQueuePage() {
                         setEditBody(item.body);
                       }}
                     >
-                      Edit
+                      {t('content.queue.editCta')}
                     </button>
                   )}
                   {editingId === item.id && (
                     <button type="button" className={styles.actionButton} onClick={() => saveEdit(item.id)}>
-                      Save edit
+                      {t('content.queue.saveEditCta')}
                     </button>
                   )}
                   {item.state === 'SCHEDULED' && (
                     <button type="button" className={styles.actionButton} onClick={() => publishNow(item.id)}>
-                      Publish now
+                      {t('content.queue.publishNowCta')}
                     </button>
                   )}
                   {item.state === 'SCHEDULED' && item.publish_attempts >= 3 && (
                     <button type="button" className={`${styles.actionButton} ${styles.approveButton}`} onClick={() => publishManually(item.id)}>
-                      Publish manually (automated publish failed {item.publish_attempts}x)
+                      {t('content.queue.publishManuallyPrefix')} {item.publish_attempts}x)
                     </button>
                   )}
                   {item.state !== 'PUBLISHED' && (
                     <button type="button" className={`${styles.actionButton} ${styles.declineButton}`} onClick={() => declineOne(item.id)}>
-                      Decline
+                      {t('content.queue.declineCta')}
                     </button>
                   )}
                   {item.launch_kit_id && (
                     <Link href={`/content/launch-kit/${item.launch_kit_id}`} className={styles.secondaryLink}>
-                      View launch kit
+                      {t('content.queue.viewLaunchKitCta')}
                     </Link>
                   )}
                 </div>
@@ -359,6 +361,7 @@ export default function ContentQueuePage() {
 }
 
 function LaunchKitTrigger({ onTriggered }: { onTriggered: () => void }) {
+  const t = useT();
   const [newMemberFirstName, setNewMemberFirstName] = useState('');
   const [welcomeVariant, setWelcomeVariant] = useState('PERSONAL_REFERRAL');
   const [busy, setBusy] = useState(false);
@@ -376,10 +379,16 @@ function LaunchKitTrigger({ onTriggered }: { onTriggered: () => void }) {
       });
       const body = await res.json();
       if (!res.ok) {
-        setResult(body.error ?? 'Could not generate the launch kit.');
+        setResult(body.error ?? t('content.queue.launchKitTrigger.generateFailedGeneric'));
         return;
       }
-      setResult(`Launch kit generated in ${body.generationMs}ms.${body.wholeKitHeld ? ' Held for review — one piece needs your attention.' : ' Ready for review.'}`);
+      setResult(
+        `${t('content.queue.launchKitTrigger.resultGenerated', { ms: body.generationMs })}${
+          body.wholeKitHeld
+            ? t('content.queue.launchKitTrigger.heldForReview')
+            : t('content.queue.launchKitTrigger.readyForReview')
+        }`
+      );
       onTriggered();
     } finally {
       setBusy(false);
@@ -388,21 +397,21 @@ function LaunchKitTrigger({ onTriggered }: { onTriggered: () => void }) {
 
   return (
     <div className={styles.triggerForm}>
-      <label htmlFor="newMemberFirstName">New member&apos;s first name</label>
+      <label htmlFor="newMemberFirstName">{t('content.queue.launchKitTrigger.newMemberFirstNameLabel')}</label>
       <input
         id="newMemberFirstName"
         value={newMemberFirstName}
         onChange={(e) => setNewMemberFirstName(e.target.value)}
-        placeholder="e.g. Jordan"
+        placeholder={t('content.queue.launchKitTrigger.firstNamePlaceholder')}
       />
-      <label htmlFor="welcomeVariant">How they joined</label>
+      <label htmlFor="welcomeVariant">{t('content.queue.launchKitTrigger.howTheyJoinedLabel')}</label>
       <select id="welcomeVariant" value={welcomeVariant} onChange={(e) => setWelcomeVariant(e.target.value)}>
-        <option value="PERSONAL_REFERRAL">Personal referral</option>
-        <option value="EVENT_ATTENDEE">Event attendee</option>
-        <option value="BASE_MEMBER_INTRODUCED">Base-member introduced</option>
+        <option value="PERSONAL_REFERRAL">{t('content.queue.launchKitTrigger.welcomeVariant.personalReferral')}</option>
+        <option value="EVENT_ATTENDEE">{t('content.queue.launchKitTrigger.welcomeVariant.eventAttendee')}</option>
+        <option value="BASE_MEMBER_INTRODUCED">{t('content.queue.launchKitTrigger.welcomeVariant.baseMemberIntroduced')}</option>
       </select>
       <button type="button" className={styles.primaryButton} onClick={submit} disabled={busy}>
-        Generate launch kit
+        {t('content.queue.launchKitTrigger.generateCta')}
       </button>
       {result && <p>{result}</p>}
     </div>

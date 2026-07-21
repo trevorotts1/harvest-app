@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import type { PhasedTimelineResult } from '@/types/taprooting';
 import styles from '../grow.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface PhasedTimelinePanelProps {
   timeline: PhasedTimelineResult;
@@ -16,6 +17,7 @@ export interface PhasedTimelinePanelProps {
 }
 
 export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPreviewInsuranceBlock }: PhasedTimelinePanelProps) {
+  const t = useT();
   const [previewResult, setPreviewResult] = useState<{ released: boolean; hardBlockActive: boolean; licensingState: string } | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -33,15 +35,23 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
   };
 
   return (
-    <section className={styles.card} aria-label="Phased new-member timeline">
-      <span className={styles.badge}>New-member timeline</span>
+    <section className={styles.card} aria-label={t('grow.phasedTimeline.ariaLabel')}>
+      <span className={styles.badge}>{t('grow.phasedTimeline.badge')}</span>
       {timeline.phases.map((phase) => (
         <div key={phase.key}>
           <div className={styles.phaseHeader}>
             <h3>{phase.label}</h3>
-            <span className={styles.badge}>{phase.complete ? 'Complete' : phase.unlocked ? 'In progress' : 'Locked'}</span>
+            <span className={styles.badge}>
+              {t(
+                phase.complete
+                  ? 'grow.phasedTimeline.phaseStatus.complete'
+                  : phase.unlocked
+                    ? 'grow.phasedTimeline.phaseStatus.inProgress'
+                    : 'grow.phasedTimeline.phaseStatus.locked'
+              )}
+            </span>
           </div>
-          {!phase.unlocked && <p className={styles.lockedNote}>Unlocks once the prior phase&apos;s activity is complete.</p>}
+          {!phase.unlocked && <p className={styles.lockedNote}>{t('grow.phasedTimeline.lockedNote')}</p>}
           <ul className={styles.checklist}>
             {phase.items.map((item) => (
               <li key={item.key} className={styles.checklistItem}>
@@ -54,10 +64,10 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
                     disabled={busyKey === item.key}
                     onClick={() => handleMark(phase.key, item.key)}
                   >
-                    Mark done
+                    {t('grow.phasedTimeline.markDoneCta')}
                   </button>
                 )}
-                {item.detectionMode === 'auto' && !item.done && <span className={styles.lockedNote}>(detected automatically)</span>}
+                {item.detectionMode === 'auto' && !item.done && <span className={styles.lockedNote}>{t('grow.phasedTimeline.detectedAutoNote')}</span>}
               </li>
             ))}
           </ul>
@@ -66,7 +76,7 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
 
       {timeline.insuranceHardBlockActive && (
         <div className={styles.blockedBanner} role="alert">
-          Insurance-recommendation content is hard-blocked until you are fully licensed ({timeline.licensingState}).
+          {t('grow.phasedTimeline.hardBlockTemplate', { state: timeline.licensingState })}
         </div>
       )}
 
@@ -76,13 +86,13 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
           className={styles.iconButton}
           onClick={async () => setPreviewResult(await onPreviewInsuranceBlock())}
         >
-          Preview the licensing hard-block
+          {t('grow.phasedTimeline.previewCta')}
         </button>
         {previewResult && (
           <p role="status">
             {previewResult.released
-              ? 'Released — you are fully licensed.'
-              : `Blocked (${previewResult.licensingState}) — insurance content stays held until you're licensed.`}
+              ? t('grow.phasedTimeline.releasedStatus')
+              : t('grow.phasedTimeline.blockedStatusTemplate', { state: previewResult.licensingState })}
           </p>
         )}
       </div>

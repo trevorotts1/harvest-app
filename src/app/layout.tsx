@@ -5,6 +5,7 @@ import './globals.css';
 import { THEME_INIT_SCRIPT } from './theme-init-script';
 import { LOCALE_INIT_SCRIPT } from './locale-init-script';
 import { Providers } from './providers';
+import SkipLinkText from './skip-link-text';
 
 export const metadata: Metadata = {
   title: 'The Harvest | 2 Hour CEO',
@@ -46,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           to the normal tab order. Visually hidden until focused (globals.css `.skip-link`).
         */}
         <a href="#main-content" className="skip-link">
-          Skip to content
+          <SkipLinkText />
         </a>
         <div id="main-content" tabIndex={-1}>
           <Providers>{children}</Providers>

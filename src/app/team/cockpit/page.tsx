@@ -7,6 +7,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
+
 interface SponsorSeat {
   memberUserId: string;
   memberName: string;
@@ -29,6 +31,7 @@ type CockpitState = { kind: 'loading' } | { kind: 'ready'; seats: SponsorSeat[];
 type EnterpriseState = { kind: 'hidden' } | { kind: 'ready'; seats: EnterpriseSeat[]; narrative: { narrativeText: string } | null };
 
 export default function SponsorCockpitPage() {
+  const t = useT();
   const [cockpit, setCockpit] = useState<CockpitState>({ kind: 'loading' });
   const [enterprise, setEnterprise] = useState<EnterpriseState>({ kind: 'hidden' });
 
@@ -70,12 +73,12 @@ export default function SponsorCockpitPage() {
     }
   }, []);
 
-  if (cockpit.kind === 'loading') return <div className="card panel"><p>Loading the Sponsor Cockpit…</p></div>;
+  if (cockpit.kind === 'loading') return <div className="card panel"><p>{t('team.cockpit.loading')}</p></div>;
   if (cockpit.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>We can&apos;t reach the Sponsor Cockpit right now.</p>
-        <button type="button" className="btn btn-secondary" onClick={loadCockpit}>Retry</button>
+        <p>{t('team.cockpit.loadFailed')}</p>
+        <button type="button" className="btn btn-secondary" onClick={loadCockpit}>{t('common.retry')}</button>
       </div>
     );
   }
@@ -83,21 +86,21 @@ export default function SponsorCockpitPage() {
   return (
     <div className="stack">
       <section className="card panel">
-        <span className="badge">Sponsor Cockpit</span>
+        <span className="badge">{t('team.layout.cockpitLink')}</span>
         {!cockpit.hasSponsees ? (
           <>
-            <h2 style={{ marginTop: 8 }}>You&apos;re not sponsoring anyone yet.</h2>
-            <p>When you cover a new member&apos;s free tier, their activation, seat cost, and ROI story will show up here.</p>
+            <h2 style={{ marginTop: 8 }}>{t('team.cockpit.emptyHeading')}</h2>
+            <p>{t('team.cockpit.emptyBody')}</p>
           </>
         ) : (
           <div className="stack" style={{ marginTop: 12 }}>
             {cockpit.seats.map((seat) => (
               <div className="metric" key={seat.memberUserId}>
                 <strong>{seat.memberName}</strong>
-                <div>Status: {seat.activationStatus} ({seat.sponsorshipState})</div>
-                <div>Seat cost this period: ${(seat.seatCostCents / 100).toFixed(2)}</div>
-                <div>Recruits activated: {seat.recruitsActivated} · Appointments generated: {seat.appointmentsGenerated}</div>
-                {seat.renewalDate && <div>Renews: {new Date(seat.renewalDate).toLocaleDateString()}</div>}
+                <div>{t('team.cockpit.statusLabel')} {seat.activationStatus} ({seat.sponsorshipState})</div>
+                <div>{t('team.cockpit.seatCostLabel')}{(seat.seatCostCents / 100).toFixed(2)}</div>
+                <div>{t('team.cockpit.recruitsActivatedLabel')} {seat.recruitsActivated} {t('team.cockpit.appointmentsGeneratedLabel')} {seat.appointmentsGenerated}</div>
+                {seat.renewalDate && <div>{t('team.cockpit.renewsLabel')} {new Date(seat.renewalDate).toLocaleDateString()}</div>}
                 <p style={{ fontStyle: 'italic' }}>{seat.roiNote}</p>
               </div>
             ))}
@@ -107,17 +110,17 @@ export default function SponsorCockpitPage() {
 
       {enterprise.kind === 'ready' && (
         <section className="card panel">
-          <span className="badge">Enterprise console</span>
-          <h3 style={{ marginTop: 8 }}>Seat pool</h3>
+          <span className="badge">{t('team.cockpit.enterpriseConsoleBadge')}</span>
+          <h3 style={{ marginTop: 8 }}>{t('team.cockpit.seatPoolHeading')}</h3>
           <ul>
             {enterprise.seats.map((s) => (
               <li key={s.id}>{s.assigned_user_id} — {s.status}</li>
             ))}
-            {enterprise.seats.length === 0 && <li>No enterprise seats assigned yet.</li>}
+            {enterprise.seats.length === 0 && <li>{t('team.cockpit.noSeatsAssigned')}</li>}
           </ul>
-          <h3>Org analytics narrative</h3>
-          <p>{enterprise.narrative?.narrativeText ?? 'No narrative generated yet.'}</p>
-          <button type="button" className="btn btn-secondary" onClick={refreshNarrative}>Refresh narrative (Opus 4.8, batched)</button>
+          <h3>{t('team.cockpit.orgAnalyticsHeading')}</h3>
+          <p>{enterprise.narrative?.narrativeText ?? t('team.cockpit.noNarrativeYet')}</p>
+          <button type="button" className="btn btn-secondary" onClick={refreshNarrative}>{t('team.cockpit.refreshNarrativeCta')}</button>
         </section>
       )}
     </div>

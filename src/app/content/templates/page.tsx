@@ -8,8 +8,10 @@ import Link from 'next/link';
 
 import styles from '../content.module.css';
 import TemplateListSection, { type TemplateData } from './components/TemplateListSection';
+import { useT } from '@/app/locale-context';
 
 export default function TemplateLibraryPage() {
+  const t = useT();
   const [templates, setTemplates] = useState<TemplateData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,26 +25,26 @@ export default function TemplateLibraryPage() {
         const body = await res.json();
         setTemplates(body.templates ?? []);
       } catch {
-        setError('Could not load the template library.');
+        setError(t('content.templates.loadFailedGeneric'));
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [t]);
 
-  const categories = ['ALL', ...Array.from(new Set(templates.map((t) => t.category).filter(Boolean)))] as string[];
-  const visible = filter === 'ALL' ? templates : templates.filter((t) => t.category === filter);
+  const categories = ['ALL', ...Array.from(new Set(templates.map((tpl) => tpl.category).filter(Boolean)))] as string[];
+  const visible = filter === 'ALL' ? templates : templates.filter((tpl) => tpl.category === filter);
 
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <Link href="/content" className={styles.secondaryLink}>
-          Back to Content Queue
+          {t('content.launchKit.backToQueueCta')}
         </Link>
-        <h1 className={styles.title}>Template Library</h1>
-        <p className={styles.subtitle}>{templates.length} doctrine-verified templates across every category — automatic, AI-inferred, and rep-provided personalization.</p>
+        <h1 className={styles.title}>{t('content.templates.title')}</h1>
+        <p className={styles.subtitle}>{t('content.templates.subtitleTemplate', { count: templates.length })}</p>
 
-        {loading && <p className={styles.loadingState}>Loading templates…</p>}
+        {loading && <p className={styles.loadingState}>{t('content.templates.loading')}</p>}
         {error && <p className={styles.errorState}>{error}</p>}
 
         {!loading && !error && (

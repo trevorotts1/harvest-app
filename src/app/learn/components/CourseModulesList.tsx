@@ -13,6 +13,8 @@
 
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 export type CourseLoadState = 'loading' | 'ready' | 'failed';
 
 export interface CourseModuleSummary {
@@ -31,20 +33,21 @@ export interface CourseModulesListProps {
 }
 
 export default function CourseModulesList({ state, modules, onRetry }: CourseModulesListProps) {
+  const t = useT();
   return (
     <div className="stack" style={{ marginTop: 16 }}>
       {state === 'failed' && (
         <p style={{ color: 'var(--muted)' }}>
-          We couldn&apos;t load your course modules right now — nothing was lost.{' '}
+          {t('learn.courseModules.loadFailed')}{' '}
           <button type="button" className="badge" onClick={onRetry} style={{ cursor: 'pointer' }}>
-            Retry
+            {t('common.retry')}
           </button>
         </p>
       )}
       {state === 'ready' && modules.length === 0 && (
         <p style={{ color: 'var(--muted)' }}>
-          Your course is being prepared — check back shortly, or start with{' '}
-          <Link href="/learn/referrals">a referral script</Link>.
+          {t('learn.courseModules.emptyState')}{' '}
+          <Link href="/learn/referrals">{t('learn.courseModules.referralScriptLink')}</Link>.
         </p>
       )}
       {modules.map((m) => (
@@ -54,7 +57,15 @@ export default function CourseModulesList({ state, modules, onRetry }: CourseMod
             <strong>{m.title}</strong><br />
             <span style={{ color: 'var(--muted)' }}>{m.summary}</span>
           </div>
-          <span className="badge">{m.status === 'COMPLETED' ? 'Done' : m.status === 'IN_PROGRESS' ? 'In progress' : 'Start'}</span>
+          <span className="badge">
+            {t(
+              m.status === 'COMPLETED'
+                ? 'learn.courseModules.status.done'
+                : m.status === 'IN_PROGRESS'
+                  ? 'learn.courseModules.status.inProgress'
+                  : 'learn.courseModules.status.start'
+            )}
+          </span>
         </Link>
       ))}
     </div>

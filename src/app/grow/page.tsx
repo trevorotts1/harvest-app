@@ -22,6 +22,7 @@ import PhasedTimelinePanel from './components/PhasedTimelinePanel';
 import OrgSwitchPanel from './components/OrgSwitchPanel';
 import TimeLapseShare from './components/TimeLapseShare';
 import styles from './grow.module.css';
+import { useT } from '@/app/locale-context';
 
 type LoadState =
   | { kind: 'loading' }
@@ -29,6 +30,7 @@ type LoadState =
   | { kind: 'failed' };
 
 export default function GrowPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [view, setView] = useState<'canvas' | 'list'>('canvas');
   const [zoom, setZoom] = useState(1);
@@ -83,7 +85,7 @@ export default function GrowPage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.card}>
-            <p>Gathering your field…</p>
+            <p>{t('grow.page.loading')}</p>
           </div>
         </div>
       </main>
@@ -95,9 +97,9 @@ export default function GrowPage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.card}>
-            <p>We couldn&apos;t load Grow right now — showing your last field is not yet cached.</p>
+            <p>{t('grow.page.loadFailed')}</p>
             <button type="button" className={styles.iconButton} onClick={load}>
-              Retry
+              {t('common.retry')}
             </button>
           </div>
         </div>
@@ -111,22 +113,22 @@ export default function GrowPage() {
     <main className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.header}>
-          <h1 className={styles.title}>{tree.branch === 'primerica' ? 'The Orchard' : 'Your Network'}</h1>
+          <h1 className={styles.title}>{tree.branch === 'primerica' ? t('grow.page.titlePrimerica') : t('grow.page.titleExternal')}</h1>
           <Link href="/today" className={styles.navLink}>
-            Back to Today
+            {t('grow.page.backToToday')}
           </Link>
         </div>
 
         <div className={styles.card}>
           <div className={styles.toolbar}>
-            <div className={styles.segmentGroup} role="group" aria-label="View toggle">
+            <div className={styles.segmentGroup} role="group" aria-label={t('grow.page.viewToggleAria')}>
               <button
                 type="button"
                 className={styles.segmentButton}
                 aria-pressed={view === 'canvas'}
                 onClick={() => setView('canvas')}
               >
-                Canvas
+                {t('grow.page.canvasCta')}
               </button>
               <button
                 type="button"
@@ -134,7 +136,7 @@ export default function GrowPage() {
                 aria-pressed={view === 'list'}
                 onClick={() => setView('list')}
               >
-                List
+                {t('grow.page.listCta')}
               </button>
             </div>
             <TimeLapseShare ownerDisplayName={tree.ownerDisplayName} nodes={tree.nodes} />
@@ -144,11 +146,11 @@ export default function GrowPage() {
             <div className={styles.emptyState}>
               <p>
                 {tree.branch === 'primerica'
-                  ? 'Your orchard is just planted — the full 3-wide × 4-deep vision is ready for your first real recruit.'
-                  : 'Your network is just getting started.'}
+                  ? t('grow.page.emptyPrimericaBody')
+                  : t('grow.page.emptyExternalBody')}
               </p>
               <Link href="/community" className={styles.navLink}>
-                Invite your first
+                {t('grow.page.inviteFirstCta')}
               </Link>
               {view === 'canvas' ? (
                 <OrchardCanvas branch={tree.branch} nodes={[]} ghosts={tree.ghosts} zoom={zoom} onZoomIn={() => setZoom((z) => Math.min(2, z + 0.2))} onZoomOut={() => setZoom((z) => Math.max(0.5, z - 0.2))} />

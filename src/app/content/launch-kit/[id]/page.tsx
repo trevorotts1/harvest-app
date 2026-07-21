@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import styles from '../../content.module.css';
+import { useT } from '@/app/locale-context';
 
 interface KitData {
   kit: {
@@ -35,6 +36,7 @@ interface PageProps {
 }
 
 export default function LaunchKitPage({ params }: PageProps) {
+  const t = useT();
   const { id } = params;
   const [data, setData] = useState<KitData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,11 +50,11 @@ export default function LaunchKitPage({ params }: PageProps) {
       if (!res.ok) throw new Error();
       setData(await res.json());
     } catch {
-      setError('Could not load this launch kit.');
+      setError(t('content.launchKit.loadFailedGeneric'));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     load();
@@ -68,8 +70,8 @@ export default function LaunchKitPage({ params }: PageProps) {
     if (res.ok) await load();
   }
 
-  if (loading) return <div className={styles.page}><p className={styles.loadingState}>Loading the launch kit…</p></div>;
-  if (error || !data) return <div className={styles.page}><p className={styles.errorState}>{error ?? 'Not found.'}</p></div>;
+  if (loading) return <div className={styles.page}><p className={styles.loadingState}>{t('content.launchKit.loading')}</p></div>;
+  if (error || !data) return <div className={styles.page}><p className={styles.errorState}>{error ?? t('content.launchKit.notFound')}</p></div>;
 
   const { kit, items } = data;
   const anyBlocked = items.some((i) => i.state === 'BLOCKED');
@@ -78,23 +80,23 @@ export default function LaunchKitPage({ params }: PageProps) {
     <div className={styles.page}>
       <div className={styles.shell}>
         <Link href="/content" className={styles.secondaryLink}>
-          Back to Content Queue
+          {t('content.launchKit.backToQueueCta')}
         </Link>
-        <h1 className={styles.title}>Launch kit for {kit.new_member_first_name}</h1>
+        <h1 className={styles.title}>{t('content.launchKit.titlePrefix')} {kit.new_member_first_name}</h1>
         <p className={styles.subtitle}>
-          {kit.version.replace(/_/g, ' ')} · joined via {kit.welcome_variant.replace(/_/g, ' ').toLowerCase()}
+          {kit.version.replace(/_/g, ' ')} {t('content.launchKit.joinedViaSeparator')} {kit.welcome_variant.replace(/_/g, ' ').toLowerCase()}
         </p>
 
         {kit.photo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={kit.photo_url} alt={`${kit.new_member_first_name}'s real onboarding photo`} width={96} height={96} style={{ borderRadius: '999px' }} />
+          <img src={kit.photo_url} alt={t('content.launchKit.photoAlt', { name: kit.new_member_first_name })} width={96} height={96} style={{ borderRadius: '999px' }} />
         ) : (
-          <p className={styles.itemMeta}>No photo on file — the share assets render an initials avatar (never a stock photo).</p>
+          <p className={styles.itemMeta}>{t('content.launchKit.noPhotoNotice')}</p>
         )}
 
         {kit.state === 'HELD_FOR_REVIEW' && (
           <div className={styles.pausedBanner} role="alert">
-            WHOLE-KIT HOLD — one piece was blocked ({kit.held_reason}). The entire kit is held until every piece clears.
+            {t('content.launchKit.wholeKitHoldPrefix')}{kit.held_reason}{t('content.launchKit.wholeKitHoldSuffix')}
           </div>
         )}
 
@@ -107,17 +109,17 @@ export default function LaunchKitPage({ params }: PageProps) {
               </div>
               {item.headline && <p className={styles.headline}>{item.headline}</p>}
               <p className={styles.itemBody}>{item.body}</p>
-              {!item.vocab_clean && <p className={styles.violationNote}>This piece needs doctrine revision before the kit can proceed.</p>}
+              {!item.vocab_clean && <p className={styles.violationNote}>{t('content.launchKit.pieceNeedsRevision')}</p>}
             </div>
           ))}
         </div>
 
         <div className={styles.itemFooter}>
           <button type="button" className={styles.primaryButton} onClick={approveKit} disabled={anyBlocked || kit.state === 'APPROVED'}>
-            Approve whole kit
+            {t('content.launchKit.approveKitCta')}
           </button>
           <button type="button" className={`${styles.actionButton} ${styles.declineButton}`} onClick={withdrawKit}>
-            New member withdrew — move to drafts
+            {t('content.launchKit.withdrawKitCta')}
           </button>
         </div>
       </div>

@@ -9,19 +9,24 @@
 // originally mounted this at the bare `/team` page before WP09 landed and took that route for the
 // dashboard below; it now lives at /team/bridges as a sibling tab instead.
 
+'use client';
+
 import Link from 'next/link';
 
+import { useT } from '@/app/locale-context';
+
 export default function TeamLayout({ children }: { children: React.ReactNode }) {
+  const t = useT();
   return (
     <main className="app-frame">
       <aside className="sidebar">
-        <Link href="/today" className="brand"><span className="brand-mark">H</span><span>The Harvest</span></Link>
-        <nav aria-label="Team navigation">
-          <Link className="side-link" href="/today">Today</Link>
-          <Link className="side-link" href="/team">Team</Link>
-          <Link className="side-link" href="/team/bridges">Pending Bridges</Link>
-          <Link className="side-link" href="/team/calendar">Team Calendar</Link>
-          <Link className="side-link" href="/team/cockpit">Sponsor Cockpit</Link>
+        <Link href="/today" className="brand"><span className="brand-mark">H</span><span>{t('auth.brandName')}</span></Link>
+        <nav aria-label={t('nav.teamAria')}>
+          <Link className="side-link" href="/today">{t('team.layout.todayLink')}</Link>
+          <Link className="side-link" href="/team">{t('nav.team')}</Link>
+          <Link className="side-link" href="/team/bridges">{t('team.layout.pendingBridgesLink')}</Link>
+          <Link className="side-link" href="/team/calendar">{t('team.layout.calendarLink')}</Link>
+          <Link className="side-link" href="/team/cockpit">{t('team.layout.cockpitLink')}</Link>
         </nav>
       </aside>
       <section className="main">{children}</section>

@@ -59,23 +59,23 @@ export default function TeamDashboardPage() {
   }, [load, sort]);
 
   if (state.kind === 'loading') {
-    return <div className="card panel"><p>Gathering your team&apos;s report…</p></div>;
+    return <div className="card panel"><p>{t('team.dashboard.loadingReport')}</p></div>;
   }
   if (state.kind === 'forbidden') {
     return (
       <div className="card panel">
-        <span className="badge">Team view</span>
-        <h2>This view is for team leads</h2>
-        <p>Reps see their own Today view. If you sponsor someone, check the Sponsor Cockpit instead.</p>
-        <Link className="btn btn-secondary" href="/team/cockpit">Go to Sponsor Cockpit</Link>
+        <span className="badge">{t('team.dashboard.forbidden.badge')}</span>
+        <h2>{t('team.dashboard.forbidden.heading')}</h2>
+        <p>{t('team.dashboard.forbidden.body')}</p>
+        <Link className="btn btn-secondary" href="/team/cockpit">{t('team.dashboard.forbidden.cta')}</Link>
       </div>
     );
   }
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>We couldn&apos;t load your team dashboard right now — your data is safe.</p>
-        <button type="button" className="btn btn-secondary" onClick={() => load(sort)}>Retry</button>
+        <p>{t('team.dashboard.loadFailed')}</p>
+        <button type="button" className="btn btn-secondary" onClick={() => load(sort)}>{t('common.retry')}</button>
       </div>
     );
   }
@@ -85,10 +85,10 @@ export default function TeamDashboardPage() {
   if (!data.hasTeam) {
     return (
       <div className="card panel">
-        <span className="badge">Team</span>
-        <h2>Your team starts with one.</h2>
-        <p>Invite your first downline member to see their pace and outcomes here.</p>
-        <Link className="btn btn-primary" href="/community">Start the invitation flow</Link>
+        <span className="badge">{t('team.dashboard.emptyBadge')}</span>
+        <h2>{t('team.dashboard.emptyHeading')}</h2>
+        <p>{t('team.dashboard.emptyBody')}</p>
+        <Link className="btn btn-primary" href="/community">{t('team.dashboard.emptyCta')}</Link>
       </div>
     );
   }
@@ -104,7 +104,7 @@ export default function TeamDashboardPage() {
 
       {data.needsYouNow.length > 0 && (
         <section className="card panel">
-          <span className="badge">Needs you now</span>
+          <span className="badge">{t('team.dashboard.needsYouNowBadge')}</span>
           <div className="stack" style={{ marginTop: 12 }}>
             {data.needsYouNow.map((item) => (
               <div key={item.handoffId} className="action-row">
@@ -112,9 +112,9 @@ export default function TeamDashboardPage() {
                 <div>
                   <strong>{item.triggerReason.replace(/_/g, ' ').toLowerCase()}</strong>
                   <br />
-                  <span style={{ color: 'var(--muted)' }}>A downline rep needs you in a three-way today.</span>
+                  <span style={{ color: 'var(--muted)' }}>{t('team.dashboard.needsYouNowItemBody')}</span>
                 </div>
-                <Link className="btn btn-primary" href={`/team/rep/${item.repUserId}`}>Join the three-way</Link>
+                <Link className="btn btn-primary" href={`/team/rep/${item.repUserId}`}>{t('team.dashboard.joinThreeWayCta')}</Link>
               </div>
             ))}
           </div>
@@ -124,25 +124,25 @@ export default function TeamDashboardPage() {
       <section className="card panel">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <span className="badge">Roster</span>
-            <h2 style={{ marginTop: 8 }}>Pace and outcomes — never a ranking</h2>
+            <span className="badge">{t('team.dashboard.rosterBadge')}</span>
+            <h2 style={{ marginTop: 8 }}>{t('team.dashboard.rosterHeading')}</h2>
           </div>
           <label>
-            Sort by{' '}
+            {t('team.dashboard.sortByLabel')}{' '}
             <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
-              <option value="name">Name</option>
-              <option value="pace">Pace</option>
-              <option value="momentum">Momentum</option>
+              <option value="name">{t('team.dashboard.sortOption.name')}</option>
+              <option value="pace">{t('team.dashboard.sortOption.pace')}</option>
+              <option value="momentum">{t('team.dashboard.sortOption.momentum')}</option>
             </select>
           </label>
         </div>
         <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse' }}>
-          <caption className="visually-hidden">Team roster with pace status and momentum band</caption>
+          <caption className="visually-hidden">{t('team.dashboard.rosterCaption')}</caption>
           <thead>
             <tr>
-              <th scope="col" style={{ textAlign: 'left' }}>Rep</th>
-              <th scope="col" style={{ textAlign: 'left' }}>Pace</th>
-              <th scope="col" style={{ textAlign: 'left' }}>Momentum</th>
+              <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.rep')}</th>
+              <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.pace')}</th>
+              <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.momentum')}</th>
               <th scope="col" style={{ textAlign: 'left' }}></th>
             </tr>
           </thead>
@@ -151,8 +151,8 @@ export default function TeamDashboardPage() {
               <tr key={row.userId} style={{ borderTop: '1px solid var(--line)' }}>
                 <th scope="row" style={{ textAlign: 'left', fontWeight: 600, padding: '10px 0' }}>{row.name}</th>
                 <td>{PACE_GLYPH[row.paceIcon]} {row.paceLabel}</td>
-                <td>{row.momentumBand === 'no_data' ? 'Learning your community' : row.momentumBand}</td>
-                <td><Link href={`/team/rep/${row.userId}`}>View</Link></td>
+                <td>{row.momentumBand === 'no_data' ? t('team.dashboard.noDataMomentum') : row.momentumBand}</td>
+                <td><Link href={`/team/rep/${row.userId}`}>{t('team.dashboard.viewCta')}</Link></td>
               </tr>
             ))}
           </tbody>
@@ -161,17 +161,17 @@ export default function TeamDashboardPage() {
 
       {data.downlineLeak.length > 0 && (
         <section className="card panel">
-          <span className="badge">Downline Leak</span>
-          <p>{data.downlineLeak.length} rep(s) haven&apos;t been in the field for a while — a quiet coaching nudge, not a warning.</p>
+          <span className="badge">{t('team.dashboard.downlineLeakBadge')}</span>
+          <p>{t('team.dashboard.downlineLeakBody', { count: data.downlineLeak.length })}</p>
         </section>
       )}
 
       <section className="card panel">
-        <span className="badge">Your Field Trainer&apos;s Ratio</span>
+        <span className="badge">{t('team.dashboard.fieldTrainerRatioBadge')}</span>
         <div className="metric-grid" style={{ marginTop: 16 }}>
-          <div className="metric"><strong>{data.fieldTrainerRatio.appointmentsRun}</strong><span>appointments run</span></div>
-          <div className="metric"><strong>{data.fieldTrainerRatio.completed}</strong><span>completed</span></div>
-          <div className="metric"><strong>{data.fieldTrainerRatio.noShows}</strong><span>no-shows (owned honestly)</span></div>
+          <div className="metric"><strong>{data.fieldTrainerRatio.appointmentsRun}</strong><span>{t('team.dashboard.metric.appointmentsRun')}</span></div>
+          <div className="metric"><strong>{data.fieldTrainerRatio.completed}</strong><span>{t('team.dashboard.metric.completed')}</span></div>
+          <div className="metric"><strong>{data.fieldTrainerRatio.noShows}</strong><span>{t('team.dashboard.metric.noShows')}</span></div>
         </div>
       </section>
     </div>

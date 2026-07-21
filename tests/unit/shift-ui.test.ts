@@ -21,6 +21,14 @@ import WorkPhase, { formatElapsed } from '@/app/shift/components/WorkPhase';
 import ClosePhase, { recapLine } from '@/app/shift/components/ClosePhase';
 import DoneScreen from '@/app/shift/components/DoneScreen';
 import type { RatioCardView, ShiftQueueCard } from '@/types/learning-state';
+import { t, DEFAULT_LOCALE } from '@/lib/i18n';
+import type { TVars } from '@/lib/i18n/catalog';
+
+// `recapLine` now takes the catalog's `t()` as its second argument (T-R32c i18n) — this repo's
+// Jest env has no jsdom/LocaleProvider, so direct (non-component) calls to it in these tests bind
+// it to the real EN catalog, exactly the same fallback English every other component render in
+// this suite already gets via `useT()`'s no-provider default (`locale-context.tsx`).
+const tEn = (key: string, vars?: TVars) => t(DEFAULT_LOCALE, key, vars);
 
 const render = (el: ElementType, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el, props));
 /** Visible text only (tags/attrs stripped) — digit checks must reflect what the rep actually SEES. */
@@ -266,7 +274,7 @@ describe('AC-5.3-3: the Close/Done flow reaches the explicit end state', () => {
     const recap = { approvals: 2, confirmations: 1, logs: 0 };
     const html = render(DoneScreen, { streakCount: 7, recap, onBackToToday: noop });
     const text = textOf(html);
-    expect(text).toContain(`You’re done for today. ${recapLine(recap)}`);
+    expect(text).toContain(`You’re done for today. ${recapLine(recap, tEn)}`);
     expect(text).toMatch(/Your agents take it from here\./);
   });
 

@@ -11,6 +11,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { GATED_DOWNSTREAM_PAGE_PREFIXES, isGatedDownstreamPage } from '@/lib/auth/onboarding-gate-edge';
+import en from '@/lib/i18n/messages/en.json';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const SRC_DIR = path.join(REPO_ROOT, 'src');
@@ -75,16 +76,27 @@ describe('T-41 — the Content Queue / Launch Kit / Template Library pages exist
     expect(page).toContain('/api/content/launch-kit/trigger');
   });
 
+  // T-R32c (i18n, master-spec §17.5 / uiux §6.2): this banner's copy now lives in the catalog
+  // (`content.queue.pausedBanner`), not as a raw literal in the page source — the page instead
+  // calls `t('content.queue.pausedBanner')`. This proves BOTH halves: the page really renders that
+  // key (not a stub/no-op), and the shipped EN catalog entry still carries the exact §11.5 rule-1
+  // banner text, so the source-scan intent (this specific compliance-critical copy is really wired
+  // up) survives the externalization unchanged.
   test('the Content Queue page renders the CFE-offline "PUBLISHING PAUSED" banner (§11.5 rule 1)', () => {
     const page = src('app', 'content', 'page.tsx');
-    expect(page).toMatch(/PUBLISHING PAUSED/);
+    expect(page).toMatch(/t\(\s*['"`]content\.queue\.pausedBanner['"`]\s*\)/);
+    expect(en.content.queue.pausedBanner).toMatch(/PUBLISHING PAUSED/);
   });
 
+  // T-R32c: same rationale — "initials avatar" / "withdrew" now live in the catalog
+  // (`content.launchKit.noPhotoNotice` / `content.launchKit.withdrawKitCta`) behind `t()` calls.
   test('the Launch Kit page mounts the real photo (or honest fallback) and the withdraw affordance', () => {
     const page = src('app', 'content', 'launch-kit', '[id]', 'page.tsx');
     expect(page).toContain('/api/content/launch-kit/');
-    expect(page).toMatch(/initials avatar/i);
-    expect(page).toMatch(/withdrew/i);
+    expect(page).toMatch(/t\(\s*['"`]content\.launchKit\.noPhotoNotice['"`]\s*\)/);
+    expect(page).toMatch(/t\(\s*['"`]content\.launchKit\.withdrawKitCta['"`]\s*\)/);
+    expect(en.content.launchKit.noPhotoNotice).toMatch(/initials avatar/i);
+    expect(en.content.launchKit.withdrawKitCta).toMatch(/withdrew/i);
   });
 });
 

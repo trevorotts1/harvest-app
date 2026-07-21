@@ -5,6 +5,7 @@
 import type { LearningStateView, ShiftMode } from '@/types/learning-state';
 import RatioCard from './RatioCard';
 import styles from '../shift.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface OpenPhaseProps {
   briefingLines: string[];
@@ -25,6 +26,7 @@ export default function OpenPhase({
   learningState,
   onBegin,
 }: OpenPhaseProps) {
+  const t = useT();
   return (
     <div className={styles.card}>
       {briefingLines.slice(0, 3).map((line, i) => (
@@ -34,13 +36,13 @@ export default function OpenPhase({
       ))}
 
       <div className={styles.streakRow}>
-        <span className={styles.streakBadge}>{streakCount}-day streak</span>
-        {mode === 'SHORT' ? <span className={styles.streakBadge}>10 focused minutes</span> : null}
+        <span className={styles.streakBadge}>{t('shift.openPhase.streakBadge', { count: streakCount })}</span>
+        {mode === 'SHORT' ? <span className={styles.streakBadge}>{t('shift.openPhase.shortModeBadge')}</span> : null}
       </div>
 
       {graceDayOffer ? (
         <p className={styles.graceDayBanner}>
-          Life happened. Your streak is safe — one grace day used.
+          {t('shift.openPhase.graceDayBanner')}
         </p>
       ) : null}
 
@@ -48,13 +50,13 @@ export default function OpenPhase({
 
       {learningState ? (
         <div className={styles.ratioGrid}>
-          <RatioCard title="Agent's Ratio" view={learningState.agentRatio} />
-          <RatioCard title="Field Trainer's Ratio" view={learningState.fieldTrainerRatio} />
+          <RatioCard title={t('today.ratioCards.agentRatioTitle')} view={learningState.agentRatio} />
+          <RatioCard title={t('today.ratioCards.fieldTrainerRatioTitle')} view={learningState.fieldTrainerRatio} />
         </div>
       ) : null}
 
       <button type="button" className={styles.primaryButton} onClick={onBegin}>
-        Begin
+        {t('shift.openPhase.beginCta')}
       </button>
     </div>
   );
