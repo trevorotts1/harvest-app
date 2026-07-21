@@ -215,6 +215,90 @@ describe('POST /api/approval-inbox/approve', () => {
     expect(body.code).toBe('NOT_APPROVABLE');
     expect(mockedDraftUpdate).not.toHaveBeenCalled();
   });
+
+  // ── T-R16 (uiux AC-5.6-5) — flagged-approve justification, at the route layer ──────────────────
+  test('TEETH: a FLAGGED draft approved with NO justification -> 400 JUSTIFICATION_REQUIRED, no update attempted', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedDraftFindFirst.mockResolvedValue({
+      id: 'd-1',
+      user_id: 'real-session-user',
+      approval_state: 'PENDING',
+      cfe_outcome: 'FLAG',
+      body: 'a flagged draft',
+      channel: 'SMS_HANDOFF',
+    });
+
+    const res = await approvePOST(postRequest('/api/approval-inbox/approve', { draftId: 'd-1' }), {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('JUSTIFICATION_REQUIRED');
+    expect(mockedDraftUpdate).not.toHaveBeenCalled();
+  });
+
+  test('a FLAGGED draft approved WITH a non-empty justification -> 200, persisted onto the draft', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedDraftFindFirst.mockResolvedValue({
+      id: 'd-1',
+      user_id: 'real-session-user',
+      approval_state: 'PENDING',
+      cfe_outcome: 'FLAG',
+      body: 'a flagged draft',
+      channel: 'SMS_HANDOFF',
+    });
+    mockedDraftUpdate.mockImplementation(async ({ data }) => ({
+      id: 'd-1',
+      user_id: 'real-session-user',
+      approval_state: data.approval_state,
+      approval_justification: data.approval_justification,
+    }));
+
+    const res = await approvePOST(
+      postRequest('/api/approval-inbox/approve', { draftId: 'd-1', justification: 'confirmed by upline' }),
+      {}
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.draft.approval_state).toBe('APPROVED');
+    expect(body.draft.approval_justification).toBe('confirmed by upline');
+    expect(mockedDraftUpdate.mock.calls[0][0].data.approval_justification).toBe('confirmed by upline');
+  });
+
+  test('a non-string justification -> 400, never reaches Prisma', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    const res = await approvePOST(
+      postRequest('/api/approval-inbox/approve', { draftId: 'd-1', justification: 12345 }),
+      {}
+    );
+    expect(res.status).toBe(400);
+    expect(mockedDraftFindFirst).not.toHaveBeenCalled();
+  });
+
+  test('a clean PASS draft approved with no justification field at all -> 200, unaffected (no regression)', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedDraftFindFirst.mockResolvedValue({
+      id: 'd-1',
+      user_id: 'real-session-user',
+      approval_state: 'PENDING',
+      cfe_outcome: 'PASS',
+    });
+    mockedDraftUpdate.mockResolvedValue({
+      id: 'd-1',
+      user_id: 'real-session-user',
+      approval_state: 'APPROVED',
+      approved_by: 'real-session-user',
+      approved_at: new Date(),
+      approval_justification: null,
+    });
+
+    const res = await approvePOST(postRequest('/api/approval-inbox/approve', { draftId: 'd-1' }), {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.draft.approval_state).toBe('APPROVED');
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════

@@ -71,10 +71,14 @@ describe('(a) approveMutationId/declineMutationId — stable per-draft ids (dedu
 function createFakeInboxPostJson(service: ApprovalInboxService) {
   return async function fakePostJson<T>(url: string, body: unknown): Promise<RawJsonResponse<T>> {
     if (url === '/api/approval-inbox/approve') {
-      const { draftId } = body as { draftId: string };
-      const result = await service.approveDraft(USER, draftId);
+      // T-R16 (uiux AC-5.6-5) — carries `justification` through exactly like the real route does.
+      const { draftId, justification } = body as { draftId: string; justification?: string };
+      const result = await service.approveDraft(USER, draftId, justification);
       if (result.ok) return { status: 200, data: { ok: true, draft: result.draft } as unknown as T };
       if (result.reason === 'not_found') return { status: 404, data: { error: 'Draft not found' } as unknown as T };
+      if (result.reason === 'justification_required') {
+        return { status: 400, data: { error: 'justification required', code: 'JUSTIFICATION_REQUIRED' } as unknown as T };
+      }
       return {
         status: 403,
         data: { error: `not approvable (${result.currentState})`, code: 'NOT_APPROVABLE', currentState: result.currentState } as unknown as T,
@@ -128,6 +132,39 @@ describe('(b) createInboxQueueHandlers — replay hits the REAL ApprovalInboxSer
 
     expect(rows[0].approval_state).toBe('DECLINED');
     expect(rows[0].decline_reason).toBe('wrong_time');
+  });
+
+  // T-R16 (uiux AC-5.6-5) — a flagged-approve's justification queued offline replays through to the
+  // REAL ApprovalInboxService exactly as an online submit would (see src/app/inbox/offline.ts).
+  test('APPROVE replay carries a queued justification through to a real FLAGGED draft — persisted, approved', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG', cfe_risk_score: 40 })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+    const handlers = createInboxQueueHandlers(createFakeInboxPostJson(service));
+
+    await handlers[INBOX_MUTATION_KIND.APPROVE]({ draftId: 'd-1', justification: 'confirmed compliant offline' });
+
+    expect(updateCalls).toHaveLength(1);
+    expect(rows[0].approval_state).toBe('APPROVED');
+    expect(rows[0].approval_justification).toBe('confirmed compliant offline');
+  });
+
+  // TEETH: a queued FLAG approve with NO justification is a PERMANENT rejection on replay (business
+  // rule, not a transient failure) — it resolves (not thrown), and is surfaced via
+  // `onPermanentRejection`, never silently dropped or retried forever.
+  test('TEETH: APPROVE replay of a FLAGGED draft with no justification is a permanent rejection — resolved, surfaced, no update', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG' })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+    const rejections: PermanentRejectionInfo[] = [];
+    const handlers = createInboxQueueHandlers(createFakeInboxPostJson(service), (info) => rejections.push(info));
+
+    await handlers[INBOX_MUTATION_KIND.APPROVE]({ draftId: 'd-1' });
+
+    expect(updateCalls).toHaveLength(0);
+    expect(rows[0].approval_state).toBe('PENDING'); // never silently approved
+    expect(rejections).toHaveLength(1);
+    expect(rejections[0].kind).toBe(INBOX_MUTATION_KIND.APPROVE);
   });
 });
 

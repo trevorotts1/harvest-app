@@ -21,6 +21,21 @@
 // straight off the `item` PROP (not the internal `current` state, which is only ever mutated by this
 // component's own successful edit) so a parent re-render that flips this flag is always reflected
 // immediately, regardless of whether `current` has itself changed.
+//
+// APPROVE-BUTTON CFE GATE (T-R16, from T-R13 QC; uiux AC-5.6-5) — COEXISTS with the offline logic
+// above, does not replace it: the plain, one-tap Approve button is now gated on `cfe_outcome ===
+// 'PASS'` IN ADDITION TO the pre-existing `!isHeld` check. A FLAG/PENDING (non-PASS, non-HELD) draft
+// never shows that plain affordance — an enabled one-tap Approve on a flagged item was misleading
+// (the server enforces stricter rules for it in some hosts, e.g. the Shift's own
+// `ShiftApprovalRequiresReviewError`). Instead it gets a SEPARATE "Approve with justification"
+// control (a short required justification textarea + its own button, uiux AC-5.6-5's "capture a
+// short justification"), which still calls the SAME `onApprove` callback (with the justification as
+// a second, optional argument) — never a second approval code path. Both this PASS-only plain button
+// and the FLAG-only justification control are additionally still wrapped in this file's existing
+// `!queuedOffline` footer condition, so "online AND cfe_outcome==='PASS' AND not HELD" (or, for the
+// justification control, "online AND cfe_outcome==='FLAG' AND not HELD") are exactly the three
+// conditions that must ALL hold before either Approve affordance renders — the offline suppression
+// and the CFE gate compose, neither one bypasses the other. HELD items get neither, unchanged.
 
 'use client';
 
@@ -67,7 +82,11 @@ function cfeChip(outcome: CfeOutcome, checking: boolean) {
 
 export interface ApprovalInboxItemProps {
   item: InboxItemData;
-  onApprove: (draftId: string) => Promise<{ ok: boolean; error?: string }>;
+  /** T-R16 — `justification` is passed ONLY from the flagged-approve control below (never from the
+   *  plain PASS-only Approve button); a host that ignores the second argument (e.g. the Shift
+   *  embed, whose server-side `actionCard` refuses any non-PASS approve regardless) loses nothing —
+   *  the justification is optional precisely so every existing `onApprove` caller keeps compiling. */
+  onApprove: (draftId: string, justification?: string) => Promise<{ ok: boolean; error?: string }>;
   onDecline: (draftId: string, reason: string, note?: string) => Promise<{ ok: boolean; error?: string }>;
   onEdit: (draftId: string, body: string) => Promise<{ ok: boolean; item?: InboxItemData; error?: string }>;
 }
@@ -77,6 +96,9 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
   const [draftText, setDraftText] = useState(item.body);
   const [reason, setReason] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  // T-R16 (uiux AC-5.6-5) — the flagged-approve justification draft text (see "APPROVE-BUTTON CFE
+  // GATE" note above).
+  const [justification, setJustification] = useState('');
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,13 +110,24 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
   const isTerminal = current.approval_state === 'APPROVED' || current.approval_state === 'DECLINED';
   // T-54 — read from the PROP, not `current` (see this file's header "QUEUED-OFFLINE" note).
   const queuedOffline = item.queuedOffline === true;
+  // T-R16 (uiux AC-5.6-5 / T-R13 QC "approve-button CFE gate") — the plain one-tap Approve requires
+  // a clean PASS; a FLAG (non-PASS, non-HELD) PENDING draft gets the separate justification-gated
+  // control below instead, never the plain button. Neither depends on `queuedOffline` directly —
+  // both are additionally wrapped in the existing `!queuedOffline` footer condition below, which is
+  // how the offline suppression and this CFE gate COEXIST (see this file's header note).
+  const canPlainApprove = !isHeld && current.approval_state === 'PENDING' && current.cfe_outcome === 'PASS';
+  const isFlaggedApprovable = !isHeld && current.approval_state === 'PENDING' && current.cfe_outcome === 'FLAG';
 
-  async function handleApprove() {
+  async function handleApprove(justificationText?: string) {
     setBusy(true);
     setError(null);
-    const result = await onApprove(current.id);
+    const result = await onApprove(current.id, justificationText);
     setBusy(false);
-    if (!result.ok) setError(result.error ?? 'This draft could not be approved.');
+    if (!result.ok) {
+      setError(result.error ?? 'This draft could not be approved.');
+      return;
+    }
+    setJustification('');
   }
 
   async function handleSaveEdit() {
@@ -204,16 +237,47 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         </div>
       )}
 
+      {/* T-R16 (uiux AC-5.6-5) — the flagged-approve justification input. Only rendered for a
+          FLAG/PENDING draft in view mode, online (not queuedOffline) — a clean PASS draft never
+          sees this (no justification is required or captured for it), and a HELD draft has no
+          approve path at all. */}
+      {!queuedOffline && mode === 'view' && isFlaggedApprovable && (
+        <div className={styles.justificationRow}>
+          <label htmlFor={`justification-${current.id}`} className={styles.justificationLabel}>
+            This draft was flagged by compliance review. Why is it OK to approve as-is?
+          </label>
+          <textarea
+            id={`justification-${current.id}`}
+            className={styles.justificationInput}
+            value={justification}
+            onChange={(e) => setJustification(e.target.value)}
+            placeholder="A short reason this flagged draft is OK to send…"
+            aria-label="Justification for approving this flagged draft"
+            disabled={busy}
+          />
+        </div>
+      )}
+
       {!isTerminal && !queuedOffline && (
         <div className={styles.itemFooter}>
-          {mode === 'view' && !isHeld && (
+          {mode === 'view' && canPlainApprove && (
             <button
               type="button"
               className={`${styles.actionButton} ${styles.approveButton}`}
-              onClick={handleApprove}
+              onClick={() => handleApprove()}
               disabled={busy}
             >
               Approve
+            </button>
+          )}
+          {mode === 'view' && isFlaggedApprovable && (
+            <button
+              type="button"
+              className={`${styles.actionButton} ${styles.approveButton}`}
+              onClick={() => handleApprove(justification)}
+              disabled={busy || justification.trim().length === 0}
+            >
+              Approve with justification
             </button>
           )}
           {mode === 'editing' ? (

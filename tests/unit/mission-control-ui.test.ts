@@ -191,13 +191,59 @@ describe('(a) Six Today zones render from real ZoneResult data (not demo)', () =
 
   test('RatioCards renders the learning-state baseline (20:5:1) with the "learning your community" chip until real data accumulates', () => {
     const data: RatiosZoneData = {
-      agentRatio: { a: 20, b: 5, c: 1, labels: ['Introductions', 'Appointments set', 'Confirmed shows'], learning: true, dataPoints: 4 },
-      fieldTrainerRatio: { a: 20, b: 5, c: 1, labels: ['Appointments run', 'Client signs', 'Recruit joins'], learning: true, dataPoints: 0 },
+      agentRatio: {
+        a: 20,
+        b: 5,
+        c: 1,
+        labels: ['Introductions', 'Appointments set', 'Confirmed shows'],
+        learning: true,
+        dataPoints: 4,
+        explainer: "Your Agent's Ratio measures how effective your AI agents are.",
+      },
+      fieldTrainerRatio: {
+        a: 20,
+        b: 5,
+        c: 1,
+        labels: ['Appointments run', 'Client signs', 'Recruit joins'],
+        learning: true,
+        dataPoints: 0,
+        explainer: "Your Field Trainer's Ratio measures your trainer's close rate.",
+      },
     };
     const html = render(RatioCards, { result: { status: 'ok', data } });
     expect(textOf(html)).toContain('20 : 5 : 1');
     expect(textOf(html)).toMatch(/learning your community/);
     expect(html).not.toMatch(/NaN/);
+  });
+
+  // T-R16 (§9.9-7 "both ratios display WITH explainers") — the Mission Control ratio cards ALSO
+  // render a "what this means" explainer alongside the headline, mirroring the Shift's own
+  // RatioCard. TEETH: fails if the explainer paragraph is ever dropped from RatioCards.tsx.
+  test('TEETH: RatioCards renders a "what this means" explainer alongside EACH ratio headline — never a naked number (§9.9-7)', () => {
+    const data: RatiosZoneData = {
+      agentRatio: {
+        a: 11,
+        b: 3,
+        c: 2,
+        labels: ['Introductions', 'Appointments set', 'Confirmed shows'],
+        learning: false,
+        dataPoints: 55,
+        explainer: 'Your own record: 55 introductions -> 20 appointments set -> 2 confirmed shows.',
+      },
+      fieldTrainerRatio: {
+        a: 20,
+        b: 5,
+        c: 1,
+        labels: ['Appointments run', 'Client signs', 'Recruit joins'],
+        learning: true,
+        dataPoints: 3,
+        explainer: "Your Field Trainer's Ratio measures your trainer's close rate once they run the appointment.",
+      },
+    };
+    const html = render(RatioCards, { result: { status: 'ok', data } });
+    const text = textOf(html);
+    expect(text).toMatch(/Your own record: 55 introductions/);
+    expect(text).toMatch(/close rate once they run the appointment/);
   });
 
   test('RatioCards renders its OWN error state independently', () => {

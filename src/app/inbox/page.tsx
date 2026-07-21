@@ -168,10 +168,12 @@ export default function ApprovalInboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleApprove(draftId: string): Promise<{ ok: boolean; error?: string }> {
+  async function handleApprove(draftId: string, justification?: string): Promise<{ ok: boolean; error?: string }> {
     if (isOffline) {
       const q = queueRef.current!;
-      q.enqueue(INBOX_MUTATION_KIND.APPROVE, { draftId }, approveMutationId(draftId));
+      // T-R16 — carries the flagged-approve justification (if any) through the offline queue so a
+      // replay on reconnect posts the exact same body an online submit would (see ./offline.ts).
+      q.enqueue(INBOX_MUTATION_KIND.APPROVE, { draftId, justification }, approveMutationId(draftId));
       setQueueLength(q.length);
       setItems((prev) => prev.map((it) => (it.id === draftId ? { ...it, queuedOffline: true } : it)));
       return { ok: true };
@@ -179,7 +181,7 @@ export default function ApprovalInboxPage() {
     const res = await fetch('/api/approval-inbox/approve', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ draftId }),
+      body: JSON.stringify({ draftId, justification }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) return { ok: false, error: data.error ?? 'This draft could not be approved.' };

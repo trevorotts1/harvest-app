@@ -48,10 +48,18 @@ export function cardToInboxItem(card: ShiftQueueCard): InboxItemData {
  * real authority and is NOT re-implemented or loosened here: a rejection (e.g.
  * `ShiftApprovalRequiresReviewError`, surfaced by the route as a 409) is translated into the
  * `{ok:false, error}` shape `ApprovalInboxItem` renders inline — never swallowed, never retried
- * into a silent success. */
+ * into a silent success.
+ *
+ * T-R16 (uiux AC-5.6-5): accepts the optional `justification` second argument `ApprovalInboxItem`'s
+ * shared flagged-approve control now passes, purely for type compatibility with that component's
+ * `onApprove` prop — it is intentionally NOT forwarded anywhere. `ShiftService.actionCard` has no
+ * concept of a justification and, per that class's own doc comment, unconditionally refuses any
+ * non-PASS APPROVE regardless of what the caller sends; the intended path for a flagged draft
+ * remains "edit it into a clean re-checked PASS first" or "review it in the real Approval Inbox"
+ * (the 409 message already says so). This host loses nothing by ignoring the argument. */
 export function makeApproveHandler(
   onAction: DraftApprovalCardProps['onAction']
-): (draftId: string) => Promise<{ ok: boolean; error?: string }> {
+): (draftId: string, justification?: string) => Promise<{ ok: boolean; error?: string }> {
   return async (draftId: string) => {
     try {
       await onAction(draftId, 'APPROVE');

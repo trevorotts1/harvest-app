@@ -703,6 +703,13 @@ model DraftMessage {
   approved_by           String?
   approved_at           DateTime?      @db.Timestamptz(6)
   edited_after_approval Boolean        @default(false)
+  // T-R16 (uiux AC-5.6-5): the rep's short justification, captured ONLY when approving a
+  // CFE-FLAGGED (non-PASS, non-HELD) draft — never set for a clean PASS approval, never set for a
+  // HELD/blocked draft (which cannot be approved from any UI path at all, §5.6-4). Additive,
+  // nullable; this is purely UX-completeness for the already-permitted flagged-approve path — the
+  // fail-closed CFE gate itself is untouched (ApprovalInboxService.approveDraft's PENDING-only
+  // check).
+  approval_justification String?
   // T-33 (§9.2/uiux §5.6): the Approval Inbox decline-reason selector ("not my voice / wrong
   // person / wrong time / other" + optional note) — feeds agent learning per the uiux spec.
   // Additive, nullable; both are only ever set on a decline.
