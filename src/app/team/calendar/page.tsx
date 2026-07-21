@@ -221,7 +221,7 @@ export default function TeamCalendarPage() {
         <span className="badge">{t('team.calendar.proposeCoachingBadge')}</span>
         <p>{t('team.calendar.proposeCoachingIntro')}</p>
         <button type="button" className="btn btn-primary" onClick={proposeCoachingSession}>{t('team.calendar.proposeCoachingCta')}</button>
-        {coachingMessage && <p style={{ color: 'var(--muted)' }}>{coachingMessage}</p>}
+        {coachingMessage && <p role="status" aria-live="polite" style={{ color: 'var(--muted)' }}>{coachingMessage}</p>}
       </section>
 
       <section className="card panel">
@@ -232,7 +232,7 @@ export default function TeamCalendarPage() {
           <input type="text" value={proposeContactId} onChange={(e) => setProposeContactId(e.target.value)} placeholder={t('team.calendar.contactIdPlaceholder')} />
         </label>
         <button type="button" className="btn btn-primary" onClick={proposeAppointment} style={{ marginLeft: 8 }}>{t('team.calendar.proposeClosingCta')}</button>
-        {appointmentMessage && <p style={{ color: 'var(--muted)' }}>{appointmentMessage}</p>}
+        {appointmentMessage && <p role="status" aria-live="polite" style={{ color: 'var(--muted)' }}>{appointmentMessage}</p>}
       </section>
     </div>
   );
