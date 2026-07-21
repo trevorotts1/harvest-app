@@ -154,7 +154,11 @@ export default function SecurityPage() {
               <span className={styles.statusDotOff} aria-hidden="true" />
               <span>{t('me.security.mfa.statusOff')}</span>
             </div>
-            {mfaError && <p className={`${styles.notice} ${styles.noticeFailed}`}>{mfaError}</p>}
+            {mfaError && (
+              <p className={`${styles.notice} ${styles.noticeFailed}`} role="alert">
+                {mfaError}
+              </p>
+            )}
             <button type="button" className={styles.actionBtn} onClick={() => void startEnroll()}>
               {t('me.security.mfa.startEnrollCta')}
             </button>
@@ -186,7 +190,11 @@ export default function SecurityPage() {
                 maxLength={6}
               />
             </div>
-            {mfaError && <p className={`${styles.notice} ${styles.noticeFailed}`}>{mfaError}</p>}
+            {mfaError && (
+              <p className={`${styles.notice} ${styles.noticeFailed}`} role="alert">
+                {mfaError}
+              </p>
+            )}
             <div className={styles.btnRow}>
               <button type="button" className={styles.actionBtn} onClick={() => void submitVerify()}>
                 {t('me.security.mfa.confirmCta')}

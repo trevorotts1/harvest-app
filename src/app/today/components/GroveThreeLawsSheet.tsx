@@ -12,6 +12,14 @@
 // surface, `aria-modal`, a labelled close control, Escape-to-close, and the close button receives
 // focus the instant the sheet opens (`useEffect` below) — never a click-only affordance. Tokens
 // only (T-05, §1) — no raw hex anywhere in this file or its CSS.
+//
+// T-57 RE-GATE-A follow-up: the original build above only moved focus IN on open; it never trapped
+// Tab/Shift+Tab inside the sheet (a keyboard user could Tab straight out to the page behind it) and
+// never returned focus to the Grove tap-target that opened it (focus was dropped to <body> on
+// close). Both completed below, mirroring RulesOfBuildingChips.tsx's `openedFromRef`/return-focus
+// pattern — captured here via `document.activeElement` at open-time (this component owns no ref to
+// the Grove `<button>` itself; Grove.tsx is outside this fix's file ownership) rather than requiring
+// the caller to pass one in.
 
 'use client';
 
@@ -19,6 +27,13 @@ import { useEffect, useRef } from 'react';
 
 import styles from '../today.module.css';
 import { useT } from '@/app/locale-context';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
 
 export interface GroveThreeLawsSheetProps {
   open: boolean;
@@ -28,13 +43,22 @@ export interface GroveThreeLawsSheetProps {
 
 export default function GroveThreeLawsSheet({ open, onClose, laws }: GroveThreeLawsSheetProps) {
   const t = useT();
+  const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   // Focus the close control the instant the sheet opens — a keyboard/SR user lands somewhere real,
   // never on whatever happened to have focus before the tap (the Grove hero button itself, which
-  // would otherwise leave a screen reader announcing nothing new).
+  // would otherwise leave a screen reader announcing nothing new) — and remember that trigger so
+  // focus can return to it once the sheet closes, rather than being dropped to <body>.
   useEffect(() => {
-    if (open) closeButtonRef.current?.focus();
+    if (open) {
+      triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      closeButtonRef.current?.focus();
+    } else if (triggerRef.current) {
+      triggerRef.current.focus();
+      triggerRef.current = null;
+    }
   }, [open]);
 
   if (!open) return null;
@@ -45,10 +69,30 @@ export default function GroveThreeLawsSheet({ open, onClose, laws }: GroveThreeL
       role="presentation"
       onClick={onClose}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape') {
+          onClose();
+          return;
+        }
+        // Tab-trap: cycle Tab/Shift+Tab within the sheet's own focusable controls only — a keyboard
+        // user must never be able to Tab straight out to the page behind this modal.
+        if (e.key !== 'Tab') return;
+        const container = panelRef.current;
+        if (!container) return;
+        const focusable = getFocusableElements(container);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }}
     >
       <div
+        ref={panelRef}
         className={styles.groveSheetPanel}
         role="dialog"
         aria-modal="true"

@@ -32,6 +32,20 @@ import {
 } from './composer-handoff-core';
 import styles from './ComposerHandoffSheet.module.css';
 
+// T-57 RE-GATE-A (WCAG 2.2 AA §17.4, uiux §6.1 item 2) — this sheet declares `role="dialog"`
+// `aria-modal="true"` (a real modal, on the P0 first-touch surface, 4 mount sites) but shipped with
+// NO Escape handler, NO focus trap, and NO focus management at all. Fixed below, mirroring the exact
+// pattern already used by GroveThreeLawsSheet.tsx / RulesOfBuildingChips.tsx: focus moves INTO the
+// dialog the instant it opens, Tab/Shift+Tab cycles ONLY within the dialog's own focusable controls
+// (never escaping to the page behind it), Escape closes it, and focus RETURNS to whatever triggered
+// it once it closes — never dropped to <body>.
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
+
 /** The sheet's internal render state. `ready` is the ONLY phase that holds sendable text/`smsUri`;
  *  it is reachable only by the fetch effect resolving a genuine READY response (or a test seed). */
 export interface ComposerSheetState {
@@ -77,6 +91,47 @@ export default function ComposerHandoffSheet({
   const [busy, setBusy] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Focus management (RE-GATE-A blocker fix). `dialogRef` scopes the Tab-trap query to exactly this
+  // dialog's own controls (recomputed live — the sheet's focusable set changes phase to phase:
+  // loading -> held -> ready -> awaitingConfirm -> confirmed all render different controls);
+  // `closeBtnRef` is where focus lands the instant the sheet opens; `triggerRef` remembers whatever
+  // had focus right before it opened (the entry point's own trigger — approve button, contact-now
+  // CTA, etc.) so focus can return there on close, mirroring GroveThreeLawsSheet/RulesOfBuildingChips.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      closeBtnRef.current?.focus();
+    } else if (triggerRef.current) {
+      triggerRef.current.focus();
+      triggerRef.current = null;
+    }
+  }, [open]);
+
+  const handleDialogKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const container = dialogRef.current;
+    if (!container) return;
+    const focusable = getFocusableElements(container);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, [onClose]);
 
   // Platform is detected post-mount (navigator is absent in SSR/tests) — by the time a `ready` state
   // exists (after the async clearance round-trip), the correct variant is already resolved.
@@ -188,8 +243,9 @@ export default function ComposerHandoffSheet({
   const clearedTime = state.cleared ? formatDateTime(locale, state.cleared.clearedAt) : '';
 
   return (
-    <div className={styles.backdrop} role="presentation" onClick={onClose}>
+    <div className={styles.backdrop} role="presentation" onClick={onClose} onKeyDown={handleDialogKeyDown}>
       <div
+        ref={dialogRef}
         className={styles.sheet}
         role="dialog"
         aria-modal="true"
@@ -201,7 +257,13 @@ export default function ComposerHandoffSheet({
             <p className={styles.title}>{t('composer.title')}</p>
             <p className={styles.subtitle}>{t('composer.contextLine', { name: contactName })}</p>
           </div>
-          <button type="button" className={styles.closeBtn} onClick={onClose} aria-label={t('composer.closeAria')}>
+          <button
+            ref={closeBtnRef}
+            type="button"
+            className={styles.closeBtn}
+            onClick={onClose}
+            aria-label={t('composer.closeAria')}
+          >
             <span aria-hidden="true">×</span>
           </button>
         </div>
