@@ -79,6 +79,52 @@ describe('scripts/guard-i18n.mjs — (A) copy-lint, both languages', () => {
     const result = runGuard(dir);
     expect(result.status).toBe(0);
   });
+
+  // T-R32b QC-reject regression: "lead" is word-boundary-matched (so "Regional Leader" doesn't
+  // false-positive) via /\bleads?\b/i, mirroring src/services/compliance/vocabulary.ts's
+  // FORBIDDEN_TERMS exactly. An earlier version built the regex generically from the bare term
+  // string (`\blead\b`), which silently DROPPED the plural "leads" — the single most common banned
+  // form in real MLM copy ("generate more leads", "buy a leads list"). These cases pin both
+  // directions: the plural must still FAIL, and the legitimate "Leader"/"leadership" words must
+  // still PASS.
+  test('the PLURAL "leads" is caught — must FAIL — even though "lead" is word-boundary-matched', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { cta: 'Generate more leads today' }, { cta: 'Hola' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    expect(result.stderr).toMatch(/"lead"/);
+  });
+
+  test('the plural "leads" inside a longer noun phrase ("sales leads list") is also caught — must FAIL', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { cta: 'Buy a sales leads list' }, { cta: 'Hola' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+  });
+
+  test('the singular "a lead" is caught — must FAIL', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { cta: 'This is a lead' }, { cta: 'Hola' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+  });
+
+  test('"Regional Leader" does NOT false-positive on "lead" — must PASS', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { title: 'Regional Leader' }, { title: 'Líder Regional' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(0);
+  });
+
+  test('"leadership team" does NOT false-positive on "lead" — must PASS', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { copy: 'Join the leadership team' }, { copy: 'Únete al equipo' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(0);
+  });
 });
 
 describe('scripts/guard-i18n.mjs — (B) layout growth-tolerance CSS scan', () => {
