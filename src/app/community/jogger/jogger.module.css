@@ -1,0 +1,139 @@
+/* T-57 R3c-1 (MAJOR-M3) — the Memory Jogger page. Consumes SEMANTIC tokens only (tokens.css
+   §1.2.2) — no raw hex, no opacity/translucent color on TEXT (guard-no-opacity-on-text.mjs scans
+   this file); no fixed pixel width on chip/button/banner selectors (guard:i18n growth-tolerance);
+   every string ships through the catalog (guard:no-literals-in-components). */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+}
+
+.shell {
+  width: min(640px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.title {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0;
+}
+
+.navLink {
+  color: var(--color-action);
+  text-decoration: none;
+  font-weight: 600;
+}
+.navLink:hover {
+  text-decoration: underline;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.badge {
+  display: inline-block;
+  width: fit-content;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  padding: 4px 12px;
+}
+
+.promptText {
+  font-family: var(--font-vision);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  margin: 0;
+}
+
+.formRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.textInput {
+  flex: 1;
+  min-width: 160px;
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: 0 var(--space-3);
+  font-size: var(--type-body-size);
+}
+.textInput:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.iconButton {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 var(--space-4);
+}
+.iconButton:disabled {
+  cursor: default;
+  color: var(--text-disabled);
+}
+.iconButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.errorText {
+  color: var(--color-danger-form-text, var(--color-blocked-fill));
+  margin: 0;
+}
+
+.successText {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

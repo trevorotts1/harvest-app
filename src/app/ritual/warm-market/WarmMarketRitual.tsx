@@ -38,6 +38,7 @@ import {
   NoteCorrection,
   PublicQueueItem,
   QualityCluster,
+  ReadinessTier,
 } from '@/types/harvest-method';
 
 import BlankCanvasLayer, { type BlankCanvasDraftEntry } from './components/BlankCanvasLayer';
@@ -90,6 +91,40 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+/** The exact `POST /api/agents/dispatch` body `handToAgent` sends for one contact. */
+export interface WarmMarketDispatchBody {
+  agentKey: 'warm_market_sub'; // AgentKey.WARM_MARKET_SUB (agent-runtime/runtime-model-map.ts)
+  contactId: string;
+  channel: 'SMS_HANDOFF';
+  trigger: 'ritual_hand_to_agent';
+  idempotencyKey: string;
+}
+
+/**
+ * T-57 R3c-1 (BLOCKER-E1 terminal-exit fix) — the pure decision `handToAgent` drives, extracted
+ * framework-free (no hooks, no fetch) so it is directly unit-testable in this repo's no-DOM Jest
+ * environment, same rationale/convention as this file's own sibling extraction
+ * (`applyOptimisticAction`/`OfflineActionQueue` in `../../shift/ShiftView.tsx`,
+ * `viewFromHandoffResponse` in `../../community/components/composer-handoff-core.ts`). Excluded /
+ * needs-jurisdiction contacts are never included (mirrors §8.2 "never actionable" — the exclusion
+ * list some contacts sit in for compliance reasons, not the CFE's own separate per-message gate,
+ * which still runs server-side on every draft this produces). Each entry's `idempotencyKey` is
+ * stable per contact (contact ids are globally unique UUIDs — no userId needed to disambiguate,
+ * `IdempotencyLog.key` is `@unique`, store.ts) so a re-tap can never double-dispatch the same
+ * contact.
+ */
+export function actionableForHandoff(queue: PublicQueueItem[]): WarmMarketDispatchBody[] {
+  return queue
+    .filter((item) => item.tier !== ReadinessTier.EXCLUDED && item.tier !== ReadinessTier.NEEDS_JURISDICTION)
+    .map((item) => ({
+      agentKey: 'warm_market_sub',
+      contactId: item.contactId,
+      channel: 'SMS_HANDOFF',
+      trigger: 'ritual_hand_to_agent',
+      idempotencyKey: `ritual_hand_to_agent:${item.contactId}`,
+    }));
+}
+
 export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps) {
   const t = useT();
   // OFFLINE (T-R11): hydrate any previously-saved Layer 1-2 draft up front — before the live
@@ -104,6 +139,12 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
   const [vaultCount, setVaultCount] = useState(initialView?.vaultCount ?? 0);
   const [vaultContacts, setVaultContacts] = useState<VaultContactSummary[]>(initialView?.vaultContacts ?? []);
   const [queue, setQueue] = useState<PublicQueueItem[]>(initialView?.queue ?? []);
+  // T-57 R3c-1 (BLOCKER-E1 terminal-exit fix): "Hand to my agent" used to be a pure no-op — the
+  // ritual's own final CTA did nothing at all, so the §8.3 action-queue fill it promises never
+  // actually happened. `'idle'` guards against a double-dispatch on a repeat tap (this component
+  // owns no prop it can pass to `RitualConfirmation` to disable its button — see `handToAgent`'s
+  // own doc comment below for why the guard lives here instead).
+  const [handoffStatus, setHandoffStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
 
   // OFFLINE (T-R11): connectivity + the persisted, replay-on-reconnect mutation queue for Layers
   // 1-2 (§5.4/§6.4, AC-5.4-7). `PersistentOfflineQueue` is constructed once (guarded so a re-render
@@ -459,6 +500,51 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
     }
   }
 
+  /**
+   * T-57 R3c-1 (BLOCKER-E1 terminal-exit fix) — "Hand to my agent" was a pure no-op (a comment
+   * claiming "no further write needed here ... already drives from the same engine"). That claim
+   * was FALSE for the surface §5.4/§8.3 actually mean by "the action queue begins filling":
+   * `queue` (this component's own state) is the RITUAL's read-only review list —
+   * `GET /api/harvest-method/prioritized-queue`, already fetched above — real top-match CARDS, but
+   * nothing has drafted any outreach for them yet. The WP04-facing action queue (the Approval
+   * Inbox / Today's Action Queue of AGENT-DRAFTED items, §8.3's actual referent) only fills once
+   * the `warm_market_sub` agent (`AgentKey.WARM_MARKET_SUB`, agent-runtime/runtime-model-map.ts) is
+   * DISPATCHED per contact — and nothing dispatches it automatically: the scheduled/cron pass
+   * (`scheduled-dispatch.ts`'s `PIPELINE_STAGE_TO_AGENT`) deliberately never maps to it, precisely
+   * because this ritual CTA is its real trigger. So this now calls the REAL, existing,
+   * session-gated dispatch route (`POST /api/agents/dispatch`, dispatch/route.ts) once per
+   * actionable contact — the same route + agent key an operator could already invoke by hand;
+   * nothing here is stubbed or newly invented server-side.
+   *
+   * Channel = `SMS_HANDOFF` (own-number first touch, uiux §5.7/§10.1): a warm-market introduction
+   * is the definitionally personal, own-relationship first touch, not a platform-number cadence
+   * send — matching `agent-runtime.ts`'s own `output.channel ?? 'SMS_HANDOFF'` default for exactly
+   * this shape of draft. Each draft still clears the CFE and needs the rep's own Approval Inbox
+   * OK before anything sends (the confirmation screen's own boundary line, unchanged): this call
+   * only gets the draft AS FAR AS that queue, never further.
+   *
+   * Excluded / needs-jurisdiction contacts are never dispatched (mirrors §8.2 "never actionable");
+   * `idempotencyKey` is a stable, per-contact key (contact ids are globally unique UUIDs — no
+   * userId needed to disambiguate) so a re-tap after a partial failure — or an accidental double
+   * click, since this component owns no prop to disable `RitualConfirmation`'s own button — can
+   * never double-dispatch the same contact (`IdempotencyLog.key` is `@unique`, store.ts).
+   */
+  async function handToAgent() {
+    if (handoffStatus !== 'idle') return;
+    const actionable = actionableForHandoff(queue);
+    if (actionable.length === 0) {
+      setHandoffStatus('done');
+      return;
+    }
+    setHandoffStatus('sending');
+    try {
+      await Promise.all(actionable.map((body) => postJson('/api/agents/dispatch', body)));
+      setHandoffStatus('done');
+    } catch {
+      setHandoffStatus('error');
+    }
+  }
+
   return (
     <div className={styles.shell}>
       <div className={styles.stage}>
@@ -528,15 +614,31 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
         )}
 
         {stage === 'COMPLETE' && (
-          <RitualConfirmation
-            queue={queue}
-            unmatchedHighlights={entries.filter((e) => !e.matched).map((e) => ({ name: e.typedName }))}
-            onAcknowledgeExcluded={acknowledgeExcluded}
-            onHandToAgent={() => {
-              /* §5.4: "Hand to my agent" begins the action-queue fill; the action-queue route
-                 (T-26-owned) already drives from the same engine, no further write needed here. */
-            }}
-          />
+          <>
+            <RitualConfirmation
+              queue={queue}
+              unmatchedHighlights={entries.filter((e) => !e.matched).map((e) => ({ name: e.typedName }))}
+              onAcknowledgeExcluded={acknowledgeExcluded}
+              onHandToAgent={handToAgent}
+            />
+            {/* Status for the real dispatch above — additive, never inside RitualConfirmation
+                (owned elsewhere; this component only wires props into it, §5.4). */}
+            {handoffStatus === 'sending' && (
+              <p className={styles.softGateText} role="status">
+                {t('ritual.warmMarketRitual.handoffSending')}
+              </p>
+            )}
+            {handoffStatus === 'done' && (
+              <p className={styles.softGateText} role="status">
+                {t('ritual.warmMarketRitual.handoffDone')}
+              </p>
+            )}
+            {handoffStatus === 'error' && (
+              <p className={styles.softGateText} role="alert">
+                {t('ritual.warmMarketRitual.handoffError')}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

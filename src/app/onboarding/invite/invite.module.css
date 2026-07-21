@@ -1,0 +1,67 @@
+/* T-57 R3c-1 (MAJOR-M7) — the invite pre-seed landing page. Semantic tokens only (tokens.css
+   §1.2.2) — no raw hex, no opacity/translucent color on text (guard-no-opacity-on-text.mjs), no
+   fixed pixel width on chip/button/banner selectors (guard:i18n growth-tolerance), every string
+   ships through the catalog (guard:no-literals-in-components). A plain, non-ritual surface (uiux
+   §1.1 "paper texture ... never on operational surfaces") — this is a transactional handoff
+   screen, not a ceremony. */
+
+.page {
+  min-height: 100vh;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shell {
+  width: min(480px, 100%);
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.eyebrow {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.title {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  margin: 0;
+}
+
+.primaryCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-5);
+  background: var(--color-action);
+  color: var(--on-action);
+  font-weight: 700;
+  text-decoration: none;
+  justify-self: center;
+}
+.primaryCta:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}

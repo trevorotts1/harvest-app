@@ -165,7 +165,9 @@
         "approve": "Aprobar",
         "review": "Revisar",
         "confirm": "Confirmar"
-      }
+      },
+      "tryRitualCta": "Prueba el ritual de Mercado Cálido",
+      "tryJoggerCta": "Prueba una idea del Recordatorio de Memoria"
     },
     "calendarStrip": {
       "badge": "Calendario del equipo",
@@ -379,7 +381,9 @@
       "listCta": "Lista",
       "emptyPrimericaBody": "Tu huerto apenas se plantó — la visión completa de 3 de ancho × 4 de profundidad está lista para tu primer miembro de equipo real.",
       "emptyExternalBody": "Tu red apenas está comenzando.",
-      "inviteFirstCta": "Invita al primero"
+      "inviteFirstCta": "Invita al primero",
+      "warmMarketRitualBody": "El ritual de Mercado Cálido es la forma más rápida de llenar esto con introducciones reales y listas.",
+      "warmMarketRitualCta": "Comenzar el ritual de Mercado Cálido"
     },
     "goalCard": {
       "potentialNotPromise": "Esto es potencial, no una promesa — depende de tu esfuerzo, consistencia y el mercado.",
@@ -458,7 +462,9 @@
         "locked": "Bloqueado"
       },
       "releasedStatus": "Liberado — estás completamente licenciado.",
-      "blockedStatusTemplate": "Bloqueado ({state}) — el contenido de seguros permanece retenido hasta que estés licenciado."
+      "blockedStatusTemplate": "Bloqueado ({state}) — el contenido de seguros permanece retenido hasta que estés licenciado.",
+      "warmMarketRitualBody": "¿Listo para tus primeros 20? El ritual de Mercado Cálido te guía paso a paso.",
+      "warmMarketRitualCta": "Comenzar el ritual de Mercado Cálido"
     },
     "orgSwitch": {
       "title": "Tipo de organización",
@@ -1107,7 +1113,10 @@
       "offlineBannerQueuedSuffix": " ({count} elemento{plural} en espera)",
       "offlineBannerLine2": " y se sincronizará, con una nueva revisión de cumplimiento, cuando vuelvas a estar en línea.",
       "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}...",
-      "loadingRitual": "Cargando tu ritual..."
+      "loadingRitual": "Cargando tu ritual...",
+      "handoffSending": "Entregando tus coincidencias a tu agente…",
+      "handoffDone": "Listo — tu agente está redactando las primeras introducciones. Revisa tu Bandeja de aprobación pronto.",
+      "handoffError": "No pudimos entregar esto a tu agente en este momento — no se perdió nada. Intenta de nuevo."
     }
   },
   "team": {
@@ -1327,5 +1336,68 @@
     "contactNowAria": "Contacta a {name} ahora: abre tu redactor de primer contacto",
     "resolving": "Preparando…",
     "noDraftReady": "Esta presentación aún no está lista para enviar: revisa tus Aprobaciones."
+  },
+  "agents": {
+    "budgetExhaustedReasoning": "Tus agentes llegan a su límite diario según tu intensidad actual — cambia tu intensidad cuando quieras en Mí → Intensidad."
+  },
+  "grove": {
+    "tapAria": "{caption}. Toca para ver los tres canales detrás de tu vergel.",
+    "sheet": {
+      "title": "Tus tres canales",
+      "grow": {
+        "caption": "Nacen nuevas ramas mientras tu equipo crece y tu proceso de introducciones se mantiene sano."
+      },
+      "engage": {
+        "caption": "Las hojas se llenan y se iluminan con tu propia participación y tus hábitos constantes."
+      },
+      "wealth": {
+        "caption": "Aparecen frutos cerca de tus logros recientes — clientes que se suman y eventos de la cosecha."
+      }
+    }
+  },
+  "invite": {
+    "loading": "Buscando tu invitación…",
+    "missingParamBody": "A este enlace le falta el código de invitación.",
+    "startFreshCta": "Comienza tu propia incorporación",
+    "notFoundBody": "No pudimos encontrar esta invitación. Puede que ya se haya usado.",
+    "expiredBody": "Esta invitación ha vencido.",
+    "rejectedBody": "Esta invitación fue rechazada.",
+    "failedBody": "No pudimos abrir esta invitación en este momento. Intenta de nuevo.",
+    "eyebrow": "Te han invitado",
+    "greetingNamed": "{name} te invitó a construir a su lado",
+    "greetingGeneric": "Te han invitado a construir junto a un patrocinador",
+    "alreadyAcceptedBody": "Ya aceptaste esta invitación — continúa donde lo dejaste.",
+    "pendingBody": "Continúa para configurar tu propia cuenta — tu patrocinador y tu organización ya están registrados.",
+    "continueCta": "Continuar"
+  },
+  "jogger": {
+    "title": "Recordatorio de Memoria",
+    "backToCommunity": "Volver a Comunidad",
+    "loading": "Preparando una idea…",
+    "loadFailed": "No pudimos cargar una idea. Intenta de nuevo.",
+    "retry": "Reintentar",
+    "notTriggeredBody": "Tu comunidad ya tiene {count} personas — el Recordatorio de Memoria está aquí cuando quieras agregar más.",
+    "unavailableBody": "No pudimos obtener una idea en este momento — no se perdió nada. Intenta de nuevo en un momento.",
+    "promptBadge": "Recordatorio de Memoria",
+    "nameInputLabel": "Su nombre",
+    "nameInputPlaceholder": "Nombre",
+    "addCta": "Agregar",
+    "captureAdded": "Agregado a tu Bóveda.",
+    "captureExisting": "Ya está en tu Bóveda — bien, lo recordaste.",
+    "captureFailed": "No pudimos guardar ese nombre. Intenta de nuevo.",
+    "nextCta": "Siguiente idea",
+    "doneCta": "Listo por ahora"
+  },
+  "receipts": {
+    "actionQueue": {
+      "title": "De qué se compone esto",
+      "minutesSuffix": "~{minutes} min",
+      "moreNotShown": "+{count} más no mostrados aquí"
+    },
+    "ratioCards": {
+      "toggleCta": "Ver los números detrás de esto",
+      "dataPointsLearning": "Aún aprendiendo — basado en {count} puntos de datos reales hasta ahora.",
+      "dataPointsReal": "Basado en {count} puntos de datos reales."
+    }
   }
 }

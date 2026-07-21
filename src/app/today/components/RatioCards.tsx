@@ -16,7 +16,15 @@ export interface RatioCardsProps {
   result: ZoneResult<RatiosZoneData>;
 }
 
-function RatioCard({ titleKey, ratio, t }: { titleKey: string; ratio: RatioTriple; t: (key: string) => string }) {
+function RatioCard({
+  titleKey,
+  ratio,
+  t,
+}: {
+  titleKey: string;
+  ratio: RatioTriple;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
   return (
     <div className={styles.ratioCard}>
       <div className={styles.zoneHeaderRow}>
@@ -28,6 +36,35 @@ function RatioCard({ titleKey, ratio, t }: { titleKey: string; ratio: RatioTripl
       </p>
       <p className={styles.ratioLabels}>{ratio.labels.join(' → ')}</p>
       <p className={styles.ratioExplainer}>{ratio.explainer}</p>
+      {/* T-57 R3c-1 (MAJOR-D4, uiux AC-4-10) — a real receipts expander: the plain-language
+          `explainer` above STAYS always-visible (unchanged — a mandatory TEETH test in
+          mission-control-ui.test.ts asserts it renders unconditionally); this ADDS the real,
+          already-computed breakdown (`a`/`b`/`c` against their own `labels`, plus the real
+          `dataPoints` count — both already on `RatioTriple`, never previously rendered anywhere)
+          behind a chevron, mirroring the AnchorHeader/BriefingCard receipts pattern. Native
+          `<details>/<summary>` — no new `useState` needed. */}
+      <details className={styles.receiptsDetails}>
+        <summary className={styles.zoneBadge}>
+          {t('receipts.ratioCards.toggleCta')}
+          <span aria-hidden="true" className={styles.receiptChevron}>
+            ›
+          </span>
+        </summary>
+        <div className={styles.receiptsPanel}>
+          <ul className={styles.receiptsList}>
+            {ratio.labels.map((label, i) => (
+              <li key={label}>
+                {label}: {[ratio.a, ratio.b, ratio.c][i]}
+              </li>
+            ))}
+          </ul>
+          <p className={styles.receiptsTitle}>
+            {ratio.learning
+              ? t('receipts.ratioCards.dataPointsLearning', { count: ratio.dataPoints })
+              : t('receipts.ratioCards.dataPointsReal', { count: ratio.dataPoints })}
+          </p>
+        </div>
+      </details>
     </div>
   );
 }

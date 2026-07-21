@@ -89,6 +89,24 @@ const HELD_NO_KEY_REASON =
   'Held: your agents are resting — the Claude connection is not configured. Nothing was lost.';
 const HELD_CFE_DOWN_REASON =
   'Held for review: your agents are paused while we double-check compliance — nothing was lost.';
+/**
+ * T-57 R3c-1 (MINOR-D5, master-spec §4.6): the RunGate's own machine `reason` for a budget-denied
+ * run is the bare string `'budget_exhausted'` (seams.ts) — before this fix, step 3 below rendered
+ * that raw token verbatim into the run's `reasoning_log` ("{Agent} deferred: budget_exhausted."),
+ * which is exactly the persisted string `services/mission-control/zones/briefing.ts`'s `receiptOf`
+ * surfaces UNCHANGED as a briefing receipt's `action` line (uiux AC-4-10) — so the rep's own
+ * receipts literally read the internal enum token. §4.6 specifies the honest, human sentence this
+ * constant now supplies, plus "an intensity-change affordance": the runtime has no UI of its own to
+ * render a real link from a persisted log line, so this names the real, reachable affordance in
+ * plain language (Me → Intensity, T-57 R3b) rather than fabricating a URL a rep can't tap from
+ * plain text. The catalog carries the same sentence (`agents.budgetExhaustedReasoning`, en/es) for
+ * any future locale-aware surface that wants to render this exact wording translated — this
+ * server-side reasoning_log stream has no locale threaded through it today (every other reason
+ * string in this file is the same plain, untranslated English), so it is not itself routed through
+ * `t()`; only the OTHER reason (`'kill_switch'`) still passes through raw, unchanged.
+ */
+const HELD_BUDGET_EXHAUSTED_REASON =
+  'your agents reach their daily limit at your current intensity — change your intensity anytime in Me → Intensity.';
 
 export interface AgentRuntimeDeps {
   /** Claude client. Default = AnthropicRuntimeClient (fails CLOSED with no key). Claude-only. */
@@ -185,9 +203,15 @@ export class AgentRuntime {
     const criticality = criticalityFor(spec.key);
     const gate = await this.runGate.check({ userId: input.userId, agentKey: spec.key, criticality, primaryTier: spec.primaryTier });
     if (!gate.allowed) {
-      const runId = await this.recordTerminalRun(spec, input, 'HELD', `${spec.displayName} deferred: ${gate.reason ?? 'budget/kill-switch'}.`);
+      // T-57 R3c-1 (MINOR-D5): humanize the ONE reason (`budget_exhausted`) §4.6 names explicitly;
+      // any other/unknown reason (e.g. `kill_switch`) keeps the prior raw-token rendering
+      // unchanged (same trailing-period shape as before this fix) — scoped to the documented
+      // defect, not a rewrite of every hold path.
+      const deferredReason =
+        gate.reason === 'budget_exhausted' ? HELD_BUDGET_EXHAUSTED_REASON : `${gate.reason ?? 'budget/kill-switch'}.`;
+      const runId = await this.recordTerminalRun(spec, input, 'HELD', `${spec.displayName} deferred: ${deferredReason}`);
       await this.store.markProcessed(input.idempotencyKey, IDEMPOTENCY_SOURCE);
-      return this.result(spec.key, 'deferred', runId, null, gate.reason ?? 'Deferred to the next budget window.', null);
+      return this.result(spec.key, 'deferred', runId, null, deferredReason, null);
     }
 
     // T-R27 (§4.5 concurrency hardening): step 3's gate may have placed an outstanding RESERVATION

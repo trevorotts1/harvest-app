@@ -50,7 +50,20 @@ export default withAuth(
     if (shouldRedirectToOnboarding(req.nextUrl.pathname, token?.onboardingStatus)) {
       const url = req.nextUrl.clone();
       url.pathname = ONBOARDING_RESUME_REDIRECT;
-      url.search = '';
+      // T-57 R3c-1 (MINOR-m1): this used to be `url.search = ''` unconditionally — wiping ANY
+      // query string the original request carried, including a `?step=` a caller may have already
+      // attached to a gated deep link (mirroring `/onboarding/resume?step=`'s own contract, see
+      // `onboarding/resume/page.tsx` + the API-layer `withOnboardingGate` 403 `redirectTo`, which
+      // DOES carry a real, DB-derived step). This Edge-runtime middleware has no Prisma access (see
+      // onboarding-gate-edge.ts's header) and the JWT carries no per-step claim today (only
+      // `onboardingStatus`) — so it cannot ITSELF derive the authoritative last-incomplete step the
+      // way the DB-backed API layer can. What it CAN do, and previously didn't, is stop discarding
+      // one that already exists on the inbound URL: PRESERVE a genuine `?step=` param from the
+      // request being redirected, and drop only the rest of the query string (never carry through
+      // unrelated params onto the onboarding surface). A request with no `step` param behaves
+      // exactly as before (falls back to the resume page's own first-screen default).
+      const step = req.nextUrl.searchParams.get('step');
+      url.search = step ? `?step=${encodeURIComponent(step)}` : '';
       return NextResponse.redirect(url);
     }
     return NextResponse.next();

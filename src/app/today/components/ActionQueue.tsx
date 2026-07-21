@@ -59,15 +59,55 @@ export default function ActionQueue({ result, onAction, queuedOfflineIds, locale
       <section className={styles.zoneCard} data-zone="action-queue">
         <span className={styles.zoneBadge}>{t(locale, 'today.actionQueue.badgeZeroMinutes')}</span>
         <p className={styles.narrativeLine}>{t(locale, 'today.actionQueue.emptyNarrative')}</p>
+        {/* T-57 R3c-1 (BLOCKER-E1, uiux §5.4 "Entry ... from a Today queue suggestion"; §8.3 "the
+            queue populates once the 3 ritual layers complete") — a plain navigation link, same
+            convention as the "Review in Approval Inbox" link below (not gated on any new zone
+            data this component doesn't already have; an empty queue is the single most common
+            reason to nudge toward the ritual that fills it). */}
+        <a href="/ritual/warm-market" className={styles.queueReviewLink}>
+          {t(locale, 'today.actionQueue.tryRitualCta')}
+        </a>
+        {/* MAJOR-M3 (master-spec §7.4 "a swipeable 2-minute 'gardening' mini-flow the Today queue
+            can suggest on light days") — the Memory Jogger's own spec-named suggestion surface. */}
+        <a href="/community/jogger" className={styles.queueReviewLink}>
+          {t(locale, 'today.actionQueue.tryJoggerCta')}
+        </a>
       </section>
     );
   }
 
   return (
     <section className={styles.zoneCard} data-zone="action-queue">
-      <div className={styles.zoneHeaderRow}>
-        <span className={styles.zoneBadge}>{t(locale, 'today.actionQueue.badgeWithMinutes', { minutes: totalMinutes })}</span>
-      </div>
+      {/* T-57 R3c-1 (MAJOR-D4, uiux AC-4-10/AC-5.2-3) — a real receipts expander over the minute
+          total, reusing the AnchorHeader/BriefingCard chevron+receipts pattern (§4.1) but as a
+          native `<details>/<summary>` disclosure: no `useState` needed (this component is also
+          called as a PLAIN FUNCTION by this file's own INTERACTION tests — see the `locale` prop's
+          doc comment above — where a hook would crash), and `<details>` is keyboard/SR-operable by
+          the browser's own built-in semantics with zero extra wiring. The badge's exact visible
+          text is unchanged (still inside `<summary>`) — only a real per-item breakdown is newly
+          reachable underneath it. */}
+      <details className={styles.receiptsDetails}>
+        <summary className={styles.zoneBadge}>
+          {t(locale, 'today.actionQueue.badgeWithMinutes', { minutes: totalMinutes })}
+          <span aria-hidden="true" className={styles.receiptChevron}>
+            ›
+          </span>
+        </summary>
+        <div className={styles.receiptsPanel}>
+          <p className={styles.receiptsTitle}>{t(locale, 'receipts.actionQueue.title')}</p>
+          <ul className={styles.receiptsList}>
+            {items.map((item) => (
+              <li key={item.id}>
+                {item.title}
+                {item.contactLabel ? ` · ${item.contactLabel}` : ''} · {t(locale, 'receipts.actionQueue.minutesSuffix', { minutes: item.minutes })}
+              </li>
+            ))}
+          </ul>
+          {totalCount > items.length && (
+            <p className={styles.receiptsTitle}>{t(locale, 'receipts.actionQueue.moreNotShown', { count: totalCount - items.length })}</p>
+          )}
+        </div>
+      </details>
       <ul className={styles.queueList}>
         {items.map((item) => (
           <li key={item.id} className={styles.queueRow}>

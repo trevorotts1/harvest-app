@@ -600,3 +600,140 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ==========================================================================
+   T-57 R3c-1 (MAJOR-A3) — the Grove becomes tappable; a real <button> wraps the
+   previously-inert svg+caption. `gap: inherit` deliberately reuses whichever gap
+   (--space-2 hero / --space-1 compact) the OUTER .groveHero/.groveCompact grid
+   already declares, so wrapping in a button changes no prior spacing.
+   ========================================================================== */
+.groveTapTarget {
+  display: grid;
+  justify-items: center;
+  gap: inherit;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.groveTapTarget:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 4px;
+  border-radius: var(--radius-control);
+}
+
+/* ── The Grove Three Laws sheet (uiux §6.1 item 5 / §3.1) ── */
+.groveSheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(34, 43, 34, 0.5);
+  padding: var(--space-3);
+}
+@media (min-width: 860px) {
+  .groveSheetBackdrop {
+    align-items: center;
+  }
+}
+.groveSheetPanel {
+  width: 100%;
+  max-width: 30rem;
+  background: var(--surface-1-solid-fallback);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-3);
+  padding: var(--space-5);
+  margin-bottom: env(safe-area-inset-bottom, 0);
+  display: grid;
+  gap: var(--space-4);
+}
+.groveSheetHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.groveSheetTitle {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  color: var(--text-primary);
+  margin: 0;
+}
+.groveSheetCloseBtn {
+  min-height: var(--touch-target-min);
+  min-width: var(--touch-target-min);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--type-title-size);
+  cursor: pointer;
+}
+.groveSheetCloseBtn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.groveSheetList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.groveSheetRow {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.groveSheetRow:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.groveSheetRowHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.groveSheetChannel {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.groveSheetValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.groveSheetCaption {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  margin: var(--space-1) 0 0;
+}
+
+/* ==========================================================================
+   T-57 R3c-1 (MAJOR-D4) — the receipts expander, reused by ActionQueue.tsx and
+   RatioCards.tsx. Native <details>/<summary>: keyboard/SR-operable with zero JS.
+   ========================================================================== */
+.receiptsDetails {
+  margin: 0;
+}
+.receiptsDetails > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.receiptsDetails > summary::-webkit-details-marker {
+  display: none;
+}
+.receiptsDetails > summary:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.receiptsDetails[open] > summary .receiptChevron {
+  transform: rotate(90deg);
+}
