@@ -136,27 +136,33 @@ export default function TeamDashboardPage() {
             </select>
           </label>
         </div>
-        <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse' }}>
-          <caption className="visually-hidden">{t('team.dashboard.rosterCaption')}</caption>
-          <thead>
-            <tr>
-              <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.rep')}</th>
-              <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.pace')}</th>
-              <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.momentum')}</th>
-              <th scope="col" style={{ textAlign: 'left' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.roster.map((row) => (
-              <tr key={row.userId} style={{ borderTop: '1px solid var(--line)' }}>
-                <th scope="row" style={{ textAlign: 'left', fontWeight: 600, padding: '10px 0' }}>{row.name}</th>
-                <td>{PACE_GLYPH[row.paceIcon]} {row.paceLabel}</td>
-                <td>{row.momentumBand === 'no_data' ? t('team.dashboard.noDataMomentum') : row.momentumBand}</td>
-                <td><Link href={`/team/rep/${row.userId}`}>{t('team.dashboard.viewCta')}</Link></td>
+        {/* T-57 R1c (C3) — below the 860px nav breakpoint the bare table overflows the viewport
+            (globals.css table{min-width:560px}, no wrapper); `.table-wrap` (globals.css, already
+            used at dashboard/contact-upload-demo.tsx:144) contains the horizontal scroll to this
+            card instead of the page, at every width — no media query needed. */}
+        <div className="table-wrap">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <caption className="visually-hidden">{t('team.dashboard.rosterCaption')}</caption>
+            <thead>
+              <tr>
+                <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.rep')}</th>
+                <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.pace')}</th>
+                <th scope="col" style={{ textAlign: 'left' }}>{t('team.dashboard.tableHeader.momentum')}</th>
+                <th scope="col" style={{ textAlign: 'left' }}></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.roster.map((row) => (
+                <tr key={row.userId} style={{ borderTop: '1px solid var(--line)' }}>
+                  <th scope="row" style={{ textAlign: 'left', fontWeight: 600, padding: '10px 0' }}>{row.name}</th>
+                  <td>{PACE_GLYPH[row.paceIcon]} {row.paceLabel}</td>
+                  <td>{row.momentumBand === 'no_data' ? t('team.dashboard.noDataMomentum') : row.momentumBand}</td>
+                  <td><Link href={`/team/rep/${row.userId}`}>{t('team.dashboard.viewCta')}</Link></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {data.downlineLeak.length > 0 && (

@@ -59,38 +59,44 @@ export default function TreeListView({ branch, nodes, ghosts }: TreeListViewProp
   const rows = flatten(nodes, t);
 
   return (
-    <table className={styles.listTable} aria-label={t(branch === 'primerica' ? 'grow.treeList.ariaLabelPrimerica' : 'grow.treeList.ariaLabelUniversal')}>
-      <thead>
-        <tr>
-          <th scope="col">{t('grow.treeList.nameHeader')}</th>
-          <th scope="col">{t('grow.treeList.levelHeader')}</th>
-          <th scope="col">{t('grow.treeList.rankHeader')}</th>
-          <th scope="col">{t('grow.treeList.healthHeader')}</th>
-          <th scope="col">{t('grow.rulesOfBuilding.title')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 && (
+    // T-57 R1c (C4) — `.listTable` has no min-width/overflow handling of its own; below the 860px
+    // nav breakpoint (or any narrow viewport) 5 columns of real content can force page-level
+    // horizontal scroll. `.listTableWrap` contains that scroll to this card instead, mirroring the
+    // overflow-x:auto pattern at community.module.css:351-355 (`.previewTableWrap`).
+    <div className={styles.listTableWrap}>
+      <table className={styles.listTable} aria-label={t(branch === 'primerica' ? 'grow.treeList.ariaLabelPrimerica' : 'grow.treeList.ariaLabelUniversal')}>
+        <thead>
           <tr>
-            <td colSpan={5}>{t('grow.treeList.emptyState')}</td>
+            <th scope="col">{t('grow.treeList.nameHeader')}</th>
+            <th scope="col">{t('grow.treeList.levelHeader')}</th>
+            <th scope="col">{t('grow.treeList.rankHeader')}</th>
+            <th scope="col">{t('grow.treeList.healthHeader')}</th>
+            <th scope="col">{t('grow.rulesOfBuilding.title')}</th>
           </tr>
-        )}
-        {rows.map((r) => (
-          <tr key={r.id}>
-            <td>{r.displayName}</td>
-            <td>{r.level}</td>
-            <td>{r.rank ?? '—'}</td>
-            <td>{r.healthLabel}</td>
-            <td>{r.robLabel}</td>
-          </tr>
-        ))}
-        {branch === 'primerica' &&
-          ghosts.map((g) => (
-            <tr key={`ghost-${g.position}`} className={styles.ghostRow}>
-              <td colSpan={5}>{t('grow.openPositionTemplate', { level: g.level })}</td>
+        </thead>
+        <tbody>
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={5}>{t('grow.treeList.emptyState')}</td>
+            </tr>
+          )}
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>{r.displayName}</td>
+              <td>{r.level}</td>
+              <td>{r.rank ?? '—'}</td>
+              <td>{r.healthLabel}</td>
+              <td>{r.robLabel}</td>
             </tr>
           ))}
-      </tbody>
-    </table>
+          {branch === 'primerica' &&
+            ghosts.map((g) => (
+              <tr key={`ghost-${g.position}`} className={styles.ghostRow}>
+                <td colSpan={5}>{t('grow.openPositionTemplate', { level: g.level })}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -196,6 +196,13 @@
 }
 
 /* ── List view (the a11y surface, uiux AC-5.5-8) ── */
+/* T-57 R1c (C4) — scroll container so a narrow viewport's horizontal overflow stays contained to
+   this card instead of the page (pattern: community.module.css:351-355 .previewTableWrap). */
+.listTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
 .listTable {
   width: 100%;
   border-collapse: collapse;
@@ -205,6 +212,7 @@
   text-align: left;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
+  white-space: nowrap;
 }
 .ghostRow {
   color: var(--text-secondary);
