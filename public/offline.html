@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Harvest — Offline</title>
+    <!--
+      T-58a — the offline app-shell fallback page (public/sw.js's navigate handler serves this
+      when a page load fails with zero network signal). Deliberately a plain, static, standalone
+      HTML file — NOT a Next.js route/component — so it can be precached by the service worker at
+      install time and still render if the app's own JS bundle can't be fetched at all (the true
+      worst case this file exists for). For that reason its two lines of copy are hand-written
+      here (EN + ES) rather than routed through the live i18n catalog (src/lib/i18n/messages/
+      en.json / es.json): that catalog is fetched/loaded by the app's JS, which is exactly what
+      may be unavailable when this file is what's showing. This does not touch or duplicate any
+      catalog string — it is intentionally its own minimal, load-bearing-only-when-truly-offline
+      copy, matching the "Offline" degraded-state grammar (uiux spec §6.7) in spirit: what
+      happened / what's safe / what happens next.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f7f3ea;
+        color: #152019;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+          sans-serif;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #13251d;
+          color: #f7f3ea;
+        }
+      }
+      .card {
+        max-width: 420px;
+        padding: 32px;
+        text-align: center;
+      }
+      .mark {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 20px;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-weight: 800;
+        font-size: 1.4rem;
+        background: linear-gradient(135deg, #2f6b4f, #c8852c);
+      }
+      h1 {
+        font-size: 1.15rem;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0 0 4px;
+        line-height: 1.5;
+        opacity: 0.85;
+      }
+      button {
+        margin-top: 20px;
+        padding: 10px 20px;
+        border-radius: 999px;
+        border: none;
+        background: #2f6b4f;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark" aria-hidden="true">H</div>
+      <h1>Offline — showing your saved field.</h1>
+      <p>Anything you approve will sync and re-check when you're back.</p>
+      <p lang="es">Sin conexión — mostrando tu campo guardado. Lo que apruebes se sincronizará y se
+        volverá a verificar cuando vuelvas a estar en línea.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </div>
+  </body>
+</html>

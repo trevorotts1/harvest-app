@@ -107,6 +107,17 @@ other pipeline invoking `npm run build` (or `vercel deploy`, which runs it) also
 `docs/CI.md` for the full CI/CD picture, including the deferred Vercel deploy workflow. Run the
 guard standalone with `npm run verify:middleware` (after a build) to check without rebuilding.
 
+## PWA / Mobile Shell (T-58a)
+
+Added: a web app manifest (`src/app/manifest.ts`), favicon/apple-touch-icon (`src/app/icon.svg`,
+`src/app/apple-icon.png`), placeholder PWA icons (`public/icons/`), an offline app-shell service
+worker scoped to static-shell-only caching (`public/sw.js` — never intercepts `/api/*`, `/auth`,
+or `/_next/`), an offline fallback page (`public/offline.html`), a `vercel.json` (headers only; no
+`crons` — Inngest owns all scheduling, see `src/app/api/inngest/route.ts`), and a Capacitor config
+(`capacitor.config.ts` — config only, no native platforms added, no native toolchain in this build
+environment). Full detail, the icon-placeholder flag, and the native-platform-add steps for an
+operator: `docs/mobile-shell.md`.
+
 ## Safety Notes
 
 - Demo APIs are explicit fallback/demo routes.
