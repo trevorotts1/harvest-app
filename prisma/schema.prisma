@@ -334,6 +334,14 @@ model Contact {
   import_batch_id          String?
   do_not_contact           Boolean              @default(false)
   agents_paused            Boolean              @default(false)
+  // T-57 R3c-2 (master-spec §9.4 "hand a thread to manual mode" — the third per-contact agent
+  // control alongside agents_paused/do_not_contact above; findings m4). Additive, defaults false so
+  // every existing row/rep is unaffected. Distinct from `agents_paused`: pausing halts an agent run
+  // outright (no drafts at all), while manual mode is the rep saying "I've got this relationship
+  // myself" — agents still see the thread but stop drafting outbound content for it, deferring to
+  // the rep's own hand. Read by the SAME `ContactControlsService`/`/api/contacts/controls` write
+  // path as the other two flags (independently settable, never implied by either of them).
+  manual_mode              Boolean              @default(false)
   household_id             String? // nullable; household intelligence (blueprint #17)
   is_minor_flag            Boolean              @default(false)
   // T-29R (WP03 §8.2 "Excluded: state-unlicensed" tier / §8.1 eligibility): the contact's own

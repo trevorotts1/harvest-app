@@ -15,6 +15,13 @@
 //
 // Reachable from the Community list: `../components/ContactCard.tsx` links here
 // (`/community/${id}`) from every rendered card.
+//
+// T-57 R3c-2 (findings M5) — `load()` now RETURNS the freshly-fetched contact (previously `void`),
+// so the one-tap STOP/opt-out action mounted below can ask this page to re-fetch the canonical
+// record and report back the FRESH `doNotContact` value for its own fail-closed confirmation,
+// without a second, duplicate read implementation. Every existing caller of `load` (the mount
+// effect, `ComposerHandoffSheet`'s `onConfirmed`) keeps compiling unchanged — a function returning
+// a value remains assignable wherever a `() => void`-shaped callback was expected.
 
 'use client';
 
@@ -55,7 +62,7 @@ export default function ContactConversationPage({ params }: PageProps) {
   const [resolvingFirstTouch, setResolvingFirstTouch] = useState(false);
   const [noFirstTouchDraft, setNoFirstTouchDraft] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<ConversationContact | null> => {
     setLoading(true);
     setError(null);
     setNotFound(false);
@@ -65,21 +72,34 @@ export default function ContactConversationPage({ params }: PageProps) {
         setNotFound(true);
         setContact(null);
         setEntries([]);
-        return;
+        return null;
       }
       if (!res.ok) {
         setError(t('community.conversation.loadFailedGeneric'));
-        return;
+        return null;
       }
       const body = await res.json();
       setContact(body.contact);
       setEntries((body.entries ?? []) as TimelineEntry[]);
+      return (body.contact ?? null) as ConversationContact | null;
     } catch {
       setError(t('community.conversation.loadFailedGeneric'));
+      return null;
     } finally {
       setLoading(false);
     }
   }, [contactId, t]);
+
+  // T-57 R3c-2 (M5) — the fail-closed confirmation step `ConversationTimeline`'s one-tap STOP action
+  // calls after its own two writes (`POST /api/compliance/opt-out` + `PATCH /api/contacts/controls`)
+  // both succeed. Re-fetching through the SAME `load()` this page already uses for its initial read
+  // means the confirmation is a genuine, fresh, server-authoritative read — never a client-side
+  // assumption — and it also keeps this page's own `contact`/`entries` state in sync (the header's
+  // do-not-contact chip and the rep-actions region both react immediately).
+  const confirmOptOut = useCallback(async (): Promise<boolean> => {
+    const fresh = await load();
+    return Boolean(fresh?.doNotContact);
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -132,7 +152,12 @@ export default function ContactConversationPage({ params }: PageProps) {
                 {contact.agentsPaused && <span className={styles.identityChip}>{t('community.conversation.agentsPausedChip')}</span>}
               </div>
             </div>
-            <ConversationTimeline entries={entries} />
+            <ConversationTimeline
+              entries={entries}
+              contactId={contact.id}
+              doNotContact={contact.doNotContact}
+              onOptOutConfirm={confirmOptOut}
+            />
 
             {/* T-40R (uiux §5.7) — the rep-facing WRITE affordances that route through the gated
                 messaging surfaces: start a sequence (§10.2), the objection coach (§10.7, only you see

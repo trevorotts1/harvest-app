@@ -1,8 +1,12 @@
 // T-33 — PATCH /api/contacts/controls: per-contact agent controls (master-spec §9.4; uiux §5.7
-// "Pause agents for {name}" / "Do not contact"), each taking effect immediately (§9.9-5) — the very
-// next `agent-runtime.ts` run for this contact reads the SAME `Contact.agents_paused`/
-// `do_not_contact` columns this route writes. Session-gated (withOnboardingGate, never x-user-id);
-// ownership is checked inside `ContactControlsService.setControls` before any write.
+// "Pause agents for {name}" / "Do not contact" / "Hand to me"), each taking effect immediately
+// (§9.9-5) — the very next `agent-runtime.ts` run for this contact reads the SAME
+// `Contact.agents_paused`/`do_not_contact` columns this route writes. Session-gated
+// (withOnboardingGate, never x-user-id); ownership is checked inside
+// `ContactControlsService.setControls` before any write.
+//
+// T-57 R3c-2 (findings m4) — adds `manualMode` as a third, independently-settable control (see
+// `ContactControlsService`'s header for the full rationale + the `agent-runtime.ts` follow-up note).
 //
 // Lazy: the service is constructed per-request, inside the handler, not at module scope — same
 // build-safety convention as every sibling route (contacts/flags, harvest-method/action-complete).
@@ -19,6 +23,7 @@ interface SetControlsBody {
   contactId?: string;
   agentsPaused?: boolean;
   doNotContact?: boolean;
+  manualMode?: boolean;
 }
 
 export const PATCH = withOnboardingGate(async (req, _ctx, _session, identity) => {
@@ -38,11 +43,15 @@ export const PATCH = withOnboardingGate(async (req, _ctx, _session, identity) =>
   if (body.doNotContact !== undefined && typeof body.doNotContact !== 'boolean') {
     return NextResponse.json({ error: '"doNotContact" must be a boolean.' }, { status: 400 });
   }
+  if (body.manualMode !== undefined && typeof body.manualMode !== 'boolean') {
+    return NextResponse.json({ error: '"manualMode" must be a boolean.' }, { status: 400 });
+  }
 
   const service = new ContactControlsService(prisma as unknown as ContactControlsPrismaClient);
   const result = await service.setControls(identity.userId, body.contactId, {
     agentsPaused: body.agentsPaused,
     doNotContact: body.doNotContact,
+    manualMode: body.manualMode,
   });
 
   if (!result.ok) {
@@ -50,7 +59,7 @@ export const PATCH = withOnboardingGate(async (req, _ctx, _session, identity) =>
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
     return NextResponse.json(
-      { error: 'At least one of "agentsPaused"/"doNotContact" must be provided.' },
+      { error: 'At least one of "agentsPaused"/"doNotContact"/"manualMode" must be provided.' },
       { status: 400 }
     );
   }

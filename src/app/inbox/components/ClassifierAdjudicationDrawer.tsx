@@ -8,11 +8,19 @@
 // CFE data (recommendation props absent). On the upline's compliance-review surface it additionally
 // shows the ADVISORY Sonnet-5 / Opus-4.8 recommended action + suggested rewrite (AC-2/AC-7) — always
 // labelled "Recommendation (advisory)" so it can never be mistaken for a decision.
+//
+// T-57 R3c-2 (findings A4) — reuses `CfeExplainer.tsx`'s `plainLanguageSentence` to ALSO surface the
+// one-sentence plain-English restatement at the top of this drawer's body, when a caller supplies
+// `cfeOutcome` (optional — every existing caller that omits it keeps compiling and renders exactly
+// as before, no plain-language line). This is a bonus consistency touch, not the primary reachability
+// fix for AC-6-2: the primary fix (reachable directly from the chip/banner, not buried behind this
+// already-collapsed `<details>`) lives in ApprovalInboxItem.tsx's own two new `CfeExplainer` mounts.
 
 'use client';
 
 import styles from '../inbox.module.css';
 import { useT } from '@/app/locale-context';
+import { plainLanguageSentence, type CfeExplainerOutcome } from './CfeExplainer';
 
 interface ClassifierResultLike {
   classifier: string;
@@ -31,6 +39,10 @@ export interface ClassifierAdjudicationDrawerProps {
   recommendationModel?: string | null;
   /** 'classifier_conflict' | 'novel_pattern' — why Opus was escalated to (AC-7). */
   escalationReason?: string | null;
+  /** T-57 R3c-2 (findings A4) — optional; when supplied, the drawer's body opens with the same
+   *  plain-English restatement `CfeExplainer` shows at the chip/banner (consistency, not the
+   *  primary fix — see this file's header note). */
+  cfeOutcome?: CfeExplainerOutcome;
 }
 
 const CLASSIFIER_LABELS: Record<string, string> = {
@@ -72,6 +84,7 @@ export default function ClassifierAdjudicationDrawer({
   suggestedRewrite,
   recommendationModel,
   escalationReason,
+  cfeOutcome,
 }: ClassifierAdjudicationDrawerProps) {
   const t = useT();
   const results = coerce(classifierData)
@@ -85,6 +98,11 @@ export default function ClassifierAdjudicationDrawer({
       </summary>
 
       <div className={styles.adjudicationBody}>
+        {cfeOutcome !== undefined && (
+          <p className={styles.cfeExplainerPanel} role="status">
+            {plainLanguageSentence(cfeOutcome, classifierData, t)}
+          </p>
+        )}
         <p className={styles.adjudicationHeading}>{t('inbox.adjudication.classifierSignals')}</p>
         {results.length === 0 ? (
           <p className={styles.itemMeta}>{t('inbox.adjudication.noSignal')}</p>

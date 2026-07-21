@@ -257,6 +257,61 @@
   letter-spacing: 0.04em;
 }
 
+/* ---- T-57 R3c-2 (M5, master-spec §10.8/§18.8, TCPA) — the one-tap STOP/opt-out action. Solid
+   tokens only (no raw hex, no opacity-on-text — this file's own community raw-hex sweep + the
+   no-opacity guard both scan it). `.optOutActionButton` sizes to the 44px touch-target floor
+   directly (a genuinely NEW interactive element). ---- */
+.optOutAction {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--color-blocked-fill);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.optOutActionNote {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+.optOutActionButton {
+  align-self: flex-start;
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--color-blocked-fill);
+  border-radius: var(--radius-pill);
+  background: var(--color-blocked-fill);
+  color: var(--on-blocked);
+  padding: var(--space-1) var(--space-4);
+  font-weight: 700;
+  cursor: pointer;
+}
+.optOutActionButton:disabled {
+  cursor: default;
+}
+.optOutActionButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.optOutActionError {
+  margin: 0;
+  color: var(--color-danger-form-text);
+  background: var(--color-danger-form-bg);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+}
+.optOutActionConfirmed {
+  margin: 0;
+  color: var(--color-growth);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+}
+
 /* ---- System entries ---- */
 /* The opt-out do-not-contact rule — full-width, blocked semantics (§4.7 / §18.8). */
 .optOutRule {

@@ -172,6 +172,46 @@
   color: var(--text-secondary);
 }
 
+/* ---- T-57 R3c-2 (A4, uiux AC-6-2) — the plain-language "What does this mean?" CFE explainer.
+   `.cfeChipCluster` keeps the chip + its explainer trigger as ONE flex child of `.itemHeader`
+   (which is itself `justify-content: space-between`), so adding this control never disturbs that
+   existing two-child layout. Native <details>/<summary> (CfeExplainer.tsx) — same accessible
+   disclosure pattern as `.adjudicationDrawer` below, and its content is always present in
+   server-rendered markup (only visually collapsed), which is what makes it directly testable. */
+.cfeChipCluster {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.cfeExplainer {
+  display: inline-flex;
+}
+.cfeExplainerTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--color-action);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  cursor: pointer;
+}
+.cfeExplainerTrigger:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.cfeExplainerPanel {
+  margin: var(--space-1) 0 0;
+  color: var(--text-primary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
 .itemBody {
   margin: 0;
   white-space: pre-wrap;
@@ -190,6 +230,16 @@
   padding: var(--space-2) var(--space-3);
   font-size: var(--type-caption-size);
   font-weight: 700;
+  /* T-57 R3c-2 (A4) — now a small flex column so the held-banner TEXT (still the sole
+     `role="alert"` element — assertive is reserved for compliance holds, uiux §6.1) and the
+     plain-language explainer trigger beneath it can sit together without disturbing the original
+     background/padding/color treatment every existing consumer already expects. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.heldBannerText {
+  margin: 0;
 }
 
 /* ---- Offline / queued (T-54, master-spec §17.6; uiux §4.3/§6.4) — soil-toned, informational,
@@ -361,6 +411,30 @@
 .controlConfirm {
   font-size: var(--type-caption-size);
   color: var(--color-growth);
+}
+/* T-57 R3c-2 (findings m4) — the THIRD control, "hand to manual mode" (§9.4). A genuinely NEW
+   interactive element (unlike `.controlToggle` above, which is pre-existing/grandfathered debt —
+   see scripts/TOUCH_TARGET_BASELINE.json's own header note), so it meets the 44px touch-target
+   floor directly rather than joining that baseline. Positive/neutral action semantics
+   (--color-action, matching this file's other primary affordances) — manual mode is a deliberate
+   rep choice, not a caution or danger state like pause/do-not-contact above. */
+.controlToggleManual {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-caption-size);
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+}
+.controlToggleManualOn {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
 }
 
 /* ---- T-09 (§5.5 AC-1) ClassifierAdjudicationDrawer — layout + solid tokens only (no opacity, no

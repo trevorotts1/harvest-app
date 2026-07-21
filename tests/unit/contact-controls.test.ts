@@ -1,7 +1,12 @@
 // T-33 — per-contact agent controls (master-spec §9.4; uiux §5.7 "Pause agents for {name}" / "Do
-// not contact"). Mirrors tests/unit/contact-flags.test.ts's exact two-layer convention: (c)
-// service-level independence proof against an in-memory fake Prisma, (d) route-level session-gated
-// + ownership-checked + forged-header-inert proof against the REAL PATCH handler.
+// not contact" / "Hand to me"). Mirrors tests/unit/contact-flags.test.ts's exact two-layer
+// convention: (c) service-level independence proof against an in-memory fake Prisma, (d)
+// route-level session-gated + ownership-checked + forged-header-inert proof against the REAL PATCH
+// handler.
+//
+// T-57 R3c-2 (findings m4) extends both layers to prove the third control, `manualMode` /
+// `manual_mode`, is independently settable exactly like the original two (never implied by, and
+// never clearing, `agentsPaused`/`doNotContact`).
 
 import { OnboardingStatus, Role } from '@prisma/client';
 import { NextRequest } from 'next/server';
@@ -37,40 +42,65 @@ function createFakeContactControlsPrisma(rows: ContactControlsRow[]): {
 }
 
 describe('ContactControlsService.setControls — §9.4, independent toggles', () => {
-  test('setting agentsPaused alone never touches do_not_contact — structurally absent from the write', async () => {
-    const rows: ContactControlsRow[] = [{ id: 'c-1', user_id: 'u-1', agents_paused: false, do_not_contact: false }];
+  test('setting agentsPaused alone never touches do_not_contact/manual_mode — structurally absent from the write', async () => {
+    const rows: ContactControlsRow[] = [
+      { id: 'c-1', user_id: 'u-1', agents_paused: false, do_not_contact: false, manual_mode: false },
+    ];
     const { client, updateCalls } = createFakeContactControlsPrisma(rows);
     const service = new ContactControlsService(client);
 
     const result = await service.setControls('u-1', 'c-1', { agentsPaused: true });
-    expect(result).toEqual({ ok: true, contactId: 'c-1', agentsPaused: true, doNotContact: false });
+    expect(result).toEqual({ ok: true, contactId: 'c-1', agentsPaused: true, doNotContact: false, manualMode: false });
     expect(updateCalls[0].data).toEqual({ agents_paused: true });
     expect('do_not_contact' in updateCalls[0].data).toBe(false);
+    expect('manual_mode' in updateCalls[0].data).toBe(false);
   });
 
-  test('setting doNotContact alone never touches agents_paused', async () => {
-    const rows: ContactControlsRow[] = [{ id: 'c-2', user_id: 'u-1', agents_paused: true, do_not_contact: false }];
+  test('setting doNotContact alone never touches agents_paused/manual_mode', async () => {
+    const rows: ContactControlsRow[] = [
+      { id: 'c-2', user_id: 'u-1', agents_paused: true, do_not_contact: false, manual_mode: false },
+    ];
     const { client, updateCalls } = createFakeContactControlsPrisma(rows);
     const service = new ContactControlsService(client);
 
     const result = await service.setControls('u-1', 'c-2', { doNotContact: true });
-    expect(result).toEqual({ ok: true, contactId: 'c-2', agentsPaused: true, doNotContact: true });
+    expect(result).toEqual({ ok: true, contactId: 'c-2', agentsPaused: true, doNotContact: true, manualMode: false });
     expect(updateCalls[0].data).toEqual({ do_not_contact: true });
     expect('agents_paused' in updateCalls[0].data).toBe(false);
+    expect('manual_mode' in updateCalls[0].data).toBe(false);
   });
 
-  test('both may be set together in one call', async () => {
-    const rows: ContactControlsRow[] = [{ id: 'c-3', user_id: 'u-1', agents_paused: false, do_not_contact: false }];
+  // T-57 R3c-2 (findings m4) — the THIRD control, proved with the exact same independence shape.
+  test('setting manualMode alone never touches agents_paused/do_not_contact', async () => {
+    const rows: ContactControlsRow[] = [
+      { id: 'c-2b', user_id: 'u-1', agents_paused: true, do_not_contact: false, manual_mode: false },
+    ];
     const { client, updateCalls } = createFakeContactControlsPrisma(rows);
     const service = new ContactControlsService(client);
 
-    const result = await service.setControls('u-1', 'c-3', { agentsPaused: true, doNotContact: true });
-    expect(result).toEqual({ ok: true, contactId: 'c-3', agentsPaused: true, doNotContact: true });
-    expect(updateCalls[0].data).toEqual({ agents_paused: true, do_not_contact: true });
+    const result = await service.setControls('u-1', 'c-2b', { manualMode: true });
+    expect(result).toEqual({ ok: true, contactId: 'c-2b', agentsPaused: true, doNotContact: false, manualMode: true });
+    expect(updateCalls[0].data).toEqual({ manual_mode: true });
+    expect('agents_paused' in updateCalls[0].data).toBe(false);
+    expect('do_not_contact' in updateCalls[0].data).toBe(false);
+  });
+
+  test('all three may be set together in one call', async () => {
+    const rows: ContactControlsRow[] = [
+      { id: 'c-3', user_id: 'u-1', agents_paused: false, do_not_contact: false, manual_mode: false },
+    ];
+    const { client, updateCalls } = createFakeContactControlsPrisma(rows);
+    const service = new ContactControlsService(client);
+
+    const result = await service.setControls('u-1', 'c-3', { agentsPaused: true, doNotContact: true, manualMode: true });
+    expect(result).toEqual({ ok: true, contactId: 'c-3', agentsPaused: true, doNotContact: true, manualMode: true });
+    expect(updateCalls[0].data).toEqual({ agents_paused: true, do_not_contact: true, manual_mode: true });
   });
 
   test('no controls provided -> ok:false, no write attempted', async () => {
-    const rows: ContactControlsRow[] = [{ id: 'c-4', user_id: 'u-1', agents_paused: false, do_not_contact: false }];
+    const rows: ContactControlsRow[] = [
+      { id: 'c-4', user_id: 'u-1', agents_paused: false, do_not_contact: false, manual_mode: false },
+    ];
     const { client, updateCalls } = createFakeContactControlsPrisma(rows);
     const service = new ContactControlsService(client);
 
@@ -80,7 +110,9 @@ describe('ContactControlsService.setControls — §9.4, independent toggles', ()
   });
 
   test('ownership: a contact owned by a DIFFERENT user -> not_found, no write attempted', async () => {
-    const rows: ContactControlsRow[] = [{ id: 'c-5', user_id: 'someone-else', agents_paused: false, do_not_contact: false }];
+    const rows: ContactControlsRow[] = [
+      { id: 'c-5', user_id: 'someone-else', agents_paused: false, do_not_contact: false, manual_mode: false },
+    ];
     const { client, updateCalls } = createFakeContactControlsPrisma(rows);
     const service = new ContactControlsService(client);
 
@@ -191,6 +223,39 @@ describe('PATCH /api/contacts/controls — session-gated, ownership-checked, imm
     const body = await res.json();
     expect(body.doNotContact).toBe(true);
     expect(mockedContactUpdate).toHaveBeenCalledWith({ where: { id: 'c-2' }, data: { do_not_contact: true } });
+  });
+
+  // T-57 R3c-2 (findings m4) — the third control, proved end-to-end through the real route.
+  test('setting manualMode takes effect immediately (write reflected in the response)', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    mockedContactFindFirst.mockResolvedValue({
+      id: 'c-2c',
+      user_id: 'real-session-user',
+      agents_paused: false,
+      do_not_contact: false,
+      manual_mode: false,
+    });
+    mockedContactUpdate.mockResolvedValue({
+      id: 'c-2c',
+      agents_paused: false,
+      do_not_contact: false,
+      manual_mode: true,
+    });
+
+    const res = await PATCH(patchRequest({ contactId: 'c-2c', manualMode: true }), {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.manualMode).toBe(true);
+    expect(mockedContactUpdate).toHaveBeenCalledWith({ where: { id: 'c-2c' }, data: { manual_mode: true } });
+  });
+
+  test('manualMode must be a boolean -> 400, never reaches Prisma', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+    const res = await PATCH(patchRequest({ contactId: 'c-2d', manualMode: 'yes' }), {});
+    expect(res.status).toBe(400);
+    expect(mockedContactFindFirst).not.toHaveBeenCalled();
   });
 
   test('missing contactId -> 400, never reaches Prisma', async () => {
