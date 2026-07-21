@@ -20,6 +20,7 @@
 
 import { MutationHandler } from '@/lib/offline/offline-queue';
 import { isPermanentRejectionStatus, postJson, type PostJsonFn, type RawJsonResponse } from '@/lib/offline/http';
+import { errorDisplay, type Translate } from '@/lib/i18n/error-display';
 
 export { isPermanentRejectionStatus, postJson, type PostJsonFn, type RawJsonResponse };
 
@@ -55,6 +56,10 @@ export function attendanceMutationId(eventId: string): string {
 interface ApiOkShape {
   ok?: boolean;
   error?: string;
+  // T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — the machine code the
+  // mission-control queue-action/attendance routes now set alongside `error` (kept for logs only);
+  // `onPermanentRejection`'s message is resolved through it, never through the raw `error` prose.
+  code?: string;
 }
 
 export interface TodayPermanentRejectionInfo {
@@ -75,8 +80,17 @@ export interface TodayPermanentRejectionInfo {
  */
 export function createTodayQueueHandlers(
   postJsonFn: PostJsonFn,
-  onPermanentRejection?: (info: TodayPermanentRejectionInfo) => void
+  onPermanentRejection?: (info: TodayPermanentRejectionInfo) => void,
+  // T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — injected by the page (which already holds
+  // the live locale's `t` via `useLocale()`); this module stays framework-free (see header) by
+  // taking a plain function rather than importing React/the locale context itself.
+  // `onPermanentRejection`'s `message` is ALWAYS resolved through `errorDisplay(t, data.code)`,
+  // never through the raw `data.error` prose — see `src/lib/i18n/error-display.ts`'s own header for
+  // why, and `src/app/inbox/offline.ts` (the sibling module this mirrors exactly).
+  t?: Translate
 ): Record<string, MutationHandler<unknown>> {
+  const display = (code: string | undefined): string =>
+    t ? errorDisplay(t, code) : (code ?? 'errors.generic');
   return {
     [TODAY_MUTATION_KIND.QUEUE_ACTION]: async (payload) => {
       const { kind, id, action } = payload as QueueActionMutationPayload;
@@ -85,10 +99,11 @@ export function createTodayQueueHandlers(
       if (isPermanentRejectionStatus(status)) {
         onPermanentRejection?.({
           kind: TODAY_MUTATION_KIND.QUEUE_ACTION,
-          message: data.error ?? 'This action could not complete — it needs review again.',
+          message: display(data.code),
         });
         return; // finished processing (never retryable) — resolved, not thrown.
       }
+      // Thrown/logged only (never rendered to the rep) — the raw `error` prose is fine here.
       throw new Error(`Queue-action replay failed (${status}): ${data.error ?? 'unknown error'}`);
     },
     [TODAY_MUTATION_KIND.ATTENDANCE]: async (payload) => {
@@ -98,10 +113,11 @@ export function createTodayQueueHandlers(
       if (isPermanentRejectionStatus(status)) {
         onPermanentRejection?.({
           kind: TODAY_MUTATION_KIND.ATTENDANCE,
-          message: data.error ?? 'This attendance mark could not complete.',
+          message: display(data.code),
         });
         return;
       }
+      // Thrown/logged only (never rendered to the rep) — the raw `error` prose is fine here.
       throw new Error(`Attendance replay failed (${status}): ${data.error ?? 'unknown error'}`);
     },
   };

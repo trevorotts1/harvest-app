@@ -47,6 +47,7 @@ import { getCurrentSession } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { GET as todayGET } from '@/app/api/mission-control/today/route';
 import { POST as queueActionPOST } from '@/app/api/mission-control/queue-action/route';
+import { POST as attendancePOST } from '@/app/api/mission-control/attendance/route';
 
 const mockedSession = getCurrentSession as jest.MockedFunction<typeof getCurrentSession>;
 const mockedFindUnique = (prisma as unknown as { user: { findUnique: jest.Mock } }).user.findUnique;
@@ -140,6 +141,11 @@ describe('POST /api/mission-control/queue-action — ownership-scoped mutation',
     });
     const res = await queueActionPOST(req, {});
     expect(res.status).toBe(404);
+    // T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — a stable machine `code` alongside
+    // `error` (logs-only), so the client can resolve a localized DISPLAY string via `errorDisplay`
+    // instead of rendering this raw English prose.
+    const body = await res.json();
+    expect(body.code).toBe('DRAFT_NOT_FOUND');
   });
 
   test('approving your own draft succeeds', async () => {
@@ -173,6 +179,8 @@ describe('POST /api/mission-control/queue-action — ownership-scoped mutation',
     const body = await res.json();
     expect(body.ok).toBeUndefined();
     expect(body.error).toMatch(/requires review/i);
+    // RGb2 — the machine code alongside the raw-English `error` (logs-only).
+    expect(body.code).toBe('QUEUE_DRAFT_REQUIRES_REVIEW');
   });
 
   test('FAIL-CLOSED: approving a BLOCK-banded (HELD) draft through the route is REFUSED, not a silent 200', async () => {
@@ -187,6 +195,7 @@ describe('POST /api/mission-control/queue-action — ownership-scoped mutation',
     const body = await res.json();
     expect(body.ok).toBeUndefined();
     expect(body.error).toMatch(/requires review/i);
+    expect(body.code).toBe('QUEUE_DRAFT_REQUIRES_REVIEW');
   });
 
   test('declining a FLAG-banded draft through the route still succeeds — decline is never gated', async () => {
@@ -197,6 +206,39 @@ describe('POST /api/mission-control/queue-action — ownership-scoped mutation',
       body: JSON.stringify({ kind: 'draft', id: 'draft-flagged', action: 'decline' }),
     });
     const res = await queueActionPOST(req, {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+  });
+});
+
+// T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — POST /api/mission-control/attendance also
+// gets a machine `code` alongside every `error` (code-only; no status/auth/validation change), so
+// `src/app/today/offline.ts`'s replay handlers can resolve a localized DISPLAY string instead of
+// rendering the raw English prose.
+describe('POST /api/mission-control/attendance — a machine `code` accompanies every error branch (RGb2)', () => {
+  test('marking attendance for an event outside your organization is refused with code EVENT_NOT_FOUND', async () => {
+    mockedSession.mockResolvedValue(fakeSession(REP_ONE, { organizationId: 'a-different-org' }));
+    gatedComplete();
+    const req = new NextRequest('http://localhost/api/mission-control/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ eventId: 'evt-1', state: 'attended' }),
+    });
+    const res = await attendancePOST(req, {});
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe('Event not found for your organization.');
+    expect(body.code).toBe('EVENT_NOT_FOUND');
+  });
+
+  test('marking real attendance for an event in your own org succeeds', async () => {
+    mockedSession.mockResolvedValue(fakeSession(REP_ONE));
+    gatedComplete();
+    const req = new NextRequest('http://localhost/api/mission-control/attendance', {
+      method: 'POST',
+      body: JSON.stringify({ eventId: 'evt-1', state: 'attended' }),
+    });
+    const res = await attendancePOST(req, {});
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);

@@ -1713,6 +1713,15 @@
     "CONFIRMATION_REQUIRED": "Se requiere confirmación explícita — marca la casilla para eliminar tus datos de forma permanente.",
     "ALREADY_PROCESSED": "Esta solicitud de eliminación ya está {status} y no se puede volver a confirmar.",
     "DELETION_NOT_FOUND": "No se encontró esta solicitud de eliminación.",
-    "TOO_EARLY": "La eliminación requiere un período de espera antes de poder confirmarse."
+    "TOO_EARLY": "La eliminación requiere un período de espera antes de poder confirmarse.",
+    "APPOINTMENT_NOT_FOUND": "No se pudo encontrar esta cita.",
+    "APPOINTMENT_INVALID_STATE": "Esta cita ya no se puede confirmar — es posible que ya se haya gestionado.",
+    "QUEUE_ACTION_INVALID": "Elige Aprobar o Rechazar para este elemento.",
+    "QUEUE_DRAFT_INVALID_STATE": "Este borrador ya no se puede accionar — es posible que ya se haya gestionado.",
+    "QUEUE_DRAFT_REQUIRES_REVIEW": "Este borrador todavía necesita una revisión de cumplimiento antes de poder aprobarse.",
+    "QUEUE_KIND_INVALID": "Ese tipo de elemento de la cola no es compatible.",
+    "EVENT_ID_REQUIRED": "Selecciona un evento antes de continuar.",
+    "ATTENDANCE_STATE_INVALID": "Elige Asistió o No asistió para este evento.",
+    "EVENT_NOT_FOUND": "No se pudo encontrar este evento para tu organización."
   }
 }

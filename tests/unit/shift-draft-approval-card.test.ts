@@ -33,7 +33,16 @@ import DraftApprovalCard, {
   makeDeclineHandler,
   makeEditHandler,
 } from '@/app/shift/components/DraftApprovalCard';
+import { t as catalog, type TVars } from '@/lib/i18n/catalog';
 import type { ShiftQueueCard } from '@/types/learning-state';
+
+// T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — `makeEditHandler` now resolves its DISPLAY
+// string from the route's `code` via `errorDisplay`, never the raw English `error` prose. This fake
+// `t` mirrors `regate-b-error-i18n.test.ts`'s own convention (the real catalog lookup, pinned to a
+// locale) rather than a stub, so a test asserting Spanish output is proof against the REAL `es.json`
+// copy, not a mock that could drift from it.
+const tEn = (key: string, vars?: TVars) => catalog('en', key, vars);
+const tEs = (key: string, vars?: TVars) => catalog('es', key, vars);
 
 function draftCard(overrides: Partial<ShiftQueueCard> = {}): ShiftQueueCard {
   return {
@@ -158,7 +167,7 @@ describe('makeEditHandler — editing a draft from inside the Shift RE-ENTERS TH
       })
     );
     const initialItem = cardToInboxItem(draftCard());
-    const edit = makeEditHandler(initialItem, fetchImpl as unknown as typeof fetch);
+    const edit = makeEditHandler(initialItem, tEn, fetchImpl as unknown as typeof fetch);
 
     await edit('d1', 'rewritten text');
 
@@ -179,7 +188,7 @@ describe('makeEditHandler — editing a draft from inside the Shift RE-ENTERS TH
       })
     );
     const initialItem = cardToInboxItem(draftCard()); // FLAG/PENDING, contact "Maya Jordan"
-    const edit = makeEditHandler(initialItem, fetchImpl as unknown as typeof fetch);
+    const edit = makeEditHandler(initialItem, tEn, fetchImpl as unknown as typeof fetch);
 
     const result = await edit('d1', 'a compliant rewrite');
 
@@ -204,7 +213,7 @@ describe('makeEditHandler — editing a draft from inside the Shift RE-ENTERS TH
       })
     );
     const initialItem = cardToInboxItem(draftCard());
-    const edit = makeEditHandler(initialItem, fetchImpl as unknown as typeof fetch);
+    const edit = makeEditHandler(initialItem, tEn, fetchImpl as unknown as typeof fetch);
 
     const result = await edit('d1', 'still not compliant');
     expect(result.ok).toBe(true);
@@ -225,22 +234,53 @@ describe('makeEditHandler — editing a draft from inside the Shift RE-ENTERS TH
     expect(html).toMatch(/cannot be approved as-is/);
   });
 
-  test('a server-side edit refusal (e.g. empty body / terminal state) surfaces {ok: false, error}, no `item` returned', async () => {
-    const fetchImpl = jest
-      .fn()
-      .mockResolvedValue(fakeResponse(409, { error: 'A declined draft cannot be edited.', ok: false }));
-    const edit = makeEditHandler(cardToInboxItem(draftCard()), fetchImpl as unknown as typeof fetch);
+  // T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — RE-CONFIRM RED then GREEN. RED: the route
+  // ALWAYS carries raw-English `error` prose alongside `code` (kept for logs/back-compat only).
+  // GREEN: `makeEditHandler` never surfaces that raw `error` — it resolves the SAME `code` through
+  // `errorDisplay`, so an ES-locale rep gets a genuine, distinct-from-English Spanish sentence.
+  test('RE-CONFIRMED RED then GREEN — a server-side edit refusal (terminal state) resolves the DISPLAY string from `code`, never the raw English `error`', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(
+      fakeResponse(409, {
+        error: 'A declined draft cannot be edited (current state: DECLINED) — start a new draft instead.',
+        code: 'TERMINAL_STATE',
+        currentState: 'DECLINED',
+        ok: false,
+      })
+    );
 
+    // RED (re-confirmed): the wire body genuinely still carries raw English prose in `error`.
+    const rawBody = await (await fetchImpl()).json();
+    expect(rawBody.error).toMatch(/^A declined draft cannot be edited/);
+
+    const editEn = makeEditHandler(cardToInboxItem(draftCard()), tEn, fetchImpl as unknown as typeof fetch);
+    const resultEn = await editEn('d1', 'x');
+    expect(resultEn.ok).toBe(false);
+    expect(resultEn.item).toBeUndefined();
+    expect(resultEn.error).toBe('A declined draft can\'t be edited (current state: declined) — start a new draft instead.');
+
+    const editEs = makeEditHandler(cardToInboxItem(draftCard()), tEs, fetchImpl as unknown as typeof fetch);
+    const resultEs = await editEs('d1', 'x');
+    expect(resultEs.ok).toBe(false);
+    // GREEN: a genuine, distinct Spanish sentence — never the raw English wire `error`.
+    expect(resultEs.error).toBe(
+      'Un borrador rechazado no se puede editar (estado actual: rechazado) — inicia un borrador nuevo en su lugar.'
+    );
+    expect(resultEs.error).not.toBe(rawBody.error);
+    expect(resultEs.error).not.toBe(resultEn.error);
+  });
+
+  test('an unknown/absent `code` still resolves to errors.generic (localized), never the raw English `error` and never blank', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(fakeResponse(500, { error: 'Internal server error', ok: false }));
+    const edit = makeEditHandler(cardToInboxItem(draftCard()), tEs, fetchImpl as unknown as typeof fetch);
     const result = await edit('d1', 'x');
-
     expect(result.ok).toBe(false);
-    expect(result.item).toBeUndefined();
-    expect(result.error).toBe('A declined draft cannot be edited.');
+    expect(result.error).toBe('Ocurrió un error. Inténtalo de nuevo.');
+    expect(result.error).not.toBe('Internal server error');
   });
 
   test('a network failure (fetch throws) resolves to a safe fallback error, never throws out of the handler', async () => {
     const fetchImpl = jest.fn().mockRejectedValue(new Error('network down'));
-    const edit = makeEditHandler(cardToInboxItem(draftCard()), fetchImpl as unknown as typeof fetch);
+    const edit = makeEditHandler(cardToInboxItem(draftCard()), tEn, fetchImpl as unknown as typeof fetch);
     const result = await edit('d1', 'x');
     expect(result).toEqual({ ok: false, error: 'This edit could not be saved.' });
   });
