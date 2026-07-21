@@ -173,3 +173,63 @@ describe('VocabularyClassifier — §0.5 row 3 "selling / closing (as extraction
     });
   });
 });
+
+/**
+ * T-57 BLOCKER-B2 (uiux §6.2/§17.5): the EN "recruit" row (vocabulary.ts:64,
+ * `/\brecruit(?:ing|s|ed|ment)?\b/i`) covers the verb paradigm
+ * (recruit/recruiting/recruits/recruited/recruitment) but MISSES the agentive noun
+ * "recruiter(s)" — the doctrine-forbidden ROLE noun itself. This is a live fail-closed hole:
+ * content that names someone as a "recruiter" (rather than using the verb "recruit") slides
+ * through stage-1 untouched. Companion to the Spanish "reclutador/a(s)" fix in
+ * tests/unit/cfe-spanish.test.ts's "T-57 BLOCKER-B2" describe block.
+ */
+describe('T-57 BLOCKER-B2 — EN agentive noun "recruiter(s)" in the recruit row', () => {
+  const classifier = new VocabularyClassifier();
+  // Verbatim pre-fix pattern (copied from vocabulary.ts before the T-57 R1a fix).
+  const beforeFixRecruit = /\brecruit(?:ing|s|ed|ment)?\b/i;
+
+  const agentiveCases: Array<[string, string]> = [
+    ['Our top recruiter closed five deals this month.', 'recruiter'],
+    ['The recruiters gathered for a training call.', 'recruiters'],
+    ['She wants to become a recruiter for the team.', 'recruiter'],
+  ];
+
+  it.each(agentiveCases)('AFTER(caught): "%s" now flags "recruit" via the agentive form', (content) => {
+    const scan = classifier.scan(content);
+    expect(scan.clean).toBe(false);
+    expect(scan.violations.map((v) => v.forbidden)).toContain('recruit');
+    // BEFORE: the verbatim pre-fix pattern misses the agentive-noun form entirely.
+    expect(beforeFixRecruit.test(content)).toBe(false);
+  });
+
+  it('the other recruit-family forms (recruit/recruiting/recruits/recruited/recruitment) still fire — no regression', () => {
+    const stillFires: string[] = [
+      'We need to recruit five more this month.',
+      'She is recruiting heavily this quarter.',
+      'He recruited three new members.',
+      'Recruitment is picking up this month.',
+    ];
+    for (const content of stillFires) {
+      expect(classifier.scan(content).clean).toBe(false);
+    }
+  });
+
+  it('should-not-match control: unrelated words stay clean', () => {
+    expect(classifier.scan('The new hire started orientation today.').clean).toBe(true);
+  });
+
+  it('end-to-end: the RUNTIME CFE blocks "recruiter" through the full pipeline, zero Haiku signal', async () => {
+    const engine = new ComplianceFilterEngine({
+      classifierClient: new LocalDeterministicClassifierClient(),
+      auditSink: new InMemoryCFEAuditSink(),
+    });
+    const v = await engine.evaluateContent({
+      content: 'Our top recruiter closed five deals this month.',
+      channel: 'SMS',
+      userContext: { user_id: 'u2', role: 'REP' },
+    });
+    expect(v.band).toBe('blocked');
+    expect(v.released).toBe(false);
+    expect(v.reason).toMatch(/forbidden_vocabulary/);
+  });
+});

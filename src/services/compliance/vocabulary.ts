@@ -61,7 +61,13 @@ export const FORBIDDEN_TERMS: ForbiddenTermRule[] = [
   { term: /\bconversion\b/i, forbidden: 'conversion', replacement: 'engagement step / introduction completion' },
   { term: /\bfollowers?\b/i, forbidden: 'follower', replacement: 'community member / base member / subscriber' },
   { term: /\btarget\s*audience\b/i, forbidden: 'target audience', replacement: 'community / downline / base' },
-  { term: /\brecruit(?:ing|s|ed|ment)?\b/i, forbidden: 'recruit', replacement: 'invite / sponsor / bring in' },
+  // T-57 BLOCKER-B2 fix: added the agentive-noun suffix `ers?` — the pre-fix pattern covered the
+  // verb paradigm (recruit/recruiting/recruits/recruited/recruitment) but MISSED the doctrine-
+  // forbidden ROLE noun "recruiter(s)" entirely (no boundary exists between "recruit" and a
+  // trailing "er"/"ers", so the old optional-suffix group never matched and the `\b` right after it
+  // failed) — confirmed via direct RegExp.test against the pre-fix pattern; see
+  // tests/unit/vocabulary-classifier.test.ts's "T-57 BLOCKER-B2" describe block.
+  { term: /\brecruit(?:ing|ed|ment|ers?|s)?\b/i, forbidden: 'recruit', replacement: 'invite / sponsor / bring in' },
   { term: /\bcold\s*outreach\b/i, forbidden: 'cold outreach', replacement: 'community introduction (a warm context is always required)' },
   { term: /\bguaranteed\s*income\b/i, forbidden: 'guaranteed income', replacement: 'potential (with the FTC safe-harbor line attached)' },
   { term: /\byou\s*will\s*earn\b/i, forbidden: 'you will earn', replacement: 'potential (with the FTC safe-harbor line attached)' },
@@ -115,8 +121,18 @@ export const FORBIDDEN_TERMS_ES: ForbiddenTermRule[] = [
   // unlike the English "selling them" which has no product complement. So this rule only fires on
   // the unambiguous personal-direct-object pattern, same discipline as the English "sell them/him/
   // her" row. Ordinary "vender" (sell a product, a house, an idea) stays clean.
+  // T-57 BLOCKER-B1 fix: added the possessive-determiner set `tu|tus|su|sus|vuestro|vuestra` (the
+  // pre-fix determiner alternation only covered demonstratives `este|esta|ese|esa` + `mi|nuestro|
+  // nuestra` — OMITTING the entire "your"/"his"/"her"/"their" possessive paradigm, even though
+  // "vender a tu contacto" is exactly as doctrine-forbidden as "vender a este contacto"). Also
+  // pluralized the doctrine-specific object nouns (`contacto(?:s)?`, `prospecto(?:s)?`,
+  // `cliente(?:s)?\s+potencial(?:es)?`) so a possessive+plural combination ("tus contactos") isn't
+  // still missed on the noun side after fixing the determiner side. Deliberately did NOT add bare
+  // "cliente(s)" (without "potencial") to the noun set — see the should-not-match controls in
+  // tests/unit/cfe-spanish.test.ts's "T-57 BLOCKER-B1" describe block for why (it would over-broaden
+  // into ordinary, legitimate "sell to your [paying] clients" commerce language).
   {
-    term: /\bvend(?:er|iendo|ió|en)\s+a\s+(?:él|ella|ellos|ellas)\b|\bvend(?:er|iendo|ió|en)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b|\bvend(?:er|iendo|ió|en)\s+(?:la\s+)?(?:oportunidad|el\s+trato|el\s+sue[nñ]o|el\s+negocio)\b/i,
+    term: /\bvend(?:er|iendo|ió|en)\s+a\s+(?:él|ella|ellos|ellas)\b|\bvend(?:er|iendo|ió|en)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra|vuestro|vuestra|tus|tu|sus|su)\s+(?:contactos?|prospectos?|clientes?\s+potencial(?:es)?)\b|\bvend(?:er|iendo|ió|en)\s+(?:la\s+)?(?:oportunidad|el\s+trato|el\s+sue[nñ]o|el\s+negocio)\b/i,
     forbidden: 'vender (a una persona)',
     replacement: 'invitar, presentar, dar la bienvenida, incorporar',
   },
@@ -126,8 +142,12 @@ export const FORBIDDEN_TERMS_ES: ForbiddenTermRule[] = [
   // shapes the English rule uses. Bare clitics (le/les) are excluded for the same real-grammar
   // reason as the "vender" rule above. Plain "cerrar sesión" (log out), "cerrar la tienda", "cerrar
   // el mes/los libros" never match — there is no personal object at all, let alone this shape.
+  // T-57 BLOCKER-B1 fix: same possessive-determiner + noun-pluralization fix as the "vender" rule
+  // above, applied symmetrically to both "cerrar a [persona]" branches (the direct-object branch
+  // and the "cerrar el trato/la venta con [persona]" branch). See that rule's comment for the full
+  // rationale (incl. why bare "cliente(s)" is intentionally excluded from the noun set).
   {
-    term: /\bcerr(?:ar|ando|ó)\s+a\s+(?:él|ella|ellos|ellas)\b|\bcerr(?:ar|ando|ó)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b|\bcerr(?:ar|ando|ó)\s+(?:el\s+trato|la\s+venta)\s+con\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b/i,
+    term: /\bcerr(?:ar|ando|ó)\s+a\s+(?:él|ella|ellos|ellas)\b|\bcerr(?:ar|ando|ó)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra|vuestro|vuestra|tus|tu|sus|su)\s+(?:contactos?|prospectos?|clientes?\s+potencial(?:es)?)\b|\bcerr(?:ar|ando|ó)\s+(?:el\s+trato|la\s+venta)\s+con\s+(?:este|esta|ese|esa|mi|nuestro|nuestra|vuestro|vuestra|tus|tu|sus|su)\s+(?:contactos?|prospectos?|clientes?\s+potencial(?:es)?)\b/i,
     forbidden: 'cerrar (a una persona)',
     replacement: 'invitar, presentar, dar la bienvenida, incorporar',
   },
@@ -150,7 +170,15 @@ export const FORBIDDEN_TERMS_ES: ForbiddenTermRule[] = [
   // T-R34 audit fix: added the feminine past-participle forms "reclutada"/"reclutadas" (the pre-fix
   // pattern's `ados?` alternative only covered the masculine "reclutado(s)") — same inflection-gap
   // class as the confirmed-missing terms above, just gender agreement instead of pluralization.
-  { term: /\breclut(?:ar|amiento|ando|ad[oa]s?|as)\b/i, forbidden: 'reclutar', replacement: 'invitar / auspiciar / sumar' },
+  //
+  // T-57 BLOCKER-B2 fix: added the agentive-noun suffix `ador(?:a|es|as)?` — the pre-fix pattern
+  // covered the verb paradigm + past-participle/adjective forms but MISSED the doctrine-forbidden
+  // ROLE noun "reclutador/a(s)" ("recruiter") entirely (confirmed via direct RegExp.test; see
+  // tests/unit/cfe-spanish.test.ts's "T-57 BLOCKER-B2" describe block). Placed before `ad[oa]s?` in
+  // the alternation (both share the "ad" prefix) purely so the engine matches the longer agentive
+  // form on the first attempt instead of a wasted backtrack — either order is correct, since the
+  // trailing `\b` forces a full-word match regardless.
+  { term: /\breclut(?:ar|amiento|ando|ador(?:a|es|as)?|ad[oa]s?|as)\b/i, forbidden: 'reclutar', replacement: 'invitar / auspiciar / sumar' },
   // T-R34 fix: "contacto" pluralizes regularly to "contactos" (first word of the phrase); the
   // pre-fix pattern only matched the singular "contacto en frío", so "contactos en frío" slipped
   // the runtime classifier entirely (confirmed via direct RegExp.test).

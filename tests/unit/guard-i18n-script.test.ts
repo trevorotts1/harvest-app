@@ -331,6 +331,53 @@ describe('scripts/guard-i18n.mjs — T-R34 QC-reject follow-up: guard/runtime dr
   });
 });
 
+// T-57 BLOCKER-B2: vocabulary.ts's runtime "recruit"/"reclut" rows were widened to also catch the
+// agentive-noun forms "recruiter(s)"/"reclutador/a(s)". This suite proves the copy-lint's EXISTING
+// bare substrings ("recruit" / "reclut") already agree with the widened runtime regexes — via
+// plain string-prefix inclusion, with NO new WORD_BOUNDARY_TERMS entry required — so guard and
+// runtime don't drift apart on this widening. (Contrast with "público objetivo" above, which DID
+// need an explicit override because pluralizing its first word breaks a plain substring match; see
+// the corrected comment above WORD_BOUNDARY_TERMS in guard-i18n.mjs for the full explanation of why
+// that distinction matters and why it must be checked per-term, not assumed.)
+describe('scripts/guard-i18n.mjs — T-57 BLOCKER-B2: guard/runtime agreement on the widened agentive-noun forms', () => {
+  let dir: string;
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  test('EN: "recruiter" is caught by the plain "recruit" substring — must FAIL', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { title: 'Ask your recruiter for help' }, { title: 'Hola' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    expect(result.stderr).toMatch(/"recruit"/);
+  });
+
+  test('EN: plural "recruiters" is also caught — must FAIL', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { title: 'Our recruiters are ready' }, { title: 'Hola' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+  });
+
+  test('ES: "reclutador" is caught by the plain "reclut" substring — must FAIL', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { ok: 'fine' }, { title: 'Contacta a tu reclutador' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+    expect(result.stderr).toMatch(/"reclut"/);
+  });
+
+  test('ES: feminine + plural "reclutadoras" is also caught — must FAIL', () => {
+    dir = makeScratchRepo();
+    writeCatalogs(dir, { ok: 'fine' }, { title: 'Las reclutadoras del equipo' });
+    const result = runGuard(dir);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Copy-lint FAILED/);
+  });
+});
+
 describe('scripts/guard-i18n.mjs — against the REAL repo (no fixtures)', () => {
   test('running the real script from the real repo root exits 0 — the shipped catalog + CSS are clean', () => {
     const result = runGuard(REPO_ROOT);

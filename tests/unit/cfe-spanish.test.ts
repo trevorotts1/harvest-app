@@ -383,3 +383,169 @@ describe('T-R34 — Spanish forbidden-term INFLECTED forms now caught (were miss
     });
   });
 });
+
+/**
+ * T-57 BLOCKER-B1 (uiux §6.2/§17.5 CFE fail-closed gate): the Spanish "vender"/"cerrar"
+ * object-gated rows (vocabulary.ts:119,130) require the extraction-object to be introduced by a
+ * determiner from a fixed set — `este|esta|ese|esa|mi|nuestro|nuestra` — which OMITS the entire
+ * possessive-determiner paradigm `tu|tus|su|sus|vuestro|vuestra`. Since "close/sell TO YOUR
+ * contact" ("cerrar/vender a tu/su contacto") is exactly as doctrine-forbidden as "close/sell to
+ * THIS contact", the omission is a live fail-closed hole: real REP-composed content using the far
+ * more natural "tu"/"su" possessive (rather than "este"/"ese") slides straight through stage-1
+ * with ZERO Haiku signal required to catch it downstream.
+ *
+ * Each `beforeFix` regex below is copy-pasted verbatim from the pre-fix vocabulary.ts source and
+ * is asserted to `.test() === false` against the same content the (fixed) classifier now catches
+ * — a genuine before(missed)/after(caught) mutation proof, matching this file's existing T-R34
+ * convention above.
+ */
+describe('T-57 BLOCKER-B1 — Spanish possessive determiners (tu/tus/su/sus/vuestro/vuestra) in "vender a"/"cerrar a" object-gating', () => {
+  const classifier = new VocabularyClassifier(); // default = FORBIDDEN_TERMS_ALL (both languages)
+
+  // Verbatim pre-fix patterns (copied from vocabulary.ts before the T-57 R1a fix) — used as the
+  // RED-state oracle: every case in `possessiveCases` below must `.test() === false` against these.
+  const beforeFixVender =
+    /\bvend(?:er|iendo|ió|en)\s+a\s+(?:él|ella|ellos|ellas)\b|\bvend(?:er|iendo|ió|en)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b|\bvend(?:er|iendo|ió|en)\s+(?:la\s+)?(?:oportunidad|el\s+trato|el\s+sue[nñ]o|el\s+negocio)\b/i;
+  const beforeFixCerrar =
+    /\bcerr(?:ar|ando|ó)\s+a\s+(?:él|ella|ellos|ellas)\b|\bcerr(?:ar|ando|ó)\s+a\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b|\bcerr(?:ar|ando|ó)\s+(?:el\s+trato|la\s+venta)\s+con\s+(?:este|esta|ese|esa|mi|nuestro|nuestra)\s+(?:contacto|prospecto|cliente\s+potencial)\b/i;
+
+  describe('possessive determiners now caught (were missed pre-fix — confirmed via direct RegExp.test)', () => {
+    const venderCases: Array<[string, string]> = [
+      ['Vamos a vender a tu contacto la oportunidad.', 'tu + contacto (singular)'],
+      ['No deberías vender a tus contactos así.', 'tus + contactos (plural)'],
+      ['Quiere vender a su prospecto el negocio.', 'su + prospecto (singular)'],
+      ['Van a vender a sus prospectos el sueño.', 'sus + prospectos (plural)'],
+      ['Piensan vender a vuestro contacto la oportunidad.', 'vuestro + contacto'],
+      ['No deberíais vender a vuestra cliente potencial el negocio.', 'vuestra + cliente potencial'],
+    ];
+
+    it.each(venderCases)('AFTER(caught): "%s" [%s] now flags "vender (a una persona)"', (content) => {
+      const scan = classifier.scan(content);
+      expect(scan.clean).toBe(false);
+      expect(scan.violations.map((v) => v.forbidden)).toContain('vender (a una persona)');
+      // BEFORE: the verbatim pre-fix pattern misses it — proves a genuine before/after delta.
+      expect(beforeFixVender.test(content)).toBe(false);
+    });
+
+    const cerrarCases: Array<[string, string]> = [
+      ['Necesito cerrar a tu prospecto esta semana.', 'tu + prospecto (singular)'],
+      // NOTE: uses the infinitive "cerrar" (not the subjunctive "cierres") — the verb-form
+      // alternation `cerr(?:ar|ando|ó)` only covers infinitive/gerund/3rd-person-preterite, so a
+      // stem-changing conjugation like "cierres" would never match regardless of this fix.
+      ['No deberías cerrar a tus contactos tan rápido.', 'tus + contactos (plural)'],
+      // The exact BLOCKER-B1 audit example (findings.md): "cerrar a su prospecto".
+      ['Prepárate para cerrar a su prospecto.', 'su + prospecto (singular) — audit example'],
+      ['Van a cerrar a sus clientes potenciales antes del viernes.', 'sus + clientes potenciales (plural)'],
+      ['Deberíais cerrar a vuestro contacto pronto.', 'vuestro + contacto'],
+      // NOTE: uses the infinitive "cerrar" (not the vosotros form "cerréis") for the same reason.
+      ['No deberíais cerrar a vuestra cliente potencial sin avisar.', 'vuestra + cliente potencial'],
+    ];
+
+    it.each(cerrarCases)('AFTER(caught): "%s" [%s] now flags "cerrar (a una persona)"', (content) => {
+      const scan = classifier.scan(content);
+      expect(scan.clean).toBe(false);
+      expect(scan.violations.map((v) => v.forbidden)).toContain('cerrar (a una persona)');
+      // BEFORE: the verbatim pre-fix pattern misses it — proves a genuine before/after delta.
+      expect(beforeFixCerrar.test(content)).toBe(false);
+    });
+
+    test('the exact bare fragments quoted in the T-57 remediation ticket are both caught', () => {
+      expect(classifier.scan('vender a tu contacto').clean).toBe(false);
+      expect(classifier.scan('vender a tus contactos').clean).toBe(false);
+      expect(classifier.scan('cerrar a su prospecto').clean).toBe(false);
+    });
+
+    test('end-to-end: the RUNTIME CFE blocks "vender a tu contacto" through the full pipeline, zero Haiku signal', async () => {
+      const engine = new ComplianceFilterEngine({ classifierClient: new MapClient({}) });
+      const v = await engine.evaluateContent({
+        content: 'Voy a vender a tu contacto la oportunidad esta semana.',
+        channel: 'SMS',
+        userContext: ctx,
+        language: 'es',
+      });
+      expect(v.band).toBe('blocked');
+      expect(v.released).toBe(false);
+      expect(v.reason).toContain('forbidden_vocabulary');
+    });
+  });
+
+  describe('should-not-match controls — possessives alone do not over-broaden the noun/verb gate', () => {
+    test('"tu equipo" / "su casa" as the OBJECT of vender/cerrar stay CLEAN — only the doctrine-specific noun set (contacto/prospecto/cliente potencial) is gated, not any noun', () => {
+      expect(classifier.scan('Vamos a vender a tu equipo la nueva promoción.').clean).toBe(true);
+      expect(classifier.scan('Vamos a cerrar a su casa antes de las 6.').clean).toBe(true);
+    });
+
+    test('bare possessive phrases with NO vender/cerrar verb at all stay CLEAN (sanity control)', () => {
+      expect(classifier.scan('Ve a tu casa a descansar, nos vemos con tu equipo mañana.').clean).toBe(true);
+      expect(classifier.scan('Su casa y sus cosas están listas para la mudanza.').clean).toBe(true);
+    });
+
+    // Deliberately NOT widened: bare "cliente(s)" (no "potencial") is excluded from the vender/cerrar
+    // noun set on purpose, exactly like the pre-existing "vender la casa" / "venderle una póliza a tu
+    // cliente" controls above — "vender a sus clientes" / "cerrar a sus clientes" is ordinary,
+    // legitimate commerce/business language (selling product to your existing paying clients), NOT
+    // the extraction framing doctrine forbids (which targets prospectos/contactos/clientes
+    // POTENCIALES — i.e. not-yet-converted people). Adding bare "cliente" here would reintroduce
+    // exactly the over-broadening this file's "cliente potencial" (not bare "cliente") design choice
+    // already avoids. The equivalent doctrine-noun phrase ("clientes potenciales") IS caught above.
+    test('bare "clientes" (no "potencial") as the object of vender/cerrar stays CLEAN — intentionally NOT in the gated noun set (avoids over-blocking ordinary "sell/close to your [paying] clients" commerce language)', () => {
+      expect(classifier.scan('Vamos a vender a sus clientes el nuevo producto.').clean).toBe(true);
+      expect(classifier.scan('Necesito cerrar a sus clientes esta semana.').clean).toBe(true);
+    });
+
+    test('possessives elsewhere in a sentence, with no "vender a"/"cerrar a" + doctrine-noun shape, stay CLEAN', () => {
+      expect(classifier.scan('Tu equipo cerró la tienda temprano hoy.').clean).toBe(true);
+      expect(classifier.scan('Su cliente llamó para cerrar sesión de la cuenta.').clean).toBe(true);
+    });
+  });
+});
+
+/**
+ * T-57 BLOCKER-B2 (uiux §6.2/§17.5): the Spanish "reclut" stem regex (vocabulary.ts:153) covers
+ * the verb paradigm (reclutar/reclutando/reclutó/reclutas) and past-participle/adjective forms
+ * (reclutado/reclutada/reclutados/reclutadas) but MISSES the agentive noun "reclutador/a(s)" — the
+ * Spanish word for "recruiter", i.e. the doctrine-forbidden ROLE noun itself, not just the verb.
+ * This is a live fail-closed hole: content that names someone as a "reclutador"/"reclutadora"
+ * (rather than using the verb "reclutar") slides through stage-1 untouched.
+ */
+describe('T-57 BLOCKER-B2 — Spanish agentive noun "reclutador/a(s)" ("recruiter") in the reclut regex', () => {
+  const classifier = new VocabularyClassifier();
+  // Verbatim pre-fix pattern (copied from vocabulary.ts before the T-57 R1a fix).
+  const beforeFixReclut = /\breclut(?:ar|amiento|ando|ad[oa]s?|as)\b/i;
+
+  const agentiveCases: Array<[string, string]> = [
+    ['Él es un reclutador experimentado en la empresa.', 'reclutador'],
+    ['Ella trabaja como reclutadora para el equipo regional.', 'reclutadora'],
+    ['Contratamos varios reclutadores este año.', 'reclutadores'],
+    ['Todas las reclutadoras se reunieron ayer por la tarde.', 'reclutadoras'],
+  ];
+
+  it.each(agentiveCases)('AFTER(caught): "%s" now flags "reclutar" via the agentive form', (content) => {
+    const scan = classifier.scan(content);
+    expect(scan.clean).toBe(false);
+    expect(scan.violations.map((v) => v.forbidden)).toContain('reclutar');
+    // BEFORE: the verbatim pre-fix pattern misses every agentive-noun form.
+    expect(beforeFixReclut.test(content)).toBe(false);
+  });
+
+  test('should-not-match control: unrelated words merely sharing a prefix stay CLEAN', () => {
+    // "reclutamiento" (recruitment, an existing/legitimate pre-fix match) is unaffected; this is a
+    // sanity control that the new "ador(?:a|es|as)?" suffix branch did not loosen the required
+    // \breclut... stem or trailing \b boundary in some way that catches unrelated words.
+    expect(classifier.scan('Prepara el informe trimestral de ventas.').clean).toBe(true);
+    expect(classifier.scan('El reclutamiento de voluntarios sigue abierto.').clean).toBe(false); // pre-existing, unaffected
+  });
+
+  test('end-to-end: the RUNTIME CFE blocks "reclutador" through the full pipeline, zero Haiku signal', async () => {
+    const engine = new ComplianceFilterEngine({ classifierClient: new MapClient({}) });
+    const v = await engine.evaluateContent({
+      content: 'Nuestro mejor reclutador cerró cinco incorporaciones este mes.',
+      channel: 'SMS',
+      userContext: ctx,
+      language: 'es',
+    });
+    expect(v.band).toBe('blocked');
+    expect(v.released).toBe(false);
+    expect(v.reason).toContain('forbidden_vocabulary');
+  });
+});

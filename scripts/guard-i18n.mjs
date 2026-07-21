@@ -146,10 +146,33 @@ function flattenCatalog(obj, prefix = '') {
 // slipped this copy-lint even though the runtime classifier already caught them. Fixed the same
 // way, keyed by the FORBIDDEN_SUBSTRINGS_ES entry text so lookup is unchanged; regex copy-pasted
 // verbatim from vocabulary.ts. ("reclutar" needed no entry, symmetric with "embudo" above: the
-// FORBIDDEN_SUBSTRINGS_ES entry is the deliberately-short prefix "reclut" (see its own comment),
-// which is already a literal PREFIX of every inflected form the runtime regex accepts, including
-// the feminine past-participle "reclutada"/"reclutadas" — so the plain substring check already
-// catches all of them with no override needed.)
+// FORBIDDEN_SUBSTRINGS_ES entry is the deliberately-short prefix "reclut" — every form that
+// literally STARTS WITH "reclut" is caught by the plain `.includes()` check regardless of what the
+// runtime regex does or doesn't accept.)
+//
+// T-57 BLOCKER-B2 correction (this comment used to claim "reclut" was "already a literal PREFIX of
+// EVERY inflected form the runtime regex accepts" and conclude no override was ever needed — that
+// claim was FALSE in the sense that matters: it was only true of the forms the pre-T-57 runtime
+// regex happened to accept (reclutar/reclutamiento/reclutando/reclutado(a)s/reclutas), and said
+// nothing about whether that acceptance set was itself complete against doctrine. It was NOT
+// complete — the runtime regex was missing the agentive noun "reclutador/a(s)" ("recruiter")
+// entirely, a live fail-closed hole (see vocabulary.ts's now-fixed FORBIDDEN_TERMS_ES "reclutar"
+// row and tests/unit/cfe-spanish.test.ts's "T-57 BLOCKER-B2" suite). The self-referential framing
+// ("a prefix of every form the regex accepts") gave false confidence that this guard needed no
+// override, without ever checking whether the regex's own accepted-forms set matched doctrine's
+// actual intent — exactly the kind of gap this guard exists to catch, and instead helped hide.
+//
+// Post-fix status: "reclut" is (still, and coincidentally — not by any guarantee) a literal prefix
+// of "reclutador/reclutadora/reclutadores/reclutadoras" too, so this guard's substring check
+// already catches the newly-widened runtime forms with no WORD_BOUNDARY_TERMS entry needed EITHER
+// — but that is a fact about these specific strings, not a general property that will hold for
+// every future doctrine addition. The EN mirror ("recruit" catching "recruiter(s)" via the same
+// plain-prefix mechanism, vocabulary.ts's now-fixed FORBIDDEN_TERMS "recruit" row) holds for the
+// identical reason. If doctrine ever adds a Spanish/English inflected form that does NOT share its
+// base term's literal prefix (an irregular form, a different root, an accent shift before the
+// shared prefix ends, etc. — see the conversión/contacto-en-frío/presentación-de-ventas/público-
+// objetivo entries above, all of which needed a WORD_BOUNDARY_TERMS override for exactly that
+// reason), add an explicit entry here rather than re-asserting prefix coverage from memory.
 const WORD_BOUNDARY_TERMS = new Map([
   // Mirrors src/services/compliance/vocabulary.ts FORBIDDEN_TERMS's `/\bleads?\b/i` exactly.
   ['lead', /\bleads?\b/i],
