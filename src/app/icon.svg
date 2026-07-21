@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="The Harvest">
+  <!--
+    T-58a — App-Router `icon.svg` file convention (auto-injected favicon <link>, no layout.tsx
+    edit required). PLACEHOLDER: rasterizes the app's already-existing `.brand-mark` treatment
+    (src/app/globals.css — 135deg gradient var(--leaf) -> var(--harvest), rounded square, bold
+    "H") rather than inventing a new mark. An operator/designer should supply final brand icon
+    art before any store submission — see docs/mobile-shell.md.
+  -->
+  <defs>
+    <linearGradient id="mark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2f6b4f" />
+      <stop offset="100%" stop-color="#c8852c" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="20" fill="url(#mark)" />
+  <g fill="#ffffff">
+    <rect x="18" y="16" width="7" height="32" />
+    <rect x="39" y="16" width="7" height="32" />
+    <rect x="18" y="29" width="28" height="7" />
+  </g>
+</svg>
