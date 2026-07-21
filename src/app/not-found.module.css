@@ -1,0 +1,49 @@
+/* T-57 R2 / M2 + AC-2-7 — root not-found. Semantic tokens only; no opacity/translucent color on
+   text; no text-overflow/line-clamp. */
+
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--gutter-mobile);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+}
+.card {
+  width: min(480px, 100%);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-6);
+}
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  letter-spacing: var(--type-title-tracking);
+  margin: 0;
+}
+.body {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-2) var(--space-5);
+  font-weight: 700;
+}
+.cta:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}

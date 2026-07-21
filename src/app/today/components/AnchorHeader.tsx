@@ -51,40 +51,15 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
         {/* T-32 QC fix (non-blocking item): was a bare `<button>` with no onClick — a no-op that
             looked actionable. This is a plain navigation link to the Approval Inbox (T-33's route;
             no T-33 code imported here). */}
-        <a href="/inbox" className={styles.approvalBadge} aria-label={`Approval inbox, ${approvalInboxCount} waiting`}>
+        {/* uiux §2.3 item 1 — on mobile the Approval Inbox is a leaf-ringed button in the Today
+            header (top-right); on desktop the persistent rail carries its own pinned Inbox item.
+            This is the ONE nav affordance retained in the header: the five destinations
+            (Today/Community/Grow/Learn/Me) and the Me sub-surfaces (Subscription/Data & Privacy/
+            Language) that used to live here as ad-hoc pills now live in the persistent AppShell nav
+            + the /me hub (T-57 R2), so those redundant header pills are removed. */}
+        <a href="/inbox" className={styles.approvalBadge} aria-label={t('nav.approvalInboxAria', { count: approvalInboxCount })}>
           {t('nav.approvalInbox')}
           <span className={styles.approvalBadgeCount}>{approvalInboxCount}</span>
-        </a>
-        {/* WP08 (§13, uiux §5.5) — the reachability mandate: the Orchard/Grow surface must be
-            linked from existing nav, not orphaned. Today's persistent header is the one element
-            rendered on every visit to the app's primary landing page, so it is the anchor link. */}
-        <a href="/grow" className={styles.approvalBadge} aria-label={t('nav.orchardAria')}>
-          {t('nav.grow')}
-        </a>
-        {/* T-R28 (uiux AC-2-1's five-destination nav check) — Community had a real page
-            (src/app/community/page.tsx) but no link anywhere in Today's component tree, unlike
-            Grow (above) and Learn (WP07Panel.tsx). Same ad-hoc header-link pattern as the rest of
-            this row. */}
-        <a href="/community" className={styles.approvalBadge} aria-label={t('nav.communityAria')}>
-          {t('nav.community')}
-        </a>
-        {/* WP10 (T-47) — Me → Subscription entry (uiux §5.8). Plain nav link to the billing surface,
-            matching the ad-hoc link pattern this header already uses for the Approval Inbox. */}
-        <a href="/me/subscription" className={styles.approvalBadge} aria-label={t('nav.subscriptionAria')}>
-          {t('nav.subscription')}
-        </a>
-        {/* T-R29 (compliance-reachability build, master-spec §16.3/§9 GDPR/CCPA data rights) — Me →
-            Data & Privacy entry. T-51 found the data-rights export/deletion center built but
-            unreachable (no route, no UI); this is the reachability fix, same ad-hoc nav-link
-            pattern as Subscription above (no "Me" index page exists yet for either to live on). */}
-        <a href="/me/data-rights" className={styles.approvalBadge} aria-label={t('nav.dataPrivacyAria')}>
-          {t('nav.dataPrivacy')}
-        </a>
-        {/* T-53 (master-spec §17.5 / uiux §6.2 i18n) — Me → Language entry. Same ad-hoc header-link
-            pattern as Subscription/Data & Privacy above (no "Me" index page exists yet for any of
-            the three to live on). */}
-        <a href="/me/language" className={styles.approvalBadge} aria-label={t('nav.languageAria')}>
-          {t('nav.language')}
         </a>
       </div>
 

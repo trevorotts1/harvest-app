@@ -23,7 +23,40 @@
     "dataPrivacy": "Datos y privacidad",
     "dataPrivacyAria": "Datos y privacidad — exporta o elimina tus datos",
     "language": "Idioma",
-    "languageAria": "Ajustes de idioma"
+    "languageAria": "Ajustes de idioma",
+    "today": "Hoy",
+    "learn": "Aprender",
+    "me": "Yo",
+    "primaryAria": "Navegación principal",
+    "approvalInboxAria": "Bandeja de aprobación, {count} en espera"
+  },
+  "me": {
+    "heading": "Yo",
+    "subhead": "Tu perfil, preferencias y cuenta.",
+    "accessibilityTitle": "Accesibilidad",
+    "accessibilityDesc": "Tamaño del texto y preferencias de lectura.",
+    "notificationsTitle": "Notificaciones",
+    "notificationsDesc": "Elige qué avisos recibes y cuándo.",
+    "languageTitle": "Idioma",
+    "languageDesc": "Elige el idioma de tu espacio de trabajo.",
+    "subscriptionTitle": "Suscripción",
+    "subscriptionDesc": "Tu plan y facturación.",
+    "dataRightsTitle": "Datos y privacidad",
+    "dataRightsDesc": "Exporta o elimina tus datos.",
+    "comingSoon": "Próximamente"
+  },
+  "accessibility": {
+    "heading": "Accesibilidad",
+    "subhead": "Haz que The Harvest sea más fácil de leer y usar.",
+    "bigTextTitle": "Texto grande",
+    "bigTextDesc": "Aumenta el tamaño del texto en toda la aplicación.",
+    "bigTextOn": "Activado",
+    "bigTextOff": "Desactivado"
+  },
+  "notFound": {
+    "heading": "Esa página ya no está",
+    "body": "Ese elemento ya no está — aquí tienes Hoy.",
+    "cta": "Ir a Hoy"
   },
   "auth": {
     "brandName": "The Harvest",
@@ -90,6 +123,8 @@
     }
   },
   "today": {
+    "teamViewHeading": "Tu equipo",
+    "teamViewLink": "Abrir el panel del Equipo",
     "greeting": "Buenos días, {name}",
     "loadingReport": "Preparando tu informe…",
     "loadFailed": "No pudimos cargar Hoy — tu trabajo está seguro.",

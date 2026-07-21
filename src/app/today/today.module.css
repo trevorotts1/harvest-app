@@ -31,7 +31,8 @@
   gap: var(--space-5);
   grid-template-columns: 1fr;
 }
-@media (min-width: 900px) {
+/* MINOR-C6 (T-57 R2): aligned to the canonical 860px nav/layout breakpoint (uiux §2.2) — was 900. */
+@media (min-width: 860px) {
   .grid {
     grid-template-columns: 1.3fr 0.7fr;
   }
@@ -513,7 +514,14 @@
   display: grid;
   justify-items: center;
   gap: var(--space-2);
-  width: 200px;
+  width: 200px; /* §3.4 hero mobile 200×140 */
+}
+/* MINOR-C7 (T-57 R2): §3.4 hero desktop is 280×200 — the width was fixed at the mobile 200px with
+   no ≥860 override. The Grove SVG keeps its aspect ratio, so 280 wide renders ~200 tall. */
+@media (min-width: 860px) {
+  .groveHero {
+    width: 280px;
+  }
 }
 .groveCompact {
   display: grid;

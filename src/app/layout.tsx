@@ -4,8 +4,10 @@ import './tokens.css';
 import './globals.css';
 import { THEME_INIT_SCRIPT } from './theme-init-script';
 import { LOCALE_INIT_SCRIPT } from './locale-init-script';
+import { TEXT_SCALE_INIT_SCRIPT } from './text-scale-init-script';
 import { Providers } from './providers';
 import SkipLinkText from './skip-link-text';
+import AppShell from '@/components/AppShell/AppShell';
 
 export const metadata: Metadata = {
   title: 'The Harvest | 2 Hour CEO',
@@ -36,6 +38,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="lfds-locale-init" strategy="beforeInteractive">
           {LOCALE_INIT_SCRIPT}
         </Script>
+        {/*
+          T-57 R2 (BLOCKER-A1, WCAG 2.2 AA §6.1): applies a saved "Big Text" preference to
+          `<html style="--text-scale">` before hydration — same rationale/pattern as the theme and
+          locale init scripts above (no flash of the wrong text size for a returning rep). See
+          ./text-scale-init-script.ts and src/app/me/accessibility/page.tsx.
+        */}
+        <Script id="lfds-text-scale-init" strategy="beforeInteractive">
+          {TEXT_SCALE_INIT_SCRIPT}
+        </Script>
       </head>
       <body>
         {/*
@@ -49,9 +60,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main-content" className="skip-link">
           <SkipLinkText />
         </a>
-        <div id="main-content" tabIndex={-1}>
-          <Providers>{children}</Providers>
-        </div>
+        {/*
+          T-57 R2 (uiux §2.2, the linchpin fix): the persistent 5-destination navigation shell wraps
+          every authenticated surface. It sits INSIDE <Providers> (so it can read the session role +
+          active locale) and renders the <nav> landmark BEFORE the #main-content target — the skip
+          link above is still the first focusable element and now genuinely skips PAST the nav to the
+          content (uiux §2.5 / §6.1). `AppShell` hides itself on the marketing landing, /auth,
+          onboarding, the Shift, and full-screen rituals. It composes with T-58a's template.tsx:
+          layout > template > page, so {children} here is the template (when present) wrapping the
+          page, and the shell wraps that whole tree without touching template.tsx.
+          The #main-content <div> (T-52 skip target) stays a plain focusable div, unchanged.
+        */}
+        <Providers>
+          <AppShell>
+            <div id="main-content" tabIndex={-1}>
+              {children}
+            </div>
+          </AppShell>
+        </Providers>
       </body>
     </html>
   );
