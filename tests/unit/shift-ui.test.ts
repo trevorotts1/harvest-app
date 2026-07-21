@@ -18,7 +18,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import RatioCard from '@/app/shift/components/RatioCard';
 import OpenPhase from '@/app/shift/components/OpenPhase';
 import WorkPhase, { formatElapsed } from '@/app/shift/components/WorkPhase';
-import ClosePhase from '@/app/shift/components/ClosePhase';
+import ClosePhase, { recapLine } from '@/app/shift/components/ClosePhase';
 import DoneScreen from '@/app/shift/components/DoneScreen';
 import type { RatioCardView, ShiftQueueCard } from '@/types/learning-state';
 
@@ -256,6 +256,32 @@ describe('AC-5.3-3: the Close/Done flow reaches the explicit end state', () => {
     const html = render(DoneScreen, { streakCount: 7, onBackToToday: noop });
     expect(textOf(html)).toMatch(/You.{1,2}re done for today\./);
     expect(textOf(html)).toMatch(/7-day streak/);
+  });
+
+  // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — "The Shift close" narration script, verbatim:
+  // "You're done for today. {recap line}. Your agents take it from here." Previously split across
+  // TWO separate screens (ClosePhase showed the recap, then DoneScreen showed only "You're done for
+  // today." + streak) and never combined into one announced utterance.
+  test('DoneScreen carries the combined "Shift close" narration script when a recap is supplied', () => {
+    const recap = { approvals: 2, confirmations: 1, logs: 0 };
+    const html = render(DoneScreen, { streakCount: 7, recap, onBackToToday: noop });
+    const text = textOf(html);
+    expect(text).toContain(`You’re done for today. ${recapLine(recap)}`);
+    expect(text).toMatch(/Your agents take it from here\./);
+  });
+
+  test('DoneScreen falls back to the honest "nothing needed you" recap when no recap is supplied', () => {
+    const html = render(DoneScreen, { streakCount: 1, onBackToToday: noop });
+    expect(textOf(html)).toContain('Nothing needed you today — your field is working.');
+  });
+
+  test('DoneScreen keeps "Back to your day" independently focusable/operable (not nested inside the aria-hidden visual group)', () => {
+    const html = render(DoneScreen, { streakCount: 7, recap: { approvals: 1, confirmations: 0, logs: 0 }, onBackToToday: noop });
+    // the button markup must not sit inside the `aria-hidden="true"` wrapper — a naive
+    // implementation could accidentally hide the one interactive control on this screen.
+    const ariaHiddenBlock = html.match(/<div aria-hidden="true">[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(ariaHiddenBlock).not.toContain('Back to your day');
+    expect(html).toContain('Back to your day');
   });
 
   test('ClosePhase celebrates an early finish, and says nothing at all about overtime', () => {

@@ -56,20 +56,27 @@
  * Widening this guard's scan coverage (T-05 QC defect-3, 3rd recurrence
  * hardening pass) surfaced the SAME defect pattern
  * (`color: rgba(255,255,255,.72)` / `.78`, translucent white text on a
- * dark fill) already present in code this build unit does not own and
- * is explicitly barred from touching: `src/app/auth/page.tsx`,
- * `src/app/onboarding/page.tsx`, and two rules in `globals.css`
- * (`.side-link`, `.visual-root span`) used by screens outside T-05's
- * remit (`/`'s `.score-ring` widget and `/design-tokens` only — see
- * harvest-uiux-spec.md §6.1 scope note). Per that scope boundary, this
- * script GRANDFATHERS exactly those pre-existing instances below —
- * printed loudly every run as `[WARN-EXEMPT]`, not silently — so the
- * gate stays green for THIS build unit's actual scope while the defect
- * remains visible (not swept away) for whichever unit inherits the
- * full-site accessibility pass (T-52). Any NEW instance of this pattern,
- * anywhere else in the tree, still fails the gate. Do not add to this
- * list without a linked tracking ticket, and only remove entries when
- * the underlying code is actually fixed.
+ * dark fill) already present in code T-05 did not own and was explicitly
+ * barred from touching: `src/app/auth/page.tsx`, `src/app/onboarding/
+ * page.tsx`, and two rules in `globals.css` (`.side-link`, `.visual-root
+ * span`). T-05 GRANDFATHERED exactly those four pre-existing instances,
+ * printed loudly every run as `[WARN-EXEMPT]`, tracked for T-52 (the
+ * full-site WCAG 2.2 AA pass, spec §17.4 / uiux §6.1).
+ *
+ * RESOLVED (T-52): all four are now genuinely AA-compliant, not merely
+ * suppressed — `src/app/onboarding/page.tsx`'s instance had already been
+ * removed by an unrelated refactor (T-20 rewrote the page as a thin
+ * `<OnboardingFlow />` wrapper; the rgba paragraph no longer exists
+ * anywhere in the tree). The other three (`src/app/auth/page.tsx`,
+ * `globals.css` `.side-link`, `globals.css` `.visual-root span`) all sat
+ * on the same flat `--bg-deep` (`--grove-950`) fill and were swapped from
+ * the translucent literal to the real design-system token for secondary
+ * text on an inverse surface, `--muted-inverse` (7.0:1 on `--grove-950`,
+ * the same value dark-theme's `--text-secondary` already resolves to —
+ * see tokens.css). `KNOWN_PRE_EXISTING_EXEMPTIONS` below is therefore
+ * empty; this guard now runs with ZERO exemptions. Do not add a new entry
+ * without a linked tracking ticket, and only remove entries when the
+ * underlying code is actually fixed (as happened here).
  *
  * EXEMPTION KEY GRANULARITY (T-05 QC round-4 hardening): exemption keys
  * are PER-INSTANCE fingerprints, not per-file and not even per-selector.
@@ -111,12 +118,10 @@ function fingerprint(text) {
 // with `fingerprint('<prop>: <value>')` (exact matched declaration text)
 // if one of these ever needs to move; do not hand-guess the hex.
 const KNOWN_PRE_EXISTING_EXEMPTIONS = new Set([
-  // T-R28: line shifted 87 -> 92 by additive comments in the login-success handler (uiux AC-2-1
-  // landing-surface fix) — same pre-existing, out-of-T-05-scope violation, not a new one.
-  `src/app/auth/page.tsx:92::${fingerprint("color: rgba(255,255,255,.72)")}`,
-  `src/app/onboarding/page.tsx:130::${fingerprint("color: rgba(255,255,255,.72)")}`,
-  `src/app/globals.css::.side-link::${fingerprint('color: rgba(255,255,255,0.72)')}`,
-  `src/app/globals.css::.visual-root span::${fingerprint('color: rgba(255,255,255,.72)')}`,
+  // Intentionally empty (T-52) — the four legacy exemptions carried from
+  // T-05 (auth/page.tsx, onboarding/page.tsx, globals.css .side-link,
+  // globals.css .visual-root span) are all resolved. See the header
+  // comment's "RESOLVED (T-52)" note above.
 ]);
 
 // ---------------------------------------------------------------------------

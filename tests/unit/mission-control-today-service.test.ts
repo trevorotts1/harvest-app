@@ -76,6 +76,36 @@ describe('buildMissionControlToday — the happy path (all six zones real, not d
   });
 });
 
+// T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — the "Milestone full-bloom" narration script,
+// end-to-end through the REAL zone builder (not just the pure helpers unit-tested elsewhere in
+// mission-control-momentum.test.ts / gamification-celebration.test.ts).
+describe('header zone — groveBloomNarration (uiux §6.1 item 5, T-52)', () => {
+  test('a fresh, uncelebrated milestone produces the verbatim narration script', async () => {
+    const db = createInMemoryMissionControlDb({
+      momentumEvents: [{ user_id: USER, law: 'grow', points: 10, created_at: NOW }],
+      milestones: [{ user_id: USER, milestone_key: 'FIRST_RECRUIT', achieved_at: new Date(NOW.getTime() - 60 * 1000), celebrated: false }],
+    });
+    const today = await buildMissionControlToday(USER, { db, greetingName: 'Alex', organizationId: ORG, now: NOW });
+
+    expect(today.header.status).toBe('ok');
+    if (today.header.status !== 'ok') return;
+    expect(today.header.data.groveState).toBe('bloom');
+    expect(today.header.data.groveBloomNarration).toBe(
+      'Milestone: First recruit. Someone chose to build alongside you. That is the harvest multiplying. This moment is saved to your field.'
+    );
+  });
+
+  test('no fresh milestone → groveBloomNarration is null, groveState is not bloom', async () => {
+    const db = fullSeed();
+    const today = await buildMissionControlToday(USER, { db, greetingName: 'Alex', organizationId: ORG, now: NOW });
+
+    expect(today.header.status).toBe('ok');
+    if (today.header.status !== 'ok') return;
+    expect(today.header.data.groveBloomNarration).toBeNull();
+    expect(today.header.data.groveState).not.toBe('bloom');
+  });
+});
+
 describe('INDEPENDENT ZONE FAILURE — master-spec §9.5 / uiux AC-5.2-6, proven with teeth', () => {
   test('briefing zone data source throwing degrades ONLY briefing — the other five stay ok', async () => {
     const broken = breakMethod(fullSeed(), 'agentRun', 'findMany'); // agentRun is briefing-exclusive

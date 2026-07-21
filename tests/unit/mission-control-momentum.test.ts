@@ -144,6 +144,17 @@ describe('computeBloomOverride — transient milestone overlay', () => {
     expect(bloom?.label).toBe('first recruit');
   });
 
+  // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5): `key` is ADDITIVE — the raw milestone_key,
+  // unchanged by the existing `.label` formatting above — so a caller with access to WP07's
+  // celebration engine (mission-control/zones/header.ts) can build the full "Milestone full-bloom"
+  // narration script from it. `.label` (asserted above) must keep behaving identically.
+  test('the raw `key` is carried through unmodified, alongside the existing `.label`', () => {
+    const milestones: MilestoneLike[] = [{ milestone_key: 'FIRST_RECRUIT', achieved_at: new Date(NOW.getTime() - 60 * 1000), celebrated: false }];
+    const bloom = computeBloomOverride(milestones, NOW);
+    expect(bloom?.key).toBe('FIRST_RECRUIT');
+    expect(bloom?.label).toBe('FIRST RECRUIT');
+  });
+
   test('an already-celebrated milestone does not re-trigger bloom', () => {
     const milestones: MilestoneLike[] = [{ milestone_key: 'first_recruit', achieved_at: new Date(NOW.getTime() - 60 * 1000), celebrated: true }];
     expect(computeBloomOverride(milestones, NOW)).toBeNull();

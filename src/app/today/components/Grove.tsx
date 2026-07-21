@@ -23,6 +23,15 @@ export interface GroveProps {
   state: GroveState;
   laws: { grow: number; engage: number; wealth: number };
   caption: string;
+  /** T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — the verbatim "Milestone full-bloom" narration
+   *  script ("Milestone: {name}. {anchor tie-in line}. This moment is saved to your field."),
+   *  rendered ONLY while `state === 'bloom'`, as a `role="status"` polite live region so it is
+   *  announced once (never repeated fanfare — §3.2). Kept separate from the compact, always-visible
+   *  `caption` above (which stays the short milestone name for the hero widget) rather than
+   *  replacing it, so the full emotional script reaches VoiceOver/TalkBack without cluttering the
+   *  small on-screen caption. Omitted/`null` renders nothing extra (e.g. an unrecognized milestone
+   *  key) — never a garbled partial sentence. */
+  bloomNarration?: string | null;
   size?: 'hero' | 'compact';
 }
 
@@ -32,7 +41,7 @@ function clamp(n: number, lo: number, hi: number): number {
 
 const DULL_STATES: GroveState[] = ['quiet', 'resting', 'stale'];
 
-export default function Grove({ state, laws, caption, size = 'hero' }: GroveProps) {
+export default function Grove({ state, laws, caption, bloomNarration, size = 'hero' }: GroveProps) {
   const isSeed = state === 'seed';
   const isSprout = state === 'sprout';
   const isBloom = state === 'bloom';
@@ -99,6 +108,11 @@ export default function Grove({ state, laws, caption, size = 'hero' }: GroveProp
         {dulled && <ellipse cx="100" cy="90" rx="60" ry="30" className={styles.groveMist} fillOpacity={0.25} />}
       </svg>
       <p className={styles.groveCaption}>{caption}</p>
+      {state === 'bloom' && bloomNarration && (
+        <p className={styles.srOnly} role="status" aria-live="polite">
+          {bloomNarration}
+        </p>
+      )}
     </div>
   );
 }

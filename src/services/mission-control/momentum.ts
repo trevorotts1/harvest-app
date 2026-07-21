@@ -134,12 +134,17 @@ export function groveCaptionFor(state: GroveState, bloomLabel?: string): string 
 
 /** A milestone achieved within the last 10 minutes and not yet shown triggers the transient Bloom
  *  overlay (uiux §3.2 "Bloom (transient)"). Pure/testable; does not mutate `celebrated` itself — the
- *  celebration engine that flips that flag is WP07's (master spec §12.3), out of this unit's lane. */
-export function computeBloomOverride(milestones: MilestoneLike[], now: Date = new Date()): { label: string } | null {
+ *  celebration engine that flips that flag is WP07's (master spec §12.3), out of this unit's lane.
+ *  `label` (kept, unchanged, for existing callers/tests) is the raw-key fallback caption; `key` is
+ *  the raw `milestone_key` itself, ADDITIVE (T-52) so a caller with access to WP07's
+ *  celebration.service.ts (e.g. mission-control/zones/header.ts) can build the full uiux §6.1 item 5
+ *  "Milestone full-bloom" narration script from it without this module taking on a WP07 dependency
+ *  — see this file's header comment on why momentum.ts stays decoupled from the celebration engine. */
+export function computeBloomOverride(milestones: MilestoneLike[], now: Date = new Date()): { key: string; label: string } | null {
   const fresh = milestones.find(
     (m) => !m.celebrated && now.getTime() - m.achieved_at.getTime() <= BLOOM_FRESH_WINDOW_MS
   );
-  return fresh ? { label: fresh.milestone_key.replaceAll('_', ' ') } : null;
+  return fresh ? { key: fresh.milestone_key, label: fresh.milestone_key.replaceAll('_', ' ') } : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
