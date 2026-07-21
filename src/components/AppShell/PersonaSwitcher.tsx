@@ -30,6 +30,7 @@
 import Link from 'next/link';
 import type { Role } from '@prisma/client';
 
+import { isDualPersonaUser } from './navConfig';
 import styles from './AppShell.module.css';
 
 export type Persona = 'business' | 'team';
@@ -41,7 +42,7 @@ export interface PersonaSwitcherProps {
 }
 
 export default function PersonaSwitcher({ role, activePersona, t }: PersonaSwitcherProps) {
-  if (role !== 'DUAL') return null;
+  if (!isDualPersonaUser(role)) return null;
 
   return (
     <div className={styles.personaSwitcher} role="group" aria-label={t('me.persona.switcherAria')}>
