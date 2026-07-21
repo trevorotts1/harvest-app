@@ -151,6 +151,15 @@
   grid-template-columns: 1fr;
   gap: var(--space-4);
 }
+/* T-57 R1c (C6-shift, MINOR-C6) — audited against the canonical 860px nav breakpoint and left as
+   640px deliberately: this is a self-referential CONTENT breakpoint, not a nav/parity one. The
+   Shift is a distraction-free focus screen (see file header) that never mounts inside the
+   `.app-frame`/`.sidebar` nav shell those 860px breakpoints govern elsewhere (no shift/layout.tsx;
+   ShiftView.tsx:220-221 renders `.shell` > `.focusShell` standalone) — `.focusShell` itself caps at
+   `max-width: 640px` (line 34), so 640px is exactly the viewport width at which this column reaches
+   its own full content width and can afford a second ratio-card column. Re-pointing this at 860px
+   would not "align" it — `.focusShell` can never be 860px wide, so the 2-column layout would simply
+   never trigger, a regression. Left unchanged. */
 @media (min-width: 640px) {
   .ratioGrid {
     grid-template-columns: 1fr 1fr;
