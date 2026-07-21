@@ -44,6 +44,14 @@
     "dataRightsTitle": "Datos y privacidad",
     "dataRightsDesc": "Exporta o elimina tus datos.",
     "comingSoon": "Próximamente",
+    "appearance": {
+      "hubTitle": "Apariencia",
+      "hubDesc": "Claro, oscuro o según tu dispositivo.",
+      "heading": "Apariencia",
+      "subhead": "Elige cómo se ve The Harvest en este dispositivo.",
+      "themeRowTitle": "Tema",
+      "themeRowDesc": "Alterna entre igualar tu dispositivo, Hora Dorada (claro) y Antes del Amanecer (oscuro)."
+    },
     "notifications": {
       "heading": "Notificaciones",
       "subhead": "Elige cuándo y con qué frecuencia te contactamos. Las respuestas, los logros y la seguridad de la cuenta siempre llegan.",
@@ -1265,6 +1273,7 @@
       "handToAgentCta": "Entregar a mi agente"
     },
     "warmMarketRitual": {
+      "backToTodayCta": "Volver a Hoy",
       "offlineBannerLine1": "Estás sin conexión — las Capas 1 y 2 siguen funcionando. Tu progreso está guardado en este dispositivo",
       "offlineBannerQueuedSuffix_one": " ({count} elemento en espera)",
       "offlineBannerQueuedSuffix_other": " ({count} elementos en espera)",

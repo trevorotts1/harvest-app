@@ -33,6 +33,38 @@
   gap: var(--space-5);
 }
 
+/* T-57 RE-GATE E [a9500c6d] MAJOR — the in-app exit affordance. This route hides the persistent
+   AppShell (§5.4's full-bleed ritual), so this bar is the only in-app way out; it sits outside
+   `.stage` so it renders in every stage (Loading, all three layers, and the post-handoff done
+   state), not just the terminal one the re-gate flagged as the minimum bar. */
+.exitBar {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  justify-content: flex-start;
+}
+.exitLink {
+  min-height: var(--touch-target-min);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+}
+.exitLink:hover {
+  background: var(--surface-1-solid-fallback);
+}
+.exitLink:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
 /* ---- The paper (ritual texture, §1.1 item 4) ---- */
 .paper {
   position: relative;

@@ -9,6 +9,10 @@
 // ships in this build (MAJOR-D3). Intensity and Security are new hub entries this build also adds
 // (E-M4 intensity-changeable-from-Me, E-M10 MFA enrollment + §16.4 sign-out-everywhere).
 //
+// T-57 RE-GATE E [a9500c6d] BLOCKER "M4-appearance": Appearance is a new hub entry this build adds
+// — §1.2.2's theme manual override (the existing `ThemeToggle`) had no authed-app entry point at
+// all before this fix; see src/app/me/appearance/page.tsx.
+//
 // Localized via `useT()` (EN+ES). Auth- and onboarding-gated by the existing middleware `/me/:path*`
 // matcher, exactly like every /me sub-page.
 
@@ -24,6 +28,9 @@ interface HubItem {
 }
 
 const HUB_ITEMS: readonly HubItem[] = [
+  // T-57 RE-GATE E [a9500c6d] BLOCKER "M4-appearance": the existing ThemeToggle (T-05) had no
+  // authed-app entry point at all — see src/app/me/appearance/page.tsx's own header comment.
+  { href: '/me/appearance', titleKey: 'me.appearance.hubTitle', descKey: 'me.appearance.hubDesc' },
   { href: '/me/accessibility', titleKey: 'me.accessibilityTitle', descKey: 'me.accessibilityDesc' },
   { href: '/me/notifications', titleKey: 'me.notificationsTitle', descKey: 'me.notificationsDesc' },
   { href: '/me/intensity', titleKey: 'me.intensity.hubTitle', descKey: 'me.intensity.hubDesc' },

@@ -1,0 +1,54 @@
+/* T-57 RE-GATE E [a9500c6d] — Me → Appearance. Hosts the existing `ThemeToggle`
+   (src/app/theme-toggle.tsx, its own `.theme-toggle` class in globals.css already sets
+   min-height: var(--touch-target-min)) — this file only lays out the page/card shell around it, so
+   it defines no new interactive control of its own. Semantic tokens only; no opacity/translucent
+   color on text. Mirrors src/app/me/accessibility/accessibility.module.css's page/header/card shell. */
+
+.page {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter-mobile) var(--space-8);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  min-height: 100vh;
+}
+.header {
+  margin-bottom: var(--space-5);
+}
+.heading {
+  font-family: var(--font-vision);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  letter-spacing: var(--type-headline-tracking);
+  margin: 0 0 var(--space-2);
+}
+.subhead {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+}
+.rowText {
+  display: grid;
+  gap: var(--space-1);
+}
+.rowTitle {
+  font-weight: 700;
+  margin: 0;
+}
+.rowDesc {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  margin: 0;
+}
