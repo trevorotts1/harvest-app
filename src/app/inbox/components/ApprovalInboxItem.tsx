@@ -10,6 +10,17 @@
 // NO BATCH APPROVE: this component's `onApprove`/`onDecline`/`onEdit` callbacks each take exactly
 // the ONE item's id — there is no multi-select affordance anywhere in this file, by construction
 // (uiux §5.6 "Batch operations do not exist by design").
+//
+// QUEUED-OFFLINE (T-54, master-spec §17.6; uiux §4.3 "queued-offline ... will finish when you're
+// back online; it will re-check compliance first"): `item.queuedOffline` is a PAGE-owned, ephemeral
+// flag (never persisted server-side) set the moment `src/app/inbox/page.tsx` enqueues an
+// approve/decline/edit taken while offline (`src/app/inbox/offline.ts`). While it is true, this
+// component intentionally shows NEITHER a CFE chip claim NOR the action footer — the chip's own
+// default branch would otherwise render a misleading "Pass" for content that has NOT actually been
+// re-checked since the rep queued their action; the honest state is a single banner. It is read
+// straight off the `item` PROP (not the internal `current` state, which is only ever mutated by this
+// component's own successful edit) so a parent re-render that flips this flag is always reflected
+// immediately, regardless of whether `current` has itself changed.
 
 'use client';
 
@@ -33,6 +44,9 @@ export interface InboxItemData {
   created_at: string;
   agentsPaused?: boolean;
   doNotContact?: boolean;
+  /** T-54 — see this file's header "QUEUED-OFFLINE" note. Page-owned, ephemeral; absent/false for
+   *  every existing caller (DraftApprovalCard, Approval Inbox list before an offline action). */
+  queuedOffline?: boolean;
 }
 
 const DECLINE_REASON_OPTIONS: { value: string; label: string }[] = [
@@ -72,6 +86,8 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
   const chip = cfeChip(current.cfe_outcome, checking);
   const isHeld = current.approval_state === 'HELD';
   const isTerminal = current.approval_state === 'APPROVED' || current.approval_state === 'DECLINED';
+  // T-54 — read from the PROP, not `current` (see this file's header "QUEUED-OFFLINE" note).
+  const queuedOffline = item.queuedOffline === true;
 
   async function handleApprove() {
     setBusy(true);
@@ -120,16 +136,28 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
           <span>&middot;</span>
           <span>{current.channel.replaceAll('_', ' ')}</span>
         </div>
-        <span className={`${styles.cfeChip} ${chip.className}`} role="status">
-          <span aria-hidden="true">&#9673;</span> {chip.label}
-          {typeof current.cfe_risk_score === 'number' && !checking ? ` (${current.cfe_risk_score})` : ''}
+        {/* T-54: while queued offline, the last-known band is stale-to-the-rep's-own-pending-action
+            — showing it (esp. the chip's default "Pass" branch) would misrepresent an item that has
+            NOT actually been re-checked since the rep queued this action. Show "Queued" instead. */}
+        <span className={`${styles.cfeChip} ${queuedOffline ? styles.cfeChipChecking : chip.className}`} role="status">
+          <span aria-hidden="true">&#9673;</span> {queuedOffline ? 'Queued' : chip.label}
+          {!queuedOffline && typeof current.cfe_risk_score === 'number' && !checking ? ` (${current.cfe_risk_score})` : ''}
         </span>
       </div>
 
-      {isHeld && (
-        <p className={styles.heldBanner} role="alert">
-          Held for review — this draft cannot be approved as-is. Use the rewrite or discard it.
+      {queuedOffline ? (
+        // uiux §4.3 "queued-offline (approval recorded locally, 'will finish when you're back
+        // online; it will re-check compliance first' — §6.4)" — verbatim copy, no action footer
+        // while this is showing (nothing here is approvable/declinable/editable until it syncs).
+        <p className={styles.offlineQueuedBanner} role="status">
+          Queued — will finish when you&rsquo;re back online; it will re-check compliance first.
         </p>
+      ) : (
+        isHeld && (
+          <p className={styles.heldBanner} role="alert">
+            Held for review — this draft cannot be approved as-is. Use the rewrite or discard it.
+          </p>
+        )
       )}
 
       {mode === 'editing' ? (
@@ -152,7 +180,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         </p>
       )}
 
-      {mode === 'declining' && (
+      {!queuedOffline && mode === 'declining' && (
         <div className={styles.reasonRow} role="radiogroup" aria-label="Reason for declining">
           {DECLINE_REASON_OPTIONS.map((opt) => (
             <button
@@ -176,7 +204,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         </div>
       )}
 
-      {!isTerminal && (
+      {!isTerminal && !queuedOffline && (
         <div className={styles.itemFooter}>
           {mode === 'view' && !isHeld && (
             <button

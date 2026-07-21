@@ -287,6 +287,42 @@
   padding: var(--space-2) var(--space-4);
   cursor: pointer;
 }
+/* T-54 (master-spec §17.6; uiux §4.2 "queued-offline (sync-queued icon, 'will sync')") — an
+   honest deferral, never a button that looks live but silently does nothing while offline. Same
+   soil-toned informational styling as the page-level offline banner below. */
+.queueQueuedOffline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--touch-target-min);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--soil-200);
+  background: var(--soil-50);
+  color: var(--soil-700);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-caption-size);
+}
+
+/* ---- Offline / degraded banners (T-54, master-spec §17.6; uiux §6.4/§6.7) — soil-toned,
+   informational, never an error/caution color: being offline is an honest state, not a failure.
+   Same token pairing as ShiftView's/WarmMarketRitual's own `.offlineBanner`. ---- */
+.offlineBanner {
+  background: var(--soil-50);
+  border: 1px solid var(--soil-200);
+  color: var(--soil-700);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--type-caption-size);
+  margin: 0 0 var(--space-4);
+}
+.syncFailureNotice {
+  color: var(--color-caution-text);
+  background: var(--color-caution-bg);
+  border-radius: var(--radius-panel);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--type-caption-size);
+  margin: 0 0 var(--space-4);
+}
 /* T-32 QC fix: the review_flagged item's CFE band summary + its deep-link to the Approval Inbox
    (a plain navigation link, styled like the other queue actions — never a one-tap approve). */
 .queueCfeBand {
