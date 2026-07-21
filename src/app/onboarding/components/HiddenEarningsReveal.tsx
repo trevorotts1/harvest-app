@@ -111,10 +111,27 @@ export default function HiddenEarningsReveal({
   }
 
   // The single screen-reader utterance (§6.1 O-8 narration script): figure + safe harbor as ONE line.
+  //
+  // T-57 R4-residual2 (dimension-B i18n re-gate) — this WRAPPING sentence used to be a hardcoded
+  // English template literal even for es-locale reps; the embedded currency figure (`formatUsd`, via
+  // `formatCurrencyUSD(locale, ...)`, see above) was already locale-aware, but the words around it
+  // were not. Each countable phrase now resolves through the catalog's CLDR one/other mechanism
+  // (`onboarding.hiddenEarnings.srUtterance.*`, en.json/es.json) via its OWN independent `count` —
+  // "person"/"people", "conversation"/"conversations", "family"/"families" (and their Spanish
+  // equivalents) each pluralize on a DIFFERENT quantity (contactCount/estimatedAppointments/
+  // estimatedClients), so this can't be one shared plural switch. `SAFE_HARBOR_LINE_SPOKEN` itself
+  // stays appended verbatim and untranslated by design — it is the FTC-mandated safe-harbor copy
+  // (hidden-earnings.ts's own header: "Verbatim; never paraphrased", §4.13/§0.5); only the
+  // component-authored sentence WRAPPING it is this fix's target (mirrors that same file's own
+  // `buildScreenReaderUtterance` doctrine note: this component, not the engine, is "the REP-facing
+  // surface that actually needs [...] locale-aware currency" and, now, locale-aware prose around it).
   const srUtterance =
-    `From the ${contactCount} people in your community: an estimated ${estimatedAppointments} conversations, ` +
-    `${estimatedClients} families you could help, and ${formatUsd(monthlyValueUsd, locale)} of potential monthly value. ` +
-    SAFE_HARBOR_LINE_SPOKEN;
+    `${t(locale, 'onboarding.hiddenEarnings.srUtterance.sentence', {
+      intro: t(locale, 'onboarding.hiddenEarnings.srUtterance.communityIntro', { count: contactCount }),
+      conversations: t(locale, 'onboarding.hiddenEarnings.srUtterance.conversationsPhrase', { count: estimatedAppointments }),
+      families: t(locale, 'onboarding.hiddenEarnings.srUtterance.familiesPhrase', { count: estimatedClients }),
+      value: formatUsd(monthlyValueUsd, locale),
+    })} ${SAFE_HARBOR_LINE_SPOKEN}`;
 
   return (
     <section className={styles.reveal} aria-labelledby="reveal-sr">
