@@ -268,7 +268,9 @@
         "approve": "Approve",
         "review": "Review",
         "confirm": "Confirm"
-      }
+      },
+      "tryRitualCta": "Try the Warm-Market ritual",
+      "tryJoggerCta": "Try a Memory Jogger prompt"
     },
     "calendarStrip": {
       "badge": "Team calendar",
@@ -482,7 +484,9 @@
       "listCta": "List",
       "emptyPrimericaBody": "Your orchard is just planted — the full 3-wide × 4-deep vision is ready for your first real team member.",
       "emptyExternalBody": "Your network is just getting started.",
-      "inviteFirstCta": "Invite your first"
+      "inviteFirstCta": "Invite your first",
+      "warmMarketRitualBody": "The Warm-Market ritual is the fastest way to fill this with real, ready introductions.",
+      "warmMarketRitualCta": "Start the Warm-Market ritual"
     },
     "goalCard": {
       "potentialNotPromise": "This is potential, not a promise — it depends on your effort, consistency, and market.",
@@ -561,7 +565,9 @@
         "locked": "Locked"
       },
       "releasedStatus": "Released — you are fully licensed.",
-      "blockedStatusTemplate": "Blocked ({state}) — insurance content stays held until you're licensed."
+      "blockedStatusTemplate": "Blocked ({state}) — insurance content stays held until you're licensed.",
+      "warmMarketRitualBody": "Ready for your first 20? The Warm-Market ritual walks you through it.",
+      "warmMarketRitualCta": "Start the Warm-Market ritual"
     },
     "orgSwitch": {
       "title": "Organization type",
@@ -1210,7 +1216,10 @@
       "offlineBannerQueuedSuffix": " ({count} item{plural} queued)",
       "offlineBannerLine2": " and will sync, with a compliance re-check, when you’re back.",
       "syncingBanner": "Back online — syncing {count} item{plural}...",
-      "loadingRitual": "Loading your ritual..."
+      "loadingRitual": "Loading your ritual...",
+      "handoffSending": "Handing your matches to your agent…",
+      "handoffDone": "Done — your agent is drafting first introductions. Check your Approval Inbox soon.",
+      "handoffError": "We couldn't hand this to your agent just now — nothing was lost. Try again."
     }
   },
   "team": {
@@ -1487,6 +1496,69 @@
     "error": {
       "saveFailed": "This could not be saved. Try again.",
       "offline": "Couldn't reach the server — you may be offline. Try again once you're back."
+    }
+  },
+  "agents": {
+    "budgetExhaustedReasoning": "Your agents reach their daily limit at your current intensity — change your intensity anytime in Me → Intensity."
+  },
+  "grove": {
+    "tapAria": "{caption}. Tap to see the three channels behind your Grove.",
+    "sheet": {
+      "title": "Your three channels",
+      "grow": {
+        "caption": "New branches grow as your team grows and your pipeline stays healthy."
+      },
+      "engage": {
+        "caption": "Leaves fill in and brighten with your own engagement and steady habits."
+      },
+      "wealth": {
+        "caption": "Fruit appears near your recent wins — client signings and harvest events."
+      }
+    }
+  },
+  "invite": {
+    "loading": "Finding your invite…",
+    "missingParamBody": "This link is missing its invite code.",
+    "startFreshCta": "Start your own onboarding",
+    "notFoundBody": "We couldn't find this invite. It may have already been used.",
+    "expiredBody": "This invite has expired.",
+    "rejectedBody": "This invite was declined.",
+    "failedBody": "We couldn't open this invite just now. Try again.",
+    "eyebrow": "You've been invited",
+    "greetingNamed": "{name} invited you to build alongside them",
+    "greetingGeneric": "You've been invited to build alongside a sponsor",
+    "alreadyAcceptedBody": "You've already accepted this invite — pick up where you left off.",
+    "pendingBody": "Continue to set up your own account — your sponsor and organization are already on file.",
+    "continueCta": "Continue"
+  },
+  "jogger": {
+    "title": "Memory Jogger",
+    "backToCommunity": "Back to Community",
+    "loading": "Getting a prompt ready…",
+    "loadFailed": "We couldn't load a prompt. Try again.",
+    "retry": "Retry",
+    "notTriggeredBody": "Your community already has {count} people in it — the Memory Jogger is here anytime you want to add more.",
+    "unavailableBody": "We couldn't get a prompt just now — nothing was lost. Try again in a moment.",
+    "promptBadge": "Memory Jogger",
+    "nameInputLabel": "Their first name",
+    "nameInputPlaceholder": "First name",
+    "addCta": "Add",
+    "captureAdded": "Added to your Vault.",
+    "captureExisting": "Already in your Vault — good, you remembered.",
+    "captureFailed": "We couldn't save that name. Try again.",
+    "nextCta": "Next prompt",
+    "doneCta": "Done for now"
+  },
+  "receipts": {
+    "actionQueue": {
+      "title": "What this adds up to",
+      "minutesSuffix": "~{minutes} min",
+      "moreNotShown": "+{count} more not shown here"
+    },
+    "ratioCards": {
+      "toggleCta": "See the numbers behind this",
+      "dataPointsLearning": "Still learning — based on {count} real data points so far.",
+      "dataPointsReal": "Based on {count} real data points."
     }
   }
 }

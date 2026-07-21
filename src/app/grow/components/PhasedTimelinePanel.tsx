@@ -5,6 +5,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 import type { PhasedTimelineResult } from '@/types/taprooting';
 import styles from '../grow.module.css';
@@ -34,9 +35,24 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
     }
   };
 
+  // T-57 R3c-1 (BLOCKER-E1, uiux §5.4 "Entry: ... from the phased timeline (Primerica days 1–7)").
+  // Scoped to the `launch` phase specifically (the spec's own "days 1-7" framing) and only while it
+  // isn't already complete — once the rep has finished days 1-7 this entry point has served its
+  // purpose (the ritual itself stays reachable from Grow's own unconditional entry point).
+  const launchPhase = timeline.phases.find((p) => p.key === 'launch');
+  const showRitualEntry = !!launchPhase && !launchPhase.complete;
+
   return (
     <section className={styles.card} aria-label={t('grow.phasedTimeline.ariaLabel')}>
       <span className={styles.badge}>{t('grow.phasedTimeline.badge')}</span>
+      {showRitualEntry && (
+        <p>
+          {t('grow.phasedTimeline.warmMarketRitualBody')}{' '}
+          <Link href="/ritual/warm-market" className={styles.iconButton}>
+            {t('grow.phasedTimeline.warmMarketRitualCta')}
+          </Link>
+        </p>
+      )}
       {timeline.phases.map((phase) => (
         <div key={phase.key}>
           <div className={styles.phaseHeader}>

@@ -119,6 +119,17 @@ export default function GrowPage() {
           </Link>
         </div>
 
+        {/* T-57 R3c-1 (BLOCKER-E1, uiux §5.4 "Entry: /ritual/warm-market from Grow, from the phased
+            timeline ... or from a Today queue suggestion") — the ritual is universal (Primerica
+            overlay changes calibration, not reachability), so this entry point is unconditional,
+            unlike the branch-gated cards below it. */}
+        <div className={styles.card}>
+          <p>{t('grow.page.warmMarketRitualBody')}</p>
+          <Link href="/ritual/warm-market" className={styles.navLink}>
+            {t('grow.page.warmMarketRitualCta')}
+          </Link>
+        </div>
+
         <div className={styles.card}>
           <div className={styles.toolbar}>
             <div className={styles.segmentGroup} role="group" aria-label={t('grow.page.viewToggleAria')}>

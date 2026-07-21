@@ -238,8 +238,14 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
             stack={shift.stack}
             elapsedSeconds={shift.elapsedSeconds}
             onAction={handleAction}
+            // T-57 R3c-1 (terminal-exit fix): this used to be a pure no-op — tapping "Save and
+            // leave" during Work did nothing at all. Every Work-phase action already round-trips
+            // to the server the instant it's taken (`handleAction` above), so there is no separate
+            // "unsaved" state to flush here; the real gap was navigation. Lands on `/today` — the
+            // same real exit target as DoneScreen's "Back to Today" below (a resumed Shift
+            // re-fetches this exact in-progress stack, §5.3 "Resume").
             onSaveAndLeave={() => {
-              /* App-level "back to Today" navigation — outside this route's lane. */
+              window.location.href = '/today';
             }}
           />
         ) : null}
@@ -257,8 +263,10 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
           <DoneScreen
             streakCount={shift.streakCount}
             recap={shift.recap}
+            // T-57 R3c-1 (terminal-exit fix): was `'/'` — the marketing/public landing route, not
+            // Mission Control. Corrected to the real Today destination (uiux §2.4).
             onBackToToday={() => {
-              window.location.href = '/';
+              window.location.href = '/today';
             }}
           />
         ) : null}

@@ -16,8 +16,12 @@
 // §3.3: the SVG is `aria-hidden` decorative; `caption` is rendered as an adjacent, visually-rendered
 // element a screen reader announces normally — never inside the SVG, never `sr-only`.
 
+import { useState } from 'react';
+
 import styles from '../today.module.css';
 import type { GroveState } from '@/services/mission-control/types';
+import { useT } from '@/app/locale-context';
+import GroveThreeLawsSheet from './GroveThreeLawsSheet';
 
 export interface GroveProps {
   state: GroveState;
@@ -42,6 +46,11 @@ function clamp(n: number, lo: number, hi: number): number {
 const DULL_STATES: GroveState[] = ['quiet', 'resting', 'stale'];
 
 export default function Grove({ state, laws, caption, bloomNarration, size = 'hero' }: GroveProps) {
+  const t = useT();
+  // T-57 R3c-1 (MAJOR-A3) — the Grove used to be pure decoration: no button, no onClick anywhere in
+  // this file. `sheetOpen` drives the new Three Laws sheet (§6.1#5 "channel detail available on the
+  // Three Laws sheet").
+  const [sheetOpen, setSheetOpen] = useState(false);
   const isSeed = state === 'seed';
   const isSprout = state === 'sprout';
   const isBloom = state === 'bloom';
@@ -71,48 +80,60 @@ export default function Grove({ state, laws, caption, bloomNarration, size = 'he
 
   return (
     <div className={size === 'hero' ? styles.groveHero : styles.groveCompact} data-grove-state={state}>
-      <svg
-        viewBox="0 0 200 140"
-        aria-hidden="true"
-        className={`${styles.groveSvg} ${state !== 'stale' && !dulled ? styles.groveSway : ''}`}
+      {/* T-57 R3c-1 (MAJOR-A3): a real, native <button> — keyboard/switch-operable and
+          screen-reader-focusable by construction, never a div-with-onClick. The SVG stays
+          `aria-hidden` (§3.3 "decorative"); the caption remains the accessible name (§6.1#5 "state
+          caption text is the accessible name"), now INSIDE the same tappable control alongside it. */}
+      <button
+        type="button"
+        className={styles.groveTapTarget}
+        onClick={() => setSheetOpen(true)}
+        aria-label={t('grove.tapAria', { caption })}
       >
-        {/* ground line — grass length reflects streak length (uiux §3.1); flat baseline here */}
-        <ellipse cx="100" cy="122" rx="70" ry="8" className={styles.groveGround} />
+        <svg
+          viewBox="0 0 200 140"
+          aria-hidden="true"
+          className={`${styles.groveSvg} ${state !== 'stale' && !dulled ? styles.groveSway : ''}`}
+        >
+          {/* ground line — grass length reflects streak length (uiux §3.1); flat baseline here */}
+          <ellipse cx="100" cy="122" rx="70" ry="8" className={styles.groveGround} />
 
-        {/* soil mound */}
-        <ellipse cx="100" cy="112" rx="30" ry="10" className={styles.groveMound} />
+          {/* soil mound */}
+          <ellipse cx="100" cy="112" rx="30" ry="10" className={styles.groveMound} />
 
-        {isSeed && <circle cx="100" cy="104" r="6" className={styles.groveSeed} />}
+          {isSeed && <circle cx="100" cy="104" r="6" className={styles.groveSeed} />}
 
-        {(isSprout || branchCount > 0) && (
-          <line x1="100" y1="112" x2="100" y2={canopyCy + 15} className={styles.groveTrunk} strokeWidth="4" />
-        )}
+          {(isSprout || branchCount > 0) && (
+            <line x1="100" y1="112" x2="100" y2={canopyCy + 15} className={styles.groveTrunk} strokeWidth="4" />
+          )}
 
-        {isSprout && (
-          <>
-            <ellipse cx="88" cy="96" rx="10" ry="6" className={leafClass} fillOpacity={0.9} />
-            <ellipse cx="112" cy="96" rx="10" ry="6" className={leafClass} fillOpacity={0.9} />
-          </>
-        )}
+          {isSprout && (
+            <>
+              <ellipse cx="88" cy="96" rx="10" ry="6" className={leafClass} fillOpacity={0.9} />
+              <ellipse cx="112" cy="96" rx="10" ry="6" className={leafClass} fillOpacity={0.9} />
+            </>
+          )}
 
-        {leafPositions.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={14} className={leafClass} fillOpacity={leafFillOpacity} />
-        ))}
+          {leafPositions.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={14} className={leafClass} fillOpacity={leafFillOpacity} />
+          ))}
 
-        {fruitPositions.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={4} className={styles.groveFruit} />
-        ))}
+          {fruitPositions.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={4} className={styles.groveFruit} />
+          ))}
 
-        {isBloom && <circle cx={canopyCx} cy={canopyCy} r={40} className={styles.groveBloomBurst} />}
+          {isBloom && <circle cx={canopyCx} cy={canopyCy} r={40} className={styles.groveBloomBurst} />}
 
-        {dulled && <ellipse cx="100" cy="90" rx="60" ry="30" className={styles.groveMist} fillOpacity={0.25} />}
-      </svg>
-      <p className={styles.groveCaption}>{caption}</p>
+          {dulled && <ellipse cx="100" cy="90" rx="60" ry="30" className={styles.groveMist} fillOpacity={0.25} />}
+        </svg>
+        <p className={styles.groveCaption}>{caption}</p>
+      </button>
       {state === 'bloom' && bloomNarration && (
         <p className={styles.srOnly} role="status" aria-live="polite">
           {bloomNarration}
         </p>
       )}
+      <GroveThreeLawsSheet open={sheetOpen} onClose={() => setSheetOpen(false)} laws={laws} />
     </div>
   );
 }
