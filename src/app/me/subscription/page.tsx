@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useT } from '@/app/locale-context';
 import styles from './subscription.module.css';
 import BillingBanner from './components/BillingBanner';
 import TierCard, { type TierCardData } from './components/TierCard';
@@ -36,6 +37,7 @@ function fmt(iso: string | null): string {
 }
 
 export default function SubscriptionPage() {
+  const t = useT();
   const [load, setLoad] = useState<Load>('loading');
   const [data, setData] = useState<SubscriptionResponse | null>(null);
   const [justPaid, setJustPaid] = useState(false);
@@ -107,7 +109,7 @@ export default function SubscriptionPage() {
   if (load === 'loading') {
     return (
       <main className={styles.page}>
-        <p className={styles.loading}>Loading your plan…</p>
+        <p className={styles.loading}>{t('billing.loading')}</p>
       </main>
     );
   }
@@ -116,13 +118,13 @@ export default function SubscriptionPage() {
     // Never guess a state (uiux §5.8 error state) — the plan is unaffected.
     return (
       <main className={styles.page}>
-        <h1 className={styles.heading}>Subscription</h1>
+        <h1 className={styles.heading}>{t('billing.heading')}</h1>
         <div className={`${styles.banner} ${styles.bannerQuiet}`} role="status">
-          <p className={styles.bannerTitle}>We can’t reach billing right now.</p>
-          <p className={styles.bannerBody}>Your plan is unaffected.</p>
+          <p className={styles.bannerTitle}>{t('billing.unreachable')}</p>
+          <p className={styles.bannerBody}>{t('billing.planUnaffected')}</p>
           <div className={styles.btnRow}>
             <button type="button" className={styles.secondaryBtn} onClick={() => void fetchState()}>
-              Retry
+              {t('billing.retry')}
             </button>
           </div>
         </div>
@@ -151,8 +153,8 @@ export default function SubscriptionPage() {
   return (
     <main className={styles.page}>
       <header>
-        <h1 className={styles.heading}>Subscription</h1>
-        <p className={styles.subhead}>Your plan, in plain terms. No surprises, no fine print.</p>
+        <h1 className={styles.heading}>{t('billing.heading')}</h1>
+        <p className={styles.subhead}>{t('billing.subhead')}</p>
       </header>
 
       <BillingBanner state={state} justPaid={justPaid} />

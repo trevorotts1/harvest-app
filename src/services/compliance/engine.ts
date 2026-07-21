@@ -117,7 +117,9 @@ export class ComplianceFilterEngine {
       let band = this.bandForScore(score);
 
       // §5.3 per-classifier hard rules (escalate upward only).
-      const rules = evaluateClassifierRules(results, input.userContext);
+      // T-53 (§17.5): selects the Spanish safe-harbor disclaimer text when `input.language ===
+      // 'es'` — defaults to 'en' (byte-identical to pre-T-53 behavior) when unset.
+      const rules = evaluateClassifierRules(results, input.userContext, input.language ?? 'en');
       band = strictestBand(band, rules.forcedBand);
 
       // §0.5/§5.3: forbidden doctrine vocabulary must be rewritten before the

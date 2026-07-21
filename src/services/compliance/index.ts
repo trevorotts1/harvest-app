@@ -10,7 +10,7 @@ export {
 } from './claude';
 export type { ClaudeClassifierClient, ClassifierRequest, HaikuClientOptions } from './claude';
 export { buildClassifiers, BaseHaikuClassifier } from './classifiers';
-export { VocabularyClassifier, FORBIDDEN_TERMS } from './vocabulary';
+export { VocabularyClassifier, FORBIDDEN_TERMS, FORBIDDEN_TERMS_ES, FORBIDDEN_TERMS_ALL } from './vocabulary';
 export {
   evaluateClassifierRules,
   strictestBand,

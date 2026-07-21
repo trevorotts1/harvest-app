@@ -1,0 +1,146 @@
+{
+  "common": {
+    "retry": "Reintentar",
+    "loading": "Cargando…",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "back": "Atrás"
+  },
+  "nav": {
+    "team": "Equipo",
+    "approvalInbox": "Bandeja de aprobación",
+    "grow": "Cultivar",
+    "growArrow": "Cultivar →",
+    "community": "Comunidad",
+    "subscription": "Suscripción",
+    "dataPrivacy": "Datos y privacidad",
+    "language": "Idioma"
+  },
+  "today": {
+    "greeting": "Buenos días, {name}",
+    "loadingReport": "Preparando tu informe…",
+    "loadFailed": "No pudimos cargar Hoy — tu trabajo está seguro.",
+    "retry": "Reintentar",
+    "offlineBanner": "Sin conexión — mostrando tu campo guardado",
+    "offlineBannerQueuedSuffix": " ({count} acción{plural} en espera)",
+    "offlineBannerTailQueueAction": ". Todo lo que apruebes, rechaces, confirmes o marques se sincronizará cuando vuelvas a estar en línea.",
+    "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}…",
+    "primaryCta": "Comienza tus 30 minutos de hoy",
+    "contentQueueLink": "Cola de contenido — publicaciones, blog y borradores de correo esperando revisión",
+    "momentum": {
+      "thriving": "Floreciendo",
+      "growing": "Creciendo",
+      "quiet": "Tranquilo",
+      "resting": "En reposo"
+    },
+    "receiptsCta": "Ver la acción que más ayuda"
+  },
+  "community": {
+    "title": "Comunidad",
+    "importContacts": "Importar contactos",
+    "growLink": "Cultivar →",
+    "loading": "Cargando tu comunidad…",
+    "loadError": "No se pudo cargar tu comunidad. Inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "emptyState": "Aún no tienes contactos — importa o agrega contactos para empezar a construir tu comunidad.",
+    "toggleError": "No se pudo actualizar este contacto. Inténtalo de nuevo."
+  },
+  "shift": {
+    "loadError": "No pudimos cargar tu turno. Reintenta.",
+    "offlineBanner": "Estás sin conexión — las acciones quedan en espera y se sincronizarán (con una nueva revisión de cumplimiento) cuando vuelvas a estar en línea."
+  },
+  "inbox": {
+    "title": "Bandeja de aprobación",
+    "growLink": "Cultivar →",
+    "subtitle": "Cada mensaje redactado por tus agentes espera aquí tu revisión — nada se envía sin tu aprobación.",
+    "offlineBanner": "Sin conexión — mostrando tu campo guardado",
+    "offlineBannerQueuedSuffix": " ({count} acción{plural} en espera)",
+    "offlineBannerTailEdit": ". Todo lo que apruebes, rechaces o edites se sincronizará y volverá a revisar el cumplimiento cuando vuelvas a estar en línea.",
+    "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}…",
+    "loading": "Cargando la bandeja de aprobación…",
+    "loadError": "No se pudo cargar la bandeja de aprobación. Inténtalo de nuevo.",
+    "retry": "Reintentar",
+    "filters": {
+      "awaiting": "En espera",
+      "held": "Retenidos",
+      "approved": "Aprobados",
+      "declined": "Rechazados",
+      "all": "Todos"
+    }
+  },
+  "learn": {
+    "backToToday": "← Volver a Hoy",
+    "courseBadge": "Curso Downline Maxxing",
+    "title": "Aprender",
+    "loadingCourse": "Preparando tu curso…",
+    "loadFailed": "No pudimos cargar el curso en este momento — tu progreso está seguro.",
+    "retry": "Reintentar",
+    "streakBadge": "Racha — {count} día{plural}",
+    "graceDayAvailable": "Tienes un día de gracia disponible esta semana si lo necesitas — a veces la vida se complica.",
+    "referralScripts": {
+      "badge": "Guiones de referidos",
+      "title": "Pide una presentación",
+      "body": "Guiones organizados por tipo de relación y aprobados por el CFE, para familia, amigos, trabajo, iglesia y más."
+    },
+    "coaching": {
+      "badge": "Acompañamiento",
+      "title": "Pregúntale a Harvest",
+      "body": "Acompañamiento basado en el curso y en guiones para objeciones — con tu propia voz."
+    },
+    "goalCard": {
+      "badge": "Tarjeta de compromiso de metas",
+      "title": "Aquello que estás construyendo",
+      "body": "Tu meta de ingresos, el plazo de tu ascenso y tus sueños más importantes — conectados a tu ancla."
+    },
+    "courseModulesBadge": "Módulos del curso"
+  },
+  "billing": {
+    "loading": "Cargando tu plan…",
+    "heading": "Suscripción",
+    "subhead": "Tu plan, en términos claros. Sin sorpresas ni letra pequeña.",
+    "unreachable": "No podemos conectarnos con facturación en este momento.",
+    "planUnaffected": "Tu plan no se ve afectado.",
+    "retry": "Reintentar",
+    "sponsoredHeading": "Tienes patrocinio",
+    "managePlan": "Administrar plan",
+    "cancelSubscription": "Cancelar suscripción",
+    "cancelIntro": "Antes de irte — algunas opciones, todas igual de válidas:",
+    "checkoutUnavailable": "El pago no está disponible en este momento. Tu plan no se ve afectado — intenta de nuevo más tarde.",
+    "checkoutFailed": "No pudimos iniciar el pago. Tu plan no se ve afectado.",
+    "findASponsor": "Encuentra un patrocinador",
+    "start": "Comenzar",
+    "continueAt297": "Continuar por $297",
+    "talkToUs": "Habla con nosotros"
+  },
+  "dataRights": {
+    "heading": "Datos y privacidad",
+    "subhead": "Tus datos son tuyos. Exporta una copia completa o pídenos que la eliminemos — GDPR/CCPA, en términos claros.",
+    "export": {
+      "sectionTitle": "Exporta tus datos",
+      "body": "Descarga una copia de tu perfil, contactos y datos de cuenta en un formato legible. Nunca incluye tu contraseña ni ninguna credencial de seguridad.",
+      "formatLabel": "Formato",
+      "downloadCta": "Descargar mis datos"
+    },
+    "deletion": {
+      "sectionTitle": "Elimina tu cuenta y tus datos",
+      "body": "Esto elimina permanentemente tu perfil, contactos, mensajes e historial de las Siete Razones. Las comunicaciones exigidas por normas regulatorias se conservan, nunca se venden ni reutilizan — tu certificado de eliminación detalla exactamente qué se conservó y por qué.",
+      "requestCta": "Solicitar eliminación de la cuenta"
+    }
+  },
+  "onboarding": {
+    "vision": {
+      "body": "Las personas que ya están en tu teléfono representan cientos de miles de dólares en potencial. Estamos a punto de mostrarte exactamente qué significa eso — y luego vamos a ayudarte a conseguirlo.",
+      "cta": "Comencemos"
+    }
+  },
+  "settings": {
+    "language": {
+      "heading": "Idioma",
+      "subhead": "Elige el idioma de tu espacio de trabajo en Harvest. Esto no cambia el idioma de una introducción comunitaria que redactes — eso es una elección por borrador, y pasa por el CFE en cualquier idioma.",
+      "english": "English",
+      "spanish": "Español",
+      "saved": "Guardado.",
+      "saveFailed": "No se pudo guardar tu preferencia de idioma. Inténtalo de nuevo."
+    }
+  }
+}

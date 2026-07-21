@@ -3,7 +3,9 @@ import {
   ClassifierResult,
   UserContext,
   CFEBand,
+  ContentLanguage,
   SAFE_HARBOR_DISCLAIMERS,
+  SAFE_HARBOR_DISCLAIMERS_ES,
 } from '../../../types/compliance';
 
 /**
@@ -50,11 +52,18 @@ function confOf(results: ClassifierResult[], c: Classifier): number {
  * Apply the five §5.3 classifier rules plus the §5.5 licensing gate. Returns the
  * strictest forced band, the mandatory safe-harbor disclaimers to inject, and a
  * human-readable list of the rules that fired (for the audit trail).
+ *
+ * T-53 (master-spec §17.5): `language` selects WHICH disclaimer text is injected — the same legal
+ * disclosures, in Spanish, when the content itself is Spanish (never an English disclaimer
+ * silently stitched onto otherwise-Spanish outbound content). Defaults to 'en' — every pre-T-53
+ * caller (which never passed a third argument) keeps producing byte-identical English disclaimers.
  */
 export function evaluateClassifierRules(
   results: ClassifierResult[],
-  ctx: UserContext
+  ctx: UserContext,
+  language: ContentLanguage = 'en'
 ): RuleOutcome {
+  const D = language === 'es' ? SAFE_HARBOR_DISCLAIMERS_ES : SAFE_HARBOR_DISCLAIMERS;
   let forced: CFEBand = 'clear';
   const disclaimers: string[] = [];
   const reasons: string[] = [];
@@ -67,10 +76,10 @@ export function evaluateClassifierRules(
   // 1. Income-Claim — ≥0.5 mandatory FTC safe-harbor disclaimer; ≥0.8 auto-block.
   const income = confOf(results, 'INCOME_CLAIM');
   if (income >= RULE_THRESHOLDS.INCOME_CLAIM.autoBlock) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.income);
+    disclaimers.push(D.income);
     escalate('blocked', 'income_auto_block(>=0.8)');
   } else if (income >= RULE_THRESHOLDS.INCOME_CLAIM.disclaimer) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.income);
+    disclaimers.push(D.income);
     escalate('review', 'income_disclaimer(>=0.5)');
   }
 
@@ -78,14 +87,14 @@ export function evaluateClassifierRules(
   //    unless a signed release is on file.
   const testimonial = confOf(results, 'TESTIMONIAL');
   if (testimonial >= RULE_THRESHOLDS.TESTIMONIAL.block) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.testimonial);
+    disclaimers.push(D.testimonial);
     if (ctx.signed_testimonial_release) {
       escalate('review', 'testimonial_block_with_release(>=0.8)');
     } else {
       escalate('blocked', 'testimonial_block_no_release(>=0.8)');
     }
   } else if (testimonial >= RULE_THRESHOLDS.TESTIMONIAL.disclaimer) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.testimonial);
+    disclaimers.push(D.testimonial);
     escalate('review', 'testimonial_disclaimer(>=0.5)');
   }
 
@@ -93,14 +102,14 @@ export function evaluateClassifierRules(
   //    unlicensed users in regulated states.
   const opportunity = confOf(results, 'OPPORTUNITY');
   if (opportunity >= RULE_THRESHOLDS.OPPORTUNITY.block) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.opportunity);
+    disclaimers.push(D.opportunity);
     if (!ctx.insurance_licensed && ctx.regulated_state) {
       escalate('blocked', 'opportunity_block_unlicensed_regulated(>=0.85)');
     } else {
       escalate('review', 'opportunity_review(>=0.85)');
     }
   } else if (opportunity >= RULE_THRESHOLDS.OPPORTUNITY.disclaimer) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.opportunity);
+    disclaimers.push(D.opportunity);
     escalate('review', 'opportunity_disclaimer(>=0.6)');
   }
 
@@ -123,30 +132,30 @@ export function evaluateClassifierRules(
     ctx.insurance_licensed === true && ctx.licensing_phase !== true;
 
   if (insurance >= RULE_THRESHOLDS.INSURANCE.alwaysBlock) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.insurance);
+    disclaimers.push(D.insurance);
     escalate('blocked', 'insurance_always_block(>=0.8)');
   } else if (!insuranceLicensed && insuranceSignal) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.insurance);
+    disclaimers.push(D.insurance);
     escalate(
       'blocked',
       'insurance_block_unlicensed_or_licensing_phase(any_signal_regardless_of_score)'
     );
   } else if (insurance >= RULE_THRESHOLDS.INSURANCE.conditionalBlock) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.insurance);
+    disclaimers.push(D.insurance);
     escalate('review', 'insurance_review_licensed(>=0.5)');
   }
 
   // 5. Referral — ≥0.6 TCPA consent verification; ≥0.8 block unless explicit opt-in.
   const referral = confOf(results, 'REFERRAL');
   if (referral >= RULE_THRESHOLDS.REFERRAL.block) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.referral);
+    disclaimers.push(D.referral);
     if (ctx.referral_opt_in) {
       escalate('review', 'referral_review_optin(>=0.8)');
     } else {
       escalate('blocked', 'referral_block_no_optin(>=0.8)');
     }
   } else if (referral >= RULE_THRESHOLDS.REFERRAL.consent) {
-    disclaimers.push(SAFE_HARBOR_DISCLAIMERS.referral);
+    disclaimers.push(D.referral);
     escalate('review', 'referral_consent(>=0.6)');
   }
 

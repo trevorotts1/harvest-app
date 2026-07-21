@@ -74,6 +74,12 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
         <a href="/me/data-rights" className={styles.approvalBadge} aria-label="Data and privacy — export or delete your data">
           Data & Privacy
         </a>
+        {/* T-53 (master-spec §17.5 / uiux §6.2 i18n) — Me → Language entry. Same ad-hoc header-link
+            pattern as Subscription/Data & Privacy above (no "Me" index page exists yet for any of
+            the three to live on). */}
+        <a href="/me/language" className={styles.approvalBadge} aria-label="Language settings">
+          Language
+        </a>
       </div>
 
       <div className={styles.headerBody}>
