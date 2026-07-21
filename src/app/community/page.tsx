@@ -145,11 +145,19 @@ export default function CommunityPage() {
       <div className={styles.shell}>
         <div className={styles.headerRow}>
           <h1 className={styles.title}>Community</h1>
-          {/* WP08 reachability wiring — the Orchard/Grow surface linked from an existing,
-              already-reached nav point (§13's "no orphaned components" mandate). */}
-          <Link href="/grow" className={styles.growLink}>
-            Grow →
-          </Link>
+          <div className={styles.headerRow}>
+            {/* T-R30 (parity GAP 1) reachability wiring — the real CSV import surface linked from
+                an existing, already-reached nav point (§13's "no orphaned components" mandate),
+                same convention as the Grow link below. */}
+            <Link href="/community/import" className={styles.growLink}>
+              Import contacts
+            </Link>
+            {/* WP08 reachability wiring — the Orchard/Grow surface linked from an existing,
+                already-reached nav point (§13's "no orphaned components" mandate). */}
+            <Link href="/grow" className={styles.growLink}>
+              Grow →
+            </Link>
+          </div>
         </div>
 
         <PlotsRow

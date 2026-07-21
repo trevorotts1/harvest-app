@@ -13,6 +13,12 @@ export interface ContactImportStepProps {
   onDeny?: () => void;
   onUseCsv?: () => void;
   onAddManually?: () => void;
+  /** T-R30 (parity GAP 1): true while a real CSV import (file picker → Vault ingestion) is
+   *  in flight — relabels the CSV button and disables it against a double-submit. */
+  csvImporting?: boolean;
+  /** T-R30 (parity GAP 1): a real import failure (oversized file, network error, etc.) — surfaced
+   *  as an alert rather than silently faking success. */
+  csvError?: string | null;
 }
 
 export default function ContactImportStep({
@@ -22,6 +28,8 @@ export default function ContactImportStep({
   onDeny,
   onUseCsv,
   onAddManually,
+  csvImporting = false,
+  csvError = null,
 }: ContactImportStepProps) {
   if (beat === 'value') {
     return (
@@ -64,13 +72,19 @@ export default function ContactImportStep({
         <h1 className={styles.headline}>No problem.</h1>
         <p className={styles.lede}>Add people by CSV or one at a time — we&rsquo;ll ask again later.</p>
         <div className={styles.actions}>
-          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onUseCsv}>
-            Import a CSV
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSecondary}`}
+            onClick={onUseCsv}
+            disabled={csvImporting}
+          >
+            {csvImporting ? 'Importing…' : 'Import a CSV'}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onAddManually}>
             Add one at a time
           </button>
         </div>
+        {csvError && <p role="alert">{csvError}</p>}
       </div>
     );
   }

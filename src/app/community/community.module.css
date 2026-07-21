@@ -282,3 +282,101 @@
   cursor: pointer;
   min-height: 36px;
 }
+
+/* T-R30 (parity GAP 1) — the /community/import CSV surface: file picker → mapping preview →
+   real Vault import result. Reuses the same surface/line/space tokens as the rest of this module. */
+.importPanel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1-solid-fallback);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.backLink {
+  color: var(--color-action);
+  font-weight: 700;
+  text-decoration: none;
+  align-self: flex-start;
+}
+.backLink:hover {
+  text-decoration: underline;
+}
+.fileButton {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  min-height: 44px;
+  font-weight: 700;
+  width: fit-content;
+  position: relative;
+}
+/* Visually hides the native file input while keeping it clickable/keyboard-reachable — the CLIP
+   technique (never `opacity`, which guard-no-opacity-on-text.mjs bars on any inline/module style,
+   text-bearing or not) already established by onboarding.module.css's `.srOnly`. */
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.importButton {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  min-height: 44px;
+  font-weight: 700;
+  width: fit-content;
+}
+.importButton:disabled {
+  cursor: not-allowed;
+  background: var(--surface-3);
+  color: var(--text-disabled);
+}
+.previewTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+.previewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-caption-size);
+}
+.previewTable th,
+.previewTable td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.previewFieldLabel {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.resultBanner {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+  padding: var(--space-3) var(--space-4);
+}
+.resultBannerError {
+  color: var(--color-danger-form-text);
+  background: var(--color-danger-form-bg);
+  border-color: var(--color-danger-form-text);
+}

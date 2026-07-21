@@ -23,6 +23,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 
+import ContactImportStep from '@/app/onboarding/components/ContactImportStep';
 import GdprConsentStep, { GDPR_CONSENT_LABEL } from '@/app/onboarding/components/GdprConsentStep';
 import HiddenEarningsReveal, {
   SAFE_HARBOR_LINE,
@@ -526,6 +527,42 @@ describe('T-21R: flow-model wiring for the new "consent" O-screen', () => {
   test('resume-exact: the wp01 "consent_capture" track-step key resumes onto the "consent" O-screen', () => {
     expect(resumeScreen('consent_capture')).toBe('consent');
     expect(resumeScreen('consent')).toBe('consent');
+  });
+});
+
+// ─── T-R30 gap fix (GAP 1): O-7 ContactImportStep's real CSV import in-flight/error affordance ────
+// BEFORE this fix: `OnboardingFlow.tsx`'s `onUseCsv` faked `contactCount=24` and never read a file
+// (T-51) — `ContactImportStep` had no importing/error state at all, so every assertion below would
+// fail against the pre-fix component (no `csvImporting`/`csvError` props existed to assert on).
+describe('T-R30 gap (GAP 1): O-7 ContactImportStep surfaces real CSV-import progress/failure', () => {
+  test('backward-compat: omitting csvImporting/csvError renders exactly as before ("Import a CSV", enabled, no alert)', () => {
+    const html = render(createElement(ContactImportStep, { beat: 'denied' }));
+    expect(textOf(html)).toContain('Import a CSV');
+    expect(html).not.toMatch(/role="alert"/);
+    const csvButtonHtml = html.match(/<button[^>]*>\s*Import a CSV\s*<\/button>/)?.[0] ?? '';
+    expect(csvButtonHtml).not.toMatch(/disabled/);
+  });
+
+  test('csvImporting=true relabels the button "Importing…" and disables it against a double-submit', () => {
+    const html = render(createElement(ContactImportStep, { beat: 'denied', csvImporting: true }));
+    expect(textOf(html)).toContain('Importing…');
+    expect(textOf(html)).not.toContain('Import a CSV');
+    const importButtonHtml = html.match(/<button[^>]*>\s*Importing…\s*<\/button>/)?.[0] ?? '';
+    expect(importButtonHtml).toMatch(/disabled/);
+  });
+
+  test('a real import failure (csvError set) is surfaced as an alert — never a silently-faked success', () => {
+    const html = render(
+      createElement(ContactImportStep, { beat: 'denied', csvError: 'Could not import that file — please try again.' })
+    );
+    expect(html).toContain('role="alert"');
+    expect(textOf(html)).toMatch(/could not import that file/i);
+  });
+
+  test('csvImporting/csvError props do not leak into unrelated beats (e.g. "value")', () => {
+    const html = render(createElement(ContactImportStep, { beat: 'value', csvImporting: true, csvError: 'x' }));
+    expect(html).not.toMatch(/role="alert"/);
+    expect(textOf(html)).not.toMatch(/importing|import a csv/i);
   });
 });
 
