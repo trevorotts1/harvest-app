@@ -266,6 +266,32 @@
   outline-offset: 2px;
 }
 
+/* ---- Flagged-approve justification (uiux AC-5.6-5: capture-a-short-justification input) ---- */
+.justificationRow {
+  display: grid;
+  gap: var(--space-1);
+}
+.justificationLabel {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+.justificationInput {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: var(--font-operational);
+  font-size: var(--type-caption-size);
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+}
+.justificationInput:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
 /* ---- Decline reason selector (uiux AC-5.6-9: "always intercepts declines") ---- */
 .reasonRow {
   display: flex;

@@ -453,6 +453,14 @@
   font-size: var(--type-caption-size);
   margin: 0;
 }
+/* T-R16 (§9.9-7 "what this means" explainer) — mirrors the Shift's own `.ratioExplainer`
+   (src/app/shift/shift.module.css) so both ratio surfaces present the explainer identically. */
+.ratioExplainer {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  margin: 0;
+}
 
 /* ---- Team calendar strip (zone 6) ---- */
 .calendarList {

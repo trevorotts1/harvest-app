@@ -98,11 +98,40 @@ export function draft(overrides: Partial<DraftMessageRow> = {}): DraftMessageRow
     approved_by: null,
     approved_at: null,
     edited_after_approval: false,
+    approval_justification: null,
     decline_reason: null,
     decline_note: null,
     created_at: new Date('2026-07-18T08:00:00Z'),
     updated_at: new Date('2026-07-18T08:00:00Z'),
     ...overrides,
+  };
+}
+
+// ── T-R16 fake in-memory AuditEntry delegate (mirrors AuditEntryPrismaDelegate exactly, same
+// convention as tests/unit/audit-hardening.test.ts's `mockDelegate`) — real enough for
+// `PrismaAuditRepository`'s `append`/`getChainTail` to work against, so `recordFlaggedApprovalAudit`
+// exercises the REAL `AuditService.recordAuditEvent` path end-to-end, not a stub. ────────────────
+function createFakeAuditEntryDelegate() {
+  const rows: Record<string, unknown>[] = [];
+  return {
+    delegate: {
+      async create({ data }: { data: Record<string, unknown> }) {
+        rows.push(data);
+        return data;
+      },
+      async findMany() {
+        return rows;
+      },
+      async findUnique({ where }: { where: { id: string } }) {
+        return rows.find((r) => r.id === where.id) ?? null;
+      },
+      async findFirst({ orderBy }: { orderBy?: Record<string, unknown> }) {
+        if (rows.length === 0) return null;
+        if (orderBy?.sequence === 'desc') return rows[rows.length - 1];
+        return rows[0];
+      },
+    },
+    rows,
   };
 }
 
@@ -205,6 +234,117 @@ describe('ApprovalInboxService.approveDraft — one item at a time, PENDING only
     const result = await service.approveDraft('u-1', 'd-1');
     expect(result).toEqual({ ok: false, reason: 'not_found' });
     expect(updateCalls).toHaveLength(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// (b2) T-R16 (uiux AC-5.6-5) — flagged-approve REQUIRES a justification; a clean PASS is unaffected
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe('ApprovalInboxService.approveDraft — T-R16 flagged-approve justification (AC-5.6-5)', () => {
+  test('a clean PASS approve is completely unaffected: no justification required, none persisted even if one is passed', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'PASS' })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    // Passing a justification for a PASS draft is harmless — it's simply never stored.
+    const result = await service.approveDraft('u-1', 'd-1', 'not needed for a clean pass');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draft.approval_state).toBe('APPROVED');
+      expect(result.draft.approval_justification).toBeNull();
+    }
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].data.approval_justification).toBeNull();
+  });
+
+  // ══ THE TEETH TEST ══ — TEETH: a FLAG draft with no justification (or only whitespace) must be
+  // refused — fails if this requirement is ever silently dropped.
+  test('TEETH: a FLAG draft approved with NO justification is refused (justification_required), no write happens', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG', cfe_risk_score: 42 })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1');
+    expect(result).toEqual({ ok: false, reason: 'justification_required' });
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  test('TEETH: a FLAG draft approved with a WHITESPACE-only justification is also refused (trimmed check)', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG' })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1', '   \n  ');
+    expect(result).toEqual({ ok: false, reason: 'justification_required' });
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  test('a FLAG draft approved WITH a non-empty justification succeeds — persists the (trimmed) text and APPROVES', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG', cfe_risk_score: 42 })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1', '  this is fine because Jordan confirmed by phone  ', Role.REP);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.draft.approval_state).toBe('APPROVED');
+      expect(result.draft.approval_justification).toBe('this is fine because Jordan confirmed by phone');
+    }
+    expect(updateCalls).toHaveLength(1);
+  });
+
+  test('a HELD draft is still refused with not_approvable regardless of any justification passed (the CFE gate is never widened)', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'HELD', cfe_outcome: 'BLOCK' })];
+    const { client, updateCalls } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1', 'I really think this is fine');
+    expect(result).toEqual({ ok: false, reason: 'not_approvable', currentState: 'HELD' });
+    expect(updateCalls).toHaveLength(0);
+  });
+
+  test('a flagged approve, when an auditEntry delegate IS wired in, appends a real compliance-evidence AuditEntry (best-effort, never a gate)', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG', cfe_risk_score: 42, body: 'the flagged draft text' })];
+    const { client } = createFakeApprovalInboxPrisma(rows);
+    const { delegate, rows: auditRows } = createFakeAuditEntryDelegate();
+    const clientWithAudit = { ...client, auditEntry: delegate };
+    const service = new ApprovalInboxService(clientWithAudit, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1', 'confirmed compliant by upline', Role.UPLINE);
+    expect(result.ok).toBe(true);
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject({
+      user_id: 'u-1',
+      content_id: 'd-1',
+      content_text: 'the flagged draft text',
+      outcome: 'FLAG',
+      reviewer_id: 'u-1',
+      reviewer_action: 'APPROVED_FLAGGED',
+    });
+    expect((auditRows[0] as { classifier_data: Record<string, unknown> }).classifier_data).toMatchObject({
+      justification: 'confirmed compliant by upline',
+    });
+  });
+
+  test('a flagged approve, when NO auditEntry delegate is wired in, still succeeds (best-effort audit is never a gate)', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'FLAG' })];
+    const { client } = createFakeApprovalInboxPrisma(rows); // no `auditEntry` key at all
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1', 'fine, confirmed');
+    expect(result.ok).toBe(true);
+  });
+
+  test('a clean PASS approve never writes an AuditEntry (only a flagged approve does)', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'PASS' })];
+    const { client } = createFakeApprovalInboxPrisma(rows);
+    const { delegate, rows: auditRows } = createFakeAuditEntryDelegate();
+    const clientWithAudit = { ...client, auditEntry: delegate };
+    const service = new ApprovalInboxService(clientWithAudit, clearCFE());
+
+    const result = await service.approveDraft('u-1', 'd-1');
+    expect(result.ok).toBe(true);
+    expect(auditRows).toHaveLength(0);
   });
 });
 

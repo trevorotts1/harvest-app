@@ -22,12 +22,28 @@
 //
 // Ownership: every read/write is scoped to `(id, user_id)` — a draft belonging to a different rep is
 // indistinguishable from a nonexistent one (`not_found`), never a 403 that would leak existence.
+//
+// T-R16 (uiux AC-5.6-5) — UX-COMPLETENESS ADDITION, layered on top of everything above, nothing
+// removed or loosened: approving a CFE-FLAGGED (non-PASS) draft now REQUIRES a short justification,
+// captured on `approveDraft`'s new optional `justification` argument and persisted onto the draft
+// (`approval_justification`, additive/nullable column) plus a best-effort compliance-evidence
+// AuditEntry (`recordFlaggedApprovalAudit`, mirroring `send-support.ts`'s `linkCfeAuditForSend`
+// posture — the audit write is never itself a gate). A clean PASS approval is completely unaffected:
+// no justification is required, requested, or stored for it. The PENDING-only approvability check
+// above (rule 2's `not_approvable` refusal) is untouched — this is additive to the ALREADY-permitted
+// flagged-approve path, never a widening or narrowing of the CFE gate itself.
 
 import { PrismaClient, Role } from '@prisma/client';
 
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { Channel, CFEVerdict } from '@/types/compliance';
+import { CFE_RULE_VERSION } from '@/types/compliance';
 import type { ApprovalState, PersistedCfeOutcome, PersistedChannel } from '@/services/agent-runtime';
+import {
+  AuditService,
+  PrismaAuditRepository,
+  type AuditEntryPrismaDelegate,
+} from '@/services/compliance/audit/audit-service';
 
 export interface DraftMessageRow {
   id: string;
@@ -42,6 +58,10 @@ export interface DraftMessageRow {
   approved_by: string | null;
   approved_at: Date | null;
   edited_after_approval: boolean;
+  // T-R16 (uiux AC-5.6-5) — the rep's short justification, set ONLY when approving a CFE-FLAGGED
+  // draft (never for a clean PASS approval, never for a HELD/blocked draft — that has no approve
+  // path at all, AC-5.6-4).
+  approval_justification: string | null;
   decline_reason: string | null;
   decline_note: string | null;
   created_at: Date;
@@ -71,6 +91,12 @@ export interface ApprovalInboxPrismaClient {
       select: { id: true; first_name: true; last_name: true };
     }): Promise<ContactNameRow[]>;
   };
+  /** T-R16 — OPTIONAL — the append-only AuditEntry delegate `recordFlaggedApprovalAudit` uses to
+   *  persist the compliance-evidence record for a flagged approve. Absent in fixtures that predate
+   *  this build unit -> the audit write resolves best-effort to a no-op (never a crash, never a
+   *  blocked approval — mirrors `send-support.ts`'s `linkCfeAuditForSend` posture exactly); present
+   *  (real Prisma, or a test's in-memory store) -> the audit event is written. */
+  auditEntry?: AuditEntryPrismaDelegate;
 }
 
 export const DECLINE_REASONS = ['not_my_voice', 'wrong_person', 'wrong_time', 'other'] as const;
@@ -89,7 +115,12 @@ export interface ListInboxOptions {
 export type ApproveResult =
   | { ok: true; draft: DraftMessageRow }
   | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'not_approvable'; currentState: string };
+  | { ok: false; reason: 'not_approvable'; currentState: string }
+  // T-R16 (uiux AC-5.6-5) — a FLAG-banded draft was submitted for approval with no (or blank)
+  // justification. Distinct from `not_approvable`: the draft IS approvable in principle (it's
+  // PENDING, not HELD) — this refusal is the UX-completeness requirement that a justification
+  // accompany a flagged approve, never a widening OR narrowing of the CFE gate itself.
+  | { ok: false; reason: 'justification_required' };
 
 export type DeclineResult =
   | { ok: true; draft: DraftMessageRow }
@@ -179,8 +210,21 @@ export class ApprovalInboxService {
    * decide or because it was banded `blocked` — is refused here with `not_approvable`, mirroring
    * the server-side 403 the uiux spec requires ("blocked items ... cannot be approved by any UI
    * path", AC-5.6-4). Already-APPROVED/DECLINED is refused too (no re-approval of a terminal item).
+   *
+   * T-R16 (uiux AC-5.6-5) — UX-COMPLETENESS ADDITION, not a CFE gate change: approving a
+   * CFE-FLAGGED (non-PASS) draft REQUIRES a non-empty `justification`, refused with
+   * `justification_required` otherwise. The justification is persisted onto the draft
+   * (`approval_justification`, additive/nullable) and, best-effort, appended as a compliance-
+   * evidence AuditEntry (`recordFlaggedApprovalAudit`) — mirroring `send-support.ts`'s
+   * `linkCfeAuditForSend` posture: the audit write is never itself a gate on the approval. A clean
+   * PASS approval is completely unaffected — no justification is required or stored for it.
    */
-  async approveDraft(userId: string, draftId: string): Promise<ApproveResult> {
+  async approveDraft(
+    userId: string,
+    draftId: string,
+    justification?: string | null,
+    role: Role = Role.REP
+  ): Promise<ApproveResult> {
     const draft = await this.prisma.draftMessage.findFirst({ where: { id: draftId, user_id: userId } });
     if (!draft) return { ok: false, reason: 'not_found' };
 
@@ -188,11 +232,62 @@ export class ApprovalInboxService {
       return { ok: false, reason: 'not_approvable', currentState: draft.approval_state };
     }
 
+    const isFlagged = draft.cfe_outcome === 'FLAG';
+    const trimmedJustification = typeof justification === 'string' ? justification.trim() : '';
+    if (isFlagged && trimmedJustification.length === 0) {
+      return { ok: false, reason: 'justification_required' };
+    }
+
     const updated = await this.prisma.draftMessage.update({
       where: { id: draftId },
-      data: { approval_state: 'APPROVED', approved_by: userId, approved_at: new Date() },
+      data: {
+        approval_state: 'APPROVED',
+        approved_by: userId,
+        approved_at: new Date(),
+        approval_justification: isFlagged ? trimmedJustification : null,
+      },
     });
+
+    if (isFlagged) {
+      await this.recordFlaggedApprovalAudit(userId, draft, trimmedJustification, role);
+    }
+
     return { ok: true, draft: updated };
+  }
+
+  /** T-R16 — best-effort compliance-evidence AuditEntry for a flagged approve (never a second CFE
+   *  call, never a gate on the approval itself). Any failure — no `auditEntry` delegate wired into
+   *  this narrow Prisma surface, a DB error — resolves silently; the caller's approval has already
+   *  succeeded by the time this runs. Mirrors `send-support.ts`'s `linkCfeAuditForSend` exactly. */
+  private async recordFlaggedApprovalAudit(
+    userId: string,
+    draft: DraftMessageRow,
+    justification: string,
+    role: Role
+  ): Promise<void> {
+    try {
+      if (!this.prisma.auditEntry) return;
+      const auditService = new AuditService(
+        new PrismaAuditRepository(this.prisma as unknown as { auditEntry: AuditEntryPrismaDelegate })
+      );
+      await auditService.recordAuditEvent({
+        domain: 'cfe',
+        user_id: userId,
+        role,
+        content_id: draft.id,
+        content_text: draft.body,
+        channel: cfeChannelForPersisted(draft.channel),
+        risk_score: draft.cfe_risk_score ?? 0,
+        outcome: 'FLAG',
+        event_data: { source: 'T_R16_FLAGGED_APPROVE', justification },
+        regulation: 'NONE',
+        rule_version: CFE_RULE_VERSION,
+        reviewer_id: userId,
+        reviewer_action: 'APPROVED_FLAGGED',
+      });
+    } catch {
+      // Best-effort — see doc comment above.
+    }
   }
 
   /** Decline/discard — the reason selector always intercepts (uiux AC-5.6-9). PENDING or HELD items

@@ -48,6 +48,9 @@ export type InboxMutationKind = (typeof INBOX_MUTATION_KIND)[keyof typeof INBOX_
 
 export interface ApproveMutationPayload {
   draftId: string;
+  // T-R16 (uiux AC-5.6-5) — carried through ONLY for a flagged-approve taken while offline; a
+  // clean-PASS approve queued offline leaves this undefined, exactly as before this build unit.
+  justification?: string;
 }
 export interface DeclineMutationPayload {
   draftId: string;
@@ -99,8 +102,11 @@ export function createInboxQueueHandlers(
 ): Record<string, MutationHandler<unknown>> {
   return {
     [INBOX_MUTATION_KIND.APPROVE]: async (payload) => {
-      const { draftId } = payload as ApproveMutationPayload;
-      const { status, data } = await postJsonFn<ApiOkShape>('/api/approval-inbox/approve', { draftId });
+      const { draftId, justification } = payload as ApproveMutationPayload;
+      const { status, data } = await postJsonFn<ApiOkShape>('/api/approval-inbox/approve', {
+        draftId,
+        justification,
+      });
       if (status >= 200 && status < 300 && data.ok) return;
       if (isPermanentRejectionStatus(status)) {
         onPermanentRejection?.({

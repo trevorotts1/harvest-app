@@ -142,6 +142,12 @@ export interface RatioTriple {
   /** True until `dataPoints` reaches the learning-state threshold (master spec §9.7: 20-50). */
   learning: boolean;
   dataPoints: number;
+  /** T-R16 (master-spec §9.7/§9.9-7): "what this means" — always present, never a naked number
+   *  (mirrors the Shift's own `RatioCardView.explainer`, `src/services/learning-state/ratios.ts`).
+   *  This is display-only text alongside the already-computed tally above; it never itself
+   *  contributes to the Readiness Score, which stays hidden by design (uiux AC-5.4-4) — the two
+   *  ratios ARE shown, always with an explainer, unlike Readiness. */
+  explainer: string;
 }
 
 export interface RatiosZoneData {

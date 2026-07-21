@@ -38,17 +38,34 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     throw error;
   }
 
-  const { draftId } = body as { draftId?: unknown };
+  const { draftId, justification } = body as { draftId?: unknown; justification?: unknown };
   if (!draftId || typeof draftId !== 'string') {
     return NextResponse.json({ error: '"draftId" (a single string id) is required.' }, { status: 400 });
   }
+  if (justification !== undefined && justification !== null && typeof justification !== 'string') {
+    return NextResponse.json({ error: '"justification", if provided, must be a string.' }, { status: 400 });
+  }
 
   const service = new ApprovalInboxService(prisma as unknown as ApprovalInboxPrismaClient);
-  const result = await service.approveDraft(identity.userId, draftId);
+  const result = await service.approveDraft(
+    identity.userId,
+    draftId,
+    justification as string | undefined,
+    identity.role
+  );
 
   if (!result.ok) {
     if (result.reason === 'not_found') {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+    }
+    // T-R16 (uiux AC-5.6-5) — a flagged draft was submitted with no/blank justification. Distinct
+    // from NOT_APPROVABLE: the draft IS approvable in principle, it's just missing the required
+    // justification text.
+    if (result.reason === 'justification_required') {
+      return NextResponse.json(
+        { error: 'Approving a flagged draft requires a short justification.', code: 'JUSTIFICATION_REQUIRED' },
+        { status: 400 }
+      );
     }
     // not_approvable — a HELD/blocked/already-terminal draft. Mirrors the CFE's own 403 for a
     // blocked verdict (uiux AC-5.6-4: "cannot be approved by any UI path").
