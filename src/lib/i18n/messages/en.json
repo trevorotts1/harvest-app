@@ -1430,5 +1430,63 @@
     "contactNowAria": "Contact {name} now — opens your first-touch composer",
     "resolving": "Getting ready…",
     "noDraftReady": "This introduction isn't ready to send yet — check your Approvals."
+  },
+  "cfeExplainer": {
+    "trigger": "What does this mean?",
+    "reason": {
+      "incomeClaim": "an income promise",
+      "testimonial": "a testimonial that needs a compliance disclosure",
+      "opportunity": "a business-opportunity claim that needs a closer look",
+      "insurance": "an insurance detail that needs review",
+      "referral": "a referral offer that needs a quick check",
+      "generic": "something our compliance rules want a closer look at"
+    },
+    "sentence": {
+      "blockWithReason": "This message sounded like {reason}, which the rules don't allow — here's a version that keeps the meaning.",
+      "blockGeneric": "This message didn't pass our compliance rules, so it's blocked — here's a version that keeps the meaning.",
+      "flagWithReason": "This message mentions {reason}, so a quick human check is needed before it can go out.",
+      "flagGeneric": "This message needs a quick human check before it can go out.",
+      "pass": "This message didn't trigger any compliance concerns, so it's ready to send.",
+      "recorded": "This was recorded for the compliance record — no action is needed from you."
+    }
+  },
+  "optOut": {
+    "prompt": "If this person has asked you to stop texting or emailing them, mark it below — it applies everywhere, right away.",
+    "button": "Mark opted out (STOP)",
+    "buttonAria": "Mark this contact as opted out — stops all future messages",
+    "marking": "Marking…",
+    "error": "This couldn't be marked. Try again.",
+    "unconfirmed": "Marked, but we couldn't confirm it took effect yet. Check again in a moment, or try once more.",
+    "confirmed": "Confirmed — this person will not be contacted again."
+  },
+  "contactControls": {
+    "groupAria": "Agent controls for {name}",
+    "pause": {
+      "on": "Agents paused",
+      "off": "Pause agents",
+      "aria": "Pause agents for {name}"
+    },
+    "dnc": {
+      "on": "Do not contact — set",
+      "off": "Do not contact",
+      "aria": "Do not contact {name}"
+    },
+    "manual": {
+      "on": "Manual mode — on",
+      "off": "Hand to manual mode",
+      "aria": "Hand {name}'s thread to manual mode"
+    },
+    "confirm": {
+      "pausedOn": "Agents paused for {name}.",
+      "pausedOff": "Agents resumed for {name}.",
+      "dncOn": "{name} marked do-not-contact — honored everywhere.",
+      "dncOff": "{name} is contactable again.",
+      "manualOn": "{name}'s thread is now in manual mode — your agents will stop drafting for it until you turn this off.",
+      "manualOff": "Manual mode is off for {name} — your agents may draft for this contact again."
+    },
+    "error": {
+      "saveFailed": "This could not be saved. Try again.",
+      "offline": "Couldn't reach the server — you may be offline. Try again once you're back."
+    }
   }
 }

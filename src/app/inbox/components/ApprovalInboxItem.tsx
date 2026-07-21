@@ -46,6 +46,7 @@ import { formatDateTime } from '@/lib/i18n/format';
 import type { TVars } from '@/lib/i18n/catalog';
 import ContactControls from './ContactControls';
 import ClassifierAdjudicationDrawer from './ClassifierAdjudicationDrawer';
+import CfeExplainer from './CfeExplainer';
 import styles from '../inbox.module.css';
 
 export type CfeOutcome = 'PASS' | 'FLAG' | 'BLOCK' | 'RECORDED' | null;
@@ -63,6 +64,9 @@ export interface InboxItemData {
   created_at: string;
   agentsPaused?: boolean;
   doNotContact?: boolean;
+  // T-57 R3c-2 (findings m4) — additive, optional exactly like the two above, so every existing
+  // caller (which does not yet populate this from `Contact.manual_mode`) keeps compiling.
+  manualMode?: boolean;
   // T-09 (§5.5 AC-1) — additive, all optional so every existing caller keeps compiling. The
   // draft's persisted per-classifier CFE data feeds the ClassifierAdjudicationDrawer; the advisory
   // recommendation fields are populated only on the upline compliance-review surface.
@@ -191,9 +195,21 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         {/* T-54: while queued offline, the last-known band is stale-to-the-rep's-own-pending-action
             — showing it (esp. the chip's default "Pass" branch) would misrepresent an item that has
             NOT actually been re-checked since the rep queued this action. Show "Queued" instead. */}
-        <span className={`${styles.cfeChip} ${queuedOffline ? styles.cfeChipChecking : chip.className}`} role="status">
-          <span aria-hidden="true">&#9673;</span> {queuedOffline ? t('inbox.item.chip.queued') : chip.label}
-          {!queuedOffline && typeof current.cfe_risk_score === 'number' && !checking ? ` (${current.cfe_risk_score})` : ''}
+        <span className={styles.cfeChipCluster}>
+          <span className={`${styles.cfeChip} ${queuedOffline ? styles.cfeChipChecking : chip.className}`} role="status">
+            <span aria-hidden="true">&#9673;</span> {queuedOffline ? t('inbox.item.chip.queued') : chip.label}
+            {!queuedOffline && typeof current.cfe_risk_score === 'number' && !checking ? ` (${current.cfe_risk_score})` : ''}
+          </span>
+          {/* T-57 R3c-2 (A4, uiux AC-6-2) — reachable directly from the chip itself, every outcome,
+              not buried inside the technical ClassifierAdjudicationDrawer below. Suppressed while
+              queued-offline/checking — there is no settled verdict to plain-language-explain yet. */}
+          {!queuedOffline && !checking && (
+            <CfeExplainer
+              outcome={current.cfe_outcome}
+              classifierData={current.cfe_classifier_data}
+              idSuffix={`${current.id}-chip`}
+            />
+          )}
         </span>
       </div>
 
@@ -206,9 +222,17 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         </p>
       ) : (
         isHeld && (
-          <p className={styles.heldBanner} role="alert">
-            {t('inbox.item.heldBanner')}
-          </p>
+          <div className={styles.heldBanner}>
+            <p className={styles.heldBannerText} role="alert">
+              {t('inbox.item.heldBanner')}
+            </p>
+            {/* T-57 R3c-2 (A4) — reachable directly from the held banner too, not only the chip. */}
+            <CfeExplainer
+              outcome={current.cfe_outcome}
+              classifierData={current.cfe_classifier_data}
+              idSuffix={`${current.id}-held`}
+            />
+          </div>
         )
       )}
 
@@ -363,6 +387,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
           suggestedRewrite={current.suggestedRewrite}
           recommendationModel={current.recommendationModel}
           escalationReason={current.escalationReason}
+          cfeOutcome={current.cfe_outcome}
         />
       )}
 
@@ -371,6 +396,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         contactName={contactName}
         agentsPaused={current.agentsPaused ?? false}
         doNotContact={current.doNotContact ?? false}
+        manualMode={current.manualMode ?? false}
       />
     </article>
   );

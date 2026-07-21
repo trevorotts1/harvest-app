@@ -14,11 +14,42 @@
 //   • the agent badge is transparency-as-compliance evidence (§9.3): who sent it, who approved it,
 //     when, and that it links to its CFE audit record (Message.cfe_audit_id).
 //
-// Presentational only — tokens (T-05) via the CSS module, icon + text (never color alone, §6.1). It
-// takes an already-decrypted, already-ownership-scoped list of entries (the page/route does the
-// session-gated read); this component renders, it does not fetch.
+// Presentational only for the TIMELINE ENTRIES themselves — tokens (T-05) via the CSS module, icon +
+// text (never color alone, §6.1). It takes an already-decrypted, already-ownership-scoped list of
+// entries (the page/route does the session-gated read); rendering an entry never fetches.
+//
+// T-57 R3c-2 (findings M5; master-spec §10.8/§18.8 "STOP to the rep's personal number -> the rep
+// marks it in-app one tap from the timeline, attested at onboarding"; §10.4 "a manual in-app mark for
+// a rep's-own-number reply propagates platform-wide"). Before this fix, the `opt-out` system entry
+// above (line ~176 in the original, `SystemEntryView`'s `'opt-out'` branch) was DISPLAY-ONLY — it
+// only ever appeared AFTER `Contact.do_not_contact` was already `true` server-side
+// (`ConversationTimelineService.getConversation`), with no affordance anywhere to actually MARK a
+// contact opted out. This adds that missing ONE-TAP ACTION (`OptOutAction`, below) — genuinely wired
+// to the REAL `POST /api/compliance/opt-out` (verified contract: `{ contactId, reason }`, reason
+// restricted server-side to `'manual' | 'wrong_person'`; 200 `{ optedOut: true, reason }` / 400 / 404
+// — src/app/api/compliance/opt-out/route.ts) — a genuine exception to "this component renders, it
+// does not fetch," matching this exact codebase's own established pattern for sibling per-contact
+// ACTION controls on this same route (`SequenceEnrollPanel`/`ObjectionCoachPanel`/`BridgeUplinePanel`
+// in `../community/[contactId]/page.tsx` all self-fetch their own write actions the same way).
+//
+// SUPPRESSION IS FAIL-CLOSED, HONORED (not just recorded) in two composed layers, mirroring
+// `vault.service.ts`'s existing minor-opt-out "belt-and-suspenders" convention exactly:
+//   1. `POST /api/compliance/opt-out` writes the GLOBAL, permanent `OptOutRegistry` row (by hashed
+//      phone/email) — this is what `SendComplianceGate.evaluate` / `OptOutRegistryService.isOptedOut`
+//      actually check before EVERY future send, and `isOptedOut` fails closed (a read error resolves
+//      to "opted out", never to "safe to send"). This is the real TCPA enforcement.
+//   2. On that success, this action ALSO PATCHes the existing `/api/contacts/controls` route to set
+//      `Contact.do_not_contact = true` — the SAME rep-facing flag `agent-runtime.ts` already reads to
+//      halt a per-contact run immediately (§9.4), and the same flag this UI (and every other surface
+//      that reads `contact.doNotContact`) already renders correctly off of.
+// Only after BOTH calls succeed does this ask the PARENT (via `onOptOutConfirm`) to re-fetch the
+// canonical contact record and report back the FRESH `do_not_contact` value — genuine confirmation,
+// never declared off the mutation responses alone. Any failure at any step surfaces an error and
+// leaves the one-tap control available to retry (both underlying writes are idempotent).
 
 'use client';
+
+import { useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
@@ -81,6 +112,20 @@ export interface ConversationTimelineProps {
    *  has opted out, ALL composers are disabled upstream; this component still renders the
    *  do-not-contact rule if an opt-out system entry is present in `entries`. */
   onRetry?: (entryId: string) => void;
+  /** T-57 R3c-2 (M5) — required to target the one-tap STOP/opt-out action; omitted (e.g. an existing
+   *  caller that hasn't been updated, or every pre-existing test in this suite) simply suppresses the
+   *  control — never a crash, never a fetch with no target. */
+  contactId?: string;
+  /** Current known do-not-contact state (the parent's own canonical `Contact.do_not_contact` read).
+   *  While `true`, the existing informational opt-out system-entry rule already covers this contact
+   *  (rendered from `entries` below) — the actionable control only renders while this is `false`. */
+  doNotContact?: boolean;
+  /** Fires after BOTH `POST /api/compliance/opt-out` and the follow-up `PATCH /api/contacts/controls`
+   *  succeed. The PARENT must re-fetch the canonical contact record (the same read every page here
+   *  already performs) and resolve with the FRESH `do_not_contact` value — this component's own
+   *  "confirmed" state is gated on that fresh value being `true`, never on the mutation responses
+   *  alone (fail-closed: a stale/unconfirmed read renders as unconfirmed, not as success). */
+  onOptOutConfirm?: () => Promise<boolean>;
 }
 
 // T-R32 (§17.5 locale-aware date formatting) — was `toLocaleString('en-US', ...)`, hardcoded
@@ -211,38 +256,145 @@ function SystemEntryView({ entry, t }: { entry: TimelineSystemEntry; t: Translat
   );
 }
 
-export default function ConversationTimeline({ entries, onRetry }: ConversationTimelineProps) {
-  const { locale, t } = useLocale();
+type OptOutStatus = 'idle' | 'pending' | 'confirmed' | 'unconfirmed' | 'error';
 
-  if (entries.length === 0) {
-    // §5.7 empty state — never demo interactions.
-    return (
-      <div className={styles.timelineEmpty} role="status">
-        {t('community.timeline.emptyState')}
-      </div>
-    );
+/**
+ * T-57 R3c-2 (M5) — the actual one-tap STOP/opt-out action (see this file's header note for the
+ * full contract + suppression-honoring rationale). A deliberate, isolated exception to this file's
+ * "presentational only" rule for entry rendering — see header note for the precedent this follows.
+ */
+function OptOutAction({
+  contactId,
+  onOptOutConfirm,
+  t,
+}: {
+  contactId: string;
+  onOptOutConfirm?: () => Promise<boolean>;
+  t: Translate;
+}) {
+  const [status, setStatus] = useState<OptOutStatus>('idle');
+
+  async function handleMarkStop() {
+    setStatus('pending');
+    try {
+      const optOutRes = await fetch('/api/compliance/opt-out', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contactId, reason: 'manual' }),
+      });
+      if (!optOutRes.ok) {
+        setStatus('error');
+        return;
+      }
+      const optOutBody: unknown = await optOutRes.json();
+      const optedOut =
+        optOutBody && typeof optOutBody === 'object' && (optOutBody as { optedOut?: unknown }).optedOut === true;
+      if (!optedOut) {
+        // Fail-closed: a 200 with an unexpected body shape is NOT treated as success.
+        setStatus('error');
+        return;
+      }
+
+      // Belt-and-suspenders (mirrors vault.service.ts's `registerMinorOptOut` convention exactly):
+      // ALSO flip the rep-facing per-contact flag so agent-runtime.ts's EXISTING immediate-halt
+      // check (already reads Contact.do_not_contact) engages right away too, alongside the global,
+      // permanent OptOutRegistry write above (the real TCPA send-gate, independent of this flag).
+      const controlsRes = await fetch('/api/contacts/controls', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contactId, doNotContact: true }),
+      });
+      if (!controlsRes.ok) {
+        setStatus('unconfirmed');
+        return;
+      }
+
+      // Never declare success off these responses alone — ask the parent to re-fetch the canonical
+      // record and only confirm once that FRESH read genuinely shows suppression (fail-closed).
+      const confirmed = onOptOutConfirm ? await onOptOutConfirm() : true;
+      setStatus(confirmed ? 'confirmed' : 'unconfirmed');
+    } catch {
+      setStatus('error');
+    }
   }
 
   return (
-    <ol className={styles.timeline} aria-label={t('community.timeline.ariaLabel')}>
-      {entries.map((entry) => {
-        if (entry.kind === 'message') {
-          return <MessageEntryView key={entry.id} entry={entry} onRetry={onRetry} locale={locale} t={t} />;
-        }
-        if (entry.kind === 'handoff') {
-          return (
-            <li key={entry.id} className={styles.entrySystem} data-entry-kind="handoff">
-              <ThreeWayHandoffCard
-                repName={entry.repName}
-                uplineName={entry.uplineName}
-                state={entry.state}
-                coachedNextStep={entry.coachedNextStep}
-              />
-            </li>
-          );
-        }
-        return <SystemEntryView key={entry.id} entry={entry} t={t} />;
-      })}
-    </ol>
+    <div className={styles.optOutAction}>
+      <p className={styles.optOutActionNote}>{t('optOut.prompt')}</p>
+      <button
+        type="button"
+        className={styles.optOutActionButton}
+        onClick={handleMarkStop}
+        disabled={status === 'pending' || status === 'confirmed'}
+        aria-label={t('optOut.buttonAria')}
+      >
+        {status === 'pending' ? t('optOut.marking') : t('optOut.button')}
+      </button>
+      {status === 'error' && (
+        <p role="alert" className={styles.optOutActionError}>
+          {t('optOut.error')}
+        </p>
+      )}
+      {status === 'unconfirmed' && (
+        <p role="alert" className={styles.optOutActionError}>
+          {t('optOut.unconfirmed')}
+        </p>
+      )}
+      {status === 'confirmed' && (
+        <p role="status" className={styles.optOutActionConfirmed}>
+          {t('optOut.confirmed')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export default function ConversationTimeline({
+  entries,
+  onRetry,
+  contactId,
+  doNotContact,
+  onOptOutConfirm,
+}: ConversationTimelineProps) {
+  const { locale, t } = useLocale();
+
+  return (
+    <>
+      {/* T-57 R3c-2 (M5) — reachable from the timeline directly, one tap, regardless of whether any
+          messages exist yet (a STOP can arrive before Harvest ever tracked an outbound send). Once
+          `doNotContact` is true, the existing informational system-entry rule (rendered below, from
+          `entries`) already covers this contact — the actionable control retires. */}
+      {contactId && !doNotContact && (
+        <OptOutAction contactId={contactId} onOptOutConfirm={onOptOutConfirm} t={t} />
+      )}
+
+      {entries.length === 0 ? (
+        // §5.7 empty state — never demo interactions.
+        <div className={styles.timelineEmpty} role="status">
+          {t('community.timeline.emptyState')}
+        </div>
+      ) : (
+        <ol className={styles.timeline} aria-label={t('community.timeline.ariaLabel')}>
+          {entries.map((entry) => {
+            if (entry.kind === 'message') {
+              return <MessageEntryView key={entry.id} entry={entry} onRetry={onRetry} locale={locale} t={t} />;
+            }
+            if (entry.kind === 'handoff') {
+              return (
+                <li key={entry.id} className={styles.entrySystem} data-entry-kind="handoff">
+                  <ThreeWayHandoffCard
+                    repName={entry.repName}
+                    uplineName={entry.uplineName}
+                    state={entry.state}
+                    coachedNextStep={entry.coachedNextStep}
+                  />
+                </li>
+              );
+            }
+            return <SystemEntryView key={entry.id} entry={entry} t={t} />;
+          })}
+        </ol>
+      )}
+    </>
   );
 }

@@ -1430,5 +1430,63 @@
     "contactNowAria": "Contacta a {name} ahora: abre tu redactor de primer contacto",
     "resolving": "Preparando…",
     "noDraftReady": "Esta presentación aún no está lista para enviar: revisa tus Aprobaciones."
+  },
+  "cfeExplainer": {
+    "trigger": "¿Qué significa esto?",
+    "reason": {
+      "incomeClaim": "una promesa de ingresos",
+      "testimonial": "un testimonio que necesita un aviso de cumplimiento",
+      "opportunity": "una afirmación sobre la oportunidad de negocio que necesita más revisión",
+      "insurance": "un detalle de seguros que necesita revisión",
+      "referral": "una oferta de referido que necesita una revisión rápida",
+      "generic": "algo que nuestras reglas de cumplimiento quieren revisar más de cerca"
+    },
+    "sentence": {
+      "blockWithReason": "Este mensaje sonaba a {reason}, algo que nuestras reglas no permiten — aquí tienes una versión que conserva el sentido.",
+      "blockGeneric": "Este mensaje no pasó nuestras reglas de cumplimiento, así que está bloqueado — aquí tienes una versión que conserva el sentido.",
+      "flagWithReason": "Este mensaje menciona {reason}, así que necesita una revisión humana rápida antes de poder enviarse.",
+      "flagGeneric": "Este mensaje necesita una revisión humana rápida antes de poder enviarse.",
+      "pass": "Este mensaje no generó ninguna preocupación de cumplimiento, así que está listo para enviarse.",
+      "recorded": "Esto quedó registrado como evidencia de cumplimiento — no necesitas hacer nada."
+    }
+  },
+  "optOut": {
+    "prompt": "Si esta persona te pidió que dejaras de enviarle mensajes de texto o correo, márcalo abajo — se aplica en todas partes, de inmediato.",
+    "button": "Marcar como dado de baja (STOP)",
+    "buttonAria": "Marcar este contacto como dado de baja — detiene todos los mensajes futuros",
+    "marking": "Marcando…",
+    "error": "Esto no se pudo marcar. Intenta de nuevo.",
+    "unconfirmed": "Se marcó, pero no pudimos confirmar que ya esté en vigor. Revisa de nuevo en un momento, o intenta una vez más.",
+    "confirmed": "Confirmado — no se volverá a contactar a esta persona."
+  },
+  "contactControls": {
+    "groupAria": "Controles del agente para {name}",
+    "pause": {
+      "on": "Agentes en pausa",
+      "off": "Pausar agentes",
+      "aria": "Pausar agentes para {name}"
+    },
+    "dnc": {
+      "on": "No contactar — activado",
+      "off": "No contactar",
+      "aria": "No contactar a {name}"
+    },
+    "manual": {
+      "on": "Modo manual — activado",
+      "off": "Pasar a modo manual",
+      "aria": "Pasar la conversación de {name} a modo manual"
+    },
+    "confirm": {
+      "pausedOn": "Agentes en pausa para {name}.",
+      "pausedOff": "Agentes reanudados para {name}.",
+      "dncOn": "{name} fue marcado como no contactar — se respeta en todas partes.",
+      "dncOff": "{name} puede ser contactado de nuevo.",
+      "manualOn": "La conversación de {name} ahora está en modo manual — tus agentes dejarán de redactar mensajes hasta que lo desactives.",
+      "manualOff": "El modo manual está desactivado para {name} — tus agentes pueden volver a redactar mensajes para este contacto."
+    },
+    "error": {
+      "saveFailed": "Esto no se pudo guardar. Intenta de nuevo.",
+      "offline": "No se pudo conectar con el servidor — es posible que estés sin conexión. Intenta de nuevo cuando vuelvas a estar en línea."
+    }
   }
 }
