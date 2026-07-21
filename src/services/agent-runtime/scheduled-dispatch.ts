@@ -367,6 +367,14 @@ async function processRep(
     criticality: criticalityFor(AgentKey.REPORTING),
     primaryTier: reportingSpec.primaryTier,
   });
+  // T-R27: this call is a PROBE — a permission gate on whether to enqueue anything at all — not the
+  // real run. Any reservation `check()` placed (§4.5 concurrency hardening, run-gate.ts) is released
+  // immediately: the actual spend/reservation for each unit enqueued below happens again, for real,
+  // inside `AgentRuntime.runAgent` once the durable queue delivers it (the "respected TWICE"
+  // belt-and-suspenders design this file's header already documents). Without this release, an
+  // hourly cron tick would leak one outstanding reservation per rep forever, eventually starving a
+  // healthy rep's real budget on phantom holds that never correspond to actual spend.
+  await gateDecision.release?.();
   if (!gateDecision.allowed) {
     return { userId, gateAllowed: false, gateReason: gateDecision.reason, enqueued: 0 };
   }

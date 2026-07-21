@@ -10,6 +10,7 @@ export {
   PLATFORM_SCOPE_ID,
   PrismaBudgetKillSwitchStore,
   InMemoryBudgetKillSwitchStore,
+  ReservationLedger,
 } from './budget-store';
 export type { KillSwitchScope, KillSwitchState, RepBudgetContext, BudgetKillSwitchStore } from './budget-store';
 
@@ -18,7 +19,9 @@ export {
   DAILY_BUDGET_CENTS_BY_TIER_INTENSITY,
   ENTERPRISE_ORG_DAILY_BUDGET_CENTS,
   PLATFORM_DAILY_BUDGET_CENTS,
+  RESERVATION_TOKEN_BUDGET,
   dailyBudgetCentsFor,
+  reservationEstimateCentsFor,
   startOfUtcDay,
   isUnderCostPressure,
   defaultAlertOperator,

@@ -710,10 +710,21 @@ describe('Compliance is never traded away for cost (§2.3/§4.5/§4.6) — CFE s
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 // PROOF (g) — UNDER LOAD (drill requirement #4): the kill-switch trips at the right point, degraded
 // calls stay in-roster even under a heavy concurrent adversarial burst on ONE shared client, and —
-// documented rather than papered over — the one real gap this drill found in the cost lane.
+// documented rather than papered over — the one real gap this drill found in the cost lane (T-56),
+// CLOSED by T-R27's reservation primitive (run-gate.ts `tryReserve`/`releaseReservation`) below.
 // ══════════════════════════════════════════════════════════════════════════════════════════════
 describe('UNDER LOAD (§4.5/§4.6, drill requirement #4)', () => {
-  test('after a concurrent burst crosses the ceiling, every run fired AFTER it settles is denied (the trip point is honored)', async () => {
+  // T-R27 UPDATE: before the reservation fix, this test asserted the SAME overshoot pattern as the
+  // (then-failing) KNOWN GAP test below — just with a smaller burst (6, not 10) and a looser bound
+  // ("crosses the ceiling" rather than "never overshoots by more than one run's cost"). A burst of 6
+  // x 18 cents against this 40-cent ceiling is EXACTLY the class of concurrent-burst overshoot §4.5
+  // rules out ("no path spends past the cap"), so once the reservation primitive closes that gap for
+  // real, this scenario's admitted spend is bounded too — it no longer "comfortably clears" the
+  // ceiling; admission stops itself at 2 runs (2 x 18 = 36 <= the 40-cent ceiling, ZERO overshoot),
+  // denying the other 4 WITHIN the burst itself (not merely after it settles). The still-valid part
+  // of this test's original intent — "once at/near the ceiling, a run fired after settling is denied"
+  // — is preserved below.
+  test('a concurrent burst for ONE rep is admission-bounded by the reservation, not just denied after it settles (the trip point is honored)', async () => {
     const budgetStore = new InMemoryBudgetKillSwitchStore();
     budgetStore.repContexts.set('user-1', { accessTier: 'FREE_ORG_LINKED', intensitySetting: 'LOW', organizationId: null });
     const ceiling = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED.LOW; // 40 cents
@@ -722,16 +733,24 @@ describe('UNDER LOAD (§4.5/§4.6, drill requirement #4)', () => {
     const model = new TieredScriptedModelClient({}, { tokenInput: 20000, tokenOutput: 8000 }); // 18 cents/run at Sonnet (exact)
     const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, runGate, costModel: new TierPricingCostModel() });
 
-    // A burst of 6 concurrent runs; 6 x 18 = 108 cents comfortably clears the 40-cent ceiling.
-    await Promise.all(Array.from({ length: 6 }, (_, i) => runtime.runAgent(job({ idempotencyKey: `burst-${i}` }))));
+    // A burst of 6 concurrent runs; unmitigated (T-56's gap) 6 x 18 = 108 cents would comfortably
+    // clear the 40-cent ceiling. WITH the reservation fix, admission itself stays inside the cap.
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => runtime.runAgent(job({ idempotencyKey: `burst-${i}` }))));
     const totalAfterBurst = await budgetStore.getDailySpendCents('user-1', new Date(0));
-    expect(totalAfterBurst).toBeGreaterThanOrEqual(ceiling); // the burst did cross the ceiling in aggregate
-    expect(model.calls).toHaveLength(6); // sanity: the whole burst actually ran
+
+    expect(totalAfterBurst).toBeLessThanOrEqual(ceiling); // NO overshoot at all — the fix is exact here
+    expect(totalAfterBurst).toBeGreaterThan(0); // sanity: SOME of the burst legitimately ran
+    const surfaced = results.filter((r) => r.outcome === 'surfaced');
+    const deferred = results.filter((r) => r.outcome === 'deferred');
+    expect(surfaced.length).toBeGreaterThan(0); // some of the burst was admitted...
+    expect(deferred.length).toBeGreaterThan(0); // ...and the rest was denied WITHIN the burst itself
+    expect(model.calls).toHaveLength(surfaced.length); // exactly the admitted subset actually spent
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // no leaked reservations
 
     // Now that the ledger has settled, a FRESH run fired after the burst MUST be denied.
     const after = await runtime.runAgent(job({ idempotencyKey: 'after-burst' }));
     expect(after.outcome).toBe('deferred');
-    expect(model.calls).toHaveLength(6); // the post-settlement run added ZERO further spend
+    expect(model.calls).toHaveLength(surfaced.length); // the post-settlement run added ZERO further spend
   });
 
   // Adversarial (worse than production wiring, which builds a fresh DegradingModelClient per
@@ -752,24 +771,32 @@ describe('UNDER LOAD (§4.5/§4.6, drill requirement #4)', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────────────────────────
-  // REAL GAP (T-56 drill finding — reported, NOT papered over; left deliberately failing here).
+  // FIXED (T-56 drill finding → T-R27 reservation fix, run-gate.ts). Was: "KNOWN GAP: a concurrent
+  // burst for ONE rep can overshoot the daily ceiling by more than one run's cost."
   //
-  // The RunGate is a "check-then-spend" gate with NO reservation/lock. `AgentRuntime.runAgent`
-  // consults `RunGate.check()` ONCE, near the top of the run, and a run's cost is only attributed
+  // The RunGate USED TO BE a "check-then-spend" gate with no reservation/lock: `AgentRuntime.runAgent`
+  // consulted `RunGate.check()` ONCE, near the top of the run, and a run's cost was only attributed
   // to the per-rep ledger at the very END (after generation + CFE complete). Under a concurrent
-  // burst for the SAME rep, every call's `check()` can observe the SAME pre-burst spend (because
-  // none of the others has recorded its cost yet) and all of them pass — so the per-rep daily
-  // ceiling can be overshot by up to (burst size - 1) extra runs' worth of spend before the NEXT
-  // check (i.e. anything fired AFTER the burst settles — see the passing test above) starts
-  // denying. This is a genuine violation of "no path spends past the cap" under concurrent load
-  // for ONE rep; it is NOT observable from sequential traffic, only from real concurrency.
+  // burst for the SAME rep, every call's `check()` could observe the SAME pre-burst spend (because
+  // none of the others had recorded its cost yet) and all of them would pass — so the per-rep daily
+  // ceiling could be overshot by up to (burst size - 1) extra runs' worth of spend. A genuine
+  // violation of "no path spends past the cap" under concurrent load for ONE rep, not observable from
+  // sequential traffic, only from real concurrency.
   //
-  // NOT fixed here: closing it needs a reservation/lock primitive (e.g. an atomic
-  // debit-before-spend ledger entry, or a per-rep mutex serializing check+spend), which is a
-  // non-trivial architecture change — out of scope for this additive drill. Reported to the
-  // orchestrator for a follow-up unit.
+  // FIXED by `BudgetKillSwitchStore.tryReserve`/`releaseReservation` (budget-store.ts's
+  // `ReservationLedger`) + `BudgetKillSwitchRunGate.check()` (run-gate.ts): admission now atomically
+  // folds in every OTHER admitted-but-not-yet-committed run's outstanding reservation, so concurrent
+  // admissions for the SAME rep see each other's in-flight holds — the burst is now bounded AT
+  // ADMISSION TIME, not just after it settles. `AgentRuntime.runAgent` releases the hold in a
+  // `try/finally` on every exit path once the run's real cost lands (or it fails), so nothing leaks.
+  // NOT covered by this fix (documented, not papered over): the ENTERPRISE org-aggregate ceiling and
+  // the platform-wide ceiling remain check-then-spend (same theoretical gap under a concurrent
+  // MULTI-rep burst against those shared caps) — the T-56 gap was specifically the PER-REP ceiling,
+  // and preserving per-rep isolation was the explicit scope here. Also out of scope: cross-Node-
+  // instance atomicity (the reservation tally is in-process only — see `ReservationLedger`'s doc
+  // comment) — a separate, larger concern (T-R5).
   // ────────────────────────────────────────────────────────────────────────────────────────────
-  test('KNOWN GAP: a concurrent burst for ONE rep can overshoot the daily ceiling by more than one run\'s cost', async () => {
+  test('a concurrent burst for ONE rep can no longer overshoot the daily ceiling by more than one run\'s cost', async () => {
     const budgetStore = new InMemoryBudgetKillSwitchStore();
     budgetStore.repContexts.set('user-1', { accessTier: 'FREE_ORG_LINKED', intensitySetting: 'LOW', organizationId: null });
     const ceiling = DAILY_BUDGET_CENTS_BY_TIER_INTENSITY.FREE_ORG_LINKED.LOW; // 40 cents
@@ -778,12 +805,17 @@ describe('UNDER LOAD (§4.5/§4.6, drill requirement #4)', () => {
     const model = new TieredScriptedModelClient({}, { tokenInput: 20000, tokenOutput: 8000 }); // 18 cents/run
     const runtime = new AgentRuntime({ modelClient: model, cfe: clearCFE(), store, runGate, costModel: new TierPricingCostModel() });
 
-    const BURST = 10; // if the race fires, 10 x 18 = 180 cents against a 40-cent cap
+    const BURST = 10; // pre-fix, if the race fired, 10 x 18 = 180 cents against a 40-cent cap
     await Promise.all(Array.from({ length: BURST }, (_, i) => runtime.runAgent(job({ idempotencyKey: `race-${i}` }))));
 
     const totalSpend = await budgetStore.getDailySpendCents('user-1', new Date(0));
-    // DESIRED fail-closed behavior: spend should never land more than one run's cost past the cap.
-    // This currently FAILS — every run in the burst observes spend=0 at check time and all spend.
+    // Fail-closed behavior: spend never lands more than one run's cost past the cap. Pre-fix this
+    // FAILED (every run in the burst observed spend=0 at check time and all spent, landing at 180).
     expect(totalSpend).toBeLessThan(ceiling + 18);
+    // TIGHTER bound, now provable: with a burst LARGER than the ceiling can admit, the reservation
+    // fix actually holds spend at-or-under the ceiling exactly (no overshoot at all in this case) —
+    // burst size beyond what fits is irrelevant, admission stops itself the same way regardless.
+    expect(totalSpend).toBeLessThanOrEqual(ceiling);
+    expect(await budgetStore.getOutstandingReservationCents('user-1')).toBe(0); // no leaked reservations
   });
 });

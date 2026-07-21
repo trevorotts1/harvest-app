@@ -10,8 +10,10 @@
 // Setting only) before calling this gate — this file just has to honor it, which it does first.
 
 import type { AccessTier, IntensitySetting } from '@prisma/client';
+import { ClaudeModelTier } from '../runtime-model-map';
 import { RunGate, RunGateDecision, RunGateRequest } from '../seams';
 import { BudgetKillSwitchStore, PLATFORM_SCOPE_ID, PrismaBudgetKillSwitchStore } from './budget-store';
+import { CLAUDE_PRICING_CENTS_PER_1K } from './pricing';
 
 /**
  * Daily token-budget ceilings, in cents, by tier x intensity (§4.2/§4.5: "Low < Medium < High" is
@@ -79,6 +81,29 @@ export function dailyBudgetCentsFor(accessTier: AccessTier, intensitySetting: In
   return typeof ceiling === 'number' && Number.isFinite(ceiling) ? ceiling : 0;
 }
 
+/**
+ * T-R27 (§4.5 concurrency hardening) — the conservative per-run token budget the reservation
+ * primitive prices against at ADMISSION time (before real usage is known). Sized generously — well
+ * above a typical draft's usage (most steps run ~2,000 input / ~800 output tokens, per the test
+ * fixtures elsewhere in this lane) — so a legitimately large single-step run is never under-reserved
+ * (the reservation would then admit a run that could itself breach the cap, exactly what §4.5 rules
+ * out). Not derived from any one agent's real prompt size; it is a deliberate, documented, tunable
+ * safety margin, analogous to `DAILY_BUDGET_CENTS_BY_TIER_INTENSITY`'s operator-tunable defaults.
+ */
+export const RESERVATION_TOKEN_BUDGET = { tokenInput: 15_000, tokenOutput: 6_000 } as const;
+
+/**
+ * The reservation estimate for one run at `tier` (cents) — `RESERVATION_TOKEN_BUDGET` priced at
+ * `tier`'s real published rate (single-sourced from `pricing.ts`, so this never drifts out of sync
+ * with the real cost model). Ordered Haiku < Sonnet < Opus, matching every other cost-disciplined
+ * ordering in this lane.
+ */
+export function reservationEstimateCentsFor(tier: ClaudeModelTier): number {
+  const rate = CLAUDE_PRICING_CENTS_PER_1K[tier];
+  const raw = (RESERVATION_TOKEN_BUDGET.tokenInput / 1000) * rate.in + (RESERVATION_TOKEN_BUDGET.tokenOutput / 1000) * rate.out;
+  return Math.max(0, Math.round(raw));
+}
+
 export interface BudgetKillSwitchRunGateOptions {
   store?: BudgetKillSwitchStore;
   clock?: () => Date;
@@ -131,7 +156,18 @@ export class BudgetKillSwitchRunGate implements RunGate {
 
     const since = startOfUtcDay(this.clock());
 
+    // T-R27 (§4.5 concurrency hardening): the reservation this admission would place if it clears
+    // every remaining check, priced conservatively for the tier the run will actually spend on.
+    // Reserved ONLY once every other check below has already passed (see the end of this method) —
+    // never left outstanding against a run this same call ultimately denies.
+    const estimate = reservationEstimateCentsFor(req.primaryTier);
+    let repReservationId: string | null = null;
+
     if (repInfo.accessTier === 'ENTERPRISE' && repInfo.organizationId) {
+      // NOT reservation-aware (out of scope here, same as multi-instance atomicity, §4.5 T-56 gap was
+      // documented for the PER-REP ceiling specifically): the org aggregate remains check-then-spend.
+      // A concurrent multi-rep burst against the SAME enterprise org ceiling could in principle hit
+      // the identical class of gap this unit closes for the per-rep case — flagged, not fixed, here.
       const orgSpend = await this.store.getOrgDailySpendCents(repInfo.organizationId, since);
       if (orgSpend >= ENTERPRISE_ORG_DAILY_BUDGET_CENTS) {
         await this.alertOperator({
@@ -146,13 +182,23 @@ export class BudgetKillSwitchRunGate implements RunGate {
     } else {
       const ceiling = dailyBudgetCentsFor(repInfo.accessTier, repInfo.intensitySetting);
       const repSpend = await this.store.getDailySpendCents(req.userId, since);
-      if (repSpend >= ceiling) {
+      // THE T-R27 FIX: `tryReserve` folds in every OTHER admitted-but-not-yet-committed run's
+      // outstanding reservation atomically, so a concurrent burst for this SAME rep can no longer
+      // have every call observe the identical pre-burst `repSpend` and all pass (T-56's documented
+      // gap) — each concurrent admission sees the reservations the others already placed.
+      repReservationId = await this.store.tryReserve(req.userId, repSpend, ceiling, estimate);
+      if (repReservationId === null) {
         return { allowed: false, reason: 'budget_exhausted' };
       }
     }
 
     const platformSpend = await this.store.getPlatformDailySpendCents(since);
     if (platformSpend >= PLATFORM_DAILY_BUDGET_CENTS) {
+      // Roll back: the per-rep reservation above was provisional on EVERY check passing. The
+      // platform-wide breach denies this run, so the hold must not outlive the denial (no leak).
+      if (repReservationId) {
+        await this.store.releaseReservation(req.userId, repReservationId);
+      }
       await this.alertOperator({
         kind: 'kill_switch_auto_trip',
         scope: 'PLATFORM',
@@ -163,7 +209,22 @@ export class BudgetKillSwitchRunGate implements RunGate {
       return { allowed: false, reason: 'budget_exhausted_platform' };
     }
 
-    return { allowed: true };
+    if (!repReservationId) {
+      return { allowed: true };
+    }
+
+    // Admitted, WITH an outstanding reservation the caller now owns. `released` guards against a
+    // double-release (defensive — a caller might release in both a success path and a `finally`).
+    let released = false;
+    const reservationId = repReservationId;
+    return {
+      allowed: true,
+      release: async () => {
+        if (released) return;
+        released = true;
+        await this.store.releaseReservation(req.userId, reservationId);
+      },
+    };
   }
 }
 

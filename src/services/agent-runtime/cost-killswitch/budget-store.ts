@@ -8,9 +8,83 @@
 // table — there is exactly one source of truth for "how much has this rep/org/platform spent
 // today." This file only adds the kill-switch TRIPPED/CLEARED state (a new, additive table,
 // `AgentKillSwitch`) and the read paths RunGate needs to enforce budgets.
+//
+// T-R27 (§4.5 concurrency hardening) — ALSO adds the RESERVATION primitive that closes T-56's
+// documented per-rep "check-then-spend" gap: a concurrent burst for one rep used to have every
+// `RunGate.check()` compare its estimate only against the last-COMMITTED spend
+// (`getDailySpendCents`), so every call in the burst could observe the identical pre-burst total and
+// all pass. `tryReserve`/`releaseReservation` add an outstanding-reservation tally, ADMISSION-time
+// (not persisted, no schema change — see `ReservationLedger` below), so concurrent admissions for
+// the SAME rep see each other's in-flight holds even though the committed-spend read itself is still
+// a separate, necessarily-slightly-stale snapshot.
 
 import type { AccessTier, IntensitySetting } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+
+/**
+ * T-R27 — an in-process, per-rep outstanding-reservation tally. Every mutating operation
+ * (`reserve`/`release`) and the read it's paired with (`outstandingCentsFor`) is a single
+ * SYNCHRONOUS Map mutation with no `await` inside it, so two concurrent callers can never interleave
+ * mid-operation (JS run-to-completion semantics) — `tryReserve` below composes a read + compare +
+ * write into one such atomic call. This is the "mirror the store's atomic-update pattern" primitive
+ * the reservation fix needs.
+ *
+ * ATOMICITY ASSUMPTION (stated per the build brief): atomic within a single Node process/instance
+ * only — there is no network round-trip, no lock, nothing shared across replicas. If this deployment
+ * ever runs multiple concurrent Node instances/workers, reservations made in one instance are NOT
+ * visible to another, so the SAME per-rep burst spread across replicas could still overshoot.
+ * Closing that is a separate, larger concern (a distributed lock or a real DB-backed reservation row,
+ * which the "no schema change" constraint here rules out) — out of scope for this unit, exactly as
+ * multi-instance atomicity was called out as T-R5's concern, not this one's.
+ */
+export class ReservationLedger {
+  private readonly byUser = new Map<string, Map<string, number>>();
+  private counter = 0;
+
+  /** Sum of this user's currently-outstanding (unreleased) reservations. */
+  outstandingCentsFor(userId: string): number {
+    const userMap = this.byUser.get(userId);
+    if (!userMap) return 0;
+    let total = 0;
+    for (const cents of userMap.values()) total += cents;
+    return total;
+  }
+
+  /**
+   * Atomic admission primitive: given the caller's already-read `committedSpendCents` snapshot, if
+   * `committedSpendCents + outstanding + estimateCents` would exceed `ceilingCents`, denies (returns
+   * null, no mutation). Otherwise records the reservation and returns its token — all in one
+   * synchronous critical section, so concurrent callers for the SAME userId can never both pass on
+   * the same outstanding total.
+   */
+  tryReserve(userId: string, committedSpendCents: number, ceilingCents: number, estimateCents: number): string | null {
+    const outstanding = this.outstandingCentsFor(userId);
+    if (committedSpendCents + outstanding + estimateCents > ceilingCents) {
+      return null;
+    }
+    const id = `res_${++this.counter}_${Math.random().toString(36).slice(2, 8)}`;
+    const userMap = this.byUser.get(userId) ?? new Map<string, number>();
+    userMap.set(id, estimateCents);
+    this.byUser.set(userId, userMap);
+    return id;
+  }
+
+  /** Idempotent: releasing an unknown/already-released token is a safe no-op. */
+  release(userId: string, reservationId: string): void {
+    this.byUser.get(userId)?.delete(reservationId);
+  }
+}
+
+/**
+ * T-R27 — ONE ledger shared by every `PrismaBudgetKillSwitchStore` instance in this Node process.
+ * `wiring.ts` intentionally builds a FRESH store per dispatch invocation (lazy, no shared client at
+ * module scope) — if the reservation tally lived on the instance instead of the module, concurrent
+ * invocations (each with their own store instance) would never see each other's reservations and the
+ * T-56 gap would reopen. Module-scoped state here holds no client/key/connection (build-safety rule
+ * is about NOT eagerly opening DB/API connections at import time; an empty in-memory Map has no such
+ * cost), so this stays consistent with the lazy-construction convention elsewhere in this file.
+ */
+const PROCESS_RESERVATION_LEDGER = new ReservationLedger();
 
 export type KillSwitchScope = 'PLATFORM' | 'ORG' | 'REP';
 
@@ -45,6 +119,17 @@ export interface BudgetKillSwitchStore {
     reason: string | null,
     actorUserId: string
   ): Promise<void>;
+  /** T-R27 (§4.5 concurrency hardening) — atomic admission-time reservation. See `ReservationLedger`
+   *  for the atomicity contract/assumption. Returns null (denied, nothing reserved) when
+   *  `committedSpendCents + outstanding-reservations + estimateCents` would exceed `ceilingCents`;
+   *  otherwise returns a token that MUST be released exactly once via `releaseReservation`. */
+  tryReserve(userId: string, committedSpendCents: number, ceilingCents: number, estimateCents: number): Promise<string | null>;
+  /** Release a reservation created by `tryReserve`. Idempotent — releasing an unknown/already-
+   *  released token is a no-op, so a defensive double-release (e.g. both a success path AND a
+   *  guarding `finally`) is always safe. */
+  releaseReservation(userId: string, reservationId: string): Promise<void>;
+  /** Observability/test helper: this rep's currently-outstanding (unreleased) reservation total. */
+  getOutstandingReservationCents(userId: string): Promise<number>;
 }
 
 // --- Narrow Prisma delegate shapes (only what this store touches) -----------------------------
@@ -148,6 +233,21 @@ export class PrismaBudgetKillSwitchStore implements BudgetKillSwitchStore {
       update: tripFields,
     });
   }
+
+  // ── T-R27 reservation primitive — see PROCESS_RESERVATION_LEDGER's doc comment for the
+  // single-Node-process atomicity assumption. No schema change: nothing here touches the DB. ────────
+
+  async tryReserve(userId: string, committedSpendCents: number, ceilingCents: number, estimateCents: number): Promise<string | null> {
+    return PROCESS_RESERVATION_LEDGER.tryReserve(userId, committedSpendCents, ceilingCents, estimateCents);
+  }
+
+  async releaseReservation(userId: string, reservationId: string): Promise<void> {
+    PROCESS_RESERVATION_LEDGER.release(userId, reservationId);
+  }
+
+  async getOutstandingReservationCents(userId: string): Promise<number> {
+    return PROCESS_RESERVATION_LEDGER.outstandingCentsFor(userId);
+  }
 }
 
 /** Test/dev store: no DB, no infra. Records everything for assertions. */
@@ -156,6 +256,9 @@ export class InMemoryBudgetKillSwitchStore implements BudgetKillSwitchStore {
   /** userId -> array of cost_cents entries, each with its own timestamp (for `since` filtering). */
   spendByUser = new Map<string, { costCents: number; at: Date }[]>();
   killSwitches = new Map<string, KillSwitchState>();
+  /** T-R27 — INSTANCE-scoped (not module-scoped, unlike the Prisma store): each test constructs its
+   *  own `InMemoryBudgetKillSwitchStore`, and reservation state must not leak across tests. */
+  private readonly reservations = new ReservationLedger();
 
   private key(scope: KillSwitchScope, scopeId: string): string {
     return `${scope}:${scopeId}`;
@@ -206,5 +309,17 @@ export class InMemoryBudgetKillSwitchStore implements BudgetKillSwitchStore {
     reason: string | null
   ): Promise<void> {
     this.killSwitches.set(this.key(scope, scopeId), { tripped, reason });
+  }
+
+  async tryReserve(userId: string, committedSpendCents: number, ceilingCents: number, estimateCents: number): Promise<string | null> {
+    return this.reservations.tryReserve(userId, committedSpendCents, ceilingCents, estimateCents);
+  }
+
+  async releaseReservation(userId: string, reservationId: string): Promise<void> {
+    this.reservations.release(userId, reservationId);
+  }
+
+  async getOutstandingReservationCents(userId: string): Promise<number> {
+    return this.reservations.outstandingCentsFor(userId);
   }
 }
