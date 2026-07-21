@@ -35,6 +35,8 @@ import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useLocale } from '@/app/locale-context';
 
+import ComposerHandoffSheet from '@/app/community/components/ComposerHandoffSheet';
+
 import ApprovalInboxItem, { type InboxItemData } from './components/ApprovalInboxItem';
 import { inboxEmptyStateMessage, type InboxFilterKey as FilterKey } from './empty-state';
 import {
@@ -74,6 +76,10 @@ export default function ApprovalInboxPage() {
   const [items, setItems] = useState<InboxItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // T-57 R3a (AC-5.6-6) — approving an OWN-NUMBER first touch (SMS_HANDOFF) chains directly into the
+  // Composer Handoff Sheet. Set only on an ONLINE approve success (there is no clearance/handoff
+  // possible offline); the sheet itself then re-asserts CFE clearance fail-closed before any text.
+  const [composerFor, setComposerFor] = useState<{ draftId: string; contactName: string } | null>(null);
 
   // OFFLINE (T-54): connectivity + the persisted, replay-on-reconnect mutation queue for
   // approve/decline/edit — see ./offline.ts's header for the CFE re-validation-on-reconnect
@@ -191,6 +197,7 @@ export default function ApprovalInboxPage() {
       setItems((prev) => prev.map((it) => (it.id === draftId ? { ...it, queuedOffline: true } : it)));
       return { ok: true };
     }
+    const approvedItem = items.find((it) => it.id === draftId);
     const res = await fetch('/api/approval-inbox/approve', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -199,6 +206,13 @@ export default function ApprovalInboxPage() {
     const data = await res.json();
     if (!res.ok || !data.ok) return { ok: false, error: data.error ?? t('inbox.errors.approveFailed') };
     setItems((prev) => prev.filter((it) => it.id !== draftId));
+    // AC-5.6-6 — own-number first touch chains into the Composer Handoff Sheet on approval.
+    if (approvedItem && approvedItem.channel === 'SMS_HANDOFF') {
+      const name = approvedItem.contact
+        ? `${approvedItem.contact.firstName} ${approvedItem.contact.lastName}`
+        : t('inbox.item.contactFallback');
+      setComposerFor({ draftId, contactName: name });
+    }
     return { ok: true };
   }
 
@@ -340,6 +354,13 @@ export default function ApprovalInboxPage() {
           </div>
         )}
       </div>
+
+      <ComposerHandoffSheet
+        open={composerFor !== null}
+        draftId={composerFor?.draftId ?? null}
+        contactName={composerFor?.contactName ?? ''}
+        onClose={() => setComposerFor(null)}
+      />
     </div>
   );
 }

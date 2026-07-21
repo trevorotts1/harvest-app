@@ -1,0 +1,274 @@
+/* T-57 R3a — Composer Handoff Sheet (uiux §4.4). Bottom sheet, `--elevation-3`, semantic tokens
+ * only. No text-overflow/line-clamp (translation-safe, guard:i18n); no fixed width on button
+ * selectors (guard:i18n growth-tolerance); no sub-1 opacity / color-alpha on text
+ * (guard:no-opacity-on-text). All copy comes through the catalog (guard:no-literals). */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(34, 43, 34, 0.5);
+  padding: var(--space-3);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 34rem;
+  background: var(--surface-1-solid-fallback);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--elevation-3);
+  padding: var(--space-6);
+  margin-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheet {
+    animation: composerSheetIn var(--dur-grow, 240ms) ease-out both;
+  }
+}
+
+@keyframes composerSheetIn {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 860px) {
+  .backdrop {
+    align-items: center;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--text-secondary);
+  margin: var(--space-1) 0 0;
+}
+
+.closeBtn {
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  line-height: 1;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.closeBtn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.loading {
+  margin: var(--space-5) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+/* HELD / ERROR — the fail-closed state: honest copy, never any sendable text. */
+.held {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-caution-text);
+  border-radius: var(--radius-card);
+  background: var(--color-caution-bg);
+}
+
+.heldTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+}
+
+.heldIcon {
+  font-size: 1.1em;
+}
+
+.heldBody {
+  margin: var(--space-2) 0 0;
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.heldReassure {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+/* READY — the cleared, sendable state. */
+.readyRegion {
+  margin-top: var(--space-5);
+}
+
+.recipient {
+  margin: 0 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.bubble {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.clearedCaption {
+  margin: var(--space-2) 0 0;
+  color: var(--color-growth, var(--leaf-700));
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: 600;
+}
+
+.leafCheck {
+  font-size: 1em;
+}
+
+.attestation {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-5);
+}
+
+.primaryBtn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--color-action);
+  border-radius: var(--radius-control);
+  background: var(--color-action);
+  color: var(--on-action);
+  font-weight: 600;
+  font-size: var(--type-body-size);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryBtn:disabled {
+  background: var(--surface-2);
+  color: var(--text-disabled);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+.primaryBtn:focus-visible,
+.tertiaryBtn:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+.tertiaryBtn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+  cursor: pointer;
+}
+
+.tertiaryBtn:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.desktopNote {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.confirmRegion {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.confirmPrompt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+}
+
+.confirmError {
+  margin: var(--space-2) 0 0;
+  color: var(--color-danger-form-text);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.outcome {
+  margin-top: var(--space-5);
+}
+
+.outcomeTitle {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--type-body-lg-size);
+  line-height: var(--type-body-lg-line);
+}
+
+.outcomeBody {
+  margin: var(--space-2) 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
