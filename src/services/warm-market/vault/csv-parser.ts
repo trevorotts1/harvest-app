@@ -33,7 +33,7 @@ export interface CsvParseResult {
 }
 
 /** Recognized logical fields a fuzzy-matched header may map onto. */
-type MappedField = 'name' | 'phone' | 'email' | 'notes' | 'industry' | 'birthdate' | 'jurisdiction';
+export type MappedField = 'name' | 'phone' | 'email' | 'notes' | 'industry' | 'birthdate' | 'jurisdiction';
 
 // §7.1 "fuzzy header-map": common real-world header spellings/casings/synonyms per logical field.
 // Matching is done against a normalized header (lowercased, punctuation/whitespace collapsed), so
@@ -53,7 +53,13 @@ const HEADER_ALIASES: Record<MappedField, string[]> = {
   jurisdiction: ['state', 'jurisdiction', 'contact state', 'licensing state'],
 };
 
-function normalizeHeader(header: string): string {
+// `normalizeHeader`/`mapHeader` are exported (T-R30 GAP 1) so a client-side import preview (e.g. the
+// `/community/import` field-mapping preview) can show the SAME header→field detection the server's
+// authoritative `parseContactCsv` actually uses, rather than a second, hand-copied alias table that
+// could silently drift from this one. Neither function touches `Buffer` (only `parseContactCsv`'s
+// size check below does), so importing them into a `'use client'` module is safe — that code path is
+// simply never reached from the browser.
+export function normalizeHeader(header: string): string {
   return header
     .trim()
     .toLowerCase()
@@ -63,7 +69,7 @@ function normalizeHeader(header: string): string {
     .trim();
 }
 
-function mapHeader(header: string): MappedField | null {
+export function mapHeader(header: string): MappedField | null {
   const normalized = normalizeHeader(header);
   for (const field of Object.keys(HEADER_ALIASES) as MappedField[]) {
     if (HEADER_ALIASES[field].includes(normalized)) return field;
@@ -75,7 +81,7 @@ function mapHeader(header: string): MappedField | null {
  * Splits one CSV line into fields, honoring RFC4180-style double-quoted fields (embedded commas,
  * embedded newlines are NOT supported — a line is still one row — and `""` as an escaped quote).
  */
-function splitCsvLine(line: string): string[] {
+export function splitCsvLine(line: string): string[] {
   const fields: string[] = [];
   let current = '';
   let inQuotes = false;

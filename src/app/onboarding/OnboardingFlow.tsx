@@ -10,7 +10,7 @@
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
 import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
@@ -90,6 +90,16 @@ export default function OnboardingFlow({
   const [outreachConsent, setOutreachConsent] = useState(false);
   const [importBeat, setImportBeat] = useState<ImportBeat>('value');
   const [contactCount, setContactCount] = useState(0);
+  // T-R30 (parity GAP 1) — the REAL CSV import's in-flight/error state. `onUseCsv` used to just fake
+  // `contactCount=24` with no file ever read (T-51); this now drives an actual file picker → the
+  // real Vault ingestion route (see `handleCsvFileSelected` below).
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  // Minted once per import ATTEMPT and reused across retries of that same attempt (§18.5
+  // idempotency) — cleared once the attempt actually completes so a later, separate file selection
+  // mints a fresh key rather than silently reusing a stale one.
+  const csvIdempotencyKeyRef = useRef<string | null>(null);
   // T-21R (§6.10-10) — GDPR consent capture: an explicit affirmative act, defaults OFF. Granting
   // calls the session-authenticated `/api/onboarding/consent` route, which is what actually invokes
   // WP11's `ConsentManager` and sets `User.gdpr_consent = true` (this local state is only the UI's
@@ -166,6 +176,51 @@ export default function OnboardingFlow({
       setConsentError('Could not record your consent — please try again.');
     } finally {
       setConsentSubmitting(false);
+    }
+  }
+
+  // T-R30 (parity GAP 1) — the O-7 "Import a CSV" button's real handler: fired from the hidden
+  // `<input type="file">` ref'd below, this reads the selected file as text and POSTs it to the
+  // REAL onboarding-time Vault ingestion route (session-gated, NOT onboarding-complete-gated — see
+  // that route's own file header for why it can't be `/api/contacts/import`). `contactCount` is set
+  // from the route's actual `importedCount + mergedCount` — never a fake constant. A failed import
+  // never advances the screen and never fabricates a count; the rep can retry or fall back to
+  // "Add one at a time".
+  async function handleCsvFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // allow re-selecting the same filename on a retry
+    if (!file) return;
+
+    setCsvError(null);
+    setCsvImporting(true);
+    if (!csvIdempotencyKeyRef.current) {
+      csvIdempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `csv-import-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    try {
+      const csvText = await file.text();
+      const response = await fetch('/api/onboarding/contacts-import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ csvText, idempotencyKey: csvIdempotencyKeyRef.current }),
+      });
+      const body = await response.json().catch(() => ({}) as { error?: string });
+      if (!response.ok) {
+        setCsvError((body as { error?: string }).error ?? 'Could not import that file — please try again.');
+        return;
+      }
+      // This attempt is done — a later, separate file selection mints a fresh idempotency key.
+      csvIdempotencyKeyRef.current = null;
+      const result = body as { importedCount?: number; mergedCount?: number };
+      setContactCount((result.importedCount ?? 0) + (result.mergedCount ?? 0));
+      advance();
+    } catch {
+      setCsvError('Could not import that file — please try again.');
+    } finally {
+      setCsvImporting(false);
     }
   }
 
@@ -266,23 +321,36 @@ export default function OnboardingFlow({
       )}
 
       {screen === 'contacts' && (
-        <ContactImportStep
-          beat={importBeat}
-          onAdvance={() => (importBeat === 'value' ? setImportBeat('preview') : advance())}
-          onRequestPermission={() => {
-            setContactCount(24);
-            advance();
-          }}
-          onDeny={() => setImportBeat('denied')}
-          onUseCsv={() => {
-            setContactCount(24);
-            advance();
-          }}
-          onAddManually={() => {
-            setContactCount(1);
-            advance();
-          }}
-        />
+        <>
+          <ContactImportStep
+            beat={importBeat}
+            onAdvance={() => (importBeat === 'value' ? setImportBeat('preview') : advance())}
+            onRequestPermission={() => {
+              setContactCount(24);
+              advance();
+            }}
+            onDeny={() => setImportBeat('denied')}
+            // T-R30 (parity GAP 1): opens the REAL OS file picker — no more faked contactCount.
+            // `handleCsvFileSelected` (the input's onChange, below) does the actual read+import.
+            onUseCsv={() => csvInputRef.current?.click()}
+            onAddManually={() => {
+              setContactCount(1);
+              advance();
+            }}
+            csvImporting={csvImporting}
+            csvError={csvError}
+          />
+          {/* Visually hidden (not display:none, so the ref's programmatic .click() stays reliable
+              cross-browser) — triggered ONLY by the "Import a CSV" button above via csvInputRef. */}
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            aria-label="Choose a CSV file to import"
+            className={styles.srOnly}
+            onChange={handleCsvFileSelected}
+          />
+        </>
       )}
 
       {screen === 'reveal' && (
