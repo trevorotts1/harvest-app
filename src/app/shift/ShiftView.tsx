@@ -213,7 +213,28 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
   }
 
   if (!shift) {
-    return <div className={styles.shell} aria-busy="true" />;
+    // T-57 RE-GATE fix (D2 BLOCKER, master-spec SC9): every real mount lands here FIRST — before
+    // the initial `/api/shift` + `/api/learning-state` fetch above resolves — so this branch is
+    // not a rare edge case, it is what every rep sees on every open of this screen. It used to be
+    // a bare `aria-busy` div with ZERO text content: a screen-reader user got nothing at all
+    // during the load window (an SC9 violation). Narrated Open-phase loading state, mirroring
+    // TodayPage's own loading branch (today/page.tsx `state.kind === 'loading'` ->
+    // `t('today.loadingReport')`): real narrated text plus a decorative (aria-hidden) skeleton
+    // silhouette of the Open-phase card about to render — the skeleton bars carry no information
+    // of their own (screen readers never see them); the narrated line is what actually tells a
+    // rep — sighted or not — that their shift is on its way, nothing was lost.
+    return (
+      <div className={styles.shell} aria-busy="true">
+        <div className={styles.focusShell}>
+          <div className={styles.loadingCard}>
+            <p className={styles.loadingNarrative}>{t('shift.loading.narrativeLine')}</p>
+            <div className={styles.skeletonBar} aria-hidden="true" />
+            <div className={`${styles.skeletonBar} ${styles.skeletonBarMedium}`} aria-hidden="true" />
+            <div className={`${styles.skeletonBar} ${styles.skeletonBarNarrow}`} aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

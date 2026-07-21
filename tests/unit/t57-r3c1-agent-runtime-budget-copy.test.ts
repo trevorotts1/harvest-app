@@ -88,6 +88,42 @@ describe('T-57 R3c-1 — agent-runtime.ts humanizes the budget_exhausted hold re
     expect(res.reasoningLog).toMatch(/Me.*Intensity/);
   });
 
+  // T-57 RE-GATE fix (D states re-gate, sibling to D2): the RunGate can ALSO deny with
+  // `budget_exhausted_org` (enterprise-org daily ceiling, run-gate.ts:198) or
+  // `budget_exhausted_platform` (platform-wide daily ceiling, run-gate.ts:227) — the ORIGINAL
+  // fix above only string-equals the bare `'budget_exhausted'`, so both siblings fell through to
+  // the raw-token fallback and leaked the internal enum into the rep's own receipts, exactly the
+  // defect MINOR-D5 existed to close. These two tests prove the humanization now covers them too.
+  test('RE-GATE GREEN: budget_exhausted_org renders the SAME humanized §4.6 sentence, never the raw token', async () => {
+    const denyGate: RunGate = { check: () => ({ allowed: false, reason: 'budget_exhausted_org' }) };
+    const runtime = new AgentRuntime({
+      modelClient: new NeverCalledModelClient(),
+      cfe: clearCFE(),
+      store: new InMemoryAgentRuntimeStore(),
+      runGate: denyGate,
+    });
+    const res = await runtime.runAgent(job());
+    expect(res.outcome).toBe('deferred');
+    expect(res.reasoningLog).not.toContain('budget_exhausted_org');
+    expect(res.reasoningLog).toMatch(/reach their daily limit at your current intensity/);
+    expect(res.reasoningLog).toMatch(/Me.*Intensity/);
+  });
+
+  test('RE-GATE GREEN: budget_exhausted_platform renders the SAME humanized §4.6 sentence, never the raw token', async () => {
+    const denyGate: RunGate = { check: () => ({ allowed: false, reason: 'budget_exhausted_platform' }) };
+    const runtime = new AgentRuntime({
+      modelClient: new NeverCalledModelClient(),
+      cfe: clearCFE(),
+      store: new InMemoryAgentRuntimeStore(),
+      runGate: denyGate,
+    });
+    const res = await runtime.runAgent(job());
+    expect(res.outcome).toBe('deferred');
+    expect(res.reasoningLog).not.toContain('budget_exhausted_platform');
+    expect(res.reasoningLog).toMatch(/reach their daily limit at your current intensity/);
+    expect(res.reasoningLog).toMatch(/Me.*Intensity/);
+  });
+
   test('a DIFFERENT deny reason (kill_switch) is left unchanged — this fix is scoped to budget_exhausted only', async () => {
     const denyGate: RunGate = { check: () => ({ allowed: false, reason: 'kill_switch' }) };
     const runtime = new AgentRuntime({
@@ -98,6 +134,23 @@ describe('T-57 R3c-1 — agent-runtime.ts humanizes the budget_exhausted hold re
     });
     const res = await runtime.runAgent(job());
     expect(res.reasoningLog).toContain('kill_switch');
+  });
+
+  // RE-GATE guard: the PREFIX match (`startsWith('budget_exhausted')`) must not over-match a
+  // real, non-budget RunGate reason that merely shares the `_org` suffix shape
+  // (`kill_switch_org` — a real org-scope kill-switch trip, run-gate.ts:171) — this must keep
+  // rendering the raw-token fallback exactly like plain `kill_switch` does above.
+  test('RE-GATE: kill_switch_org (a real, different deny reason) is also left unchanged — no false-positive prefix match', async () => {
+    const denyGate: RunGate = { check: () => ({ allowed: false, reason: 'kill_switch_org' }) };
+    const runtime = new AgentRuntime({
+      modelClient: new NeverCalledModelClient(),
+      cfe: clearCFE(),
+      store: new InMemoryAgentRuntimeStore(),
+      runGate: denyGate,
+    });
+    const res = await runtime.runAgent(job());
+    expect(res.reasoningLog).toContain('kill_switch_org');
+    expect(res.reasoningLog).not.toMatch(/reach their daily limit/);
   });
 
   test('no Claude spend happens on a denied run either way (unchanged fail-closed guarantee)', async () => {
