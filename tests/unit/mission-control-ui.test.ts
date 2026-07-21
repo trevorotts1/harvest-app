@@ -97,6 +97,33 @@ describe('(c) Grove renders all eight §3.2 states (AC-3-2) — aria-hidden SVG 
     const html = render(Grove, { state: 'resting', laws, caption: 'Resting, ready to regrow' });
     expect(textOf(html).toLowerCase()).not.toMatch(/dead|wilt|brown/);
   });
+
+  // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — the "Milestone full-bloom" narration script,
+  // announced once as a polite live region, alongside (not replacing) the short visible caption.
+  test('bloom state with a narration script renders it as a role="status" polite live region', () => {
+    const html = render(Grove, {
+      state: 'bloom',
+      laws,
+      caption: 'First recruit',
+      bloomNarration: 'Milestone: First recruit. Someone chose to build alongside you. That is the harvest multiplying. This moment is saved to your field.',
+    });
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-live="polite"');
+    expect(textOf(html)).toContain('This moment is saved to your field.');
+    // the short visible caption is UNCHANGED — the full script is additive, not a replacement.
+    expect(textOf(html)).toContain('First recruit');
+  });
+
+  test('bloom state with no narration script (e.g. an unrecognized milestone key) renders no extra live region', () => {
+    const html = render(Grove, { state: 'bloom', laws, caption: 'Bloom', bloomNarration: null });
+    expect(html).not.toContain('role="status"');
+  });
+
+  test('non-bloom states never render the bloom live region even if bloomNarration is (incorrectly) supplied', () => {
+    const html = render(Grove, { state: 'thriving', laws, caption: 'Thriving', bloomNarration: 'should never appear' });
+    expect(html).not.toContain('role="status"');
+    expect(textOf(html)).not.toContain('should never appear');
+  });
 });
 
 // ─── (a) The six zone components render REAL data, and their OWN error states independently ───────
@@ -129,6 +156,44 @@ describe('(a) Six Today zones render from real ZoneResult data (not demo)', () =
     };
     const html = render(BriefingCard, { result: { status: 'ok', data } });
     expect(textOf(html)).toContain('Your Prospecting Agent ran 2 times');
+  });
+
+  // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — the "Briefing" narration script, verbatim:
+  // "While you slept: {line 1}. {line 2}. … Double-tap any line for receipts." Previously entirely
+  // absent (T-51 parity flagged TTS/narration gaps on this exact surface).
+  test('BriefingCard (ready, 2+ agent lines) carries the verbatim combined narration script, with the "While you slept:" lead-in said only ONCE — never once per line', () => {
+    // Two lines that EACH independently carry their own "While you slept:" prefix (exactly what
+    // briefing.ts's real per-agent composition produces when 2+ agents ran overnight) — the
+    // combined SR utterance must still say the lead-in exactly once, at the very front.
+    const data: BriefingZoneData = {
+      state: 'ready',
+      freshnessStamp: new Date().toISOString(),
+      lines: [
+        { text: 'While you slept: your Reporting Agent ran 2 times — 2 cleared.', receipts: [] },
+        { text: 'While you slept: your Prospecting Agent ran 1 time — 1 cleared.', receipts: [] },
+      ],
+    };
+    const html = render(BriefingCard, { result: { status: 'ok', data } });
+    const text = textOf(html);
+    const combinedScript =
+      'While you slept: your Reporting Agent ran 2 times — 2 cleared. ' +
+      'your Prospecting Agent ran 1 time — 1 cleared. Double-tap any line for receipts.';
+    expect(text).toContain(combinedScript);
+    // the combined script's OWN lead-in is exactly one occurrence of the full phrase directly
+    // followed by "your Reporting Agent" — i.e. never "...slept: ... While you slept: ..." inside it.
+    expect(combinedScript.match(/While you slept:/gi)).toHaveLength(1);
+  });
+
+  test('BriefingCard (first_day / agents_resting / empty) each render a single-line transcript, no receipts hint', () => {
+    for (const [state, needle] of [
+      ['first_day', 'run yet'],
+      ['agents_resting', 'resting'],
+      ['empty', 'quiet night'],
+    ] as const) {
+      const html = render(BriefingCard, { result: { status: 'ok', data: { state, freshnessStamp: null, lines: [] } } });
+      expect(textOf(html).toLowerCase()).toContain(needle);
+      expect(textOf(html)).not.toContain('Double-tap');
+    }
   });
 
   test('BriefingCard first_day / agents_resting / empty states each render distinct, honest copy', () => {

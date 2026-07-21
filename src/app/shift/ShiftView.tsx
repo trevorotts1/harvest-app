@@ -259,6 +259,7 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
         {shift.phase === 'DONE' ? (
           <DoneScreen
             streakCount={shift.streakCount}
+            recap={shift.recap}
             onBackToToday={() => {
               window.location.href = '/';
             }}

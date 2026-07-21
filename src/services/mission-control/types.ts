@@ -57,6 +57,12 @@ export interface HeaderZoneData {
   // this is an additive lens, not a second score). Optional so existing hand-built `HeaderZoneData`
   // fixtures (predating T-43) keep compiling; `buildHeaderZone` always populates it in practice.
   momentumCriteria?: MomentumCriteriaResult;
+  // T-52 (WCAG 2.2 AA, §17.4 / uiux §6.1 item 5): the verbatim "Milestone full-bloom" narration
+  // script ("Milestone: {name}. {anchor tie-in line}. This moment is saved to your field."), present
+  // only while `groveState === 'bloom'`. `null` otherwise (including when bloom is real but the
+  // milestone key is unrecognized — see celebration.service.ts's `buildMilestoneFullBloomNarration`).
+  // Optional so existing hand-built `HeaderZoneData` fixtures (predating T-52) keep compiling.
+  groveBloomNarration?: string | null;
 }
 
 // ── Zone 2: Overnight Briefing ──────────────────────────────────────────────────────────────────

@@ -84,7 +84,14 @@ export default function AuthPage() {
         <aside className="form-aside">
           <Link href="/" className="brand"><span className="brand-mark">H</span><span>The Harvest</span></Link>
           <h1 id="auth-title" style={{ fontSize: '3rem', marginTop: 48 }}>Enter the command center.</h1>
-          <p style={{ color: 'rgba(255,255,255,.72)', lineHeight: 1.6 }}>
+          {/* T-52 WCAG AA fix: was `color: 'rgba(255,255,255,.72)'` — a translucent
+              white on the flat `--bg-deep` (`.form-aside`) fill. Swapped to the real
+              design-system "secondary text on an inverse surface" token
+              (`--muted-inverse`, 7.0:1 on `--grove-950`) — opaque, AA-passing, and
+              consistent with `.side-link` / `.visual-root span` (globals.css), the
+              other two carried exemptions this fix resolves. Redirect logic above
+              (handleLogin / router.push) is untouched — this line only. */}
+          <p style={{ color: 'var(--muted-inverse)', lineHeight: 1.6 }}>
             The demo classifies the business first, then reveals only the fields that match that business structure.
           </p>
         </aside>

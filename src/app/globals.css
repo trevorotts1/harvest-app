@@ -63,6 +63,38 @@ body {
 a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; }
 
+/* T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 2: "visible focus ring per §1.2.4"). A systematic,
+   GLOBAL default so every focusable element gets a visible ring by construction, not only the
+   handful of components that happened to add their own `:focus-visible` rule (the pre-existing,
+   per-component rules — e.g. `.theme-toggle:focus-visible` above, `.briefingLineButton` in
+   today.module.css — are unaffected: same token, same treatment, they simply repeat what this
+   default already provides, and their higher selector specificity still wins harmlessly if either
+   ever needs to diverge). `:focus-visible` (not bare `:focus`) so a mouse click doesn't paint a
+   ring — only keyboard/switch focus does. */
+:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
+/* T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 2: "skip-to-content first on every page"). Visually
+   hidden off-screen until the link itself receives focus, per the standard skip-link pattern —
+   `left/top` (not `display:none`) so it remains in the accessibility tree and the tab order. */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 8px;
+  z-index: 1000;
+  background: var(--color-action);
+  color: var(--on-action);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-control);
+  font-weight: 800;
+  transition: top var(--dur-grow) var(--ease-organic);
+}
+.skip-link:focus {
+  top: 8px;
+}
+
 .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 .nav {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
@@ -163,7 +195,15 @@ h3 { margin: 0 0 8px; letter-spacing: -0.025em; }
 .app-frame { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; background: #f8f4ea; }
 .sidebar { background: var(--bg-deep); color: white; padding: 24px; position: sticky; top: 0; height: 100vh; }
 .sidebar .brand { margin-bottom: 34px; }
-.side-link { display: block; padding: 12px 14px; border-radius: 14px; color: rgba(255,255,255,0.72); margin-bottom: 6px; }
+/* T-52 WCAG AA fix: was `color: rgba(255,255,255,0.72)` — a translucent
+   white on the flat `--bg-deep` (`--grove-950`) sidebar fill. The real
+   design-system token for secondary/muted text on an inverse (dark)
+   surface already exists (`--muted-inverse`, 7.0:1 on `--grove-950`,
+   the same value dark-theme's `--text-secondary` resolves to) — swapping
+   to it removes the translucency (guard-no-opacity-on-text.mjs) while
+   keeping the intended "less-emphasized than the active/hover state"
+   treatment, opaque and AA-passing regardless of what sits behind it. */
+.side-link { display: block; padding: 12px 14px; border-radius: 14px; color: var(--muted-inverse); margin-bottom: 6px; }
 .side-link.active, .side-link:hover { color: white; background: rgba(255,255,255,0.1); }
 .main { padding: 28px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
@@ -177,7 +217,9 @@ h3 { margin: 0 0 8px; letter-spacing: -0.025em; }
 .visual-node strong, .visual-node span { display: block; }
 .visual-node span { color: var(--muted); font-size: .9rem; margin-top: 4px; }
 .visual-root { background: var(--bg-deep); color: white; text-align: center; }
-.visual-root span { color: rgba(255,255,255,.72); }
+/* T-52 WCAG AA fix: was `color: rgba(255,255,255,.72)` on the same flat
+   `--bg-deep` fill as `.side-link` above — same fix, same reasoning. */
+.visual-root span { color: var(--muted-inverse); }
 .visual-branches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .wizard-block { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(135deg, #fffaf0, #f3ead8); margin-bottom: 16px; }
 .primerica-fields { display: grid; gap: 12px; padding: 14px; border: 1px solid #c6dccb; border-radius: 18px; background: var(--leaf-soft); }

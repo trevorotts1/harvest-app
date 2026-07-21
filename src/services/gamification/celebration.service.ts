@@ -54,6 +54,39 @@ export const MILESTONE_ANCHOR_LINE: Record<MilestoneKey, string> = {
   [MilestoneKey.THIRTY_DAY_STREAK]: 'Thirty days of consistency. Brilliance is optional; you chose consistency.',
 };
 
+/** T-52 (WCAG 2.2 AA, master-spec §17.4 / uiux §6.1 item 5) — the human-friendly `{name}` the
+ *  "Milestone full-bloom" narration script names, e.g. "Milestone: First recruit. ..." Kept
+ *  separate from `MILESTONE_ANCHOR_LINE` (the emotional tie-in sentence) so each half of the
+ *  script has exactly one source of truth. */
+export const MILESTONE_DISPLAY_NAME: Record<MilestoneKey, string> = {
+  [MilestoneKey.FIRST_RESPONSE]: 'First response',
+  [MilestoneKey.FIRST_APPOINTMENT]: 'First appointment',
+  [MilestoneKey.FIRST_RECRUIT]: 'First recruit',
+  [MilestoneKey.FIRST_LICENSED_TEAM_MEMBER]: 'First licensed team member',
+  [MilestoneKey.THIRTY_DAY_STREAK]: 'Thirty-day streak',
+};
+
+/**
+ * T-52 — uiux §6.1 item 5's "Milestone full-bloom" narration script, verbatim template:
+ * "Milestone: {name}. {anchor tie-in line}. This moment is saved to your field." — announced
+ * ONCE (§3.2 "Bloom (transient)": "announced once, no repeated fanfare"), never re-fired for an
+ * already-celebrated milestone (that rate-limiting is the caller's — `computeBloomOverride` in
+ * mission-control/momentum.ts already only ever surfaces the single freshest uncelebrated
+ * milestone within its 10-minute window).
+ *
+ * Accepts a raw string (rather than `MilestoneKey`) because its real caller,
+ * `mission-control/zones/header.ts`, receives an unvalidated `milestone_key` column value from
+ * `computeBloomOverride` (momentum.ts, a WP04 module that — deliberately, see that file's header
+ * comment — has no dependency on this WP07 module or its enum). Returns `null` for a key this
+ * module does not recognize, so the Grove can fall back to silence rather than announce a
+ * garbled/incomplete sentence for data it cannot map.
+ */
+export function buildMilestoneFullBloomNarration(key: string): string | null {
+  const milestoneKey = (Object.values(MilestoneKey) as string[]).includes(key) ? (key as MilestoneKey) : null;
+  if (!milestoneKey) return null;
+  return `Milestone: ${MILESTONE_DISPLAY_NAME[milestoneKey]}. ${MILESTONE_ANCHOR_LINE[milestoneKey]} This moment is saved to your field.`;
+}
+
 interface DetectionDb {
   user: { findMany(args: { where: { upline_id: string } }): Promise<{ id: string }[]> };
   appointment: { findFirst(args: { where: { rep_id: string; status: string } }): Promise<{ id: string } | null> };

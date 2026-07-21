@@ -13,6 +13,10 @@ import {
   computeMomentumCriteria,
   groveCaptionFor,
 } from '../momentum';
+// T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5): the ONE cross-WP import this zone needs to compose
+// the "Milestone full-bloom" narration script — `milestones.ts` (this same directory, WP07's zone)
+// already crosses this exact boundary the same way, so this is not a new layering precedent.
+import { buildMilestoneFullBloomNarration } from '../../gamification/celebration.service';
 import type { MissionControlPrismaClient } from '../prisma-types';
 import type { HeaderZoneData } from '../types';
 
@@ -35,12 +39,14 @@ export async function buildHeaderZone(
   const bloom = computeBloomOverride(milestones, now);
   const groveState = bloom ? 'bloom' : computeGroveBandState(momentum);
   const groveCaption = groveCaptionFor(groveState, bloom?.label);
+  const groveBloomNarration = bloom ? buildMilestoneFullBloomNarration(bloom.key) : null;
 
   return {
     greetingName,
     momentum,
     groveState,
     groveCaption,
+    groveBloomNarration,
     approvalInboxCount: drafts.length,
     momentumCriteria,
   };

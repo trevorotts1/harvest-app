@@ -28,7 +28,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Script>
       </head>
       <body>
-        <Providers>{children}</Providers>
+        {/*
+          T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 2: "skip-to-content first on every page").
+          A plain `<div>` target (not `<main>`) — many pages under src/app already render their
+          own `<main>` landmark, and a second nested `<main>` here would be an invalid/duplicate
+          landmark. `tabIndex={-1}` makes the target programmatically focusable (so activating the
+          link actually MOVES focus past the nav, not just scrolls the viewport) without adding it
+          to the normal tab order. Visually hidden until focused (globals.css `.skip-link`).
+        */}
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
+        <div id="main-content" tabIndex={-1}>
+          <Providers>{children}</Providers>
+        </div>
       </body>
     </html>
   );

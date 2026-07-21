@@ -1,7 +1,15 @@
 // T-43 (WP07 §12.3, §12.9-3) — the Celebration & Milestone Engine: idempotent detection of the five
 // named firsts, and CFE-gated share text (a break-it target per the QC checklist).
 
-import { acknowledgeMilestone, buildMilestoneShareText, checkMilestones, MilestoneKey } from '../../src/services/gamification/celebration.service';
+import {
+  acknowledgeMilestone,
+  buildMilestoneFullBloomNarration,
+  buildMilestoneShareText,
+  checkMilestones,
+  MILESTONE_ANCHOR_LINE,
+  MILESTONE_DISPLAY_NAME,
+  MilestoneKey,
+} from '../../src/services/gamification/celebration.service';
 import type { CFEContentEvaluator } from '../../src/services/gamification/cfe-gate';
 import type { CFEVerdict } from '../../src/types/compliance';
 
@@ -125,5 +133,25 @@ describe('buildMilestoneShareText — CFE-gated (§12.9-3 "shares are CFE-filter
     const result = await buildMilestoneShareText(MilestoneKey.FIRST_APPOINTMENT, null, USER_CONTEXT, blockingCFE());
     expect(result.status).toBe('held');
     expect(result.text).toBeUndefined();
+  });
+});
+
+// T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — "Milestone full-bloom" narration script, verbatim:
+// "Milestone: {name}. {anchor tie-in line}. This moment is saved to your field." Previously
+// entirely absent (Grove's bloom caption only ever showed the raw `milestone_key`, e.g. "FIRST
+// APPOINTMENT" — see mission-control-momentum.test.ts's pre-existing `computeBloomOverride`
+// assertions for that unchanged raw-label behavior, which this narration is additive to, not a
+// replacement for).
+describe('buildMilestoneFullBloomNarration — uiux §6.1 item 5 script, verbatim', () => {
+  test.each(Object.values(MilestoneKey))('%s composes "Milestone: {name}. {anchor}. This moment is saved to your field."', (key) => {
+    const narration = buildMilestoneFullBloomNarration(key);
+    expect(narration).toBe(`Milestone: ${MILESTONE_DISPLAY_NAME[key]}. ${MILESTONE_ANCHOR_LINE[key]} This moment is saved to your field.`);
+    expect(narration).toMatch(/^Milestone: /);
+    expect(narration).toContain('This moment is saved to your field.');
+  });
+
+  test('an unrecognized key returns null rather than a garbled sentence', () => {
+    expect(buildMilestoneFullBloomNarration('NOT_A_REAL_MILESTONE')).toBeNull();
+    expect(buildMilestoneFullBloomNarration('')).toBeNull();
   });
 });

@@ -19,7 +19,11 @@ export interface ClosePhaseProps {
   onFinish: (reflectionText: string | undefined) => void;
 }
 
-function recapLine(recap: ClosePhaseProps['recap']): string {
+// T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5): exported so DoneScreen.tsx can build the exact
+// "Shift close" narration script ("You're done for today. {recap line}. Your agents take it from
+// here.") from the SAME recap-composition logic this screen already uses, rather than a second,
+// driftable copy of it.
+export function recapLine(recap: ClosePhaseProps['recap']): string {
   if (!recap) return 'Nothing needed you today — your field is working.';
   const parts: string[] = [];
   if (recap.approvals > 0) parts.push(`approved ${recap.approvals} introduction${recap.approvals === 1 ? '' : 's'}`);

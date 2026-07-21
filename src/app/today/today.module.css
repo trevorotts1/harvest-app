@@ -83,6 +83,33 @@
   color: var(--text-secondary);
 }
 
+/* T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 6) — the "listen" (TTS) affordance button. 44pt min
+   touch target (§17.4); token colors only; `aria-pressed` (not color alone) carries the
+   speaking/idle state — the icon + "Listen"/"Stop" label change together. */
+.listenButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-target-min);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: var(--type-caption-size);
+  font-weight: 700;
+  cursor: pointer;
+}
+.listenButton[aria-pressed='true'] {
+  background: var(--color-action);
+  color: var(--on-action);
+  border-color: var(--color-action);
+}
+.listenButton:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
 /* ---- Anchor header (zone 1) ---- */
 .headerZone {
   border: 1px solid var(--line);
@@ -506,4 +533,18 @@
   font-size: var(--type-caption-size);
   text-align: center;
   margin: 0;
+}
+
+/* T-52 (WCAG 2.2 AA §17.4 / uiux §6.1) — screen-reader-only, single-announce narration (same
+   visually-hidden pattern already used by onboarding.module.css / ritual.module.css `.srOnly`). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

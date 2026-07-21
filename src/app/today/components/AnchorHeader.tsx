@@ -35,7 +35,7 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
     );
   }
 
-  const { greetingName, momentum, groveState, groveCaption, approvalInboxCount, momentumCriteria } = result.data;
+  const { greetingName, momentum, groveState, groveCaption, groveBloomNarration, approvalInboxCount, momentumCriteria } = result.data;
   const bandLabel = BAND_LABEL[momentum.band] ?? momentum.band;
 
   return (
@@ -63,7 +63,7 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
       </div>
 
       <div className={styles.headerBody}>
-        <Grove state={groveState} laws={momentum.laws} caption={groveCaption} size="hero" />
+        <Grove state={groveState} laws={momentum.laws} caption={groveCaption} bloomNarration={groveBloomNarration} size="hero" />
 
         <div className={styles.momentumBlock}>
           <button

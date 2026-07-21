@@ -342,6 +342,20 @@
   margin: 0;
 }
 
+/* T-52 (WCAG 2.2 AA §17.4 / uiux §6.1) — screen-reader-only, single-announce narration (same
+   visually-hidden pattern already used by onboarding.module.css / ritual.module.css `.srOnly`). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .offlineBanner {
   background: var(--soil-50);
   border: 1px solid var(--soil-200);
