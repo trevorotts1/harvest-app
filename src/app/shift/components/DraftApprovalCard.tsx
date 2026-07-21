@@ -18,6 +18,8 @@
 'use client';
 
 import ApprovalInboxItem, { type InboxItemData } from '@/app/inbox/components/ApprovalInboxItem';
+import { useT } from '@/app/locale-context';
+import { errorDisplay, errorStateLabel, type Translate } from '@/lib/i18n/error-display';
 import type { ShiftCardAction, ShiftQueueCard } from '@/types/learning-state';
 
 export interface DraftApprovalCardProps {
@@ -92,9 +94,15 @@ export function makeDeclineHandler(
  * it would be on the real Approval Inbox page; this function calls no CFE logic itself. The
  * re-checked band/body/approval_state ALWAYS replace the pre-edit ones in the merged result (mirrors
  * `inbox/page.tsx`'s own `handleEdit` merge) — contact/channel/created_at are carried over from
- * `initialItem` since the edit route's response doesn't repeat them. */
+ * `initialItem` since the edit route's response doesn't repeat them.
+ *
+ * T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — the route ALWAYS populates `error` with raw
+ * English prose; the DISPLAY string surfaced to `ApprovalInboxItem` is resolved from the route's
+ * machine `code` via `errorDisplay`, mirroring `inbox/page.tsx`'s own `handleEdit` fix exactly. The
+ * raw `error` stays on the wire for logs/back-compat only — never rendered. */
 export function makeEditHandler(
   initialItem: InboxItemData,
+  t: Translate,
   fetchImpl: typeof fetch = fetch
 ): (draftId: string, body: string) => Promise<{ ok: boolean; item?: InboxItemData; error?: string }> {
   return async (draftId: string, body: string) => {
@@ -109,7 +117,7 @@ export function makeEditHandler(
       return { ok: false, error: 'This edit could not be saved.' };
     }
 
-    let data: { ok?: boolean; error?: string; draft?: InboxItemData };
+    let data: { ok?: boolean; error?: string; code?: string; currentState?: string; draft?: InboxItemData };
     try {
       data = await res.json();
     } catch {
@@ -117,7 +125,10 @@ export function makeEditHandler(
     }
 
     if (!res.ok || !data.ok || !data.draft) {
-      return { ok: false, error: data.error ?? 'This edit could not be saved.' };
+      return {
+        ok: false,
+        error: errorDisplay(t, data.code, { currentState: errorStateLabel(t, data.currentState) }),
+      };
     }
 
     // The re-checked band ALWAYS replaces the stale one — never a pre-edit field survives the merge.
@@ -133,13 +144,14 @@ export function makeEditHandler(
 }
 
 export default function DraftApprovalCard({ card, onAction }: DraftApprovalCardProps) {
+  const t = useT();
   const item = cardToInboxItem(card);
   return (
     <ApprovalInboxItem
       item={item}
       onApprove={makeApproveHandler(onAction)}
       onDecline={makeDeclineHandler(onAction)}
-      onEdit={makeEditHandler(item)}
+      onEdit={makeEditHandler(item, t)}
     />
   );
 }

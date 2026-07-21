@@ -37,6 +37,9 @@ import { actOnQueueDraft, confirmAppointment, markAttendance } from '../../src/s
 import { createInMemoryMissionControlDb } from '../../src/services/mission-control/testing/in-memory-db';
 import type { MissionControlPrismaClient } from '../../src/services/mission-control/prisma-types';
 import type { ActionQueueZoneData, CalendarZoneData, QueueItem } from '../../src/services/mission-control/types';
+import { t as catalog, type TVars } from '../../src/lib/i18n/catalog';
+
+const tEs = (key: string, vars?: TVars) => catalog('es', key, vars);
 
 const render = (el: unknown, props: Record<string, unknown>) => renderToStaticMarkup(createElement(el as never, props));
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
@@ -65,6 +68,10 @@ describe('(a) queueActionMutationId/attendanceMutationId — stable per-item ids
  *  request/response/status-code mapping — without a live HTTP server, driving the REAL
  *  `actOnQueueDraft`/`confirmAppointment`/`markAttendance` against the real in-memory
  *  `MissionControlPrismaClient` fake. */
+// T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — mirrors the REAL routes'
+// `src/app/api/mission-control/{queue-action,attendance}/route.ts` `code` mapping (see those files'
+// own RGb2 comments) so tests exercising `createTodayQueueHandlers`'s `t`-driven `errorDisplay`
+// resolution are driving the same wire shape the real routes now emit, not a stale pre-fix one.
 function createFakeTodayPostJson(db: MissionControlPrismaClient, organizationId: string | null = ORG) {
   return async function fakePostJson<T>(url: string, body: unknown): Promise<RawJsonResponse<T>> {
     if (url === '/api/mission-control/queue-action') {
@@ -72,17 +79,24 @@ function createFakeTodayPostJson(db: MissionControlPrismaClient, organizationId:
       if (kind === 'appointment') {
         const result = await confirmAppointment(USER, id, db);
         if (result.ok) return { status: 200, data: { ok: true } as unknown as T };
-        return { status: result.reason === 'not_found' ? 404 : 409, data: { error: `appointment ${result.reason}` } as unknown as T };
+        const code = result.reason === 'not_found' ? 'APPOINTMENT_NOT_FOUND' : 'APPOINTMENT_INVALID_STATE';
+        return { status: result.reason === 'not_found' ? 404 : 409, data: { error: `appointment ${result.reason}`, code } as unknown as T };
       }
       const result = await actOnQueueDraft(USER, id, action as 'approve' | 'decline', db);
       if (result.ok) return { status: 200, data: { ok: true } as unknown as T };
-      return { status: result.reason === 'not_found' ? 404 : 409, data: { error: `draft ${result.reason}` } as unknown as T };
+      const code =
+        result.reason === 'not_found'
+          ? 'DRAFT_NOT_FOUND'
+          : result.reason === 'invalid_state'
+            ? 'QUEUE_DRAFT_INVALID_STATE'
+            : 'QUEUE_DRAFT_REQUIRES_REVIEW';
+      return { status: result.reason === 'not_found' ? 404 : 409, data: { error: `draft ${result.reason}`, code } as unknown as T };
     }
     if (url === '/api/mission-control/attendance') {
       const { eventId, state } = body as { eventId: string; state: 'attended' | 'missed' };
       const result = await markAttendance(USER, eventId, organizationId, state, db);
       if (result.ok) return { status: 200, data: { ok: true } as unknown as T };
-      return { status: 404, data: { error: 'Event not found for your organization.' } as unknown as T };
+      return { status: 404, data: { error: 'Event not found for your organization.', code: 'EVENT_NOT_FOUND' } as unknown as T };
     }
     throw new Error(`unexpected url in test double: ${url}`);
   };
@@ -215,6 +229,62 @@ describe('(d) PERMANENT vs TRANSIENT replay failure', () => {
     expect(result.synced).toBe(0);
     expect(result.remaining).toBe(1);
     expect(queue.length).toBe(1);
+  });
+});
+
+// ─── (g) T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — permanent-rejection message resolves
+// through code→errorDisplay, never the raw English `error` ──────────────────────────────────────
+
+describe('(g) createTodayQueueHandlers — onPermanentRejection.message resolves via errorDisplay(t, code), never raw English', () => {
+  test('RE-CONFIRMED RED then GREEN: a requires-review draft rejection carries raw English `error` on the wire, but the message surfaced to the rep is a genuine, distinct Spanish sentence when `t` is supplied', async () => {
+    const db = seedDraft('FLAG', 'PENDING');
+    const rejections: TodayPermanentRejectionInfo[] = [];
+    const handlers = createTodayQueueHandlers(createFakeTodayPostJson(db), (info) => rejections.push(info), tEs);
+
+    await handlers[TODAY_MUTATION_KIND.QUEUE_ACTION]({ kind: 'draft', id: 'draft-1', action: 'approve' });
+
+    expect(rejections).toHaveLength(1);
+    // GREEN: never the raw `error` string the wire carries (RED, re-confirmed inline above via the
+    // fake's own `data.error` shape: `draft requires_review`) and never English — a real ES sentence.
+    expect(rejections[0].message).toBe(catalog('es', 'errors.QUEUE_DRAFT_REQUIRES_REVIEW'));
+    expect(rejections[0].message).not.toBe('draft requires_review');
+    expect(rejections[0].message).not.toMatch(/\b(draft|review|approve)\b/i);
+  });
+
+  test('an attendance permanent rejection (event outside the org) also resolves via errorDisplay — genuine Spanish, not the raw `error` prose', async () => {
+    const db = seedDraft('PASS', 'PENDING');
+    const rejections: TodayPermanentRejectionInfo[] = [];
+    const handlers = createTodayQueueHandlers(createFakeTodayPostJson(db, 'a-different-org'), (info) => rejections.push(info), tEs);
+
+    await handlers[TODAY_MUTATION_KIND.ATTENDANCE]({ eventId: 'evt-1', state: 'attended' });
+
+    expect(rejections).toHaveLength(1);
+    expect(rejections[0].message).toBe(catalog('es', 'errors.EVENT_NOT_FOUND'));
+    expect(rejections[0].message).not.toBe('Event not found for your organization.');
+  });
+
+  test('no `t` supplied (back-compat) falls back to the bare code rather than crashing or rendering English prose', async () => {
+    const db = seedDraft('FLAG', 'PENDING');
+    const rejections: TodayPermanentRejectionInfo[] = [];
+    const handlers = createTodayQueueHandlers(createFakeTodayPostJson(db), (info) => rejections.push(info));
+
+    await handlers[TODAY_MUTATION_KIND.QUEUE_ACTION]({ kind: 'draft', id: 'draft-1', action: 'approve' });
+
+    expect(rejections[0].message).toBe('QUEUE_DRAFT_REQUIRES_REVIEW');
+  });
+
+  test('an unknown/absent `code` still resolves to errors.generic (localized), never blank or raw English', async () => {
+    const throwingPostJson = async <T,>(): Promise<RawJsonResponse<T>> => ({
+      status: 400,
+      data: { error: 'Some unmapped failure' } as unknown as T,
+    });
+    const rejections: TodayPermanentRejectionInfo[] = [];
+    const handlers = createTodayQueueHandlers(throwingPostJson, (info) => rejections.push(info), tEs);
+
+    await handlers[TODAY_MUTATION_KIND.QUEUE_ACTION]({ kind: 'draft', id: 'draft-1', action: 'approve' });
+
+    expect(rejections[0].message).toBe(catalog('es', 'errors.generic'));
+    expect(rejections[0].message).not.toBe('Some unmapped failure');
   });
 });
 

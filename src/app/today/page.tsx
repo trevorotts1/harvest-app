@@ -134,7 +134,10 @@ export default function TodayPage() {
     const total = q.length;
     setSyncing({ total, remaining: total });
     const rejections: TodayPermanentRejectionInfo[] = [];
-    const handlers = createTodayQueueHandlers(postJson, (info) => rejections.push(info));
+    // T-57 RE-GATE B [af7789d3] Finding 1 residual (RGb2) — pass the live locale's `t` through so
+    // `onPermanentRejection`'s message resolves via `errorDisplay(t, code)`, never the raw English
+    // `error` prose (mirrors `inbox/page.tsx`'s identical `createInboxQueueHandlers(..., t)` fix).
+    const handlers = createTodayQueueHandlers(postJson, (info) => rejections.push(info), t);
     const result = await q.replay(handlers, () => {
       setQueueLength(q.length);
       setSyncing((prev) => (prev ? { ...prev, remaining: q.length } : prev));
@@ -165,7 +168,7 @@ export default function TodayPage() {
     if (result.synced > 0 || rejections.length > 0) {
       await load();
     }
-  }, [load]);
+  }, [load, t]);
 
   useEffect(() => {
     const unsubscribe = subscribeOnlineStatus((online) => {

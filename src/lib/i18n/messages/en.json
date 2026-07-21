@@ -1713,6 +1713,15 @@
     "CONFIRMATION_REQUIRED": "Explicit confirmation is required — check the box to permanently delete your data.",
     "ALREADY_PROCESSED": "This deletion request is already {status} and can't be re-confirmed.",
     "DELETION_NOT_FOUND": "This deletion request could not be found.",
-    "TOO_EARLY": "Deletion requires a cooling-off period before it can be confirmed."
+    "TOO_EARLY": "Deletion requires a cooling-off period before it can be confirmed.",
+    "APPOINTMENT_NOT_FOUND": "This appointment could not be found.",
+    "APPOINTMENT_INVALID_STATE": "This appointment can no longer be confirmed — it may have already been handled.",
+    "QUEUE_ACTION_INVALID": "Choose Approve or Decline for this item.",
+    "QUEUE_DRAFT_INVALID_STATE": "This draft can no longer be actioned — it may have already been handled.",
+    "QUEUE_DRAFT_REQUIRES_REVIEW": "This draft still needs a compliance review before it can be approved.",
+    "QUEUE_KIND_INVALID": "That queue item type isn't supported.",
+    "EVENT_ID_REQUIRED": "Select an event before continuing.",
+    "ATTENDANCE_STATE_INVALID": "Choose Attended or Missed for this event.",
+    "EVENT_NOT_FOUND": "This event could not be found for your organization."
   }
 }
