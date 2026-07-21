@@ -19,6 +19,7 @@ import { MAX_NOTE_LENGTH } from '@/services/harvest-method/doctrine-notes';
 import type { BackgroundContextTiles, NoteCorrection } from '@/types/harvest-method';
 
 import styles from '../ritual.module.css';
+import { useT } from '@/app/locale-context';
 
 const CAREER_STAGE_OPTIONS = [
   { value: 'transitioning', label: 'Transitioning' },
@@ -82,13 +83,14 @@ function TileSelect({
   options: { value: string; label: string }[];
   onChange: (value: string) => void;
 }) {
+  const t = useT();
   return (
     <div className={styles.tileField}>
       <label className={styles.tileLabel} htmlFor={id}>
         {label}
       </label>
       <select id={id} className={styles.tileSelect} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Not set</option>
+        <option value="">{t('ritual.backgroundMatching.notSet')}</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -109,13 +111,14 @@ export default function BackgroundMatchingLayer({
   flipping = false,
   offline = false,
 }: BackgroundMatchingLayerProps) {
+  const t = useT();
   return (
     <section
       className={`${styles.paper} ${flipping ? styles.paperFlipping : ''}`}
-      aria-label="Background Matching — Layer 3 of 3"
+      aria-label={t('ritual.backgroundMatching.sectionAria')}
     >
-      <p className={styles.eyebrow}>Layer 3 of 3 &middot; Background Matching</p>
-      <h2 className={styles.sectionPrompt}>Highlight the matches — tap to fill in what you know.</h2>
+      <p className={styles.eyebrow}>{t('ritual.backgroundMatching.eyebrow')}</p>
+      <h2 className={styles.sectionPrompt}>{t('ritual.backgroundMatching.sectionPrompt')}</h2>
 
       {entries.map((entry) => {
         const correction = corrections.find((c) => c.contactId === entry.contactId);
@@ -157,7 +160,7 @@ export default function BackgroundMatchingLayer({
             </div>
 
             <label className={styles.tileLabel} htmlFor={`note-${entry.contactId}`}>
-              Note (optional)
+              {t('ritual.backgroundMatching.noteLabel')}
             </label>
             <textarea
               id={`note-${entry.contactId}`}
@@ -172,7 +175,7 @@ export default function BackgroundMatchingLayer({
 
             {correction && (
               <p className={styles.correctionNote} role="status">
-                We corrected a word in this note to keep it doctrine-clean: &ldquo;{correction.corrected}&rdquo;
+                {t('ritual.backgroundMatching.correctionNote', { word: correction.corrected })}
               </p>
             )}
 
@@ -183,7 +186,7 @@ export default function BackgroundMatchingLayer({
                 checked={entry.existingLicenseeFlag}
                 onChange={() => onToggleExistingLicensee(entry.contactId)}
               />
-              <label htmlFor={`licensee-${entry.contactId}`}>This person already holds a license</label>
+              <label htmlFor={`licensee-${entry.contactId}`}>{t('ritual.backgroundMatching.existingLicenseeLabel')}</label>
             </div>
           </div>
         );
@@ -192,11 +195,11 @@ export default function BackgroundMatchingLayer({
       <div className={styles.actions}>
         {offline ? (
           <p className={styles.deferredNotice} role="status">
-            We&rsquo;ll finish matching when you&rsquo;re back online. What you&rsquo;ve entered here is saved.
+            {t('ritual.backgroundMatching.offlineDeferredNotice')}
           </p>
         ) : (
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onSubmit}>
-            Finish matching
+            {t('ritual.backgroundMatching.finishMatchingCta')}
           </button>
         )}
       </div>

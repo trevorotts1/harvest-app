@@ -8,6 +8,7 @@
 import { useState } from 'react';
 
 import styles from '../ritual.module.css';
+import { useT } from '@/app/locale-context';
 
 export const CONSTELLATION_SIZE = 20;
 
@@ -40,6 +41,7 @@ export default function BlankCanvasLayer({
   onKeepAdding,
   flipping = false,
 }: BlankCanvasLayerProps) {
+  const t = useT();
   const [draft, setDraft] = useState('');
 
   function submitName(e: React.FormEvent) {
@@ -55,21 +57,20 @@ export default function BlankCanvasLayer({
   return (
     <section
       className={`${styles.paper} ${flipping ? styles.paperFlipping : ''}`}
-      aria-label="Blank Canvas — Layer 1 of 3"
+      aria-label={t('ritual.blankCanvas.sectionAria')}
     >
-      <p className={styles.eyebrow}>Layer 1 of 3 &middot; Blank Canvas</p>
+      <p className={styles.eyebrow}>{t('ritual.blankCanvas.eyebrow')}</p>
 
-      <p className={styles.vaultCount}>You have {vaultCount} people in your field.</p>
+      <p className={styles.vaultCount}>{t('ritual.blankCanvas.vaultCount', { count: vaultCount })}</p>
 
       {/* Decorative ambient timer — never gates completion (§5.4 A11y). */}
       <div className={styles.ambientTimer} aria-hidden="true" />
 
       <h1 className={styles.visionPrompt}>
-        If money and fear were both taken out of the equation, who are the ~20 people you genuinely
-        believe would benefit from learning about building wealth?
+        {t('ritual.blankCanvas.visionPrompt')}
       </h1>
 
-      <div className={styles.constellation} role="list" aria-label="Your 20-name constellation">
+      <div className={styles.constellation} role="list" aria-label={t('ritual.blankCanvas.constellationAria')}>
         {dots.map((entry, i) => (
           <div
             key={i}
@@ -84,22 +85,22 @@ export default function BlankCanvasLayer({
 
       <form className={styles.nameForm} onSubmit={submitName}>
         <label htmlFor="blank-canvas-name" className={styles.srOnly}>
-          Type one name
+          {t('ritual.blankCanvas.typeNameLabel')}
         </label>
         <input
           id="blank-canvas-name"
           className={styles.nameInput}
           type="text"
-          placeholder="Type a first name..."
+          placeholder={t('ritual.blankCanvas.namePlaceholder')}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
         <button type="submit" className={`${styles.btn} ${styles.btnSecondary}`}>
-          Add
+          {t('ritual.blankCanvas.addCta')}
         </button>
       </form>
 
-      <ul className={styles.enteredList} aria-label="Names entered so far">
+      <ul className={styles.enteredList} aria-label={t('ritual.blankCanvas.enteredListAria')}>
         {entries.map((entry, i) => (
           <li key={i} className={styles.enteredChip}>
             {entry.typedName}
@@ -111,15 +112,14 @@ export default function BlankCanvasLayer({
       {softGateOpen && (
         <div className={styles.softGate} role="alert">
           <p className={styles.softGateText}>
-            Are you sure you want to stop at {entries.length}? Most people find more once they
-            start.
+            {t('ritual.blankCanvas.softGateQuestion', { count: entries.length })}
           </p>
           <div className={styles.actions}>
             <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onKeepAdding}>
-              Keep adding
+              {t('ritual.blankCanvas.keepAddingCta')}
             </button>
             <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onConfirmSoftGate}>
-              Yes, that&rsquo;s my list
+              {t('ritual.blankCanvas.confirmSoftGateCta')}
             </button>
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function BlankCanvasLayer({
             disabled={entries.length === 0}
             onClick={onRequestFinish}
           >
-            That&rsquo;s my list
+            {t('ritual.blankCanvas.finishCta')}
           </button>
         </div>
       )}

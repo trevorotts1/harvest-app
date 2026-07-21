@@ -579,6 +579,69 @@
       "saveFailed": "No se pudo guardar tu preferencia de idioma. Inténtalo de nuevo."
     }
   },
+  "ritual": {
+    "blankCanvas": {
+      "sectionAria": "Lienzo en blanco — Capa 1 de 3",
+      "eyebrow": "Capa 1 de 3 · Lienzo en blanco",
+      "vaultCount": "Tienes {count} personas en tu campo.",
+      "visionPrompt": "Si el dinero y el miedo no existieran, ¿quiénes son esas aproximadamente 20 personas que genuinamente crees que se beneficiarían al aprender a construir riqueza?",
+      "constellationAria": "Tu constelación de 20 nombres",
+      "typeNameLabel": "Escribe un nombre",
+      "namePlaceholder": "Escribe un nombre...",
+      "addCta": "Agregar",
+      "enteredListAria": "Nombres ingresados hasta ahora",
+      "softGateQuestion": "¿Seguro que quieres detenerte en {count}? La mayoría de las personas encuentra más una vez que empieza.",
+      "keepAddingCta": "Seguir agregando",
+      "confirmSoftGateCta": "Sí, esa es mi lista",
+      "finishCta": "Esa es mi lista"
+    },
+    "qualitiesFlip": {
+      "sectionAria": "Giro de cualidades — Capa 2 de 3",
+      "eyebrow": "Capa 2 de 3 · Giro de cualidades",
+      "framingCaption": "El servicio primero: ¿quién tiene las cualidades que prosperan en este negocio?",
+      "sectionPrompt": "¿Cuáles de estas viven en tu lista?",
+      "clusterGridAria": "Los seis grupos de cualidades",
+      "assignQualityAria": "Asignar una cualidad a {name}",
+      "needMoreTimeCta": "Necesito más tiempo"
+    },
+    "backgroundMatching": {
+      "notSet": "No establecido",
+      "sectionAria": "Emparejamiento de antecedentes — Capa 3 de 3",
+      "eyebrow": "Capa 3 de 3 · Emparejamiento de antecedentes",
+      "sectionPrompt": "Resalta las coincidencias — toca para completar lo que sabes.",
+      "noteLabel": "Nota (opcional)",
+      "correctionNote": "Corregimos una palabra en esta nota para mantenerla conforme a la doctrina: “{word}”",
+      "existingLicenseeLabel": "Esta persona ya tiene una licencia",
+      "offlineDeferredNotice": "Terminaremos el emparejamiento cuando vuelvas a estar en línea. Lo que ingresaste aquí está guardado.",
+      "finishMatchingCta": "Finalizar emparejamiento"
+    },
+    "confirmation": {
+      "sectionAria": "Confirmación del ritual",
+      "eyebrow": "Confirmación",
+      "lede": "Estos son los miembros de tu comunidad a quienes presentaremos tu negocio primero — en tu nombre.",
+      "subAgentName": "tu Subagente de Mercado Cálido",
+      "boundaryMiddle": "se encargará de todo a partir de aquí.",
+      "approvalBoundaryLine": "Nada se envía sin tu aprobación.",
+      "unmatchedPromptPrefix": "No pudimos encontrar a",
+      "unmatchedPromptSuffix": "en tus contactos — toca para agregar su número.",
+      "addNumberCta": "Agregar número",
+      "excludedSectionAria": "Excluidos — requieren tu confirmación",
+      "excludedHeading": "Estos contactos están excluidos y requieren tu confirmación",
+      "excludedBody": "— nunca son procesables y nunca se les enviará nada automáticamente.",
+      "acknowledgeCta": "Confirmar",
+      "needsJurisdictionSectionAria": "Necesitan su estado registrado",
+      "needsJurisdictionHeading": "Estos contactos necesitan su estado registrado",
+      "needsJurisdictionBody": "— agrégalo para moverlos a tu cola de acción. No es una exclusión — solo falta información.",
+      "handToAgentCta": "Entregar a mi agente"
+    },
+    "warmMarketRitual": {
+      "offlineBannerLine1": "Estás sin conexión — las Capas 1 y 2 siguen funcionando. Tu progreso está guardado en este dispositivo",
+      "offlineBannerQueuedSuffix": " ({count} elemento{plural} en espera)",
+      "offlineBannerLine2": " y se sincronizará, con una nueva revisión de cumplimiento, cuando vuelvas a estar en línea.",
+      "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}...",
+      "loadingRitual": "Cargando tu ritual..."
+    }
+  },
   "team": {
     "complianceLink": {
       "badge": "Revisión de cumplimiento",

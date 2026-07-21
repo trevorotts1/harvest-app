@@ -579,6 +579,69 @@
       "saveFailed": "Could not save your language preference. Try again."
     }
   },
+  "ritual": {
+    "blankCanvas": {
+      "sectionAria": "Blank Canvas — Layer 1 of 3",
+      "eyebrow": "Layer 1 of 3 · Blank Canvas",
+      "vaultCount": "You have {count} people in your field.",
+      "visionPrompt": "If money and fear were both taken out of the equation, who are the ~20 people you genuinely believe would benefit from learning about building wealth?",
+      "constellationAria": "Your 20-name constellation",
+      "typeNameLabel": "Type one name",
+      "namePlaceholder": "Type a first name...",
+      "addCta": "Add",
+      "enteredListAria": "Names entered so far",
+      "softGateQuestion": "Are you sure you want to stop at {count}? Most people find more once they start.",
+      "keepAddingCta": "Keep adding",
+      "confirmSoftGateCta": "Yes, that’s my list",
+      "finishCta": "That’s my list"
+    },
+    "qualitiesFlip": {
+      "sectionAria": "Qualities Flip — Layer 2 of 3",
+      "eyebrow": "Layer 2 of 3 · Qualities Flip",
+      "framingCaption": "Service first: who has the qualities that thrive in this business?",
+      "sectionPrompt": "Which of these live in your list?",
+      "clusterGridAria": "The six quality clusters",
+      "assignQualityAria": "Assign a quality to {name}",
+      "needMoreTimeCta": "Need more time"
+    },
+    "backgroundMatching": {
+      "notSet": "Not set",
+      "sectionAria": "Background Matching — Layer 3 of 3",
+      "eyebrow": "Layer 3 of 3 · Background Matching",
+      "sectionPrompt": "Highlight the matches — tap to fill in what you know.",
+      "noteLabel": "Note (optional)",
+      "correctionNote": "We corrected a word in this note to keep it doctrine-clean: “{word}”",
+      "existingLicenseeLabel": "This person already holds a license",
+      "offlineDeferredNotice": "We’ll finish matching when you’re back online. What you’ve entered here is saved.",
+      "finishMatchingCta": "Finish matching"
+    },
+    "confirmation": {
+      "sectionAria": "Ritual confirmation",
+      "eyebrow": "Confirmation",
+      "lede": "Here are the community members we’ll introduce your business to first — on your behalf.",
+      "subAgentName": "your Warm Market Sub-Agent",
+      "boundaryMiddle": "will take it from here.",
+      "approvalBoundaryLine": "Nothing sends without your approval.",
+      "unmatchedPromptPrefix": "We couldn’t find",
+      "unmatchedPromptSuffix": "in your contacts — tap to add their number.",
+      "addNumberCta": "Add number",
+      "excludedSectionAria": "Excluded — requires your acknowledgment",
+      "excludedHeading": "These contacts are excluded and need your acknowledgment",
+      "excludedBody": "— they are never actionable and nothing will ever be sent to them automatically.",
+      "acknowledgeCta": "Acknowledge",
+      "needsJurisdictionSectionAria": "Needs their state on file",
+      "needsJurisdictionHeading": "These contacts need their state on file",
+      "needsJurisdictionBody": "— add it to move them into your action queue. Not an exclusion — just missing information.",
+      "handToAgentCta": "Hand to my agent"
+    },
+    "warmMarketRitual": {
+      "offlineBannerLine1": "You’re offline — Layers 1 and 2 still work. Your progress is saved on this device",
+      "offlineBannerQueuedSuffix": " ({count} item{plural} queued)",
+      "offlineBannerLine2": " and will sync, with a compliance re-check, when you’re back.",
+      "syncingBanner": "Back online — syncing {count} item{plural}...",
+      "loadingRitual": "Loading your ritual..."
+    }
+  },
   "team": {
     "complianceLink": {
       "badge": "Compliance review",
