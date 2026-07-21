@@ -23,7 +23,7 @@ import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 
 const LOCALE_STORAGE_KEY = 'harvest-locale'; // must match locale-init-script.ts
 
-interface LocaleContextValue {
+export interface LocaleContextValue {
   locale: Locale;
   /** Switches the active locale. Applies immediately (state + `<html lang>` + localStorage); also
    *  best-effort persists to the signed-in rep's `User.locale` unless `persist: false` (used when
@@ -32,7 +32,15 @@ interface LocaleContextValue {
   t: (key: string, vars?: TVars) => string;
 }
 
-const LocaleContext = createContext<LocaleContextValue | null>(null);
+// T-R32 — exported (was module-private) SOLELY so tests can render a component tree under an
+// explicit non-default locale (`<LocaleContext.Provider value={{ locale: 'es', ... }}>`) to prove
+// real ES rendering for `useLocale()`/`useT()` consumers. This repo's Jest env has no jsdom (see
+// this file's own header note on `renderToStaticMarkup`-only tests) — no `useEffect` ever runs in a
+// static render, so `<LocaleProvider>`'s own browser-detection logic can never flip the locale in a
+// test; a directly-supplied `Context.Provider` value, by contrast, IS read synchronously by
+// `useContext` during a static render, with no effect required. Every existing consumer keeps using
+// `useLocale()`/`useT()` unchanged — this only adds a second, test-only way to seed the context.
+export const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 function readStoredLocale(): Locale | null {
   if (typeof window === 'undefined') return null;

@@ -41,6 +41,9 @@
 
 import { useState } from 'react';
 
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
+import type { TVars } from '@/lib/i18n/catalog';
 import ContactControls from './ContactControls';
 import ClassifierAdjudicationDrawer from './ClassifierAdjudicationDrawer';
 import styles from '../inbox.module.css';
@@ -73,20 +76,24 @@ export interface InboxItemData {
   queuedOffline?: boolean;
 }
 
-const DECLINE_REASON_OPTIONS: { value: string; label: string }[] = [
-  { value: 'not_my_voice', label: 'Not my voice' },
-  { value: 'wrong_person', label: 'Wrong person' },
-  { value: 'wrong_time', label: 'Wrong time' },
-  { value: 'other', label: 'Other' },
+// T-R32 (i18n) — `labelKey` (a catalog key) replaces a hardcoded EN label; translated at render time
+// via `t(opt.labelKey)`.
+const DECLINE_REASON_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'not_my_voice', labelKey: 'inbox.item.declineReasons.notMyVoice' },
+  { value: 'wrong_person', labelKey: 'inbox.item.declineReasons.wrongPerson' },
+  { value: 'wrong_time', labelKey: 'inbox.item.declineReasons.wrongTime' },
+  { value: 'other', labelKey: 'inbox.item.declineReasons.other' },
 ];
 
-function cfeChip(outcome: CfeOutcome, checking: boolean) {
+type Translate = (key: string, vars?: TVars) => string;
+
+function cfeChip(outcome: CfeOutcome, checking: boolean, t: Translate) {
   if (checking) {
-    return { className: styles.cfeChipChecking, label: 'Re-checking' };
+    return { className: styles.cfeChipChecking, label: t('inbox.item.chip.rechecking') };
   }
-  if (outcome === 'BLOCK') return { className: styles.cfeChipBlock, label: 'Blocked' };
-  if (outcome === 'FLAG') return { className: styles.cfeChipFlag, label: 'Flagged' };
-  return { className: styles.cfeChipPass, label: 'Pass' };
+  if (outcome === 'BLOCK') return { className: styles.cfeChipBlock, label: t('inbox.item.chip.blocked') };
+  if (outcome === 'FLAG') return { className: styles.cfeChipFlag, label: t('inbox.item.chip.flagged') };
+  return { className: styles.cfeChipPass, label: t('inbox.item.chip.pass') };
 }
 
 export interface ApprovalInboxItemProps {
@@ -101,6 +108,7 @@ export interface ApprovalInboxItemProps {
 }
 
 export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }: ApprovalInboxItemProps) {
+  const { locale, t } = useLocale();
   const [mode, setMode] = useState<'view' | 'editing' | 'declining'>('view');
   const [draftText, setDraftText] = useState(item.body);
   const [reason, setReason] = useState<string | null>(null);
@@ -113,8 +121,10 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState(item);
 
-  const contactName = current.contact ? `${current.contact.firstName} ${current.contact.lastName}` : 'this contact';
-  const chip = cfeChip(current.cfe_outcome, checking);
+  const contactName = current.contact
+    ? `${current.contact.firstName} ${current.contact.lastName}`
+    : t('inbox.item.contactFallback');
+  const chip = cfeChip(current.cfe_outcome, checking, t);
   const isHeld = current.approval_state === 'HELD';
   const isTerminal = current.approval_state === 'APPROVED' || current.approval_state === 'DECLINED';
   // T-54 — read from the PROP, not `current` (see this file's header "QUEUED-OFFLINE" note).
@@ -133,7 +143,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
     const result = await onApprove(current.id, justificationText);
     setBusy(false);
     if (!result.ok) {
-      setError(result.error ?? 'This draft could not be approved.');
+      setError(result.error ?? t('inbox.errors.approveFailed'));
       return;
     }
     setJustification('');
@@ -145,7 +155,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
     const result = await onEdit(current.id, draftText);
     setChecking(false);
     if (!result.ok) {
-      setError(result.error ?? 'Edit failed.');
+      setError(result.error ?? t('inbox.item.editFailedGeneric'));
       return;
     }
     if (result.item) setCurrent(result.item);
@@ -159,7 +169,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
     const result = await onDecline(current.id, reason, note || undefined);
     setBusy(false);
     if (!result.ok) {
-      setError(result.error ?? 'Decline failed.');
+      setError(result.error ?? t('inbox.item.declineFailedGeneric'));
       return;
     }
     setMode('view');
@@ -168,21 +178,21 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
   return (
     <article
       className={`${styles.item} ${isHeld ? styles.itemHeld : ''}`}
-      aria-label={`Draft to ${contactName} via ${current.channel}`}
+      aria-label={t('inbox.item.draftToAria', { name: contactName, channel: current.channel })}
     >
       <div className={styles.itemHeader}>
         <div className={styles.itemHeaderMeta}>
-          <span className={styles.agentChip}>Agent draft</span>
-          <span>&middot;</span>
+          <span className={styles.agentChip}>{t('inbox.item.agentDraftLabel')}</span>
+          <span>{t('inbox.item.separator')}</span>
           <span>{contactName}</span>
-          <span>&middot;</span>
+          <span>{t('inbox.item.separator')}</span>
           <span>{current.channel.replaceAll('_', ' ')}</span>
         </div>
         {/* T-54: while queued offline, the last-known band is stale-to-the-rep's-own-pending-action
             — showing it (esp. the chip's default "Pass" branch) would misrepresent an item that has
             NOT actually been re-checked since the rep queued this action. Show "Queued" instead. */}
         <span className={`${styles.cfeChip} ${queuedOffline ? styles.cfeChipChecking : chip.className}`} role="status">
-          <span aria-hidden="true">&#9673;</span> {queuedOffline ? 'Queued' : chip.label}
+          <span aria-hidden="true">&#9673;</span> {queuedOffline ? t('inbox.item.chip.queued') : chip.label}
           {!queuedOffline && typeof current.cfe_risk_score === 'number' && !checking ? ` (${current.cfe_risk_score})` : ''}
         </span>
       </div>
@@ -192,12 +202,12 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
         // online; it will re-check compliance first' — §6.4)" — verbatim copy, no action footer
         // while this is showing (nothing here is approvable/declinable/editable until it syncs).
         <p className={styles.offlineQueuedBanner} role="status">
-          Queued — will finish when you&rsquo;re back online; it will re-check compliance first.
+          {t('inbox.item.queuedBanner')}
         </p>
       ) : (
         isHeld && (
           <p className={styles.heldBanner} role="alert">
-            Held for review — this draft cannot be approved as-is. Use the rewrite or discard it.
+            {t('inbox.item.heldBanner')}
           </p>
         )
       )}
@@ -207,14 +217,16 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
           className={styles.editArea}
           value={draftText}
           onChange={(e) => setDraftText(e.target.value)}
-          aria-label="Edit draft text"
+          aria-label={t('inbox.item.editAria')}
           disabled={checking}
         />
       ) : (
         <p className={styles.itemBody}>{current.body}</p>
       )}
 
-      <p className={styles.itemMeta}>Drafted {new Date(current.created_at).toLocaleString()}</p>
+      <p className={styles.itemMeta}>
+        {t('inbox.item.draftedAt', { date: formatDateTime(locale, current.created_at) })}
+      </p>
 
       {error && (
         <p className={styles.errorState} role="alert">
@@ -223,7 +235,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
       )}
 
       {!queuedOffline && mode === 'declining' && (
-        <div className={styles.reasonRow} role="radiogroup" aria-label="Reason for declining">
+        <div className={styles.reasonRow} role="radiogroup" aria-label={t('inbox.item.reasonForDecliningAria')}>
           {DECLINE_REASON_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -233,15 +245,15 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
               className={`${styles.reasonChip} ${reason === opt.value ? styles.reasonChipSelected : ''}`}
               onClick={() => setReason(opt.value)}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </button>
           ))}
           <input
             className={styles.noteInput}
-            placeholder="Optional note"
+            placeholder={t('inbox.item.optionalNotePlaceholder')}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            aria-label="Optional note about why you're declining"
+            aria-label={t('inbox.item.optionalNoteAria')}
           />
         </div>
       )}
@@ -253,15 +265,15 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
       {!queuedOffline && mode === 'view' && isFlaggedApprovable && (
         <div className={styles.justificationRow}>
           <label htmlFor={`justification-${current.id}`} className={styles.justificationLabel}>
-            This draft was flagged by compliance review. Why is it OK to approve as-is?
+            {t('inbox.item.justificationPrompt')}
           </label>
           <textarea
             id={`justification-${current.id}`}
             className={styles.justificationInput}
             value={justification}
             onChange={(e) => setJustification(e.target.value)}
-            placeholder="A short reason this flagged draft is OK to send…"
-            aria-label="Justification for approving this flagged draft"
+            placeholder={t('inbox.item.justificationPlaceholder')}
+            aria-label={t('inbox.item.justificationAria')}
             disabled={busy}
           />
         </div>
@@ -276,7 +288,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
               onClick={() => handleApprove()}
               disabled={busy}
             >
-              Approve
+              {t('inbox.item.approve')}
             </button>
           )}
           {mode === 'view' && isFlaggedApprovable && (
@@ -286,13 +298,13 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
               onClick={() => handleApprove(justification)}
               disabled={busy || justification.trim().length === 0}
             >
-              Approve with justification
+              {t('inbox.item.approveWithJustification')}
             </button>
           )}
           {mode === 'editing' ? (
             <>
               <button type="button" className={styles.actionButton} onClick={handleSaveEdit} disabled={checking}>
-                {checking ? 'Re-checking…' : isHeld ? 'Use rewrite' : 'Save & re-check'}
+                {checking ? t('inbox.item.rechecking') : isHeld ? t('inbox.item.useRewrite') : t('inbox.item.saveAndRecheck')}
               </button>
               <button
                 type="button"
@@ -303,12 +315,12 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
                 }}
                 disabled={checking}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </>
           ) : (
             <button type="button" className={styles.actionButton} onClick={() => setMode('editing')} disabled={busy}>
-              Edit
+              {t('inbox.item.edit')}
             </button>
           )}
           {mode === 'declining' ? (
@@ -319,10 +331,10 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
                 onClick={handleDecline}
                 disabled={busy || !reason}
               >
-                {isHeld ? 'Discard' : 'Confirm decline'}
+                {isHeld ? t('inbox.item.discard') : t('inbox.item.confirmDecline')}
               </button>
               <button type="button" className={styles.actionButton} onClick={() => setMode('view')} disabled={busy}>
-                Cancel
+                {t('common.cancel')}
               </button>
             </>
           ) : (
@@ -333,7 +345,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
                 onClick={() => setMode('declining')}
                 disabled={busy}
               >
-                {isHeld ? 'Discard' : 'Decline'}
+                {isHeld ? t('inbox.item.discard') : t('inbox.item.decline')}
               </button>
             )
           )}

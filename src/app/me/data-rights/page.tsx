@@ -23,7 +23,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDateTime } from '@/lib/i18n/format';
+import type { Locale } from '@/lib/i18n/locale';
 import styles from './data-rights.module.css';
 import StepUpPrompt from './components/StepUpPrompt';
 import { useStepUpAction, type StepUpAttemptResult } from './components/useStepUpAction';
@@ -33,9 +35,10 @@ type Load = 'loading' | 'ready';
 
 const COOLING_OFF_MS = 24 * 60 * 60 * 1000;
 
-function fmt(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-US', {
+// T-R32 (§17.5 locale-aware date formatting) — was `toLocaleString('en-US', ...)`, hardcoded
+// regardless of the rep's chosen locale. EN output is byte-identical to before.
+function fmt(locale: Locale, iso: string | null): string {
+  return formatDateTime(locale, iso, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -51,7 +54,7 @@ async function readGateCode(res: Response): Promise<'MFA_ENROLLMENT_REQUIRED' | 
 }
 
 export default function DataRightsPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [load, setLoad] = useState<Load>('loading');
   const [deletionRecord, setDeletionRecord] = useState<UserDataDeletionRecord | null>(null);
   const [certificate, setCertificate] = useState<DeletionCertificate | null>(null);
@@ -81,7 +84,7 @@ export default function DataRightsPage() {
     const createGate = await readGateCode(createRes);
     if (createGate) return { ok: false, code: createGate };
     if (!createRes.ok) {
-      return { ok: false, code: 'ERROR', message: 'Could not start your export. Nothing was changed.' };
+      return { ok: false, code: 'ERROR', message: t('dataRights.export.createFailed') };
     }
     const created = (await createRes.json()) as { export: { id: string } };
 
@@ -89,7 +92,7 @@ export default function DataRightsPage() {
     const downloadGate = await readGateCode(downloadRes);
     if (downloadGate) return { ok: false, code: downloadGate };
     if (!downloadRes.ok) {
-      return { ok: false, code: 'ERROR', message: 'Your export was created but the download failed — try again.' };
+      return { ok: false, code: 'ERROR', message: t('dataRights.export.downloadFailed') };
     }
 
     const blob = await downloadRes.blob();
@@ -103,9 +106,11 @@ export default function DataRightsPage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     return { ok: true, value: { filename } };
-  }, [exportFormat]);
+  }, [exportFormat, t]);
 
-  const exportAction = useStepUpAction(attemptExport, (value) => setExportNotice(`Downloaded ${value.filename}.`));
+  const exportAction = useStepUpAction(attemptExport, (value) =>
+    setExportNotice(t('dataRights.export.downloaded', { filename: value.filename }))
+  );
 
   // ── Deletion: request (starts the cooling-off clock) ──────────────────────────────────────────
   const attemptRequestDeletion = useCallback(async (): Promise<StepUpAttemptResult<UserDataDeletionRecord>> => {
@@ -113,11 +118,11 @@ export default function DataRightsPage() {
     const gate = await readGateCode(res);
     if (gate) return { ok: false, code: gate };
     if (!res.ok) {
-      return { ok: false, code: 'ERROR', message: 'Could not submit your deletion request. Nothing was changed.' };
+      return { ok: false, code: 'ERROR', message: t('dataRights.deletion.requestFailed') };
     }
     const body = (await res.json()) as { deletion: UserDataDeletionRecord };
     return { ok: true, value: body.deletion };
-  }, []);
+  }, [t]);
 
   const requestAction = useStepUpAction(attemptRequestDeletion, (record) => {
     setDeletionRecord(record);
@@ -129,7 +134,7 @@ export default function DataRightsPage() {
     StepUpAttemptResult<{ record: UserDataDeletionRecord; certificate: DeletionCertificate }>
   > => {
     if (!deletionRecord) {
-      return { ok: false, code: 'ERROR', message: 'No deletion request to confirm.' };
+      return { ok: false, code: 'ERROR', message: t('dataRights.deletion.noRequestToConfirm') };
     }
     const res = await fetch('/api/data-rights/deletion/confirm', {
       method: 'POST',
@@ -141,13 +146,17 @@ export default function DataRightsPage() {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}) as { error?: string; code?: string; readyAt?: string });
       if (body.code === 'TOO_EARLY' && body.readyAt) {
-        return { ok: false, code: 'ERROR', message: `You can confirm starting ${fmt(body.readyAt)}.` };
+        return {
+          ok: false,
+          code: 'ERROR',
+          message: t('dataRights.deletion.confirmStartingAt', { date: fmt(locale, body.readyAt) }),
+        };
       }
-      return { ok: false, code: 'ERROR', message: body.error ?? 'Could not confirm deletion.' };
+      return { ok: false, code: 'ERROR', message: body.error ?? t('dataRights.deletion.confirmFailedGeneric') };
     }
     const body = (await res.json()) as { deletion: UserDataDeletionRecord; certificate: DeletionCertificate };
     return { ok: true, value: { record: body.deletion, certificate: body.certificate } };
-  }, [deletionRecord]);
+  }, [deletionRecord, locale, t]);
 
   const confirmAction = useStepUpAction(attemptConfirmDeletion, ({ record, certificate: cert }) => {
     setDeletionRecord(record);
@@ -158,7 +167,7 @@ export default function DataRightsPage() {
   if (load === 'loading') {
     return (
       <main className={styles.page}>
-        <p className={styles.loading}>Loading your data & privacy settings…</p>
+        <p className={styles.loading}>{t('dataRights.loadingSettings')}</p>
       </main>
     );
   }
@@ -176,7 +185,7 @@ export default function DataRightsPage() {
       </header>
 
       {/* ── Export ── */}
-      <section className={styles.stateCard} aria-label="Export your data">
+      <section className={styles.stateCard} aria-label={t('dataRights.exportSectionAria')}>
         <h2 className={styles.sectionTitle}>{t('dataRights.export.sectionTitle')}</h2>
         <p className={styles.body}>{t('dataRights.export.body')}</p>
         {exportNotice && (
@@ -218,7 +227,7 @@ export default function DataRightsPage() {
       </section>
 
       {/* ── Deletion ── */}
-      <section className={styles.stateCard} aria-label="Delete your account and data">
+      <section className={styles.stateCard} aria-label={t('dataRights.deletionSectionAria')}>
         <h2 className={styles.sectionTitle}>{t('dataRights.deletion.sectionTitle')}</h2>
         <p className={styles.body}>{t('dataRights.deletion.body')}</p>
 
@@ -248,9 +257,12 @@ export default function DataRightsPage() {
 
         {deletionRecord?.status === 'PENDING' && isCoolingOff && (
           <div className={`${styles.banner} ${styles.bannerCaution}`} role="status">
-            <p className={styles.bannerTitle}>Your deletion request is in its 24-hour cooling-off period.</p>
+            <p className={styles.bannerTitle}>{t('dataRights.deletion.coolingOffTitle')}</p>
             <p className={styles.bannerBody}>
-              Requested {fmt(deletionRecord.requested_at)}. You can confirm starting {fmt(new Date(readyAtMs!).toISOString())}.
+              {t('dataRights.deletion.coolingOffBody', {
+                requestedDate: fmt(locale, deletionRecord.requested_at),
+                readyDate: fmt(locale, new Date(readyAtMs!).toISOString()),
+              })}
             </p>
           </div>
         )}
@@ -268,7 +280,7 @@ export default function DataRightsPage() {
                 checked={confirmChecked}
                 onChange={(e) => setConfirmChecked(e.target.checked)}
               />
-              <span>I understand this permanently deletes my account and cannot be undone.</span>
+              <span>{t('dataRights.deletion.confirmCheckboxLabel')}</span>
             </label>
             {confirmAction.stage === 'idle' || confirmAction.stage === 'error' ? (
               <div className={styles.btnRow}>
@@ -279,7 +291,7 @@ export default function DataRightsPage() {
                   disabled={!confirmChecked}
                   onClick={() => void confirmAction.run()}
                 >
-                  Permanently delete my data
+                  {t('dataRights.deletion.confirmCta')}
                 </button>
               </div>
             ) : (
@@ -299,23 +311,27 @@ export default function DataRightsPage() {
 
         {deletionRecord?.status === 'HELD' && (
           <div className={`${styles.banner} ${styles.bannerBlocked}`} role="status">
-            <p className={styles.bannerTitle}>Your deletion request is on hold.</p>
-            <p className={styles.bannerBody}>A legal hold is active on your account — contact support for details.</p>
+            <p className={styles.bannerTitle}>{t('dataRights.deletion.onHoldTitle')}</p>
+            <p className={styles.bannerBody}>{t('dataRights.deletion.onHoldBody')}</p>
           </div>
         )}
 
         {deletionRecord?.status === 'COMPLETED' && (
           <div className={`${styles.banner} ${styles.bannerQuiet}`} role="status">
-            <p className={styles.bannerTitle}>Your account has been deleted.</p>
-            <p className={styles.bannerBody}>Completed {fmt(deletionRecord.completed_at)}.</p>
+            <p className={styles.bannerTitle}>{t('dataRights.deletion.completedTitle')}</p>
+            <p className={styles.bannerBody}>
+              {t('dataRights.deletion.completedBody', { date: fmt(locale, deletionRecord.completed_at) })}
+            </p>
             {certificate && (
               <ul className={styles.list}>
-                <li>{certificate.deleted_fields.length} fields deleted or anonymized.</li>
-                <li>{certificate.retained_records.length} record(s) retained under regulatory requirement.</li>
+                <li>{t('dataRights.deletion.fieldsDeleted', { count: certificate.deleted_fields.length })}</li>
+                <li>{t('dataRights.deletion.recordsRetained', { count: certificate.retained_records.length })}</li>
               </ul>
             )}
             {deletionRecord.deletion_certificate_url && (
-              <p className={styles.meta}>Certificate: {deletionRecord.deletion_certificate_url}</p>
+              <p className={styles.meta}>
+                {t('dataRights.deletion.certificateLabel', { url: deletionRecord.deletion_certificate_url })}
+              </p>
             )}
           </div>
         )}

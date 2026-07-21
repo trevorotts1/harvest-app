@@ -9,11 +9,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
+import { formatDate } from '@/lib/i18n/format';
 import styles from './subscription.module.css';
 import BillingBanner from './components/BillingBanner';
 import TierCard, { type TierCardData } from './components/TierCard';
 import type { BillingStateView } from '@/types/payment';
+import type { Locale } from '@/lib/i18n/locale';
 
 interface SubscriptionResponse {
   state: BillingStateView;
@@ -31,13 +33,15 @@ interface CancelFlow {
 
 type Load = 'loading' | 'ready' | 'failed';
 
-function fmt(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+// T-R32 (§17.5 locale-aware date formatting) — was `toLocaleDateString('en-US', ...)`, hardcoded
+// regardless of the rep's chosen locale. Routes through the shared `formatDate` helper now;
+// EN output is byte-identical to before.
+function fmt(locale: Locale, iso: string | null): string {
+  return formatDate(locale, iso);
 }
 
 export default function SubscriptionPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [load, setLoad] = useState<Load>('loading');
   const [data, setData] = useState<SubscriptionResponse | null>(null);
   const [justPaid, setJustPaid] = useState(false);
@@ -72,19 +76,19 @@ export default function SubscriptionPage() {
         body: JSON.stringify({ tier: 'individual', cycle: 'monthly', convert }),
       });
       if (res.status === 503) {
-        setNotice('Checkout isn’t available right now. Your plan is unaffected — please try again later.');
+        setNotice(t('billing.checkoutUnavailable'));
         return;
       }
       if (!res.ok) {
-        setNotice('We couldn’t start checkout. Your plan is unaffected.');
+        setNotice(t('billing.checkoutFailed'));
         return;
       }
       const body = (await res.json()) as { url?: string };
       if (body.url) window.location.href = body.url; // Stripe-hosted fields only (SAQ-A).
     } catch {
-      setNotice('We couldn’t start checkout. Your plan is unaffected.');
+      setNotice(t('billing.checkoutFailed'));
     }
-  }, []);
+  }, [t]);
 
   const openCancelFlow = useCallback(async () => {
     const res = await fetch('/api/billing/cancel');
@@ -141,13 +145,13 @@ export default function SubscriptionPage() {
   const ctaFor = (tier: TierCardData): { label: string; onClick: () => void } | null => {
     if (tier.plan_tier === state.plan_tier && !isSponsored) return null; // current self-serve plan
     if (tier.plan_tier === 'free') {
-      return isSponsored ? null : { label: 'Find a sponsor', onClick: () => (window.location.href = '/onboarding/resume') };
+      return isSponsored ? null : { label: t('billing.findASponsor'), onClick: () => (window.location.href = '/onboarding/resume') };
     }
     if (tier.plan_tier === 'individual') {
-      return { label: isSponsored ? 'Continue at $297' : 'Start', onClick: () => void startCheckout(isSponsored) };
+      return { label: isSponsored ? t('billing.continueAt297') : t('billing.start'), onClick: () => void startCheckout(isSponsored) };
     }
     // enterprise → contact flow (annual invoice), never checkout (§15.1).
-    return { label: 'Talk to us', onClick: () => (window.location.href = 'mailto:support@theharvest.app?subject=Enterprise') };
+    return { label: t('billing.talkToUs'), onClick: () => (window.location.href = 'mailto:support@theharvest.app?subject=Enterprise') };
   };
 
   return (
@@ -168,11 +172,13 @@ export default function SubscriptionPage() {
       {/* Sponsored active state card (uiux §5.8) — sponsor identity, covered-through, NO card entry. */}
       {isSponsored && state.sponsorship_state === 'ACTIVE' && (
         <section className={styles.stateCard}>
-          <h2 className={styles.sectionTitle}>You’re sponsored</h2>
+          <h2 className={styles.sectionTitle}>{t('billing.sponsoredHeading')}</h2>
           <p className={styles.tierBody}>
-            Covered through {fmt(state.sponsorship_term_end)}
-            {state.sponsor_user_id ? ' by your Downline Sponsor.' : '.'} Everything’s included — no
-            card on file, nothing to pay.
+            {state.sponsor_user_id
+              ? t('billing.sponsored.coveredThroughWithSponsor', { date: fmt(locale, state.sponsorship_term_end) })
+              : t('billing.sponsored.coveredThroughNoSponsor', { date: fmt(locale, state.sponsorship_term_end) })}
+            {' '}
+            {t('billing.sponsored.everythingIncluded')}
           </p>
         </section>
       )}
@@ -180,11 +186,13 @@ export default function SubscriptionPage() {
       {/* Anniversary approach (§15.3) — three explicit paths. */}
       {isAnniversary && (
         <section className={`${styles.banner} ${styles.bannerCaution}`} role="status">
-          <p className={styles.bannerTitle}>Your sponsored year ends {fmt(state.sponsorship_term_end)}.</p>
-          <p className={styles.bannerBody}>Continue under sponsorship if it renews, convert to $297/month, or let it lapse.</p>
+          <p className={styles.bannerTitle}>
+            {t('billing.anniversary.endsOn', { date: fmt(locale, state.sponsorship_term_end) })}
+          </p>
+          <p className={styles.bannerBody}>{t('billing.anniversary.body')}</p>
           <div className={styles.btnRow}>
             <button type="button" className={styles.actionBtn} onClick={() => void startCheckout(true)}>
-              Convert to $297/month
+              {t('billing.anniversary.convertCta')}
             </button>
           </div>
         </section>
@@ -205,16 +213,16 @@ export default function SubscriptionPage() {
       {/* No-dark-pattern cancellation (AC-5.8-6): only for a self-serve paying subscriber. */}
       {!isSponsored && (state.plan_tier === 'individual' || state.plan_tier === 'enterprise') && (
         <section className={styles.stateCard}>
-          <h2 className={styles.sectionTitle}>Manage plan</h2>
+          <h2 className={styles.sectionTitle}>{t('billing.manage.heading')}</h2>
           {!cancelFlow ? (
             <div className={styles.btnRow}>
               <button type="button" className={styles.secondaryBtn} onClick={() => void openCancelFlow()}>
-                Cancel subscription
+                {t('billing.cancelSubscription')}
               </button>
             </div>
           ) : (
             <div>
-              <p className={styles.tierBody}>Before you go — a few options, all equal:</p>
+              <p className={styles.tierBody}>{t('billing.cancelIntro')}</p>
               <div className={styles.btnRow}>
                 {cancelFlow.alternatives.map((alt) => (
                   <button
@@ -223,13 +231,19 @@ export default function SubscriptionPage() {
                     className={alt === 'cancel' ? styles.secondaryBtn : styles.actionBtn}
                     onClick={alt === 'cancel' ? () => void confirmCancel() : () => setCancelFlow(null)}
                   >
-                    {alt === 'pause' ? 'Pause (agents rest, data kept)' : alt === 'downgrade' ? 'Downgrade' : cancelFlow.finalActionLabel}
+                    {alt === 'pause'
+                      ? t('billing.manage.pauseOption')
+                      : alt === 'downgrade'
+                        ? t('billing.manage.downgradeOption')
+                        : cancelFlow.finalActionLabel}
                   </button>
                 ))}
               </div>
               <p className={styles.meta}>
-                If you cancel, you keep full access until {fmt(cancelFlow.accessUntilIso)}, and you can
-                reactivate within {cancelFlow.reactivationWindowDays} days. No need to contact support.
+                {t('billing.manage.accessUntil', {
+                  date: fmt(locale, cancelFlow.accessUntilIso),
+                  days: cancelFlow.reactivationWindowDays,
+                })}
               </p>
             </div>
           )}

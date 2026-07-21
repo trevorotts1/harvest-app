@@ -12,6 +12,7 @@ import { IntensitySetting, OrgType, Role } from '@prisma/client';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
+import { useLocale } from '@/app/locale-context';
 import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
@@ -73,6 +74,7 @@ export default function OnboardingFlow({
   licensingState = 'LICENSED',
 }: OnboardingFlowProps) {
   const router = useRouter();
+  const { locale } = useLocale();
   const [screen, setScreen] = useState<OnboardingScreen>(initialScreen);
 
   const [name, setName] = useState('');
@@ -361,6 +363,7 @@ export default function OnboardingFlow({
           estimatedClients={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedClients : 0}
           onContinue={advance}
           onAddContacts={() => setScreen('contacts')}
+          locale={locale}
         />
       )}
 

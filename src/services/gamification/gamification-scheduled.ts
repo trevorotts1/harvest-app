@@ -11,10 +11,15 @@ import { readAnchorStatement } from './anchor';
 import { deliverQuote } from './quote.service';
 import { reconcileMomentumForUser } from './momentum-reconciliation.service';
 import { recomputeStreak } from './streak.service';
+import { DEFAULT_LOCALE, isLocale, LOCALE_BCP47, type Locale } from '@/lib/i18n/locale';
 
 export interface ScheduledSweepDb {
   user: {
-    findMany(args: { where: Record<string, unknown> }): Promise<{ id: string; org_type: string }[]>;
+    // `locale` (T-R32, §17.5 "locale affects ... quiet-hours logic") is additive/optional — every
+    // existing caller (momentum/milestone sweeps) that ignores it keeps compiling unchanged. Real
+    // Prisma calls select no explicit column list here, so the live column is always present; this
+    // just widens the TYPE so `runNotificationSweep` can read it without a schema/query change.
+    findMany(args: { where: Record<string, unknown> }): Promise<{ id: string; org_type: string; locale?: string | null }[]>;
     findUnique(args: { where: { id: string } }): Promise<{ intensity_setting: string } | null>;
   };
 }
@@ -57,9 +62,22 @@ export interface NotificationSweepDb extends ScheduledSweepDb {
   whySession: { findFirst(args: { where: { user_id: string }; orderBy?: Record<string, unknown> }): Promise<{ anchor_statement: string | null } | null> };
 }
 
-function localHour(timezone: string, now: Date): number {
+// T-R32 (§17.5 "locale affects date/number/timezone formatting and quiet-hours logic") — this
+// DECIDES the quiet-hours/send-timing outcome for the rep (which hour they're in, hour is fed into
+// `isWithinOwnQuietHours` downstream), so it now resolves through the rep's own locale
+// (`LOCALE_BCP47[locale]`) instead of a hardcoded `'en-US'`. Functionally the numeral extraction is
+// identical for both supported locales today (en-US/es-US both use Latin digits for `hour12: false`
+// 2-digit output), so EN behavior is byte-identical to before; the point is routing through the
+// platform's real i18n layer rather than a hardcoded literal, so a future locale with a different
+// numbering system doesn't silently mis-decide a rep's quiet hours.
+// Exported (was module-private) so `tests/unit/gamification-scheduled.test.ts` can prove the
+// locale-threading fix directly — the full `runNotificationSweep` pipeline routes every dispatch
+// through the REAL `ComplianceFilterEngine` (§0.4 rule 2's fail-closed posture: a bare test double
+// with no DB-backed context legitimately holds content it cannot fully evaluate), so asserting on
+// `notificationLog.create` calls there would test CFE fail-closed behavior, not this function.
+export function localHour(timezone: string, now: Date, locale: Locale = DEFAULT_LOCALE): number {
   try {
-    const formatted = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', hour12: false }).format(now);
+    const formatted = new Intl.DateTimeFormat(LOCALE_BCP47[locale], { timeZone: timezone, hour: '2-digit', hour12: false }).format(now);
     return Number.parseInt(formatted, 10) % 24;
   } catch {
     return now.getUTCHours(); // unknown/invalid timezone — fail toward UTC, never throw
@@ -76,7 +94,11 @@ export async function runNotificationSweep(db: NotificationSweepDb, now: Date = 
   for (const user of users) {
     try {
       const prefs = await getOrCreatePreferences(db, user.id);
-      const hour = localHour(prefs.timezone, now);
+      // T-R32 (§17.5 locale-aware quiet-hours logic) — the rep's OWN catalog locale (never trusted
+      // verbatim; validated through `isLocale`, defaulting sensibly — same posture as every other
+      // `User.locale` read in this codebase, see `src/lib/i18n/locale.ts`'s header).
+      const locale: Locale = isLocale(user.locale) ? user.locale : DEFAULT_LOCALE;
+      const hour = localHour(prefs.timezone, now, locale);
       const anchor = await readAnchorStatement(db, user.id);
       const userContext = { user_id: user.id, role: 'REP' as const };
 

@@ -43,7 +43,36 @@
     "loadError": "Could not load your community. Try again.",
     "retry": "Retry",
     "emptyState": "No contacts yet — import or add contacts to start building your community.",
-    "toggleError": "This contact could not be updated. Try again."
+    "toggleError": "This contact could not be updated. Try again.",
+    "agentBadge": {
+      "sentFromRepNumber": "sent from your number",
+      "fromPlatformNumber": "from your Harvest number",
+      "sentByAgent": "sent by your agent",
+      "sentByUpline": "sent by your upline",
+      "sentByYou": "sent by you",
+      "approvedByYouOn": " · approved by you {date}",
+      "approvedByYou": " · approved by you",
+      "complianceLinkedSuffix": " — linked to its compliance record",
+      "complianceRecordLinked": "compliance record linked",
+      "complianceRecordTitle": "This send is linked to its compliance audit record."
+    },
+    "timeline": {
+      "ariaLabel": "Conversation timeline",
+      "emptyState": "No introductions yet. When you're ready, your agent has a draft.",
+      "doNotContact": "Do not contact — honored everywhere.",
+      "replyPausedNamed": "{name} replied — your cadence is paused; you're up.",
+      "replyPausedGeneric": "They replied — your cadence is paused; you're up.",
+      "contextReplay": "Context replay",
+      "reactivationDefault": "Here is where you left off.",
+      "status": {
+        "handedOff": "handed off",
+        "failed": "failed",
+        "sending": "sending",
+        "queued": "queued",
+        "sent": "sent",
+        "delivered": "delivered"
+      }
+    }
   },
   "shift": {
     "loadError": "Could not load your shift. Retry.",
@@ -74,6 +103,60 @@
       "recommendationLabel": "Recommendation (advisory",
       "suggestedRewrite": "Suggested compliant rewrite",
       "advisoryOnly": "Advisory only — a person still decides. Nothing here approves or sends anything."
+    },
+    "emptyState": {
+      "awaiting": "Nothing waiting on you right now — a good day.",
+      "all": "Nothing waiting on you right now — a good day.",
+      "held": "Nothing held for review — your field's been clean.",
+      "declined": "Nothing declined yet.",
+      "approved": "Nothing approved yet — your first approval will show up here."
+    },
+    "errors": {
+      "approveFailed": "This draft could not be approved.",
+      "declineFailed": "This draft could not be declined.",
+      "editFailed": "This edit could not be saved.",
+      "draftNotInView": "This draft is no longer in the current view."
+    },
+    "filterAria": "Filter the approval inbox",
+    "item": {
+      "agentDraftLabel": "Agent draft",
+      "separator": "·",
+      "draftedAt": "Drafted {date}",
+      "queuedBanner": "Queued — will finish when you’re back online; it will re-check compliance first.",
+      "heldBanner": "Held for review — this draft cannot be approved as-is. Use the rewrite or discard it.",
+      "editAria": "Edit draft text",
+      "reasonForDecliningAria": "Reason for declining",
+      "optionalNotePlaceholder": "Optional note",
+      "optionalNoteAria": "Optional note about why you're declining",
+      "justificationPrompt": "This draft was flagged by compliance review. Why is it OK to approve as-is?",
+      "justificationPlaceholder": "A short reason this flagged draft is OK to send…",
+      "justificationAria": "Justification for approving this flagged draft",
+      "approve": "Approve",
+      "approveWithJustification": "Approve with justification",
+      "edit": "Edit",
+      "rechecking": "Re-checking…",
+      "useRewrite": "Use rewrite",
+      "saveAndRecheck": "Save & re-check",
+      "discard": "Discard",
+      "confirmDecline": "Confirm decline",
+      "decline": "Decline",
+      "contactFallback": "this contact",
+      "draftToAria": "Draft to {name} via {channel}",
+      "editFailedGeneric": "Edit failed.",
+      "declineFailedGeneric": "Decline failed.",
+      "chip": {
+        "rechecking": "Re-checking",
+        "blocked": "Blocked",
+        "flagged": "Flagged",
+        "pass": "Pass",
+        "queued": "Queued"
+      },
+      "declineReasons": {
+        "notMyVoice": "Not my voice",
+        "wrongPerson": "Wrong person",
+        "wrongTime": "Wrong time",
+        "other": "Other"
+      }
     }
   },
   "learn": {
@@ -118,7 +201,45 @@
     "findASponsor": "Find a sponsor",
     "start": "Start",
     "continueAt297": "Continue at $297",
-    "talkToUs": "Talk to us"
+    "talkToUs": "Talk to us",
+    "sponsored": {
+      "coveredThroughWithSponsor": "Covered through {date} by your Downline Sponsor.",
+      "coveredThroughNoSponsor": "Covered through {date}.",
+      "everythingIncluded": "Everything’s included — no card on file, nothing to pay."
+    },
+    "anniversary": {
+      "endsOn": "Your sponsored year ends {date}.",
+      "body": "Continue under sponsorship if it renews, convert to $297/month, or let it lapse.",
+      "convertCta": "Convert to $297/month"
+    },
+    "manage": {
+      "heading": "Manage plan",
+      "pauseOption": "Pause (agents rest, data kept)",
+      "downgradeOption": "Downgrade",
+      "accessUntil": "If you cancel, you keep full access until {date}, and you can reactivate within {days} days. No need to contact support."
+    },
+    "tier": {
+      "currentPlanBadge": "Your plan",
+      "body": {
+        "free": "Everything included — your Downline Sponsor covers your first year.",
+        "individual": "The full platform: every agent, every surface.",
+        "enterprise": "Org-wide deployment, team management, org analytics, dedicated support."
+      }
+    },
+    "banner": {
+      "paymentReceivedTitle": "Payment received",
+      "paymentReceivedBody": "Your plan is active. Thanks — back to the field.",
+      "memberGraceTitle": "Your sponsor's payment needs attention.",
+      "memberGraceBody": "Nothing changes for you for 30 days. We've let them and your RVP know. You can continue at $297/month or find a new sponsor whenever you're ready.",
+      "graceTitle": "Your payment didn't go through.",
+      "graceBody": "Everything still works. Update your payment method to keep your plan active.",
+      "softSuspendedTitle": "Your agents are resting until billing is settled.",
+      "softSuspendedBody": "They finished their open conversations. Your data is exactly as you left it. Update your payment and everything comes right back.",
+      "disputedTitle": "A payment dispute paused outbound messaging.",
+      "disputedBody": "Reading and exporting still work while we sort it out.",
+      "canceledActiveTitle": "Your plan is set to end.",
+      "canceledActiveBody": "You have full access until {date}. You can reactivate any time before then."
+    }
   },
   "dataRights": {
     "heading": "Data & Privacy",
@@ -127,13 +248,34 @@
       "sectionTitle": "Export your data",
       "body": "Download a copy of your profile, contacts, and account data in a readable format. Never includes your password or any security credential.",
       "formatLabel": "Format",
-      "downloadCta": "Download my data"
+      "downloadCta": "Download my data",
+      "createFailed": "Could not start your export. Nothing was changed.",
+      "downloadFailed": "Your export was created but the download failed — try again.",
+      "downloaded": "Downloaded {filename}."
     },
     "deletion": {
       "sectionTitle": "Delete your account and data",
       "body": "This permanently removes your profile, contacts, messages, and Seven Whys history. Communications required for regulatory recordkeeping are retained, never sold or reused — your deletion certificate lists exactly what was kept and why.",
-      "requestCta": "Request account deletion"
-    }
+      "requestCta": "Request account deletion",
+      "requestFailed": "Could not submit your deletion request. Nothing was changed.",
+      "noRequestToConfirm": "No deletion request to confirm.",
+      "confirmFailedGeneric": "Could not confirm deletion.",
+      "confirmStartingAt": "You can confirm starting {date}.",
+      "coolingOffTitle": "Your deletion request is in its 24-hour cooling-off period.",
+      "coolingOffBody": "Requested {requestedDate}. You can confirm starting {readyDate}.",
+      "confirmCheckboxLabel": "I understand this permanently deletes my account and cannot be undone.",
+      "confirmCta": "Permanently delete my data",
+      "onHoldTitle": "Your deletion request is on hold.",
+      "onHoldBody": "A legal hold is active on your account — contact support for details.",
+      "completedTitle": "Your account has been deleted.",
+      "completedBody": "Completed {date}.",
+      "fieldsDeleted": "{count} fields deleted or anonymized.",
+      "recordsRetained": "{count} record(s) retained under regulatory requirement.",
+      "certificateLabel": "Certificate: {url}"
+    },
+    "loadingSettings": "Loading your data & privacy settings…",
+    "exportSectionAria": "Export your data",
+    "deletionSectionAria": "Delete your account and data"
   },
   "onboarding": {
     "vision": {

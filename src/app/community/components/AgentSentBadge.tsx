@@ -10,6 +10,11 @@
 //   • platform number         → "from your Harvest number" (platform_number)
 // Icon + text, never color alone (§6.1).
 
+'use client';
+
+import { useLocale } from '@/app/locale-context';
+import { formatDate } from '@/lib/i18n/format';
+import type { Locale } from '@/lib/i18n/locale';
 import styles from '../conversation.module.css';
 
 export type MessageSourceLabel = 'AGENT' | 'REP' | 'UPLINE' | 'SYSTEM';
@@ -24,30 +29,38 @@ export interface AgentSentBadgeProps {
   cfeAuditId?: string | null;
 }
 
-function formatApprovedAt(iso: string | null | undefined): string | null {
+// T-R32 (§17.5 locale-aware date formatting) — was `toLocaleDateString('en-US', ...)`, hardcoded
+// regardless of the rep's chosen locale. EN output is byte-identical to before.
+function formatApprovedAt(locale: Locale, iso: string | null | undefined): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return formatDate(locale, d, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export default function AgentSentBadge({ source, sentFrom, approvedBy, approvedAt, cfeAuditId }: AgentSentBadgeProps) {
-  const approvedDate = formatApprovedAt(approvedAt);
+  const { locale, t } = useLocale();
+  const approvedDate = formatApprovedAt(locale, approvedAt);
 
   // The primary transparency line.
   let label: string;
   if (sentFrom === 'rep_number') {
-    label = 'sent from your number';
+    label = t('community.agentBadge.sentFromRepNumber');
   } else if (sentFrom === 'platform_number') {
-    label = 'from your Harvest number';
+    label = t('community.agentBadge.fromPlatformNumber');
   } else if (source === 'AGENT') {
-    label = 'sent by your agent';
+    label = t('community.agentBadge.sentByAgent');
   } else {
-    label = source === 'UPLINE' ? 'sent by your upline' : 'sent by you';
+    label = source === 'UPLINE' ? t('community.agentBadge.sentByUpline') : t('community.agentBadge.sentByYou');
   }
 
-  const approvedClause = approvedBy && approvedDate ? ` · approved by you ${approvedDate}` : approvedBy ? ' · approved by you' : '';
+  const approvedClause = approvedBy && approvedDate
+    ? t('community.agentBadge.approvedByYouOn', { date: approvedDate })
+    : approvedBy
+      ? t('community.agentBadge.approvedByYou')
+      : '';
   const cfeLinked = Boolean(cfeAuditId);
+  const complianceSuffix = cfeLinked ? t('community.agentBadge.complianceLinkedSuffix') : '';
 
   return (
     <span
@@ -55,7 +68,7 @@ export default function AgentSentBadge({ source, sentFrom, approvedBy, approvedA
       role="note"
       data-cfe-audit={cfeLinked ? cfeAuditId ?? undefined : undefined}
       // The full sentence is also the screen-reader utterance (transparency = evidence, §9.3).
-      aria-label={`${label}${approvedClause}${cfeLinked ? ' — linked to its compliance record' : ''}`}
+      aria-label={`${label}${approvedClause}${complianceSuffix}`}
     >
       <span className={styles.agentBadgeIcon} aria-hidden="true">👁</span>
       <span className={styles.agentBadgeText}>
@@ -63,8 +76,8 @@ export default function AgentSentBadge({ source, sentFrom, approvedBy, approvedA
         {approvedClause}
       </span>
       {cfeLinked && (
-        <span className={styles.cfeEvidence} title="This send is linked to its compliance audit record.">
-          compliance record linked
+        <span className={styles.cfeEvidence} title={t('community.agentBadge.complianceRecordTitle')}>
+          {t('community.agentBadge.complianceRecordLinked')}
         </span>
       )}
     </span>

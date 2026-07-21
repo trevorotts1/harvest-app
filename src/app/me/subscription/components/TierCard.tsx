@@ -4,6 +4,9 @@
 // tier table (no other price string is possible — the data comes from the server's listLockedTiers,
 // which reads tiers.ts). Prices are text, never images (a11y — uiux §5.8).
 
+'use client';
+
+import { useT } from '@/app/locale-context';
 import styles from '../subscription.module.css';
 
 export interface TierCardData {
@@ -19,19 +22,21 @@ interface TierCardProps {
   cta: { label: string; onClick: () => void } | null;
 }
 
-const TIER_BODY: Record<TierCardData['plan_tier'], string> = {
-  free: 'Everything included — your Downline Sponsor covers your first year.',
-  individual: 'The full platform: every agent, every surface.',
-  enterprise: 'Org-wide deployment, team management, org analytics, dedicated support.',
+// T-R32 (i18n) — catalog keys per tier body copy (was a hardcoded EN-only Record).
+const TIER_BODY_KEY: Record<TierCardData['plan_tier'], string> = {
+  free: 'billing.tier.body.free',
+  individual: 'billing.tier.body.individual',
+  enterprise: 'billing.tier.body.enterprise',
 };
 
 export default function TierCard({ tier, isCurrent, cta }: TierCardProps) {
+  const t = useT();
   return (
     <div className={`${styles.tierCard} ${isCurrent ? styles.tierCardCurrent : ''}`}>
-      {isCurrent && <span className={styles.currentBadge}>Your plan</span>}
+      {isCurrent && <span className={styles.currentBadge}>{t('billing.tier.currentPlanBadge')}</span>}
       <h3 className={styles.tierName}>{tier.display_name}</h3>
       <p className={styles.priceLine}>{tier.price_line}</p>
-      <p className={styles.tierBody}>{TIER_BODY[tier.plan_tier]}</p>
+      <p className={styles.tierBody}>{t(TIER_BODY_KEY[tier.plan_tier])}</p>
       {cta && (
         <div className={styles.btnRow}>
           <button type="button" className={styles.actionBtn} onClick={cta.onClick}>
