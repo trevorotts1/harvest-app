@@ -10,9 +10,11 @@ export default function LandingPage() {
           <span>The Harvest</span>
         </Link>
         <div className="nav-links">
+          {/* T-57 RE-GATE E [a9500c6d] minor m3: /design-tokens is an internal dev token gallery,
+              not a public marketing destination — it stayed reachable by direct URL for internal
+              review, but is no longer linked from the public prod landing. */}
           <a href="#method">Method</a>
           <a href="#mission-control">Mission Control</a>
-          <Link href="/design-tokens">Design tokens</Link>
           <Link href="/auth">Start demo</Link>
         </div>
         <ThemeToggle />

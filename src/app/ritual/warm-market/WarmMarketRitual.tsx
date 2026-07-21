@@ -547,6 +547,29 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
 
   return (
     <div className={styles.shell}>
+      {/*
+       * T-57 RE-GATE E [a9500c6d] MAJOR (fresh finding) — this route hides the AppShell (§5.4 is a
+       * full-bleed, distraction-free ritual), so before this fix there was NO in-app way out at
+       * all once a rep landed here: the post-handoff "done" state (below) rendered only a status
+       * line, a dead end reachable only by browser-back. `ShiftView.tsx` faced the identical
+       * shell-hidden problem for the Shift screen and was already fixed (T-57 R3c-1) with a real
+       * `/today` exit on `WorkPhase.onSaveAndLeave` + `DoneScreen.onBackToToday` — both a plain
+       * `window.location.href` assignment, not a client-side route push, since leaving the ritual
+       * is a full navigation away from this shell. This mirrors that exact pattern, placed here
+       * (outside `.stage`) so it persists across EVERY stage — Loading, all three layers, and
+       * Complete/done — not just the done state the re-gate called out as the minimum bar.
+       */}
+      <div className={styles.exitBar}>
+        <button
+          type="button"
+          className={styles.exitLink}
+          onClick={() => {
+            window.location.href = '/today';
+          }}
+        >
+          {t('ritual.warmMarketRitual.backToTodayCta')}
+        </button>
+      </div>
       <div className={styles.stage}>
         {/* OFFLINE (T-R11, §5.4/§6.4): honest connectivity state — never a silent queue, never a
             fabricated "synced" while actually offline. Layers 1-2 keep working underneath this;

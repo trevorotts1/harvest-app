@@ -44,6 +44,14 @@
     "dataRightsTitle": "Data & Privacy",
     "dataRightsDesc": "Export or delete your data.",
     "comingSoon": "Coming soon",
+    "appearance": {
+      "hubTitle": "Appearance",
+      "hubDesc": "Light, dark, or match your device.",
+      "heading": "Appearance",
+      "subhead": "Choose how The Harvest looks on this device.",
+      "themeRowTitle": "Theme",
+      "themeRowDesc": "Cycles between matching your device, Golden Hour (light), and Pre-Dawn (dark)."
+    },
     "notifications": {
       "heading": "Notifications",
       "subhead": "Choose when and how often we reach you. Replies, milestones, and account security always come through.",
@@ -1265,6 +1273,7 @@
       "handToAgentCta": "Hand to my agent"
     },
     "warmMarketRitual": {
+      "backToTodayCta": "Back to Today",
       "offlineBannerLine1": "You’re offline — Layers 1 and 2 still work. Your progress is saved on this device",
       "offlineBannerQueuedSuffix_one": " ({count} item queued)",
       "offlineBannerQueuedSuffix_other": " ({count} items queued)",
