@@ -249,7 +249,7 @@ export default function ContentQueuePage() {
         {loading && <p className={styles.loadingState}>{t('content.queue.loading')}</p>}
         {!loading && error && (
           <div className={styles.errorState}>
-            <p>{error}</p>
+            <p role="alert">{error}</p>
             <button type="button" className={styles.retryButton} onClick={() => load(filter)}>
               {t('common.retry')}
             </button>
@@ -419,7 +419,7 @@ function LaunchKitTrigger({ onTriggered }: { onTriggered: () => void }) {
       <button type="button" className={styles.primaryButton} onClick={submit} disabled={busy}>
         {t('content.queue.launchKitTrigger.generateCta')}
       </button>
-      {result && <p>{result}</p>}
+      {result && <p role="status">{result}</p>}
     </div>
   );
 }
