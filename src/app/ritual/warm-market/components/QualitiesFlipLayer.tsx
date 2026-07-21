@@ -13,6 +13,7 @@ import {
 import { MAX_SELECTED_CLUSTERS, MIN_SELECTED_CLUSTERS, QualityCluster } from '@/types/harvest-method';
 
 import styles from '../ritual.module.css';
+import { useT } from '@/app/locale-context';
 
 export interface QualitiesFlipSeed {
   contactId: string;
@@ -45,6 +46,7 @@ export default function QualitiesFlipLayer({
   onContinue,
   flipping = false,
 }: QualitiesFlipLayerProps) {
+  const t = useT();
   const everyoneCovered = seeds.every((s) => {
     const a = assignments[s.contactId];
     return a && (a.needsTime || a.clusters.length > 0);
@@ -55,15 +57,15 @@ export default function QualitiesFlipLayer({
   return (
     <section
       className={`${styles.paper} ${flipping ? styles.paperFlipping : ''}`}
-      aria-label="Qualities Flip — Layer 2 of 3"
+      aria-label={t('ritual.qualitiesFlip.sectionAria')}
     >
-      <p className={styles.eyebrow}>Layer 2 of 3 &middot; Qualities Flip</p>
+      <p className={styles.eyebrow}>{t('ritual.qualitiesFlip.eyebrow')}</p>
 
-      <p className={styles.framingCaption}>Service first: who has the qualities that thrive in this business?</p>
+      <p className={styles.framingCaption}>{t('ritual.qualitiesFlip.framingCaption')}</p>
 
-      <h2 className={styles.sectionPrompt}>Which of these live in your list?</h2>
+      <h2 className={styles.sectionPrompt}>{t('ritual.qualitiesFlip.sectionPrompt')}</h2>
 
-      <div className={styles.clusterGrid} role="group" aria-label="The six quality clusters">
+      <div className={styles.clusterGrid} role="group" aria-label={t('ritual.qualitiesFlip.clusterGridAria')}>
         {QUALITY_CLUSTER_DEFINITIONS.map((def) => {
           const isSelected = selectedClusters.includes(def.key);
           return (
@@ -86,7 +88,7 @@ export default function QualitiesFlipLayer({
         return (
           <div key={seed.contactId} className={styles.swipeCard}>
             <p className={styles.swipeName}>{seed.name}</p>
-            <div className={styles.chipRow} role="group" aria-label={`Assign a quality to ${seed.name}`}>
+            <div className={styles.chipRow} role="group" aria-label={t('ritual.qualitiesFlip.assignQualityAria', { name: seed.name })}>
               {ALL_QUALITY_CLUSTERS.map((cluster) => {
                 const chosen = a.clusters.includes(cluster);
                 return (
@@ -107,7 +109,7 @@ export default function QualitiesFlipLayer({
                 className={`${styles.needsTimeBtn} ${a.needsTime ? styles.needsTimeSelected : ''}`}
                 onClick={() => onToggleNeedsTime(seed.contactId)}
               >
-                Need more time
+                {t('ritual.qualitiesFlip.needMoreTimeCta')}
               </button>
             </div>
           </div>
@@ -121,7 +123,7 @@ export default function QualitiesFlipLayer({
           disabled={!selectionValid || !everyoneCovered}
           onClick={onContinue}
         >
-          Continue
+          {t('onboarding.continueCta')}
         </button>
       </div>
     </section>

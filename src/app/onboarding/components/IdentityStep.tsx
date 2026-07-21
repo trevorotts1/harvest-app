@@ -9,6 +9,7 @@
 // name/email/intensity/solutionNumber — this component stays a pure, controlled render.
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
 export type PhotoCaptureState = 'unset' | 'chosen' | 'skipped';
 
@@ -47,17 +48,18 @@ export default function IdentityStep({
   onSkipPhoto,
   onContinue,
 }: IdentityStepProps) {
+  const t = useT();
   const hasChosenPhoto = photoState === 'chosen';
   const initials = initialsFromName(name);
 
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>Let&rsquo;s get your details</h1>
+      <h1 className={styles.headline}>{t('onboarding.identity.headline')}</h1>
 
       <div className={styles.avatarRow}>
         {hasChosenPhoto ? (
-          <div className={styles.avatarPhoto} role="img" aria-label="Photo added">
-            <span className={styles.caption}>Photo added</span>
+          <div className={styles.avatarPhoto} role="img" aria-label={t('onboarding.identity.photoAddedAria')}>
+            <span className={styles.caption}>{t('onboarding.identity.photoAddedCaption')}</span>
           </div>
         ) : (
           <div className={styles.avatarInitials} role="img" aria-label={`Initials avatar: ${initials}`}>
@@ -66,20 +68,20 @@ export default function IdentityStep({
         )}
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onTakePhoto}>
-            Take a photo
+            {t('onboarding.identity.takePhotoCta')}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onChooseFromLibrary}>
-            Choose from library
+            {t('onboarding.identity.chooseFromLibraryCta')}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onSkipPhoto}>
-            Skip photo
+            {t('onboarding.identity.skipPhotoCta')}
           </button>
         </div>
       </div>
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="identity-name">
-          Your name
+          {t('onboarding.identity.nameLabel')}
         </label>
         <input
           id="identity-name"
@@ -90,7 +92,7 @@ export default function IdentityStep({
       </div>
       <div className={styles.field}>
         <label className={styles.label} htmlFor="identity-email">
-          Email
+          {t('onboarding.identity.emailLabel')}
         </label>
         <input
           id="identity-email"
@@ -100,7 +102,7 @@ export default function IdentityStep({
           onChange={(e) => onEmailChange?.(e.target.value)}
         />
       </div>
-      <p className={styles.caption}>Your face shows up in your launch kit — not in ads.</p>
+      <p className={styles.caption}>{t('onboarding.identity.photoCaption')}</p>
       <div className={styles.actions}>
         <button
           type="button"
@@ -108,7 +110,7 @@ export default function IdentityStep({
           onClick={onContinue}
           disabled={!name.trim() || !email.trim()}
         >
-          Continue
+          {t('onboarding.continueCta')}
         </button>
       </div>
     </div>

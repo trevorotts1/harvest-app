@@ -5,29 +5,22 @@
 import { IntensitySetting } from '@prisma/client';
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
 interface Position {
   value: IntensitySetting;
-  label: string;
-  consequence: string;
+  labelKey: string;
+  consequenceKey: string;
 }
 
+// T-R32b — labels/consequences now route through the catalog (`onboarding.intensityDial.positions.*`)
+// instead of a hardcoded EN string per position; `INTENSITY_POSITIONS` itself stays exported (its
+// `value` ordering/identity is the load-bearing part — the arrow-key stepping and the
+// Medium-focus-first default both index into this array) so no external shape changes.
 export const INTENSITY_POSITIONS: Position[] = [
-  {
-    value: IntensitySetting.LOW,
-    label: 'Low',
-    consequence: 'Your agents draft a little and keep a calm cadence — quiet support in the background.',
-  },
-  {
-    value: IntensitySetting.MEDIUM,
-    label: 'Medium',
-    consequence: 'A steady daily rhythm: a morning briefing, a focused queue, and gentle follow-ups.',
-  },
-  {
-    value: IntensitySetting.HIGH,
-    label: 'High',
-    consequence: 'Your agents work harder and faster — more drafts a day, quicker follow-through.',
-  },
+  { value: IntensitySetting.LOW, labelKey: 'onboarding.intensityDial.positions.low.label', consequenceKey: 'onboarding.intensityDial.positions.low.consequence' },
+  { value: IntensitySetting.MEDIUM, labelKey: 'onboarding.intensityDial.positions.medium.label', consequenceKey: 'onboarding.intensityDial.positions.medium.consequence' },
+  { value: IntensitySetting.HIGH, labelKey: 'onboarding.intensityDial.positions.high.label', consequenceKey: 'onboarding.intensityDial.positions.high.consequence' },
 ];
 
 export interface IntensityDialProps {
@@ -37,6 +30,7 @@ export interface IntensityDialProps {
 }
 
 export default function IntensityDial({ value, onChange, onContinue }: IntensityDialProps) {
+  const t = useT();
   const selected = INTENSITY_POSITIONS.find((p) => p.value === value) ?? null;
 
   function step(direction: 1 | -1) {
@@ -47,13 +41,13 @@ export default function IntensityDial({ value, onChange, onContinue }: Intensity
 
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>How hard should your agents work while you live your life?</h1>
-      <p className={styles.lede}>You can change this any time.</p>
+      <h1 className={styles.headline}>{t('onboarding.intensityDial.headline')}</h1>
+      <p className={styles.lede}>{t('onboarding.intensityDial.caption')}</p>
 
       <div
         className={styles.dial}
         role="radiogroup"
-        aria-label="Intensity"
+        aria-label={t('onboarding.intensityDial.ariaLabel')}
         onKeyDown={(e) => {
           if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
             e.preventDefault();
@@ -76,14 +70,14 @@ export default function IntensityDial({ value, onChange, onContinue }: Intensity
               className={`${styles.dialPos} ${isSel ? styles.dialPosSelected : ''}`}
               onClick={() => onChange?.(p.value)}
             >
-              {p.label}
+              {t(p.labelKey)}
             </button>
           );
         })}
       </div>
 
       <p className={styles.consequence} aria-live="polite">
-        {selected ? selected.consequence : 'Pick a level to see what your agents will and won’t do.'}
+        {selected ? t(selected.consequenceKey) : t('onboarding.intensityDial.pickAPrompt')}
       </p>
 
       <div className={styles.actions}>
@@ -93,7 +87,7 @@ export default function IntensityDial({ value, onChange, onContinue }: Intensity
           onClick={onContinue}
           disabled={!value}
         >
-          Continue
+          {t('onboarding.continueCta')}
         </button>
       </div>
     </div>

@@ -4,17 +4,89 @@
     "loading": "Cargando…",
     "cancel": "Cancelar",
     "save": "Guardar",
-    "back": "Atrás"
+    "back": "Atrás",
+    "yes": "Sí",
+    "no": "No"
   },
   "nav": {
     "team": "Equipo",
+    "teamAria": "Navegación del equipo",
     "approvalInbox": "Bandeja de aprobación",
     "grow": "Cultivar",
     "growArrow": "Cultivar →",
+    "orchardAria": "Abrir el Huerto",
     "community": "Comunidad",
+    "communityAria": "Abrir Comunidad",
     "subscription": "Suscripción",
+    "subscriptionAria": "Suscripción y facturación",
     "dataPrivacy": "Datos y privacidad",
-    "language": "Idioma"
+    "dataPrivacyAria": "Datos y privacidad — exporta o elimina tus datos",
+    "language": "Idioma",
+    "languageAria": "Ajustes de idioma"
+  },
+  "auth": {
+    "brandName": "The Harvest",
+    "title": "Entra al centro de mando.",
+    "subtitle": "La demostración clasifica primero el negocio y luego revela solo los campos que coinciden con esa estructura empresarial.",
+    "demoAccessBadge": "Acceso de demostración",
+    "registerTab": "Registrarse",
+    "loginTab": "Iniciar sesión",
+    "emailLabel": "Correo electrónico",
+    "passwordLabel": "Contraseña",
+    "skipToToday": "Saltar a Hoy",
+    "nameLabel": "Nombre",
+    "roleLabel": "Rol",
+    "roleOptionRep": "Rep/Usuario",
+    "roleOptionUpline": "Línea ascendente",
+    "continueToOnboarding": "Continuar a la incorporación",
+    "demoDisclosureNotice": "Los campos específicos del negocio aparecen solo después de que el tipo de negocio o el nombre de la organización los haga relevantes. Ninguna acción real de mensajes, pagos o cuentas externas ocurre en esta demostración.",
+    "wizard": {
+      "ariaLabel": "Asistente de negocio e industria",
+      "badge": "Asistente de negocio / industria",
+      "industryQuestion": "¿Cuál es la industria del negocio?",
+      "businessModelQuestion": "¿Qué estructura la describe mejor?",
+      "businessModel": {
+        "downline": "Organización de línea descendente o basada en equipo",
+        "franchise": "Propietario de franquicia",
+        "independent": "Práctica profesional independiente",
+        "localService": "Negocio de servicios locales",
+        "consulting": "Firma de consultoría",
+        "school": "Escuela / programa educativo",
+        "corporate": "Equipo corporativo"
+      },
+      "franchiseTypeQuestion": "¿Qué tipo de franquicia?",
+      "organizationNameLabel": "Nombre del negocio u organización",
+      "organizationNamePlaceholder": "Ejemplo: nombre del negocio, franquicia, escuela, firma u organización"
+    },
+    "primerica": {
+      "levelLabel": "Nivel de Primerica",
+      "level": {
+        "snsd": "SNSD (Directora Nacional de Ventas Senior)",
+        "nsd": "NSD (Director Nacional de Ventas)",
+        "svp": "SVP (Vicepresidente Senior)",
+        "rvp": "RVP (Vicepresidente Regional)",
+        "rl": "RL (Líder Regional)",
+        "dl": "DL (Líder de División)",
+        "district": "Distrito (Líder de Distrito)",
+        "srRep": "Rep. Sr. (Representante Senior)",
+        "rep": "Rep (Representante)"
+      },
+      "solutionNumberLabel": "¿Cuál es tu número de solución?",
+      "solutionNumberPlaceholder": "Ingresa tu número de solución de Primerica",
+      "pairingQuestion": "¿A quién puedes identificar para el emparejamiento?",
+      "pairing": {
+        "upline": "Mi línea ascendente inmediata",
+        "fieldTrainer": "Mi entrenador de campo",
+        "rvp": "Mi RVP",
+        "unknown": "Todavía no lo sé"
+      },
+      "uplineNameLabel": "Nombre de tu línea ascendente, entrenador de campo o RVP",
+      "uplineNamePlaceholder": "Nombre de la persona a la que debe conectarse esta cuenta",
+      "knowsSolutionIdQuestion": "¿Conoces su ID de solución?",
+      "notSure": "No estoy seguro",
+      "uplineSolutionIdLabel": "ID de solución de línea ascendente",
+      "uplineSolutionIdPlaceholder": "Si lo conoces, ingrésalo para que Harvest pueda emparejar cuentas cuando ambas estén en la plataforma"
+    }
   },
   "today": {
     "greeting": "Buenos días, {name}",
@@ -33,7 +105,71 @@
       "quiet": "Tranquilo",
       "resting": "En reposo"
     },
-    "receiptsCta": "Ver la acción que más ayuda"
+    "receiptsCta": "Ver la acción que más ayuda",
+    "laws": {
+      "grow": "Cultivar",
+      "engage": "Interactuar",
+      "wealth": "Riqueza"
+    },
+    "criteriaHeading": "Los diez criterios que alimentan tu vergel",
+    "actionQueue": {
+      "badge": "Hoy",
+      "badgeZeroMinutes": "Hoy: 0 minutos",
+      "emptyNarrative": "Nada necesita de ti. Tus agentes se encargan de esto.",
+      "badgeWithMinutes": "Hoy: {minutes} minutos",
+      "blockedByCompliance": "Bloqueado por revisión de cumplimiento",
+      "flaggedByCompliance": "Marcado por revisión de cumplimiento",
+      "cfeBandSuffix": " (CFE: {band})",
+      "reloadIcon": "↻",
+      "queuedWillSync": "En espera — se sincronizará",
+      "reviewInApprovalInboxCta": "Revisar en la Bandeja de aprobación",
+      "declineCta": "Rechazar",
+      "showAllCount": "ver todo ({count})",
+      "kind": {
+        "approve": "Aprobar",
+        "review": "Revisar",
+        "confirm": "Confirmar"
+      }
+    },
+    "calendarStrip": {
+      "badge": "Calendario del equipo",
+      "noOrgNarrative": "Aún no tienes equipo — los eventos aparecerán aquí una vez que estés conectado a una organización.",
+      "quietNarrative": "Tranquilo por ahora — sin próximos eventos de equipo.",
+      "attendedCta": "Estuve ahí",
+      "missedCta": "No pude asistir"
+    },
+    "zoneErrorBoundary": {
+      "message": "No pudimos mostrar tu {zone} ahora mismo — el resto de Hoy no se ve afectado."
+    },
+    "wp07Panel": {
+      "first48Badge": "Primeras 48",
+      "phase": {
+        "warning": "Aún puedes reclamarlas — sin prisa, sin pena.",
+        "expired": "El tiempo se acabó, pero estas tres siguen siendo tuyas cuando estés listo."
+      },
+      "first48Empty": "Importa algunos contactos para ver aquí a tus primeros tres.",
+      "contactedYes": "Contactado",
+      "contactedNo": "Aún no contactado",
+      "milestonesHeading": "Hitos",
+      "learnBadge": "Aprender",
+      "learnBody": "Curso, referidos y acompañamiento",
+      "growBadge": "Cultivar",
+      "growBody": "Tu tarjeta de compromiso de metas",
+      "momentumBadge": "Momentum",
+      "momentumBody": "Los diez criterios, completos"
+    },
+    "ratioCards": {
+      "learningCommunity": "conociendo tu comunidad",
+      "heading": "Proporciones",
+      "agentRatioTitle": "Proporción del Agente",
+      "fieldTrainerRatioTitle": "Proporción del Entrenador de Campo"
+    },
+    "briefingCard": {
+      "whileYouSlept": "Mientras dormías"
+    },
+    "pipelineGlance": {
+      "heading": "Pipeline"
+    }
   },
   "community": {
     "title": "Comunidad",
@@ -281,6 +417,156 @@
     "vision": {
       "body": "Las personas que ya están en tu teléfono representan cientos de miles de dólares en potencial. Estamos a punto de mostrarte exactamente qué significa eso — y luego vamos a ayudarte a conseguirlo.",
       "cta": "Comencemos"
+    },
+    "continueCta": "Continuar",
+    "contactImport": {
+      "value": {
+        "headline": "Tu comunidad es tu campo",
+        "lede": "The Harvest trabaja a partir de las personas que ya te conocen."
+      },
+      "preview": {
+        "headline": "Esto es lo que haremos",
+        "lede": "Los organizaremos en parcelas y te mostraremos lo que tu campo podría producir.",
+        "connectCta": "Conectar mis contactos",
+        "notNowCta": "Ahora no"
+      },
+      "denied": {
+        "headline": "No hay problema.",
+        "lede": "Agrega personas por CSV o una a la vez — te lo preguntaremos de nuevo más adelante.",
+        "importingCta": "Importando…",
+        "importCsvCta": "Importar un CSV",
+        "addManuallyCta": "Agregar una a la vez"
+      },
+      "permission": {
+        "headline": "Incorporando tu comunidad…",
+        "lede": "Permite el acceso y organizaremos a todos en parcelas."
+      },
+      "csvFileInputAria": "Elige un archivo CSV para importar"
+    },
+    "identity": {
+      "headline": "Completemos tus datos",
+      "photoAddedAria": "Foto agregada",
+      "photoAddedCaption": "Foto agregada",
+      "takePhotoCta": "Tomar una foto",
+      "chooseFromLibraryCta": "Elegir de la biblioteca",
+      "skipPhotoCta": "Omitir foto",
+      "nameLabel": "Tu nombre",
+      "emailLabel": "Correo electrónico",
+      "photoCaption": "Tu foto aparece en tu kit de lanzamiento — no en anuncios."
+    },
+    "sponsor": {
+      "linkedHeadline": "Encontramos a tu patrocinador de línea descendente",
+      "fallbackName": "Tu patrocinador",
+      "coversFirstYear": "Cubre tu primer año — $0 para ti.",
+      "acceptCta": "Aceptar",
+      "noUplineYetCta": "Sin línea ascendente aún",
+      "waitlistedHeadline": "No hay un patrocinador disponible para tu organización en este momento",
+      "waitlistedLede": "Únete a la lista de espera y te emparejaremos en cuanto se abra un patrocinador — o comienza hoy.",
+      "joinWaitlistCta": "Unirme a la lista de espera",
+      "startPaidCta": "Comenzar hoy por $297/mes",
+      "noUplineYetContinueCta": "Sin línea ascendente aún — continuar"
+    },
+    "uplineTrack": {
+      "headline": "Configura tu cuenta de equipo",
+      "lede": "Unos pocos pasos requeridos — esto toma solo unos minutos.",
+      "personaAriaLabel": "Persona",
+      "requiredLabel": "Requerido",
+      "blockedTitle": "No podemos terminar la configuración hasta que se apruebe tu licencia.",
+      "blockedBody": "Aquí tienes a quién contactar — te dirigiremos al equipo de asesoría de cumplimiento.",
+      "contactComplianceCta": "Contactar a cumplimiento",
+      "finishSetupCta": "Finalizar configuración",
+      "license": {
+        "cleared": "Aprobada",
+        "prelicensing": "En pre-licenciamiento",
+        "notStarted": "No iniciada",
+        "expired": "Vencida"
+      },
+      "persona": {
+        "rep": "Mi configuración de rep",
+        "upline": "Mi configuración de equipo"
+      }
+    },
+    "hiddenEarnings": {
+      "addPeopleCta": "Agregar personas",
+      "eyebrow": "De las {count} personas en tu campo",
+      "conversationsStat": "{count} conversaciones",
+      "familiesStat": "{count} familias a las que podrías ayudar",
+      "goGetItCta": "Ve a conseguirlo."
+    },
+    "orgStep": {
+      "headline": "¿Dónde construyes?",
+      "lede": "Esto define todo tu campo — elige dónde construyes.",
+      "organizationAria": "Organización",
+      "universalBody": "Estás construyendo de forma independiente. The Harvest adapta todo tu campo a cómo construyes.",
+      "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
+      "enterAllDigits": "Ingresa los 7 dígitos.",
+      "choices": {
+        "primerica": {
+          "label": "Primerica",
+          "blurb": "Construyo con Primerica."
+        },
+        "external": {
+          "label": "Independiente / otro",
+          "blurb": "Construyo por mi cuenta o con otro equipo."
+        }
+      }
+    },
+    "gdprConsent": {
+      "headline": "Tus datos, tu consentimiento",
+      "lede": "Una última cosa antes de terminar de configurar tu negocio — necesitamos tu consentimiento para procesar tus datos personales.",
+      "notPreSelectedCaption": "No está preseleccionado — esta es tu elección explícita. Revocable en cualquier momento."
+    },
+    "intensityDial": {
+      "headline": "¿Con qué intensidad deben trabajar tus agentes mientras vives tu vida?",
+      "caption": "Puedes cambiar esto en cualquier momento.",
+      "ariaLabel": "Intensidad",
+      "pickAPrompt": "Elige un nivel para ver qué harán y qué no harán tus agentes.",
+      "positions": {
+        "low": {
+          "label": "Baja",
+          "consequence": "Tus agentes redactan un poco y mantienen un ritmo tranquilo — apoyo silencioso de fondo."
+        },
+        "medium": {
+          "label": "Media",
+          "consequence": "Un ritmo diario constante: una sesión matutina, una cola enfocada y seguimientos suaves."
+        },
+        "high": {
+          "label": "Alta",
+          "consequence": "Tus agentes trabajan más fuerte y más rápido — más borradores al día, seguimiento más rápido."
+        }
+      }
+    },
+    "first48Handoff": {
+      "headline": "Tu campo está sembrado.",
+      "lede": "Tres introducciones en 48 horas — esa es toda la primera misión.",
+      "showTodayCta": "Mostrarme Hoy"
+    },
+    "outreachConsent": {
+      "question": "¿Pueden tus agentes mencionar tu porqué cuando se comunican con tus contactos?",
+      "caption": "(Puedes cambiar esto en cualquier momento.)"
+    },
+    "sevenSeedStepper": {
+      "progressAriaLabel": "Tu porqué — progreso",
+      "levels": {
+        "goal": "Meta",
+        "urgency": "Urgencia",
+        "history": "Historia",
+        "challenge": "Desafío",
+        "fear": "Miedo",
+        "transformation": "Transformación",
+        "commitment": "Compromiso"
+      },
+      "state": {
+        "complete": "completo",
+        "pulsing": "quedándose aquí un poco más",
+        "notYet": "todavía no"
+      }
+    },
+    "sevenWhys": {
+      "agentThinkingAria": "Tu agente está pensando",
+      "answerLabel": "Tu respuesta",
+      "repromptPlaceholder": "Tómate tu tiempo — cuéntame un poco más cuando estés listo.",
+      "typePlaceholder": "Escribe aquí…"
     }
   },
   "settings": {
@@ -291,6 +577,69 @@
       "spanish": "Español",
       "saved": "Guardado.",
       "saveFailed": "No se pudo guardar tu preferencia de idioma. Inténtalo de nuevo."
+    }
+  },
+  "ritual": {
+    "blankCanvas": {
+      "sectionAria": "Lienzo en blanco — Capa 1 de 3",
+      "eyebrow": "Capa 1 de 3 · Lienzo en blanco",
+      "vaultCount": "Tienes {count} personas en tu campo.",
+      "visionPrompt": "Si el dinero y el miedo no existieran, ¿quiénes son esas aproximadamente 20 personas que genuinamente crees que se beneficiarían al aprender a construir riqueza?",
+      "constellationAria": "Tu constelación de 20 nombres",
+      "typeNameLabel": "Escribe un nombre",
+      "namePlaceholder": "Escribe un nombre...",
+      "addCta": "Agregar",
+      "enteredListAria": "Nombres ingresados hasta ahora",
+      "softGateQuestion": "¿Seguro que quieres detenerte en {count}? La mayoría de las personas encuentra más una vez que empieza.",
+      "keepAddingCta": "Seguir agregando",
+      "confirmSoftGateCta": "Sí, esa es mi lista",
+      "finishCta": "Esa es mi lista"
+    },
+    "qualitiesFlip": {
+      "sectionAria": "Giro de cualidades — Capa 2 de 3",
+      "eyebrow": "Capa 2 de 3 · Giro de cualidades",
+      "framingCaption": "El servicio primero: ¿quién tiene las cualidades que prosperan en este negocio?",
+      "sectionPrompt": "¿Cuáles de estas viven en tu lista?",
+      "clusterGridAria": "Los seis grupos de cualidades",
+      "assignQualityAria": "Asignar una cualidad a {name}",
+      "needMoreTimeCta": "Necesito más tiempo"
+    },
+    "backgroundMatching": {
+      "notSet": "No establecido",
+      "sectionAria": "Emparejamiento de antecedentes — Capa 3 de 3",
+      "eyebrow": "Capa 3 de 3 · Emparejamiento de antecedentes",
+      "sectionPrompt": "Resalta las coincidencias — toca para completar lo que sabes.",
+      "noteLabel": "Nota (opcional)",
+      "correctionNote": "Corregimos una palabra en esta nota para mantenerla conforme a la doctrina: “{word}”",
+      "existingLicenseeLabel": "Esta persona ya tiene una licencia",
+      "offlineDeferredNotice": "Terminaremos el emparejamiento cuando vuelvas a estar en línea. Lo que ingresaste aquí está guardado.",
+      "finishMatchingCta": "Finalizar emparejamiento"
+    },
+    "confirmation": {
+      "sectionAria": "Confirmación del ritual",
+      "eyebrow": "Confirmación",
+      "lede": "Estos son los miembros de tu comunidad a quienes presentaremos tu negocio primero — en tu nombre.",
+      "subAgentName": "tu Subagente de Mercado Cálido",
+      "boundaryMiddle": "se encargará de todo a partir de aquí.",
+      "approvalBoundaryLine": "Nada se envía sin tu aprobación.",
+      "unmatchedPromptPrefix": "No pudimos encontrar a",
+      "unmatchedPromptSuffix": "en tus contactos — toca para agregar su número.",
+      "addNumberCta": "Agregar número",
+      "excludedSectionAria": "Excluidos — requieren tu confirmación",
+      "excludedHeading": "Estos contactos están excluidos y requieren tu confirmación",
+      "excludedBody": "— nunca son procesables y nunca se les enviará nada automáticamente.",
+      "acknowledgeCta": "Confirmar",
+      "needsJurisdictionSectionAria": "Necesitan su estado registrado",
+      "needsJurisdictionHeading": "Estos contactos necesitan su estado registrado",
+      "needsJurisdictionBody": "— agrégalo para moverlos a tu cola de acción. No es una exclusión — solo falta información.",
+      "handToAgentCta": "Entregar a mi agente"
+    },
+    "warmMarketRitual": {
+      "offlineBannerLine1": "Estás sin conexión — las Capas 1 y 2 siguen funcionando. Tu progreso está guardado en este dispositivo",
+      "offlineBannerQueuedSuffix": " ({count} elemento{plural} en espera)",
+      "offlineBannerLine2": " y se sincronizará, con una nueva revisión de cumplimiento, cuando vuelvas a estar en línea.",
+      "syncingBanner": "De vuelta en línea — sincronizando {count} elemento{plural}...",
+      "loadingRitual": "Cargando tu ritual..."
     }
   },
   "team": {

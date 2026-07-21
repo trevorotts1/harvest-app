@@ -102,12 +102,46 @@ function flattenCatalog(obj, prefix = '') {
   return out;
 }
 
+// T-R32b fix: "lead" is a bare substring of common, unrelated, entirely legitimate product-copy
+// words — "Leader"/"Leadership"/"leading" (e.g. the real Primerica titles "Regional Leader",
+// "Division Leader", "District Leader" the auth wizard must display verbatim) — none of which are
+// the doctrine-forbidden noun "a lead"/"leads" this term exists to catch. The runtime CFE
+// classifier (src/services/compliance/vocabulary.ts, FORBIDDEN_TERMS) already draws this exact
+// distinction with a word-boundary regex — `{ term: /\bleads?\b/i, forbidden: 'lead', ... }` —
+// this mirrors that EXACT pattern (not a re-derived one) for the ONE term that needs it, rather
+// than switching every term to word-boundary matching, which would silently break the Spanish
+// "reclut" entry's own documented INTENTIONAL prefix match (catches reclutar/reclutamiento/
+// reclutas, none of which end at a word boundary right after "reclut").
+//
+// QC-reject regression (T-R32b, rejected 3.5): an earlier version of this map used a generic
+// `new RegExp(\`\\b${term}\\b\`)` built FROM the bare term string, which produced `\blead\b` —
+// that drops the plural "leads" (the most common banned form: "generate more leads", "sales leads
+// list"), because there is no word boundary between "lead" and a trailing "s". Fixed by mapping
+// each word-boundary term to its own EXPLICIT regex literal (copy-pasted from vocabulary.ts, not
+// derived), so a plural form can never again be silently dropped, and so this file and
+// vocabulary.ts can be diffed against each other by eye to catch future drift. If another term
+// ever needs word-boundary matching, add it here as its own explicit `[term, /regex/i]` entry
+// mirroring the exact CFE pattern for that term — do NOT reintroduce a generic `\b${term}\b`
+// builder, since that reintroduces exactly this bug for any term with an irregular plural/suffix.
+const WORD_BOUNDARY_TERMS = new Map([
+  // Mirrors src/services/compliance/vocabulary.ts FORBIDDEN_TERMS's `/\bleads?\b/i` exactly.
+  ['lead', /\bleads?\b/i],
+]);
+
+function termMatches(lowerValue, lowerTerm) {
+  const boundaryRegex = WORD_BOUNDARY_TERMS.get(lowerTerm);
+  if (boundaryRegex) {
+    return boundaryRegex.test(lowerValue);
+  }
+  return lowerValue.includes(lowerTerm);
+}
+
 function lintCatalog(flat, forbiddenSubstrings, label) {
   const violations = [];
   for (const [key, value] of Object.entries(flat)) {
     const lower = value.toLowerCase();
     for (const term of forbiddenSubstrings) {
-      if (lower.includes(term.toLowerCase())) {
+      if (termMatches(lower, term.toLowerCase())) {
         violations.push({ key, value, term, label });
       }
     }

@@ -23,7 +23,7 @@ import Link from 'next/link';
 
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
-import { useT } from '@/app/locale-context';
+import { useLocale } from '@/app/locale-context';
 
 import AnchorHeader from './components/AnchorHeader';
 import BriefingCard from './components/BriefingCard';
@@ -69,7 +69,7 @@ function deriveQueuedIds(q: PersistentOfflineQueue): { actionIds: Set<string>; e
 }
 
 export default function TodayPage() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
 
   // OFFLINE (T-54): connectivity + the persisted, replay-on-reconnect mutation queue for the Action
@@ -251,7 +251,7 @@ export default function TodayPage() {
         {/* T-45 (WP09 §14.4/uiux §5.9 "Entry: Team rail item") — the reachable entry point into the
             team calendar + upline/RVP dashboard + Sponsor Cockpit. `/team` is itself a gated
             downstream page (GATED_DOWNSTREAM_PAGE_PREFIXES) and each sub-page authorizes itself. */}
-        <nav aria-label="Team navigation" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <nav aria-label={t('nav.teamAria')} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <Link href="/team" style={{ fontWeight: 600 }}>{t('nav.team')}</Link>
         </nav>
 
@@ -275,37 +275,37 @@ export default function TodayPage() {
           </p>
         )}
 
-        <ZoneErrorBoundary zoneName="header">
+        <ZoneErrorBoundary zoneName="header" locale={locale}>
           <AnchorHeader result={data.header} />
         </ZoneErrorBoundary>
 
         {/* T-43 (WP07 §12.2/§12.3): First-48 banner, milestone pins, and Learn/Grow/Momentum links —
             independently error-bounded like every other zone (uiux AC-5.2-6). */}
-        <ZoneErrorBoundary zoneName="wp07">
+        <ZoneErrorBoundary zoneName="wp07" locale={locale}>
           <WP07Panel milestones={data.milestones ?? { status: 'error', message: 'Not available.' }} />
         </ZoneErrorBoundary>
 
         <div className={styles.grid}>
           <div className={styles.gridMain}>
-            <ZoneErrorBoundary zoneName="briefing">
+            <ZoneErrorBoundary zoneName="briefing" locale={locale}>
               <BriefingCard result={data.briefing} />
             </ZoneErrorBoundary>
 
-            <ZoneErrorBoundary zoneName="action queue">
-              <ActionQueue result={data.actionQueue} onAction={onQueueAction} queuedOfflineIds={queuedActionIds} />
+            <ZoneErrorBoundary zoneName="action queue" locale={locale}>
+              <ActionQueue result={data.actionQueue} onAction={onQueueAction} queuedOfflineIds={queuedActionIds} locale={locale} />
             </ZoneErrorBoundary>
 
-            <ZoneErrorBoundary zoneName="pipeline">
+            <ZoneErrorBoundary zoneName="pipeline" locale={locale}>
               <PipelineGlance result={data.pipeline} />
             </ZoneErrorBoundary>
           </div>
 
           <div className={styles.gridSide}>
-            <ZoneErrorBoundary zoneName="ratios">
+            <ZoneErrorBoundary zoneName="ratios" locale={locale}>
               <RatioCards result={data.ratios} />
             </ZoneErrorBoundary>
 
-            <ZoneErrorBoundary zoneName="team calendar">
+            <ZoneErrorBoundary zoneName="team calendar" locale={locale}>
               <CalendarStrip
                 result={data.calendar}
                 onMarkAttendance={onMarkAttendance}

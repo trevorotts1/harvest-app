@@ -9,10 +9,17 @@
 import { Component, type ReactNode } from 'react';
 
 import styles from '../today.module.css';
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 interface Props {
   zoneName: string;
   children: ReactNode;
+  /** T-R32b (§17.5 locale-aware copy) — optional, defaults to EN, so every existing caller keeps
+   *  compiling and rendering byte-identical output. A class component's `render()` can't call a
+   *  hook (`useT()`/`useLocale()`) — this uses the pure `t(locale, key, vars)` catalog function
+   *  instead, the same pattern `ActionQueue`'s own `locale` prop uses for the identical reason. */
+  locale?: Locale;
 }
 
 interface State {
@@ -28,10 +35,11 @@ export default class ZoneErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const locale = this.props.locale ?? DEFAULT_LOCALE;
       return (
         <section className={styles.zoneCard} data-zone-error={this.props.zoneName}>
           <p className={styles.zoneErrorText}>
-            We could not show your {this.props.zoneName} right now — the rest of Today is unaffected.
+            {t(locale, 'today.zoneErrorBoundary.message', { zone: this.props.zoneName })}
           </p>
         </section>
       );

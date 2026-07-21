@@ -63,6 +63,7 @@ import {
   type VaultContactSummary,
 } from './offline';
 import styles from './ritual.module.css';
+import { useT } from '@/app/locale-context';
 
 type Stage = MethodLayer | 'COMPLETE' | 'LOADING' | 'ERROR';
 
@@ -90,6 +91,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps) {
+  const t = useT();
   // OFFLINE (T-R11): hydrate any previously-saved Layer 1-2 draft up front — before the live
   // fetch even starts — so a reload (online or offline) never shows an empty roster while the
   // real load resolves, and so the offline branch below has this available with no async gap.
@@ -465,14 +467,14 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
             it is purely informational. */}
         {isOffline && (
           <p className={styles.offlineBanner} role="status">
-            You&rsquo;re offline — Layers 1 and 2 still work. Your progress is saved on this device
-            {queueLength > 0 ? ` (${queueLength} item${queueLength === 1 ? '' : 's'} queued)` : ''} and will
-            sync, with a compliance re-check, when you&rsquo;re back.
+            {t('ritual.warmMarketRitual.offlineBannerLine1')}
+            {queueLength > 0 ? t('ritual.warmMarketRitual.offlineBannerQueuedSuffix', { count: queueLength, plural: queueLength === 1 ? '' : 's' }) : ''}
+            {t('ritual.warmMarketRitual.offlineBannerLine2')}
           </p>
         )}
         {!isOffline && syncing && (
           <p className={styles.offlineBanner} role="status">
-            Back online — syncing {syncing.total} item{syncing.total === 1 ? '' : 's'}...
+            {t('ritual.warmMarketRitual.syncingBanner', { count: syncing.total, plural: syncing.total === 1 ? '' : 's' })}
           </p>
         )}
         {!isOffline && !syncing && syncFailure && (
@@ -487,7 +489,7 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
           </div>
         )}
 
-        {stage === 'LOADING' && <p>Loading your ritual...</p>}
+        {stage === 'LOADING' && <p>{t('ritual.warmMarketRitual.loadingRitual')}</p>}
 
         {stage === MethodLayer.BLANK_CANVAS && (
           <BlankCanvasLayer

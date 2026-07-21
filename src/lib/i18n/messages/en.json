@@ -4,17 +4,89 @@
     "loading": "Loading…",
     "cancel": "Cancel",
     "save": "Save",
-    "back": "Back"
+    "back": "Back",
+    "yes": "Yes",
+    "no": "No"
   },
   "nav": {
     "team": "Team",
+    "teamAria": "Team navigation",
     "approvalInbox": "Approval Inbox",
     "grow": "Grow",
     "growArrow": "Grow →",
+    "orchardAria": "Open the Orchard",
     "community": "Community",
+    "communityAria": "Open Community",
     "subscription": "Subscription",
+    "subscriptionAria": "Subscription and billing",
     "dataPrivacy": "Data & Privacy",
-    "language": "Language"
+    "dataPrivacyAria": "Data and privacy — export or delete your data",
+    "language": "Language",
+    "languageAria": "Language settings"
+  },
+  "auth": {
+    "brandName": "The Harvest",
+    "title": "Enter the command center.",
+    "subtitle": "The demo classifies the business first, then reveals only the fields that match that business structure.",
+    "demoAccessBadge": "Demo access",
+    "registerTab": "Register",
+    "loginTab": "Login",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "skipToToday": "Skip to Today",
+    "nameLabel": "Name",
+    "roleLabel": "Role",
+    "roleOptionRep": "Rep/User",
+    "roleOptionUpline": "Upline",
+    "continueToOnboarding": "Continue to onboarding",
+    "demoDisclosureNotice": "Business-specific fields appear only after the business type or organization name makes them relevant. No real message, payment, or external account action happens in this demo.",
+    "wizard": {
+      "ariaLabel": "Business and industry wizard",
+      "badge": "Business / Industry wizard",
+      "industryQuestion": "What is the business industry?",
+      "businessModelQuestion": "Which structure best describes it?",
+      "businessModel": {
+        "downline": "Downline / team-based organization",
+        "franchise": "Franchise owner",
+        "independent": "Independent professional practice",
+        "localService": "Local service business",
+        "consulting": "Consulting firm",
+        "school": "School / education program",
+        "corporate": "Corporate team"
+      },
+      "franchiseTypeQuestion": "What type of franchise?",
+      "organizationNameLabel": "Name of business or organization",
+      "organizationNamePlaceholder": "Example: business, franchise, school, firm, or organization name"
+    },
+    "primerica": {
+      "levelLabel": "Primerica level",
+      "level": {
+        "snsd": "SNSD (Senior National Sales Director)",
+        "nsd": "NSD (National Sales Director)",
+        "svp": "SVP (Senior Vice President)",
+        "rvp": "RVP (Regional Vice President)",
+        "rl": "RL (Regional Leader)",
+        "dl": "DL (Division Leader)",
+        "district": "District (District Leader)",
+        "srRep": "Sr. Rep (Senior Representative)",
+        "rep": "Rep (Representative)"
+      },
+      "solutionNumberLabel": "What is your solution number?",
+      "solutionNumberPlaceholder": "Enter your Primerica solution number",
+      "pairingQuestion": "Who can you identify for pairing?",
+      "pairing": {
+        "upline": "My immediate upline",
+        "fieldTrainer": "My field trainer",
+        "rvp": "My RVP",
+        "unknown": "I do not know yet"
+      },
+      "uplineNameLabel": "Name of upline, field trainer, or RVP",
+      "uplineNamePlaceholder": "Name of the person this account should connect to",
+      "knowsSolutionIdQuestion": "Do you know their solution ID?",
+      "notSure": "Not sure",
+      "uplineSolutionIdLabel": "Upline solution ID",
+      "uplineSolutionIdPlaceholder": "If known, enter it so Harvest can pair accounts when both are on-platform"
+    }
   },
   "today": {
     "greeting": "Good morning, {name}",
@@ -33,7 +105,71 @@
       "quiet": "Quiet",
       "resting": "Resting"
     },
-    "receiptsCta": "See the one action that helps most"
+    "receiptsCta": "See the one action that helps most",
+    "laws": {
+      "grow": "Grow",
+      "engage": "Engage",
+      "wealth": "Wealth"
+    },
+    "criteriaHeading": "The ten criteria feeding your Grove",
+    "actionQueue": {
+      "badge": "Today",
+      "badgeZeroMinutes": "Today: 0 minutes",
+      "emptyNarrative": "Nothing needs you. Your agents take it from here.",
+      "badgeWithMinutes": "Today: {minutes} minutes",
+      "blockedByCompliance": "Blocked by compliance review",
+      "flaggedByCompliance": "Flagged by compliance review",
+      "cfeBandSuffix": " (CFE: {band})",
+      "reloadIcon": "↻",
+      "queuedWillSync": "Queued — will sync",
+      "reviewInApprovalInboxCta": "Review in Approval Inbox",
+      "declineCta": "Decline",
+      "showAllCount": "show all ({count})",
+      "kind": {
+        "approve": "Approve",
+        "review": "Review",
+        "confirm": "Confirm"
+      }
+    },
+    "calendarStrip": {
+      "badge": "Team calendar",
+      "noOrgNarrative": "No team yet — events will show here once you're connected to an organization.",
+      "quietNarrative": "Quiet so far — no upcoming team events.",
+      "attendedCta": "I was there",
+      "missedCta": "Couldn't make it"
+    },
+    "zoneErrorBoundary": {
+      "message": "We could not show your {zone} right now — the rest of Today is unaffected."
+    },
+    "wp07Panel": {
+      "first48Badge": "First 48",
+      "phase": {
+        "warning": "You can still claim these — no rush, no shame.",
+        "expired": "The clock stopped, but these three are still yours whenever you're ready."
+      },
+      "first48Empty": "Import a few contacts to see your first three here.",
+      "contactedYes": "Contacted",
+      "contactedNo": "Not yet contacted",
+      "milestonesHeading": "Milestones",
+      "learnBadge": "Learn",
+      "learnBody": "Course, referrals & coaching",
+      "growBadge": "Grow",
+      "growBody": "Your Goal Commitment Card",
+      "momentumBadge": "Momentum",
+      "momentumBody": "The ten criteria, in full"
+    },
+    "ratioCards": {
+      "learningCommunity": "learning your community",
+      "heading": "Ratios",
+      "agentRatioTitle": "Agent's Ratio",
+      "fieldTrainerRatioTitle": "Field Trainer's Ratio"
+    },
+    "briefingCard": {
+      "whileYouSlept": "While you slept"
+    },
+    "pipelineGlance": {
+      "heading": "Pipeline"
+    }
   },
   "community": {
     "title": "Community",
@@ -281,6 +417,156 @@
     "vision": {
       "body": "The people already in your phone represent hundreds of thousands of dollars in potential. We're about to show you exactly what that means — and then we're going to go get it for you.",
       "cta": "Let's begin"
+    },
+    "continueCta": "Continue",
+    "contactImport": {
+      "value": {
+        "headline": "Your community is your field",
+        "lede": "The Harvest works from the people who already know you."
+      },
+      "preview": {
+        "headline": "Here’s what we’ll do",
+        "lede": "We’ll organize them into plots and show you what your field could yield.",
+        "connectCta": "Connect my contacts",
+        "notNowCta": "Not now"
+      },
+      "denied": {
+        "headline": "No problem.",
+        "lede": "Add people by CSV or one at a time — we’ll ask again later.",
+        "importingCta": "Importing…",
+        "importCsvCta": "Import a CSV",
+        "addManuallyCta": "Add one at a time"
+      },
+      "permission": {
+        "headline": "Bringing in your community…",
+        "lede": "Allow access and we’ll organize everyone into plots."
+      },
+      "csvFileInputAria": "Choose a CSV file to import"
+    },
+    "identity": {
+      "headline": "Let’s get your details",
+      "photoAddedAria": "Photo added",
+      "photoAddedCaption": "Photo added",
+      "takePhotoCta": "Take a photo",
+      "chooseFromLibraryCta": "Choose from library",
+      "skipPhotoCta": "Skip photo",
+      "nameLabel": "Your name",
+      "emailLabel": "Email",
+      "photoCaption": "Your face shows up in your launch kit — not in ads."
+    },
+    "sponsor": {
+      "linkedHeadline": "We found your Downline Sponsor",
+      "fallbackName": "Your sponsor",
+      "coversFirstYear": "Covers your first year — $0 to you.",
+      "acceptCta": "Accept",
+      "noUplineYetCta": "No upline yet",
+      "waitlistedHeadline": "No sponsor is available for your organization right now",
+      "waitlistedLede": "Join the waitlist and we’ll match you the moment a sponsor opens up — or start today.",
+      "joinWaitlistCta": "Join the waitlist",
+      "startPaidCta": "Start today for $297/month",
+      "noUplineYetContinueCta": "No upline yet — continue"
+    },
+    "uplineTrack": {
+      "headline": "Set up your team account",
+      "lede": "A few required steps — this takes just a few minutes.",
+      "personaAriaLabel": "Persona",
+      "requiredLabel": "Required",
+      "blockedTitle": "We can’t finish setup until your license clears.",
+      "blockedBody": "Here’s who to contact — we’ll route you to the compliance advisory team.",
+      "contactComplianceCta": "Contact compliance",
+      "finishSetupCta": "Finish setup",
+      "license": {
+        "cleared": "Cleared",
+        "prelicensing": "In pre-licensing",
+        "notStarted": "Not started",
+        "expired": "Expired"
+      },
+      "persona": {
+        "rep": "My rep setup",
+        "upline": "My team setup"
+      }
+    },
+    "hiddenEarnings": {
+      "addPeopleCta": "Add people",
+      "eyebrow": "From the {count} people in your field",
+      "conversationsStat": "{count} conversations",
+      "familiesStat": "{count} families you could help",
+      "goGetItCta": "Go get it."
+    },
+    "orgStep": {
+      "headline": "Where do you build?",
+      "lede": "This shapes your whole field — pick where you build.",
+      "organizationAria": "Organization",
+      "universalBody": "You’re building independently. The Harvest tailors your whole field to how you build.",
+      "solutionNumberSavedAria": "Solution number (saved, masked)",
+      "enterAllDigits": "Enter all 7 digits.",
+      "choices": {
+        "primerica": {
+          "label": "Primerica",
+          "blurb": "I build with Primerica."
+        },
+        "external": {
+          "label": "Independent / other",
+          "blurb": "I build on my own or with another team."
+        }
+      }
+    },
+    "gdprConsent": {
+      "headline": "Your data, your consent",
+      "lede": "One last thing before we finish setting up your business — we need your consent to process your personal data.",
+      "notPreSelectedCaption": "Not pre-selected — this is your explicit choice. Revocable any time."
+    },
+    "intensityDial": {
+      "headline": "How hard should your agents work while you live your life?",
+      "caption": "You can change this any time.",
+      "ariaLabel": "Intensity",
+      "pickAPrompt": "Pick a level to see what your agents will and won’t do.",
+      "positions": {
+        "low": {
+          "label": "Low",
+          "consequence": "Your agents draft a little and keep a calm cadence — quiet support in the background."
+        },
+        "medium": {
+          "label": "Medium",
+          "consequence": "A steady daily rhythm: a morning briefing, a focused queue, and gentle follow-ups."
+        },
+        "high": {
+          "label": "High",
+          "consequence": "Your agents work harder and faster — more drafts a day, quicker follow-through."
+        }
+      }
+    },
+    "first48Handoff": {
+      "headline": "Your field is planted.",
+      "lede": "Three introductions in 48 hours — that’s the whole first mission.",
+      "showTodayCta": "Show me Today"
+    },
+    "outreachConsent": {
+      "question": "May your agents reference your why in your outreach?",
+      "caption": "(You can change this any time.)"
+    },
+    "sevenSeedStepper": {
+      "progressAriaLabel": "Your why — progress",
+      "levels": {
+        "goal": "Goal",
+        "urgency": "Urgency",
+        "history": "History",
+        "challenge": "Challenge",
+        "fear": "Fear",
+        "transformation": "Transformation",
+        "commitment": "Commitment"
+      },
+      "state": {
+        "complete": "complete",
+        "pulsing": "staying here a little longer",
+        "notYet": "not yet"
+      }
+    },
+    "sevenWhys": {
+      "agentThinkingAria": "Your agent is thinking",
+      "answerLabel": "Your answer",
+      "repromptPlaceholder": "Take your time — say a little more when you're ready.",
+      "typePlaceholder": "Type here…"
     }
   },
   "settings": {
@@ -291,6 +577,69 @@
       "spanish": "Español",
       "saved": "Saved.",
       "saveFailed": "Could not save your language preference. Try again."
+    }
+  },
+  "ritual": {
+    "blankCanvas": {
+      "sectionAria": "Blank Canvas — Layer 1 of 3",
+      "eyebrow": "Layer 1 of 3 · Blank Canvas",
+      "vaultCount": "You have {count} people in your field.",
+      "visionPrompt": "If money and fear were both taken out of the equation, who are the ~20 people you genuinely believe would benefit from learning about building wealth?",
+      "constellationAria": "Your 20-name constellation",
+      "typeNameLabel": "Type one name",
+      "namePlaceholder": "Type a first name...",
+      "addCta": "Add",
+      "enteredListAria": "Names entered so far",
+      "softGateQuestion": "Are you sure you want to stop at {count}? Most people find more once they start.",
+      "keepAddingCta": "Keep adding",
+      "confirmSoftGateCta": "Yes, that’s my list",
+      "finishCta": "That’s my list"
+    },
+    "qualitiesFlip": {
+      "sectionAria": "Qualities Flip — Layer 2 of 3",
+      "eyebrow": "Layer 2 of 3 · Qualities Flip",
+      "framingCaption": "Service first: who has the qualities that thrive in this business?",
+      "sectionPrompt": "Which of these live in your list?",
+      "clusterGridAria": "The six quality clusters",
+      "assignQualityAria": "Assign a quality to {name}",
+      "needMoreTimeCta": "Need more time"
+    },
+    "backgroundMatching": {
+      "notSet": "Not set",
+      "sectionAria": "Background Matching — Layer 3 of 3",
+      "eyebrow": "Layer 3 of 3 · Background Matching",
+      "sectionPrompt": "Highlight the matches — tap to fill in what you know.",
+      "noteLabel": "Note (optional)",
+      "correctionNote": "We corrected a word in this note to keep it doctrine-clean: “{word}”",
+      "existingLicenseeLabel": "This person already holds a license",
+      "offlineDeferredNotice": "We’ll finish matching when you’re back online. What you’ve entered here is saved.",
+      "finishMatchingCta": "Finish matching"
+    },
+    "confirmation": {
+      "sectionAria": "Ritual confirmation",
+      "eyebrow": "Confirmation",
+      "lede": "Here are the community members we’ll introduce your business to first — on your behalf.",
+      "subAgentName": "your Warm Market Sub-Agent",
+      "boundaryMiddle": "will take it from here.",
+      "approvalBoundaryLine": "Nothing sends without your approval.",
+      "unmatchedPromptPrefix": "We couldn’t find",
+      "unmatchedPromptSuffix": "in your contacts — tap to add their number.",
+      "addNumberCta": "Add number",
+      "excludedSectionAria": "Excluded — requires your acknowledgment",
+      "excludedHeading": "These contacts are excluded and need your acknowledgment",
+      "excludedBody": "— they are never actionable and nothing will ever be sent to them automatically.",
+      "acknowledgeCta": "Acknowledge",
+      "needsJurisdictionSectionAria": "Needs their state on file",
+      "needsJurisdictionHeading": "These contacts need their state on file",
+      "needsJurisdictionBody": "— add it to move them into your action queue. Not an exclusion — just missing information.",
+      "handToAgentCta": "Hand to my agent"
+    },
+    "warmMarketRitual": {
+      "offlineBannerLine1": "You’re offline — Layers 1 and 2 still work. Your progress is saved on this device",
+      "offlineBannerQueuedSuffix": " ({count} item{plural} queued)",
+      "offlineBannerLine2": " and will sync, with a compliance re-check, when you’re back.",
+      "syncingBanner": "Back online — syncing {count} item{plural}...",
+      "loadingRitual": "Loading your ritual..."
     }
   },
   "team": {

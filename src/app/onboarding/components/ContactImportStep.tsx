@@ -3,6 +3,7 @@
 // CSV / manual add, never a dead end, and a later re-ask is registered.
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
 export type ImportBeat = 'value' | 'preview' | 'permission' | 'denied';
 
@@ -31,14 +32,16 @@ export default function ContactImportStep({
   csvImporting = false,
   csvError = null,
 }: ContactImportStepProps) {
+  const t = useT();
+
   if (beat === 'value') {
     return (
       <div className={styles.stepInner}>
-        <h1 className={styles.headline}>Your community is your field</h1>
-        <p className={styles.lede}>The Harvest works from the people who already know you.</p>
+        <h1 className={styles.headline}>{t('onboarding.contactImport.value.headline')}</h1>
+        <p className={styles.lede}>{t('onboarding.contactImport.value.lede')}</p>
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onAdvance}>
-            Continue
+            {t('onboarding.continueCta')}
           </button>
         </div>
       </div>
@@ -48,18 +51,18 @@ export default function ContactImportStep({
   if (beat === 'preview') {
     return (
       <div className={styles.stepInner}>
-        <h1 className={styles.headline}>Here&rsquo;s what we&rsquo;ll do</h1>
+        <h1 className={styles.headline}>{t('onboarding.contactImport.preview.headline')}</h1>
         <div className={styles.card} aria-hidden="true">
           <p className={styles.lede}>
-            We&rsquo;ll organize them into plots and show you what your field could yield.
+            {t('onboarding.contactImport.preview.lede')}
           </p>
         </div>
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onRequestPermission}>
-            Connect my contacts
+            {t('onboarding.contactImport.preview.connectCta')}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onDeny}>
-            Not now
+            {t('onboarding.contactImport.preview.notNowCta')}
           </button>
         </div>
       </div>
@@ -69,8 +72,8 @@ export default function ContactImportStep({
   if (beat === 'denied') {
     return (
       <div className={styles.stepInner}>
-        <h1 className={styles.headline}>No problem.</h1>
-        <p className={styles.lede}>Add people by CSV or one at a time — we&rsquo;ll ask again later.</p>
+        <h1 className={styles.headline}>{t('onboarding.contactImport.denied.headline')}</h1>
+        <p className={styles.lede}>{t('onboarding.contactImport.denied.lede')}</p>
         <div className={styles.actions}>
           <button
             type="button"
@@ -78,10 +81,10 @@ export default function ContactImportStep({
             onClick={onUseCsv}
             disabled={csvImporting}
           >
-            {csvImporting ? 'Importing…' : 'Import a CSV'}
+            {csvImporting ? t('onboarding.contactImport.denied.importingCta') : t('onboarding.contactImport.denied.importCsvCta')}
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onAddManually}>
-            Add one at a time
+            {t('onboarding.contactImport.denied.addManuallyCta')}
           </button>
         </div>
         {csvError && <p role="alert">{csvError}</p>}
@@ -92,13 +95,13 @@ export default function ContactImportStep({
   // 'permission' — the OS dialog moment (native); on web, the CSV/Google path is offered.
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>Bringing in your community…</h1>
+      <h1 className={styles.headline}>{t('onboarding.contactImport.permission.headline')}</h1>
       <p className={styles.lede} aria-live="polite">
-        Allow access and we&rsquo;ll organize everyone into plots.
+        {t('onboarding.contactImport.permission.lede')}
       </p>
       <div className={styles.actions}>
         <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onAdvance}>
-          Continue
+          {t('onboarding.continueCta')}
         </button>
       </div>
     </div>

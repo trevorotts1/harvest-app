@@ -18,7 +18,13 @@ import { ReadinessTier, type PublicQueueItem } from '@/types/harvest-method';
 import { clusterLabel } from '@/services/harvest-method/clusters';
 
 import styles from '../ritual.module.css';
+import { useT } from '@/app/locale-context';
 
+// T-R32b — kept as the EN reference strings existing tests import (unchanged byte-for-byte, and
+// still exactly what renders under the default/EN locale — the live render below now goes through
+// `useT()` via matching `ritual.confirmation.subAgentName`/`.approvalBoundaryLine` catalog keys, so
+// a non-EN locale genuinely translates both). Neither is a compliance-mandated verbatim statement
+// (unlike GDPR_CONSENT_LABEL/SAFE_HARBOR_LINE elsewhere in this codebase) — ordinary product copy.
 export const WARM_MARKET_SUB_AGENT_NAME = 'your Warm Market Sub-Agent';
 export const APPROVAL_BOUNDARY_LINE = 'Nothing sends without your approval.';
 
@@ -41,6 +47,7 @@ export default function RitualConfirmation({
   onAddNumber,
   onHandToAgent,
 }: RitualConfirmationProps) {
+  const t = useT();
   const actionable = queue.filter(
     (item) => item.tier !== ReadinessTier.EXCLUDED && item.tier !== ReadinessTier.NEEDS_JURISDICTION
   );
@@ -48,21 +55,21 @@ export default function RitualConfirmation({
   const needsJurisdiction = queue.filter((item) => item.tier === ReadinessTier.NEEDS_JURISDICTION);
 
   return (
-    <section className={styles.paper} aria-label="Ritual confirmation">
-      <p className={styles.eyebrow}>Confirmation</p>
+    <section className={styles.paper} aria-label={t('ritual.confirmation.sectionAria')}>
+      <p className={styles.eyebrow}>{t('ritual.confirmation.eyebrow')}</p>
       <p className={styles.confirmationLede}>
-        Here are the community members we&rsquo;ll introduce your business to first — on your behalf.
+        {t('ritual.confirmation.lede')}
       </p>
 
       <p className={styles.boundaryLine}>
-        {WARM_MARKET_SUB_AGENT_NAME} will take it from here. {APPROVAL_BOUNDARY_LINE}
+        {t('ritual.confirmation.subAgentName')} {t('ritual.confirmation.boundaryMiddle')} {t('ritual.confirmation.approvalBoundaryLine')}
       </p>
 
       {unmatchedHighlights.map((u) => (
         <div key={u.name} className={styles.unmatchedPrompt}>
-          <span>We couldn&rsquo;t find {u.name} in your contacts — tap to add their number.</span>
+          <span>{t('ritual.confirmation.unmatchedPromptPrefix')} {u.name} {t('ritual.confirmation.unmatchedPromptSuffix')}</span>
           <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => onAddNumber?.(u.name)}>
-            Add number
+            {t('ritual.confirmation.addNumberCta')}
           </button>
         </div>
       ))}
@@ -80,10 +87,9 @@ export default function RitualConfirmation({
       </div>
 
       {excluded.length > 0 && (
-        <div className={styles.excludedSection} aria-label="Excluded — requires your acknowledgment">
+        <div className={styles.excludedSection} aria-label={t('ritual.confirmation.excludedSectionAria')}>
           <p>
-            <strong>These contacts are excluded and need your acknowledgment</strong> — they are never
-            actionable and nothing will ever be sent to them automatically.
+            <strong>{t('ritual.confirmation.excludedHeading')}</strong> {t('ritual.confirmation.excludedBody')}
           </p>
           {excluded.map((item) => (
             <div key={item.contactId} className={styles.excludedItem}>
@@ -97,7 +103,7 @@ export default function RitualConfirmation({
                   className={`${styles.btn} ${styles.btnSecondary}`}
                   onClick={() => onAcknowledgeExcluded(item.contactId)}
                 >
-                  Acknowledge
+                  {t('ritual.confirmation.acknowledgeCta')}
                 </button>
               )}
             </div>
@@ -106,10 +112,9 @@ export default function RitualConfirmation({
       )}
 
       {needsJurisdiction.length > 0 && (
-        <div className={styles.excludedSection} aria-label="Needs their state on file">
+        <div className={styles.excludedSection} aria-label={t('ritual.confirmation.needsJurisdictionSectionAria')}>
           <p>
-            <strong>These contacts need their state on file</strong> — add it to move them into your
-            action queue. Not an exclusion — just missing information.
+            <strong>{t('ritual.confirmation.needsJurisdictionHeading')}</strong> {t('ritual.confirmation.needsJurisdictionBody')}
           </p>
           {needsJurisdiction.map((item) => (
             <div key={item.contactId} className={styles.excludedItem}>
@@ -124,7 +129,7 @@ export default function RitualConfirmation({
 
       <div className={styles.actions}>
         <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onHandToAgent}>
-          Hand to my agent
+          {t('ritual.confirmation.handToAgentCta')}
         </button>
       </div>
     </section>

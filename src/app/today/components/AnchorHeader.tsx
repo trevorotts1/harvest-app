@@ -8,16 +8,20 @@ import Grove from './Grove';
 import styles from '../today.module.css';
 import { MOMENTUM_CRITERION_LABEL } from '@/services/gamification/momentum-criteria';
 import type { HeaderZoneData, ZoneResult } from '@/services/mission-control/types';
+import { useT } from '@/app/locale-context';
 
 // T-32 QC fix (non-blocking item): 'quiet' previously read "At risk" here — an alarming label for
 // the SAME momentum band whose Grove caption (momentum.ts) is the deliberately gentle "Your field
 // is quiet — one small action wakes it up" (uiux §3.2 non-shaming states). "Quiet" reconciles the
 // two so the same state isn't narrated as calm in one place and alarming in the other.
-const BAND_LABEL: Record<string, string> = {
-  thriving: 'Thriving',
-  growing: 'Growing',
-  quiet: 'Quiet',
-  resting: 'Resting',
+//
+// T-R32b — routed through the catalog's existing (previously unused) `today.momentum.*` keys
+// instead of a hardcoded EN map, so this label is real ES under a Spanish locale too.
+const BAND_LABEL_KEY: Record<string, string> = {
+  thriving: 'today.momentum.thriving',
+  growing: 'today.momentum.growing',
+  quiet: 'today.momentum.quiet',
+  resting: 'today.momentum.resting',
 };
 
 export interface AnchorHeaderProps {
@@ -25,6 +29,7 @@ export interface AnchorHeaderProps {
 }
 
 export default function AnchorHeader({ result }: AnchorHeaderProps) {
+  const t = useT();
   const [receiptsOpen, setReceiptsOpen] = useState(false);
 
   if (result.status === 'error') {
@@ -36,49 +41,50 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
   }
 
   const { greetingName, momentum, groveState, groveCaption, groveBloomNarration, approvalInboxCount, momentumCriteria } = result.data;
-  const bandLabel = BAND_LABEL[momentum.band] ?? momentum.band;
+  const bandLabelKey = BAND_LABEL_KEY[momentum.band];
+  const bandLabel = bandLabelKey ? t(bandLabelKey) : momentum.band;
 
   return (
     <section className={styles.headerZone} data-zone="header">
       <div className={styles.headerTop}>
-        <h1 className={styles.greeting}>Good morning, {greetingName}</h1>
+        <h1 className={styles.greeting}>{t('today.greeting', { name: greetingName })}</h1>
         {/* T-32 QC fix (non-blocking item): was a bare `<button>` with no onClick — a no-op that
             looked actionable. This is a plain navigation link to the Approval Inbox (T-33's route;
             no T-33 code imported here). */}
         <a href="/inbox" className={styles.approvalBadge} aria-label={`Approval inbox, ${approvalInboxCount} waiting`}>
-          Approval Inbox
+          {t('nav.approvalInbox')}
           <span className={styles.approvalBadgeCount}>{approvalInboxCount}</span>
         </a>
         {/* WP08 (§13, uiux §5.5) — the reachability mandate: the Orchard/Grow surface must be
             linked from existing nav, not orphaned. Today's persistent header is the one element
             rendered on every visit to the app's primary landing page, so it is the anchor link. */}
-        <a href="/grow" className={styles.approvalBadge} aria-label="Open the Orchard">
-          Grow
+        <a href="/grow" className={styles.approvalBadge} aria-label={t('nav.orchardAria')}>
+          {t('nav.grow')}
         </a>
         {/* T-R28 (uiux AC-2-1's five-destination nav check) — Community had a real page
             (src/app/community/page.tsx) but no link anywhere in Today's component tree, unlike
             Grow (above) and Learn (WP07Panel.tsx). Same ad-hoc header-link pattern as the rest of
             this row. */}
-        <a href="/community" className={styles.approvalBadge} aria-label="Open Community">
-          Community
+        <a href="/community" className={styles.approvalBadge} aria-label={t('nav.communityAria')}>
+          {t('nav.community')}
         </a>
         {/* WP10 (T-47) — Me → Subscription entry (uiux §5.8). Plain nav link to the billing surface,
             matching the ad-hoc link pattern this header already uses for the Approval Inbox. */}
-        <a href="/me/subscription" className={styles.approvalBadge} aria-label="Subscription and billing">
-          Subscription
+        <a href="/me/subscription" className={styles.approvalBadge} aria-label={t('nav.subscriptionAria')}>
+          {t('nav.subscription')}
         </a>
         {/* T-R29 (compliance-reachability build, master-spec §16.3/§9 GDPR/CCPA data rights) — Me →
             Data & Privacy entry. T-51 found the data-rights export/deletion center built but
             unreachable (no route, no UI); this is the reachability fix, same ad-hoc nav-link
             pattern as Subscription above (no "Me" index page exists yet for either to live on). */}
-        <a href="/me/data-rights" className={styles.approvalBadge} aria-label="Data and privacy — export or delete your data">
-          Data & Privacy
+        <a href="/me/data-rights" className={styles.approvalBadge} aria-label={t('nav.dataPrivacyAria')}>
+          {t('nav.dataPrivacy')}
         </a>
         {/* T-53 (master-spec §17.5 / uiux §6.2 i18n) — Me → Language entry. Same ad-hoc header-link
             pattern as Subscription/Data & Privacy above (no "Me" index page exists yet for any of
             the three to live on). */}
-        <a href="/me/language" className={styles.approvalBadge} aria-label="Language settings">
-          Language
+        <a href="/me/language" className={styles.approvalBadge} aria-label={t('nav.languageAria')}>
+          {t('nav.language')}
         </a>
       </div>
 
@@ -111,13 +117,13 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
                   leaderboard/ranking view exists anywhere in this build. */}
               <p className={styles.receiptsTitle}>{momentumCriteria?.levelName ?? bandLabel}</p>
               <ul className={styles.receiptsList}>
-                <li>Grow: {momentum.laws.grow}</li>
-                <li>Engage: {momentum.laws.engage}</li>
-                <li>Wealth: {momentum.laws.wealth}</li>
+                <li>{t('today.laws.grow')}: {momentum.laws.grow}</li>
+                <li>{t('today.laws.engage')}: {momentum.laws.engage}</li>
+                <li>{t('today.laws.wealth')}: {momentum.laws.wealth}</li>
               </ul>
               {momentumCriteria && (
                 <>
-                  <p className={styles.receiptsTitle}>The ten criteria feeding your Grove</p>
+                  <p className={styles.receiptsTitle}>{t('today.criteriaHeading')}</p>
                   <ul className={styles.receiptsList}>
                     {(Object.keys(momentumCriteria.criteria) as (keyof typeof MOMENTUM_CRITERION_LABEL)[]).map((key) => (
                       <li key={key}>
@@ -128,7 +134,7 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
                 </>
               )}
               <a href="/today/momentum" className={styles.momentumButton}>
-                See the one action that helps most
+                {t('today.receiptsCta')}
               </a>
             </div>
           )}

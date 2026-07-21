@@ -28,17 +28,23 @@ import {
 } from '@/services/onboarding/wp01/tracks';
 
 import styles from '../onboarding.module.css';
+import { useT } from '@/app/locale-context';
 
-const LICENSE_LABEL: Record<LicensingState, string> = {
-  LICENSED: 'Cleared',
-  PRE_LICENSING: 'In pre-licensing',
-  UNLICENSED: 'Not started',
-  LICENSE_EXPIRED: 'Expired',
+// T-R32b — routed through the catalog's `onboarding.uplineTrack.license`/`.persona` keys instead of
+// a hardcoded EN map (same fix as AnchorHeader's momentum-band label): these are plain object
+// lookups (`LICENSE_LABEL[licensingState]`), never JSX text/attribute literals, so the
+// `guard-no-literals-in-components.mjs` scanner cannot see them — but they were still genuinely
+// un-i18n'd, unconditionally English even under an `es` locale.
+const LICENSE_LABEL_KEY: Record<LicensingState, string> = {
+  LICENSED: 'onboarding.uplineTrack.license.cleared',
+  PRE_LICENSING: 'onboarding.uplineTrack.license.prelicensing',
+  UNLICENSED: 'onboarding.uplineTrack.license.notStarted',
+  LICENSE_EXPIRED: 'onboarding.uplineTrack.license.expired',
 };
 
-const PERSONA_LABEL: Record<Persona, string> = {
-  rep: 'My rep setup',
-  upline: 'My team setup',
+const PERSONA_LABEL_KEY: Record<Persona, string> = {
+  rep: 'onboarding.uplineTrack.persona.rep',
+  upline: 'onboarding.uplineTrack.persona.upline',
 };
 
 export interface UplineTrackProps {
@@ -52,6 +58,7 @@ export interface UplineTrackProps {
 }
 
 export default function UplineTrack({ role, licensingState, onFinish, initialPersona = 'rep' }: UplineTrackProps) {
+  const t = useT();
   const isDual = role === Role.DUAL;
   const [persona, setPersona] = useState<Persona>(initialPersona);
   // Non-DUAL roles are unaffected: effectiveRole === role, exactly the pre-existing behavior.
@@ -63,11 +70,11 @@ export default function UplineTrack({ role, licensingState, onFinish, initialPer
 
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>Set up your team account</h1>
-      <p className={styles.lede}>A few required steps — this takes just a few minutes.</p>
+      <h1 className={styles.headline}>{t('onboarding.uplineTrack.headline')}</h1>
+      <p className={styles.lede}>{t('onboarding.uplineTrack.lede')}</p>
 
       {isDual ? (
-        <div className={styles.dial} role="radiogroup" aria-label="Persona">
+        <div className={styles.dial} role="radiogroup" aria-label={t('onboarding.uplineTrack.personaAriaLabel')}>
           {(['rep', 'upline'] as const).map((p) => {
             const isSel = persona === p;
             return (
@@ -79,7 +86,7 @@ export default function UplineTrack({ role, licensingState, onFinish, initialPer
                 className={`${styles.dialPos} ${isSel ? styles.dialPosSelected : ''}`}
                 onClick={() => setPersona(p)}
               >
-                {PERSONA_LABEL[p]}
+                {t(PERSONA_LABEL_KEY[p])}
               </button>
             );
           })}
@@ -98,14 +105,14 @@ export default function UplineTrack({ role, licensingState, onFinish, initialPer
             return (
               <li key={step.key} className={styles.denseStep}>
                 <span>{step.label}</span>
-                <span className={chipClass}>{LICENSE_LABEL[licensingState]}</span>
+                <span className={chipClass}>{t(LICENSE_LABEL_KEY[licensingState])}</span>
               </li>
             );
           }
           return (
             <li key={step.key} className={styles.denseStep}>
               <span>{step.label}</span>
-              <span className={styles.caption}>Required</span>
+              <span className={styles.caption}>{t('onboarding.uplineTrack.requiredLabel')}</span>
             </li>
           );
         })}
@@ -113,18 +120,18 @@ export default function UplineTrack({ role, licensingState, onFinish, initialPer
 
       {blocked ? (
         <div className={styles.blockHelp} role="alert">
-          <p className={styles.label}>We can&rsquo;t finish setup until your license clears.</p>
-          <p>Here&rsquo;s who to contact — we&rsquo;ll route you to the compliance advisory team.</p>
+          <p className={styles.label}>{t('onboarding.uplineTrack.blockedTitle')}</p>
+          <p>{t('onboarding.uplineTrack.blockedBody')}</p>
           <div className={styles.actions}>
             <a className={`${styles.btn} ${styles.btnSecondary}`} href={COMPLIANCE_ADVISORY_ROUTE}>
-              Contact compliance
+              {t('onboarding.uplineTrack.contactComplianceCta')}
             </a>
           </div>
         </div>
       ) : (
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onFinish}>
-            Finish setup
+            {t('onboarding.uplineTrack.finishSetupCta')}
           </button>
         </div>
       )}
