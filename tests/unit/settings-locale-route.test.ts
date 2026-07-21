@@ -112,7 +112,7 @@ describe('PATCH /api/settings/locale', () => {
     mockedSession.mockResolvedValue(fakeSession({ id: 'user-xyz' }));
     mockedUpdate.mockResolvedValue({});
 
-    const res = await PATCH(patchRequest({ locale: 'es' }));
+    const res = await PATCH(patchRequest({ locale: 'es' }), {});
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, locale: 'es' });
     expect(mockedUpdate).toHaveBeenCalledWith({ where: { id: 'user-xyz' }, data: { locale: 'es' } });
@@ -122,21 +122,21 @@ describe('PATCH /api/settings/locale', () => {
     mockedSession.mockResolvedValue(fakeSession());
     mockedUpdate.mockResolvedValue({});
 
-    const res = await PATCH(patchRequest({ locale: 'en' }));
+    const res = await PATCH(patchRequest({ locale: 'en' }), {});
     expect(res.status).toBe(200);
     expect(mockedUpdate).toHaveBeenCalledWith({ where: { id: 'real-session-user' }, data: { locale: 'en' } });
   });
 
   test('an unsupported locale (e.g. "fr") -> 400, never reaches Prisma', async () => {
     mockedSession.mockResolvedValue(fakeSession());
-    const res = await PATCH(patchRequest({ locale: 'fr' }));
+    const res = await PATCH(patchRequest({ locale: 'fr' }), {});
     expect(res.status).toBe(400);
     expect(mockedUpdate).not.toHaveBeenCalled();
   });
 
   test('a missing/malformed body -> 400, never reaches Prisma', async () => {
     mockedSession.mockResolvedValue(fakeSession());
-    const res = await PATCH(patchRequest({}));
+    const res = await PATCH(patchRequest({}), {});
     expect(res.status).toBe(400);
     expect(mockedUpdate).not.toHaveBeenCalled();
   });
@@ -145,7 +145,7 @@ describe('PATCH /api/settings/locale', () => {
     mockedSession.mockResolvedValue(fakeSession({ id: 'real-user' }));
     mockedUpdate.mockResolvedValue({});
 
-    await PATCH(patchRequest({ locale: 'es' }, { 'x-user-id': 'attacker-controlled-id' }));
+    await PATCH(patchRequest({ locale: 'es' }, { 'x-user-id': 'attacker-controlled-id' }), {});
     expect(mockedUpdate).toHaveBeenCalledWith({ where: { id: 'real-user' }, data: { locale: 'es' } });
   });
 });

@@ -7,6 +7,7 @@
 import type { ClaudeClassifierClient, ClassifierRequest } from '@/services/compliance/claude';
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { ClassifierVerdict } from '@/types/compliance';
+import { SAFE_HARBOR_DISCLAIMERS, SAFE_HARBOR_DISCLAIMERS_ES } from '@/types/compliance';
 import { Role } from '@prisma/client';
 
 import {
@@ -557,5 +558,77 @@ describe('ApprovalInboxService.editDraft — edit ALWAYS re-enters the CFE (§9.
     const result = await service.editDraft('u-1', 'd-1', 'anything', Role.REP);
     expect(result).toEqual({ ok: false, reason: 'not_found' });
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// (e) T-53 (master-spec §17.5 / uiux §6.2) — THE COMPOSER'S PER-DRAFT SPANISH CFE DOORWAY.
+// `editDraft`'s optional 5th argument is the ONLY production plumbing that lets a rep flip a
+// draft's `CFEInput.language` to 'es' (the API route `/api/approval-inbox/edit` is the live HTTP
+// call site — see tests/unit/approval-inbox-routes.test.ts for the route-level reachability proof).
+// These are REAL end-to-end `ComplianceFilterEngine` calls (same `SingleClassifierClient` double
+// `flaggedCFE()` above uses), not a mocked `evaluateContent` — proving Spanish outbound content
+// edited through the Approval Inbox is genuinely classified + gated as Spanish, not just plumbing
+// that no caller exercises.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+describe("ApprovalInboxService.editDraft — T-53 the composer's per-draft language toggle reaches the CFE", () => {
+  const incomeClaimCfe = () =>
+    new ComplianceFilterEngine({ classifierClient: new SingleClassifierClient('INCOME_CLAIM', 0.9) });
+
+  test("TEETH: language: 'es' on an edit flows to CFEInput.language — a Spanish income-claim edit is auto-BLOCKED with the SPANISH safe-harbor disclaimer, not the English one", async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'PASS', cfe_risk_score: 3 })];
+    const { client } = createFakeApprovalInboxPrisma(rows);
+    const cfe = incomeClaimCfe();
+    const spy = jest.spyOn(cfe, 'evaluateContent');
+    const service = new ApprovalInboxService(client, cfe);
+
+    const result = await service.editDraft(
+      'u-1',
+      'd-1',
+      'Te garantizo ingresos de $10,000 al mes.',
+      Role.REP,
+      'es'
+    );
+
+    // The re-entry call genuinely carried the per-draft language toggle through to the engine.
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ language: 'es' }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.verdict.band).toBe('blocked'); // income_auto_block(>=0.8), language-independent
+      expect(result.draft.approval_state).toBe('HELD');
+      expect(result.verdict.safeHarbor.disclaimers).toContain(SAFE_HARBOR_DISCLAIMERS_ES.income);
+      expect(result.verdict.safeHarbor.disclaimers).not.toContain(SAFE_HARBOR_DISCLAIMERS.income);
+    }
+  });
+
+  test('the SAME edit call, omitting `language`, defaults to the ENGLISH disclaimer — proves the toggle genuinely selects the language rather than always defaulting to Spanish', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING', cfe_outcome: 'PASS', cfe_risk_score: 3 })];
+    const { client } = createFakeApprovalInboxPrisma(rows);
+    const cfe = incomeClaimCfe();
+    const spy = jest.spyOn(cfe, 'evaluateContent');
+    const service = new ApprovalInboxService(client, cfe);
+
+    // Deliberately no 5th argument — the pre-T-53 call shape.
+    const result = await service.editDraft('u-1', 'd-1', 'I guarantee $10,000 a month income.', Role.REP);
+
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ language: undefined }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.verdict.safeHarbor.disclaimers).toContain(SAFE_HARBOR_DISCLAIMERS.income);
+      expect(result.verdict.safeHarbor.disclaimers).not.toContain(SAFE_HARBOR_DISCLAIMERS_ES.income);
+    }
+  });
+
+  test('a clean Spanish edit (no doctrine/classifier signal) still stays PENDING/clear — Spanish is not held merely for being Spanish, even through this real call path', async () => {
+    const rows = [draft({ id: 'd-1', approval_state: 'PENDING' })];
+    const { client } = createFakeApprovalInboxPrisma(rows);
+    const service = new ApprovalInboxService(client, clearCFE());
+
+    const result = await service.editDraft('u-1', 'd-1', 'Qué gusto verte el sábado — ¿almorzamos pronto?', Role.REP, 'es');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.verdict.band).toBe('clear');
+      expect(result.draft.approval_state).toBe('PENDING');
+    }
   });
 });

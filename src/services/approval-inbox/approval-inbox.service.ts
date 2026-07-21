@@ -36,7 +36,7 @@
 import { PrismaClient, Role } from '@prisma/client';
 
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
-import type { Channel, CFEVerdict } from '@/types/compliance';
+import type { Channel, CFEVerdict, ContentLanguage } from '@/types/compliance';
 import { CFE_RULE_VERSION } from '@/types/compliance';
 import type { ApprovalState, PersistedCfeOutcome, PersistedChannel } from '@/services/agent-runtime';
 import {
@@ -323,8 +323,22 @@ export class ApprovalInboxService {
    * hasn't already been re-evaluated. A verdict that is held or banded `blocked` sets
    * `approval_state: 'HELD'` (fail-closed) rather than `PENDING`, so a now-non-compliant edit can
    * never be approved. Terminal (DECLINED) drafts cannot be edited — start a new draft instead.
+   *
+   * T-53 (master-spec §17.5 / uiux §6.2) — THE COMPOSER'S PER-DRAFT LANGUAGE TOGGLE: this is the
+   * one place a rep actually composes/revises a draft's text before it can send, so it is the real
+   * doorway for `CFEInput.language`. `language` is optional and independent of the rep's own
+   * workspace ("Me -> Language") preference — a rep can work the app in English and edit THIS draft
+   * into Spanish (or vice-versa); omitting it keeps the pre-T-53 behavior byte-identical (defaults
+   * to 'en' inside the engine). The route (`/api/approval-inbox/edit`) is the live call site that
+   * lets a rep flip this per edit.
    */
-  async editDraft(userId: string, draftId: string, newBody: string, role: Role = Role.REP): Promise<EditResult> {
+  async editDraft(
+    userId: string,
+    draftId: string,
+    newBody: string,
+    role: Role = Role.REP,
+    language?: ContentLanguage
+  ): Promise<EditResult> {
     if (typeof newBody !== 'string' || newBody.trim().length === 0) {
       return { ok: false, reason: 'empty_body' };
     }
@@ -344,6 +358,7 @@ export class ApprovalInboxService {
       content: newBody,
       channel: cfeChannelForPersisted(draft.channel),
       userContext: { user_id: userId, role, content_id: draftId },
+      language,
     });
 
     const held = verdict.held || verdict.band === 'blocked';

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "npm run verify:middleware && npm run verify:api-auth && npm run verify:contrast && npm run guard:no-opacity-on-text && npm run guard:migration-drift && npm run guard:i18n",
+    "postbuild": "npm run verify:middleware && npm run verify:api-auth && npm run verify:contrast && npm run guard:no-opacity-on-text && npm run guard:migration-drift && npm run guard:i18n && npm run guard:no-literals-in-components",
     "verify:middleware": "node scripts/verify-middleware.mjs",
     "verify:api-auth": "node scripts/verify-api-auth.mjs",
     "start": "next start",
@@ -14,6 +14,7 @@
     "guard:no-opacity-on-text": "node scripts/guard-no-opacity-on-text.mjs",
     "guard:migration-drift": "node scripts/guard-migration-drift.mjs",
     "guard:i18n": "node scripts/guard-i18n.mjs",
+    "guard:no-literals-in-components": "node scripts/guard-no-literals-in-components.mjs",
     "verify:rendered-contrast": "node scripts/verify-rendered-contrast.mjs",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",

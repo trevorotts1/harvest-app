@@ -24,6 +24,7 @@ import { GET as inboxGET } from '@/app/api/approval-inbox/route';
 import { POST as approvePOST } from '@/app/api/approval-inbox/approve/route';
 import { POST as declinePOST } from '@/app/api/approval-inbox/decline/route';
 import { POST as editPOST } from '@/app/api/approval-inbox/edit/route';
+import { ComplianceFilterEngine } from '@/services/compliance/engine';
 
 const mockedSession = getCurrentSession as jest.MockedFunction<typeof getCurrentSession>;
 const mockedUserFindUnique = (prisma as unknown as { user: { findUnique: jest.Mock } }).user.findUnique;
@@ -404,5 +405,95 @@ describe('POST /api/approval-inbox/edit', () => {
     const res = await editPOST(postRequest('/api/approval-inbox/edit', { draftId: 'victim-draft', body: 'x' }), {});
     expect(res.status).toBe(404);
     expect(mockedDraftUpdate).not.toHaveBeenCalled();
+  });
+
+  // T-53 (master-spec §17.5 / uiux §6.2) — THE REAL PRODUCTION REACHABILITY PROOF: this route is
+  // the one live HTTP call site for the composer's per-draft language toggle. These tests drive the
+  // ACTUAL route handler (not the engine unit, not the service unit) and observe the REAL
+  // (non-test-double) `ComplianceFilterEngine.evaluateContent` the route constructs internally,
+  // proving an optional `language` field on the request body genuinely reaches `CFEInput.language`.
+  describe("POST /api/approval-inbox/edit — T-53 the composer's per-draft language toggle", () => {
+    test("TEETH: a request body with language: 'es' reaches the REAL CFE's evaluateContent call with language: 'es' — the doorway is genuinely wired, not dead plumbing", async () => {
+      mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+      seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+      mockedDraftFindFirst.mockResolvedValue({
+        id: 'd-1',
+        user_id: 'real-session-user',
+        contact_id: 'c-1',
+        channel: 'SMS_HANDOFF',
+        body: 'original text',
+        approval_state: 'PENDING',
+        edited_after_approval: false,
+      });
+      mockedDraftUpdate.mockImplementation(async ({ data }) => ({
+        id: 'd-1',
+        user_id: 'real-session-user',
+        approval_state: data.approval_state,
+        cfe_outcome: data.cfe_outcome,
+        ...data,
+      }));
+
+      const spy = jest.spyOn(ComplianceFilterEngine.prototype, 'evaluateContent');
+      try {
+        const res = await editPOST(
+          postRequest('/api/approval-inbox/edit', {
+            draftId: 'd-1',
+            body: 'Te garantizo ingresos de $10,000 al mes.',
+            language: 'es',
+          }),
+          {}
+        );
+        // Key-less test env => real CFE fails closed (HELD) — irrelevant to what's under test here:
+        // the route reached the real engine at all, carrying the language toggle through.
+        expect(res.status).toBe(200);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy.mock.calls[0][0]).toEqual(expect.objectContaining({ language: 'es' }));
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    test('omitting `language` entirely still reaches the real CFE, with `language: undefined` — the pre-T-53 shape keeps working byte-identically', async () => {
+      mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+      seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+      mockedDraftFindFirst.mockResolvedValue({
+        id: 'd-1',
+        user_id: 'real-session-user',
+        contact_id: 'c-1',
+        channel: 'SMS_HANDOFF',
+        body: 'original text',
+        approval_state: 'PENDING',
+        edited_after_approval: false,
+      });
+      mockedDraftUpdate.mockImplementation(async ({ data }) => ({ id: 'd-1', user_id: 'real-session-user', ...data }));
+
+      const spy = jest.spyOn(ComplianceFilterEngine.prototype, 'evaluateContent');
+      try {
+        const res = await editPOST(postRequest('/api/approval-inbox/edit', { draftId: 'd-1', body: 'an edited message' }), {});
+        expect(res.status).toBe(200);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy.mock.calls[0][0]).toEqual(expect.objectContaining({ language: undefined }));
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    test('TEETH: an unsupported `language` (e.g. "fr") is rejected 400 before any Prisma/CFE call — never silently coerced/ignored', async () => {
+      mockedSession.mockResolvedValue(fakeSession({ id: 'real-session-user' }));
+      seedOnboarding(OnboardingStatus.GATED_COMPLETE);
+
+      const spy = jest.spyOn(ComplianceFilterEngine.prototype, 'evaluateContent');
+      try {
+        const res = await editPOST(
+          postRequest('/api/approval-inbox/edit', { draftId: 'd-1', body: 'x', language: 'fr' }),
+          {}
+        );
+        expect(res.status).toBe(400);
+        expect(mockedDraftFindFirst).not.toHaveBeenCalled();
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    });
   });
 });
