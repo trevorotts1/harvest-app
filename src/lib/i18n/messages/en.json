@@ -1212,11 +1212,28 @@
         "importCsvCta": "Import a CSV",
         "addManuallyCta": "Add one at a time",
         "importFailedGeneric": "Could not import that file — please try again.",
-        "dragDropHint": "Drag a CSV file here, or use the button above."
+        "dragDropHint": "Drag a CSV file here, or use the button above.",
+        "nativeImportFailedGeneric": "We couldn’t read your phone’s contacts just now. Try again, or use CSV / add one at a time."
       },
       "permission": {
         "headline": "Bringing in your community…",
         "lede": "Allow access and we’ll organize everyone into plots."
+      },
+      "select": {
+        "headline": "Choose who to bring in",
+        "lede": "Pick the contacts you’d like to add to your community.",
+        "emptyState": "We couldn’t find any importable contacts on this device.",
+        "selectAllCta": "Select all",
+        "deselectAllCta": "Deselect all",
+        "duplicateLabel": "Already in your community",
+        "importingCta": "Importing…",
+        "importCtaOne": "Import {count} contact",
+        "importCtaMany": "Import {count} contacts",
+        "cancelCta": "Cancel"
+      },
+      "unsupported": {
+        "headline": "Phone import isn’t available here",
+        "lede": "Importing from your phone only works in the Harvest app. Use CSV or add contacts one at a time."
       },
       "csvFileInputAria": "Choose a CSV file to import"
     },

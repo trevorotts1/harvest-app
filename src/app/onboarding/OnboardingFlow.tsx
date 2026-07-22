@@ -14,7 +14,15 @@ import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'rea
 
 import { useLocale } from '@/app/locale-context';
 import { errorDisplay } from '@/lib/i18n/error-display';
+import {
+  isNativeContactsPlatform,
+  nativeClientPlatform,
+  nativeContactSourceForPlatform,
+  nativeContactsPlugin,
+} from '@/lib/native/capacitor-contacts';
 import { MAX_IMPORT_ROWS } from '@/services/warm-market/vault/csv-parser';
+import type { NativeContactCandidate } from '@/services/warm-market/vault/native-contacts-adapter';
+import { runNativeContactsDiscovery } from '@/services/warm-market/vault/native-import-flow';
 import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
@@ -103,6 +111,15 @@ export default function OnboardingFlow({
   // idempotency) — cleared once the attempt actually completes so a later, separate file selection
   // mints a fresh key rather than silently reusing a stale one.
   const csvIdempotencyKeyRef = useRef<string | null>(null);
+  // T-58 — the REAL "Import from Phone" state. `onRequestPermission` used to just do
+  // `setContactCount(24)` with no OS permission ever asked and no device contact ever read (see
+  // `handleRequestNativeContacts` below for the real permission-gated device read + selection list
+  // this replaces it with).
+  const [nativeCandidates, setNativeCandidates] = useState<NativeContactCandidate[]>([]);
+  const [nativeSelectedIds, setNativeSelectedIds] = useState<Set<string>>(new Set());
+  const [nativeImporting, setNativeImporting] = useState(false);
+  const [nativeImportError, setNativeImportError] = useState<string | null>(null);
+  const nativeIdempotencyKeyRef = useRef<string | null>(null);
   // T-21R (§6.10-10) — GDPR consent capture: an explicit affirmative act, defaults OFF. Granting
   // calls the session-authenticated `/api/onboarding/consent` route, which is what actually invokes
   // WP11's `ConsentManager` and sets `User.gdpr_consent = true` (this local state is only the UI's
@@ -238,6 +255,157 @@ export default function OnboardingFlow({
     await processCsvFile(file);
   }
 
+  // T-58 — the real "Import from Phone" dedupe surface: the rep's already-imported Vault contacts'
+  // normalized phone/email (never full PII — see the route's own doc comment), read BEFORE the
+  // device contacts so `native-contacts-adapter.ts`'s dedupe can flag a candidate the rep already
+  // has. A failed/unreachable fetch degrades to "no known existing contacts" (nothing is marked a
+  // duplicate) rather than blocking the import attempt — dedupe is a UX nicety here; the SERVER'S own
+  // merge-on-duplicate (VaultService.upsertRow) is the actual authority and never skipped.
+  async function fetchExistingContactKeys(): Promise<{ phone: string | null; email: string | null }[]> {
+    try {
+      const response = await fetch('/api/onboarding/contacts-import');
+      if (!response.ok) return [];
+      const body = (await response.json()) as { contacts?: { phone: string | null; email: string | null }[] };
+      return body.contacts ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  // T-58 — the REAL "Connect my contacts" handler, replacing the old
+  // `onRequestPermission={() => { setContactCount(24); advance(); }}` fake (no permission ever
+  // asked, no device contact ever read). Three fail-closed branches, matching
+  // `native-import-flow.ts`'s `NativeImportOutcome`:
+  //   - not a native shell at all → 'unsupported' beat, the plugin is never even called (its own web
+  //     fallback throws `unimplemented` for every method — this never gives it the chance to).
+  //   - OS permission never resolves granted/limited → 'denied' beat, CSV/manual fallback offered,
+  //     NO contact is read let alone created.
+  //   - granted → the real device read, mapped + deduped, presented on the 'select' beat for the
+  //     rep to choose from; nothing is imported until `handleConfirmNativeImport` fires.
+  async function handleRequestNativeContacts() {
+    setNativeImportError(null);
+    const isNative = isNativeContactsPlatform();
+    if (!isNative) {
+      setImportBeat('unsupported');
+      return;
+    }
+
+    setImportBeat('permission');
+    const existing = await fetchExistingContactKeys();
+    const outcome = await runNativeContactsDiscovery({
+      isNativePlatform: isNative,
+      plugin: nativeContactsPlugin,
+      existing,
+    });
+
+    if (outcome.kind === 'unsupported') {
+      setImportBeat('unsupported');
+      return;
+    }
+    if (outcome.kind === 'denied') {
+      setImportBeat('denied');
+      return;
+    }
+    if (outcome.kind === 'error') {
+      setNativeImportError(t('onboarding.contactImport.denied.nativeImportFailedGeneric'));
+      setImportBeat('denied');
+      return;
+    }
+
+    setNativeCandidates(outcome.candidates);
+    // Pre-check every NON-duplicate candidate (the common case: a first-time import) — a flagged
+    // duplicate is still shown (never hidden) but starts unchecked, since it's very likely already
+    // in the rep's community; the rep can still check it (harmless — the server merges safely).
+    setNativeSelectedIds(new Set(outcome.candidates.filter((c) => !c.isDuplicate).map((c) => c.contactId)));
+    setImportBeat('select');
+  }
+
+  function handleToggleNativeCandidate(contactId: string) {
+    setNativeSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactId)) next.delete(contactId);
+      else next.add(contactId);
+      return next;
+    });
+  }
+
+  function handleSelectAllNative() {
+    setNativeSelectedIds(new Set(nativeCandidates.map((c) => c.contactId)));
+  }
+
+  function handleDeselectAllNative() {
+    setNativeSelectedIds(new Set());
+  }
+
+  function handleCancelNativeSelection() {
+    setNativeCandidates([]);
+    setNativeSelectedIds(new Set());
+    setNativeImportError(null);
+    setImportBeat('preview');
+  }
+
+  // T-58 — the rep's explicit "import these" confirmation. POSTs ONLY the checked candidates'
+  // already-mapped rows to the real onboarding-time ingestion route (same Vault pipeline as CSV —
+  // AES-256-GCM encryption, keyed-HMAC dedupe, minors gate). `contactCount` is set from the route's
+  // actual `importedCount + mergedCount`, never a fake constant.
+  async function handleConfirmNativeImport() {
+    const selectedRows = nativeCandidates
+      .filter((c) => nativeSelectedIds.has(c.contactId))
+      .map((c) => c.row);
+    if (selectedRows.length === 0) return;
+
+    const clientPlatform = nativeClientPlatform();
+    const source = nativeContactSourceForPlatform(clientPlatform);
+    if (!source) {
+      // Web can never reach a real 'select' beat (handleRequestNativeContacts routes it to
+      // 'unsupported' first) — this is an unreachable-in-practice belt-and-suspenders check, never a
+      // silent import under a forged/invalid source.
+      setNativeImportError(t('onboarding.contactImport.denied.nativeImportFailedGeneric'));
+      setImportBeat('unsupported');
+      return;
+    }
+
+    setNativeImporting(true);
+    setNativeImportError(null);
+    if (!nativeIdempotencyKeyRef.current) {
+      nativeIdempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `native-import-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    try {
+      const response = await fetch('/api/onboarding/contacts-import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          source,
+          contacts: selectedRows,
+          clientPlatform,
+          idempotencyKey: nativeIdempotencyKeyRef.current,
+        }),
+      });
+      const body = await response.json().catch(() => ({}) as { code?: string });
+      if (!response.ok) {
+        setNativeImportError(errorDisplay(t, (body as { code?: string }).code, { maxRows: MAX_IMPORT_ROWS }));
+        setImportBeat('denied');
+        return;
+      }
+      // This attempt is done — a later, separate device read/selection mints a fresh idempotency key.
+      nativeIdempotencyKeyRef.current = null;
+      const result = body as { importedCount?: number; mergedCount?: number };
+      setContactCount((result.importedCount ?? 0) + (result.mergedCount ?? 0));
+      setNativeCandidates([]);
+      setNativeSelectedIds(new Set());
+      advance();
+    } catch {
+      setNativeImportError(t('onboarding.contactImport.denied.nativeImportFailedGeneric'));
+      setImportBeat('denied');
+    } finally {
+      setNativeImporting(false);
+    }
+  }
+
   // T-57 C5 (uiux §6.3 "Full" desktop parity) — the drag-and-drop CSV drop zone. The affordance
   // itself is CSS-gated to pointer-capable/wide viewports (`.csvDropZone`'s `display: none` default,
   // lifted only under `(hover: hover) and (pointer: fine) and (min-width: 860px)` in
@@ -367,10 +535,9 @@ export default function OnboardingFlow({
           <ContactImportStep
             beat={importBeat}
             onAdvance={() => (importBeat === 'value' ? setImportBeat('preview') : advance())}
-            onRequestPermission={() => {
-              setContactCount(24);
-              advance();
-            }}
+            // T-58: the REAL permission-gated device-contacts flow — no more faked contactCount=24.
+            // See handleRequestNativeContacts's own doc comment for the three fail-closed branches.
+            onRequestPermission={handleRequestNativeContacts}
             onDeny={() => setImportBeat('denied')}
             // T-R30 (parity GAP 1): opens the REAL OS file picker — no more faked contactCount.
             // `handleCsvFileSelected` (the input's onChange, below) does the actual read+import.
@@ -381,6 +548,15 @@ export default function OnboardingFlow({
             }}
             csvImporting={csvImporting}
             csvError={csvError}
+            nativeCandidates={nativeCandidates}
+            nativeSelectedIds={nativeSelectedIds}
+            onToggleNativeCandidate={handleToggleNativeCandidate}
+            onSelectAllNative={handleSelectAllNative}
+            onDeselectAllNative={handleDeselectAllNative}
+            onConfirmNativeImport={handleConfirmNativeImport}
+            onCancelNativeSelection={handleCancelNativeSelection}
+            nativeImporting={nativeImporting}
+            nativeImportError={nativeImportError}
           />
           {/* T-57 C5 (uiux §6.3 "Full" desktop parity) — drag-and-drop CSV zone, additive alongside
               the "Import a CSV" button above (never a replacement — the button is the only CSV path

@@ -117,3 +117,37 @@ notifications (APNs/FCM), haptics, and share-sheet plugins still need to be adde
 (`@capacitor/*` official plugins or equivalents) and wired to the web app's existing contact-
 import surface — that is out of scope for this unit (native contacts import is explicitly a
 LATER unit per this build's brief) and is not attempted here.
+
+## T-58 update — native contacts import: JS/plugin layer done, native project scaffolding still deferred
+
+T-58 closed the "native contacts import" deferral this file names above, at the layer that build
+environment could actually reach: the `@capacitor-community/contacts` plugin dependency is now
+installed (`package.json`, pinned `8.0.0` alongside `@capacitor/core`/`@capacitor/cli`'s own
+`8.4.2` pin), and the real permission-gated read → map → dedupe → rep-selected-list → Vault-ingest
+flow is wired end-to-end, replacing `OnboardingFlow.tsx`'s old fake `onRequestPermission` (which
+did `setContactCount(24)` with no OS permission ever asked and no device contact ever read). See:
+
+- `src/lib/native/capacitor-contacts.ts` — the one seam touching the real `@capacitor/core`
+  (`Capacitor.isNativePlatform()`/`getPlatform()`) + plugin bridge.
+- `src/services/warm-market/vault/native-contacts-adapter.ts` — mapping + dedupe, citing the
+  plugin's own shipped `definitions.d.ts` field names.
+- `src/services/warm-market/vault/native-import-flow.ts` — the plugin-injected orchestration
+  (permission check/request → device read), fully unit-testable without a native runtime.
+- `src/app/onboarding/components/ContactImportStep.tsx`'s new `'select'`/`'unsupported'` beats +
+  `src/app/onboarding/OnboardingFlow.tsx`'s `handleRequestNativeContacts`/
+  `handleConfirmNativeImport`.
+- `/api/onboarding/contacts-import` now also accepts `source: IOS_NATIVE | ANDROID_NATIVE` (plus a
+  new `GET` dedupe surface) — same Vault pipeline as CSV, still session-gated only (see that
+  route's own file header for why, unchanged from the CSV-only version).
+
+**Still deferred, unchanged from this file's original scope note above:** no `ios/`/`android/`
+native project directories exist in this repo (`cap add ios`/`cap add android` still not run — no
+Xcode/Android Studio toolchain in this build environment), so the plugin's REQUIRED native-side
+permission-usage declarations — iOS `Info.plist`'s `NSContactsUsageDescription` string, Android's
+`READ_CONTACTS` manifest permission — have no native project to be added to yet. An operator
+running `cap add ios`/`cap add android` on a machine with the native toolchains (see "Next steps"
+above) must add those two declarations before the real OS permission prompt this build's code
+calls into (`Contacts.requestPermissions()`) will actually show anything on a physical device or
+simulator — without them, iOS in particular will crash the app on the permission request rather
+than prompt. This is a native-project-manifest step with nothing in this repo to attach it to
+today, not an oversight of this unit's own scope.

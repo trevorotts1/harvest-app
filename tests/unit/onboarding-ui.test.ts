@@ -40,6 +40,7 @@ import VisionSplash from '@/app/onboarding/components/VisionSplash';
 import UplineTrack from '@/app/onboarding/components/UplineTrack';
 import { resumeScreen } from '@/app/onboarding/flow-model';
 import { t as catalogT } from '@/lib/i18n/catalog';
+import type { NativeContactCandidate } from '@/services/warm-market/vault/native-contacts-adapter';
 
 import { buildOrgContext } from '@/services/onboarding/wp01/org-gate';
 import {
@@ -632,6 +633,121 @@ describe('T-R30 gap (GAP 1): O-7 ContactImportStep surfaces real CSV-import prog
     const html = render(createElement(ContactImportStep, { beat: 'value', csvImporting: true, csvError: 'x' }));
     expect(html).not.toMatch(/role="alert"/);
     expect(textOf(html)).not.toMatch(/importing|import a csv/i);
+  });
+});
+
+// ─── T-58 — O-7 ContactImportStep's REAL "Import from Phone" beats, replacing the fake
+// `onRequestPermission={() => setContactCount(24)}` success path. Proves: an honest empty state
+// (never a fabricated list), real checkbox selection state, the duplicate label, the web
+// fail-closed ('unsupported') beat, and the distinct native-error message on 'denied' (never
+// conflated with a plain permission refusal, which shows no error text at all).
+describe('T-58: O-7 ContactImportStep — real device-contacts selection list + web/error fail-closed beats', () => {
+  const CANDIDATES: NativeContactCandidate[] = [
+    { contactId: 'c-1', row: { name: 'Jane Doe', phone: '312-555-0100', email: null, notes: null, industry: null, birthdate: null }, isDuplicate: false },
+    { contactId: 'c-2', row: { name: 'Andre Bell', phone: null, email: 'andre@example.com', notes: null, industry: null, birthdate: null }, isDuplicate: true },
+  ];
+
+  test('"select" beat with an EMPTY candidate list renders the honest empty state — no checkboxes, no fabricated rows', () => {
+    const html = render(createElement(ContactImportStep, { beat: 'select', nativeCandidates: [] }));
+    expect(textOf(html)).toMatch(/couldn.t find any importable contacts/i);
+    expect(html).not.toMatch(/<input[^>]*type="checkbox"/);
+  });
+
+  test('"select" beat with real candidates renders one checkbox row per candidate, reflecting the caller\'s selected-ids set', () => {
+    const html = render(
+      createElement(ContactImportStep, {
+        beat: 'select',
+        nativeCandidates: CANDIDATES,
+        nativeSelectedIds: new Set(['c-1']),
+      })
+    );
+    expect(textOf(html)).toContain('Jane Doe');
+    expect(textOf(html)).toContain('Andre Bell');
+    // c-1 is checked, c-2 is not — proves the checkbox state is driven by the caller's prop, not a
+    // fixed default.
+    const checkboxes = html.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? [];
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes[0]).toMatch(/checked=""/);
+    expect(checkboxes[1]).not.toMatch(/checked=""/);
+  });
+
+  test('a duplicate candidate is labeled, not hidden — the rep can still see and select it', () => {
+    const html = render(
+      createElement(ContactImportStep, { beat: 'select', nativeCandidates: CANDIDATES, nativeSelectedIds: new Set<string>() })
+    );
+    expect(textOf(html)).toMatch(/already in your community/i);
+  });
+
+  test('the import CTA is disabled with zero selected, and pluralizes correctly at exactly one selected', () => {
+    const zeroSelected = render(
+      createElement(ContactImportStep, { beat: 'select', nativeCandidates: CANDIDATES, nativeSelectedIds: new Set<string>() })
+    );
+    const zeroButtonHtml = zeroSelected.match(/<button[^>]*>\s*Import[^<]*<\/button>/)?.[0] ?? '';
+    expect(zeroButtonHtml).toMatch(/disabled/);
+
+    const oneSelected = render(
+      createElement(ContactImportStep, { beat: 'select', nativeCandidates: CANDIDATES, nativeSelectedIds: new Set(['c-1']) })
+    );
+    expect(textOf(oneSelected)).toContain('Import 1 contact');
+    expect(textOf(oneSelected)).not.toContain('Import 1 contacts');
+
+    const twoSelected = render(
+      createElement(ContactImportStep, {
+        beat: 'select',
+        nativeCandidates: CANDIDATES,
+        nativeSelectedIds: new Set(['c-1', 'c-2']),
+      })
+    );
+    expect(textOf(twoSelected)).toContain('Import 2 contacts');
+  });
+
+  test('nativeImporting=true relabels the import CTA "Importing…" and disables it against a double-submit', () => {
+    const html = render(
+      createElement(ContactImportStep, {
+        beat: 'select',
+        nativeCandidates: CANDIDATES,
+        nativeSelectedIds: new Set(['c-1']),
+        nativeImporting: true,
+      })
+    );
+    expect(textOf(html)).toContain('Importing…');
+    const button = html.match(/<button[^>]*>\s*Importing…\s*<\/button>/)?.[0] ?? '';
+    expect(button).toMatch(/disabled/);
+  });
+
+  test('"unsupported" (web fail-closed) beat offers the SAME CSV/manual fallback as "denied", with its own honest headline', () => {
+    const html = render(createElement(ContactImportStep, { beat: 'unsupported' }));
+    expect(textOf(html)).toMatch(/isn.t available here/i);
+    expect(textOf(html)).toContain('Import a CSV');
+    expect(textOf(html)).toContain('Add one at a time');
+  });
+
+  test('"denied" beat with nativeImportError set surfaces it as a DISTINCT alert from csvError — both can render, never conflated', () => {
+    const html = render(
+      createElement(ContactImportStep, {
+        beat: 'denied',
+        nativeImportError: 'We couldn’t read your phone’s contacts just now.',
+      })
+    );
+    expect(html).toContain('role="alert"');
+    expect(textOf(html)).toMatch(/couldn.t read your phone.s contacts/i);
+  });
+
+  test('a plain permission refusal (nativeImportError=null) shows NO error alert — refusal itself is not an error', () => {
+    const html = render(createElement(ContactImportStep, { beat: 'denied' }));
+    expect(html).not.toMatch(/role="alert"/);
+  });
+
+  test('native props do not leak into unrelated beats (e.g. "value")', () => {
+    const html = render(
+      createElement(ContactImportStep, {
+        beat: 'value',
+        nativeCandidates: CANDIDATES,
+        nativeImportError: 'x',
+      })
+    );
+    expect(html).not.toMatch(/role="alert"/);
+    expect(textOf(html)).not.toContain('Jane Doe');
   });
 });
 

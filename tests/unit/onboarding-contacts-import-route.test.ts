@@ -20,20 +20,30 @@ import { NextRequest } from 'next/server';
 import type { Session } from 'next-auth';
 
 jest.mock('@/lib/auth/session', () => ({ getCurrentSession: jest.fn() }));
-jest.mock('@/lib/prisma', () => ({ prisma: {} }));
+jest.mock('@/lib/prisma', () => ({ prisma: { contact: { findMany: jest.fn() } } }));
 
 const mockImportBatch = jest.fn();
 jest.mock('@/services/warm-market/vault/vault.service', () => {
+  // T-58 — this route now also imports/uses `ModalityNotAllowedError` (the native-source fail-closed
+  // catch, mirroring /api/contacts/import's own mock in tests/unit/contacts-import-route.test.ts) —
+  // must be a real exported class here or `err instanceof ModalityNotAllowedError` throws on ANY
+  // error path, not just the modality one.
+  class ModalityNotAllowedError extends Error {}
   return {
     VaultService: jest.fn().mockImplementation(() => ({ importBatch: mockImportBatch })),
+    ModalityNotAllowedError,
   };
 });
 
 import { getCurrentSession } from '@/lib/auth/session';
-import { POST } from '@/app/api/onboarding/contacts-import/route';
+import { prisma } from '@/lib/prisma';
+import { GET, POST } from '@/app/api/onboarding/contacts-import/route';
 import { ImportLimitExceededError } from '@/services/warm-market/vault/csv-parser';
+import { ModalityNotAllowedError } from '@/services/warm-market/vault/vault.service';
+import { encryptOptionalField } from '@/services/warm-market/vault/vault-encryption';
 
 const mockedSession = getCurrentSession as jest.MockedFunction<typeof getCurrentSession>;
+const mockedContactFindMany = (prisma as unknown as { contact: { findMany: jest.Mock } }).contact.findMany;
 
 function fakeSession(overrides: Partial<Session['user']> = {}): Session {
   return {
@@ -64,6 +74,7 @@ const SAMPLE_CSV = 'name,phone\nJane Doe,312-555-0100\n';
 beforeEach(() => {
   mockedSession.mockReset();
   mockImportBatch.mockReset();
+  mockedContactFindMany.mockReset();
 });
 
 describe('POST /api/onboarding/contacts-import — session-gated, NOT onboarding-complete-gated', () => {
@@ -193,5 +204,165 @@ describe('POST /api/onboarding/contacts-import — session-gated, NOT onboarding
     expect(res.status).toBe(202);
     const body = await res.json();
     expect(body.resumable).toBe(true);
+  });
+});
+
+// ─── T-58 — the REAL "Import from Phone" native-source path, replacing OnboardingFlow.tsx's other
+// fake handler (`onRequestPermission` used to just do `setContactCount(24)`, no permission ever
+// asked, no device contact ever read). This route is the ONLY ingestion surface reachable during
+// onboarding for IOS_NATIVE/ANDROID_NATIVE, mirroring the CSV describe block above exactly.
+describe('POST /api/onboarding/contacts-import — T-58 native contacts (IOS_NATIVE/ANDROID_NATIVE)', () => {
+  const SAMPLE_ROW = { name: 'Jane Doe', phone: '312-555-0100', email: null, notes: null, industry: null, birthdate: null };
+
+  test('IOS_NATIVE + matching clientPlatform "ios" + a mapped contacts array → reaches VaultService with the native source', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockImportBatch.mockResolvedValue({
+      batchId: 'b-native-1',
+      source: 'IOS_NATIVE',
+      status: 'COMPLETED',
+      totalRows: 1,
+      cursor: 1,
+      importedCount: 1,
+      mergedCount: 0,
+      minorFlaggedCount: 0,
+      errorRows: [],
+      resumable: false,
+      idempotentReplay: false,
+    });
+
+    const res = await POST(
+      postRequest({ source: 'IOS_NATIVE', contacts: [SAMPLE_ROW], clientPlatform: 'ios', idempotencyKey: 'k' }),
+      {}
+    );
+    expect(res.status).toBe(201);
+    expect(mockImportBatch).toHaveBeenCalledTimes(1);
+    const [userId, source, rows, opts] = mockImportBatch.mock.calls[0];
+    expect(userId).toBe('onboarding-user-1');
+    expect(source).toBe('IOS_NATIVE');
+    expect(rows).toEqual([SAMPLE_ROW]);
+    expect(opts.clientPlatform).toBe('ios');
+    expect(opts.csvText).toBeUndefined();
+  });
+
+  test('ANDROID_NATIVE + clientPlatform declared via the x-harvest-platform header (not the body) also reaches VaultService', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockImportBatch.mockResolvedValue({
+      batchId: 'b-native-2',
+      source: 'ANDROID_NATIVE',
+      status: 'COMPLETED',
+      totalRows: 1,
+      cursor: 1,
+      importedCount: 1,
+      mergedCount: 0,
+      minorFlaggedCount: 0,
+      errorRows: [],
+      resumable: false,
+      idempotentReplay: false,
+    });
+
+    const res = await POST(
+      postRequest({ source: 'ANDROID_NATIVE', contacts: [SAMPLE_ROW], idempotencyKey: 'k' }, { 'x-harvest-platform': 'android' }),
+      {}
+    );
+    expect(res.status).toBe(201);
+    expect(mockImportBatch.mock.calls[0][3].clientPlatform).toBe('android');
+  });
+
+  test('TEETH (fail-closed): IOS_NATIVE declared from a caller that never says "ios" → 400 MODALITY_NOT_ALLOWED, never a partial import', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockImportBatch.mockRejectedValue(new ModalityNotAllowedError('IOS_NATIVE contact import is only available from the native app shell'));
+
+    const res = await POST(postRequest({ source: 'IOS_NATIVE', contacts: [SAMPLE_ROW], idempotencyKey: 'k' }), {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('MODALITY_NOT_ALLOWED');
+  });
+
+  test('a native source with no "contacts" array at all → 400 CONTACTS_REQUIRED, never reaches VaultService', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    const res = await POST(postRequest({ source: 'IOS_NATIVE', clientPlatform: 'ios', idempotencyKey: 'k' }), {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('CONTACTS_REQUIRED');
+    expect(mockImportBatch).not.toHaveBeenCalled();
+  });
+
+  test('an unrecognized source (e.g. GOOGLE_OAUTH, not offered by this onboarding screen) → 400 SOURCE_INVALID', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    const res = await POST(
+      postRequest({ source: 'GOOGLE_OAUTH', contacts: [SAMPLE_ROW], idempotencyKey: 'k' }),
+      {}
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('SOURCE_INVALID');
+    expect(mockImportBatch).not.toHaveBeenCalled();
+  });
+
+  test('omitting "source" entirely still defaults to CSV — pre-T-58 callers are byte-for-byte unaffected', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockImportBatch.mockResolvedValue({
+      batchId: 'b-default-csv',
+      source: 'CSV',
+      status: 'COMPLETED',
+      totalRows: 1,
+      cursor: 1,
+      importedCount: 1,
+      mergedCount: 0,
+      minorFlaggedCount: 0,
+      errorRows: [],
+      resumable: false,
+      idempotentReplay: false,
+    });
+
+    const res = await POST(postRequest({ csvText: SAMPLE_CSV, idempotencyKey: 'k' }), {});
+    expect(res.status).toBe(201);
+    expect(mockImportBatch.mock.calls[0][1]).toBe('CSV');
+    expect(mockImportBatch.mock.calls[0][3].clientPlatform).toBe('web');
+  });
+});
+
+// ─── T-58 — the dedupe surface the real "Import from Phone" selection list reads before presenting
+// device contacts (§7.6 "cross-source duplicate ... merge, keep most complete"). Minimal PII: only
+// phone/email, decrypted for the owner's own read (same posture /api/contacts/import's GET already
+// established) — never the full contact record.
+describe('GET /api/onboarding/contacts-import — T-58 dedupe surface (session-gated, minimal PII)', () => {
+  test('no session → 401, never reaches prisma', async () => {
+    mockedSession.mockResolvedValue(null);
+    const res = await GET(new NextRequest('http://localhost/api/onboarding/contacts-import'), {});
+    expect(res.status).toBe(401);
+    expect(mockedContactFindMany).not.toHaveBeenCalled();
+  });
+
+  test('returns the caller\'s own contacts\' DECRYPTED phone/email (round-tripped through the real encryption), scoped to the session user id', async () => {
+    mockedSession.mockResolvedValue(fakeSession({ id: 'dedupe-user-1' }));
+    mockedContactFindMany.mockResolvedValue([
+      { phone: encryptOptionalField('3125550100'), email: encryptOptionalField('jane@example.com') },
+      { phone: null, email: null },
+    ]);
+
+    const res = await GET(new NextRequest('http://localhost/api/onboarding/contacts-import'), {});
+    expect(res.status).toBe(200);
+    expect(mockedContactFindMany).toHaveBeenCalledWith({
+      where: { user_id: 'dedupe-user-1' },
+      select: { phone: true, email: true },
+    });
+    const body = await res.json();
+    expect(body.contacts).toEqual([
+      { phone: '3125550100', email: 'jane@example.com' },
+      { phone: null, email: null },
+    ]);
+    // Minimal-PII surface: no name/notes/pipeline fields are ever fetched or returned here.
+    expect(body.contacts[0]).not.toHaveProperty('firstName');
+    expect(body.contacts[0]).not.toHaveProperty('notes');
+  });
+
+  test('no existing contacts → an empty array, not an error', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockedContactFindMany.mockResolvedValue([]);
+    const res = await GET(new NextRequest('http://localhost/api/onboarding/contacts-import'), {});
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.contacts).toEqual([]);
   });
 });

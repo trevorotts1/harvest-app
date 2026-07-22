@@ -64,6 +64,34 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
     expect(textOf(renderEs(ContactImportStep, { beat: 'permission' }))).toContain('Incorporando tu comunidad');
   });
 
+  // T-58 — the two additive beats replacing the old fake "Import from Phone" success path.
+  test('ContactImportStep — "select" and "unsupported" beats (T-58 real device-contacts flow) translate', () => {
+    expect(textOf(renderEn(ContactImportStep, { beat: 'select', nativeCandidates: [] }))).toContain(
+      "We couldn't find any importable contacts on this device.".replace("'", '’')
+    );
+    expect(textOf(renderEs(ContactImportStep, { beat: 'select', nativeCandidates: [] }))).toContain(
+      'No encontramos contactos que se puedan importar en este dispositivo.'
+    );
+
+    const candidates = [
+      { contactId: 'c-1', row: { name: 'Jane Doe', phone: '312-555-0100', email: null, notes: null, industry: null, birthdate: null }, isDuplicate: false },
+    ];
+    expect(textOf(renderEn(ContactImportStep, { beat: 'select', nativeCandidates: candidates }))).toContain(
+      'Choose who to bring in'
+    );
+    expect(textOf(renderEs(ContactImportStep, { beat: 'select', nativeCandidates: candidates }))).toContain(
+      'Elige a quién incorporar'
+    );
+
+    expect(textOf(renderEn(ContactImportStep, { beat: 'unsupported' }))).toContain(
+      "Phone import isn't available here".replace("'", '’')
+    );
+    expect(textOf(renderEs(ContactImportStep, { beat: 'unsupported' }))).toContain(
+      'La importación desde el teléfono no está disponible aquí'
+    );
+    expect(textOf(renderEs(ContactImportStep, { beat: 'unsupported' }))).not.toMatch(/phone import isn/i);
+  });
+
   test('IdentityStep — headline, photo actions, field labels, and caption translate', () => {
     const props = { name: '', email: '' };
     const en = textOf(renderEn(IdentityStep, props));
