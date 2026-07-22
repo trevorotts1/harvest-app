@@ -87,9 +87,21 @@ describe('T-R28 — a successful login lands on /today, and /dashboard is no lon
   test('onboarding completion handoffs (O-9, dense track, first48) land on /today, not /dashboard', () => {
     const flow = src('app', 'onboarding', 'OnboardingFlow.tsx');
     expect(flow).not.toMatch(/router\.push\(\s*'\/dashboard'\s*\)/);
-    // Three call sites: the shared `advance()` fallthrough, the dense UplineTrack `onFinish`, and
-    // the First48Handoff `onShowToday`.
-    expect((flow.match(/router\.push\(\s*'\/today'\s*\)/g) ?? []).length).toBeGreaterThanOrEqual(3);
+    // T-R37 — the dense-track `UplineTrack.onFinish` and the rep/dense-shared First48Handoff
+    // `onShowToday` USED to each inline their OWN `router.push('/today')` (three literal call
+    // sites) with no real completion call gating either — the dense track's "Finish setup" and
+    // First48Handoff's CTA both navigated unconditionally, regardless of whether onboarding had
+    // actually completed server-side. Both are now routed through the SAME `handleShowToday`
+    // (see tests/unit/onboarding-flow-wiring.test.ts for the full fail-closed proof: it calls
+    // `POST /api/onboarding/complete` and navigates ONLY on success), so there are now exactly TWO
+    // literal `router.push('/today')` call sites — `advance()`'s screen-exhausted fallthrough, and
+    // `handleShowToday`'s post-completion navigate — never a THIRD, ungated one.
+    expect((flow.match(/router\.push\(\s*'\/today'\s*\)/g) ?? []).length).toBe(2);
+    // The dense track's "Finish setup" handler and its render site must NOT bypass straight to
+    // `/today` — it must go through the real, gated `handleShowToday` (proven fail-closed
+    // elsewhere), never a direct, ungated push.
+    expect(flow).not.toMatch(/onFinish=\{\(\)\s*=>\s*router\.push\('\/today'\)\}/);
+    expect(flow).toMatch(/onShowToday=\{handleShowToday\}/);
   });
 
   test("the persistent AppShell nav exposes all five uiux destinations (Today/Community/Grow/Learn/Me)", () => {

@@ -1272,7 +1272,8 @@
       "skipPhotoCta": "Omitir foto",
       "nameLabel": "Tu nombre",
       "emailLabel": "Correo electrónico",
-      "photoCaption": "Tu foto aparece en tu kit de lanzamiento — no en anuncios."
+      "photoCaption": "Tu foto aparece en tu kit de lanzamiento — no en anuncios.",
+      "submittingStatus": "Guardando…"
     },
     "sponsor": {
       "linkedHeadline": "Encontramos a tu patrocinador de línea descendente",
@@ -1295,6 +1296,7 @@
       "blockedBody": "Aquí tienes a quién contactar — te dirigiremos al equipo de asesoría de cumplimiento.",
       "contactComplianceCta": "Contactar a cumplimiento",
       "finishSetupCta": "Finalizar configuración",
+      "submittingStatus": "Finalizando configuración…",
       "license": {
         "cleared": "Aprobada",
         "prelicensing": "En pre-licenciamiento",
@@ -1923,6 +1925,7 @@
       "FAILED": "fallido"
     },
     "INVALID_JSON": "No se pudo leer la solicitud. Inténtalo de nuevo.",
+    "GDPR_CONSENT_REQUIRED": "Por favor otorga tu consentimiento antes de completar el registro.",
     "NOT_PERMITTED": "No tienes permiso para hacer eso.",
     "NOT_FOUND": "No se encontró ese elemento.",
     "DRAFT_ID_REQUIRED": "Selecciona un elemento antes de continuar.",
