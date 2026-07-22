@@ -21,6 +21,7 @@ jest.mock('@/services/payment/production-wiring', () => ({
     onPaymentFailed: jest.fn(),
     onSubscriptionUpdated: jest.fn(),
     onDisputeCreated: jest.fn(),
+    onSubscriptionDeleted: jest.fn(),
   }),
 }));
 
