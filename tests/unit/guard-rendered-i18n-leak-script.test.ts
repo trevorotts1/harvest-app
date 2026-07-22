@@ -345,6 +345,135 @@ describe('scripts/guard-rendered-i18n-leak.mjs', () => {
       expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
     });
   });
+
+  // T-57 RG9 — shape (e): a humanized machine token assigned to a rendered-text PROP (JSX attribute or
+  // object-literal property), rendered one AST layer removed. The blind spot the re-gate demonstrated
+  // on /community (`segmentTag={c.pipelineStage.replaceAll('_',' ')}` / `{ name: s.stage.replaceAll(...) }`)
+  // — shape (d) only fired on a DIRECT JSX child, never an attribute/prop.
+  describe('shape (e): humanized token assigned to a rendered-text prop', () => {
+    test('TEETH: a de-snake humanize on a render-prop JSX ATTRIBUTE (segmentTag={…}) FAILS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Card.tsx',
+        `export function C({ c }: { c: { pipelineStage: string } }) {\n  return <Chip segmentTag={c.pipelineStage.replaceAll('_', ' ')} />;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/humanized-token-render-prop/);
+      expect(r.stderr).toMatch(/segmentTag/);
+    });
+
+    test('TEETH: a de-snake humanize in an object-literal `name:` property (built in a .map()) FAILS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Plots.tsx',
+        `export function C({ rows }: { rows: { stage: string }[] }) {\n  const plots = rows.map((x) => ({ key: x.stage, name: x.stage.replaceAll('_', ' ') }));\n  return <Plots plots={plots} />;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/humanized-token-render-prop/);
+    });
+
+    test("TEETH: the .split('_').join(' ') de-snake idiom on a render prop (label={…}) FAILS", () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'SplitJoin.tsx',
+        `export function C({ e }: { e: { type: string } }) {\n  return <span label={e.type.split('_').join(' ')} />;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/humanized-token-render-prop/);
+    });
+
+    test('a de-snake on a NON-render-prop attribute (data-stage={…}) is NOT flagged — text-bearing props only', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'DataAttr.tsx',
+        `export function C({ c }: { c: { pipelineStage: string } }) {\n  return <span data-stage={c.pipelineStage.replaceAll('_', ' ')} />;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('MUTATION PROOF: routing the render-prop through the catalog mapper reverts the FAIL to a PASS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'CardOk.tsx',
+        `import { pipelineStageLabel } from '@/lib/i18n/team-token-display';\nexport function C({ c, t }: { c: { pipelineStage: string }; t: (k: string) => string }) {\n  return <Chip segmentTag={pipelineStageLabel(t, c.pipelineStage)} />;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
+
+  // T-57 RG9 — shape (f): hardcoded English spliced into a template-literal JSX child (the pre-fix
+  // ClassifierAdjudicationDrawer `{cond ? ` · risk ${s}` : ''}` and ActionQueue `{`~${n} min`}` shapes).
+  describe('shape (f): hardcoded English in a template-literal JSX child', () => {
+    test('TEETH: {cond ? ` · risk ${s}` : \'\'} FAILS — the English word in the template child is caught', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Risk.tsx',
+        `export function C({ s }: { s: number }) {\n  return <summary>{typeof s === 'number' ? \` · risk \${s}\` : ''}</summary>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/english-in-template-jsx/);
+    });
+
+    test('TEETH: {`~${n} min`} FAILS — "min" is a ≥3-letter English word in a rendered template', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(s.srcRoot, 'Min.tsx', `export function C({ n }: { n: number }) {\n  return <span>{\`~\${n} min\`}</span>;\n}\n`);
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/english-in-template-jsx/);
+    });
+
+    test('a punctuation-only template child ({`${a} · ${b}`}) is NOT flagged — no ≥3-letter word', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(s.srcRoot, 'Sep.tsx', `export function C({ a, b }: { a: string; b: string }) {\n  return <span>{\`\${a} · \${b}\`}</span>;\n}\n`);
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('a technical unit/short template child ({`${x}%`} / {`v${n}`}) is NOT flagged — under the 3-letter floor', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(s.srcRoot, 'Unit.tsx', `export function C({ x, n }: { x: number; n: number }) {\n  return <div><span>{\`\${x}%\`}</span><span>{\`v\${n}\`}</span></div>;\n}\n`);
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('MUTATION PROOF: routing the English through the catalog (t()) reverts the FAIL to a PASS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'RiskOk.tsx',
+        `export function C({ s, t }: { s: number; t: (k: string, v?: object) => string }) {\n  return <summary>{typeof s === 'number' ? t('x.riskSuffix', { score: s }) : ''}</summary>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
 });
 
 describe('scripts/guard-rendered-i18n-leak.mjs — against the REAL repo (no fixtures)', () => {

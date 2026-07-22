@@ -17,6 +17,16 @@ import type { OverrideMathSheet, RulesOfBuildingChip, RulesOfBuildingChips as Ro
 import styles from '../grow.module.css';
 import { useT } from '@/app/locale-context';
 
+// T-57 RG9 (WCAG 2.2 SC 2.4.3/§6.1 item 2) — Tab-trap helper for the override-math dialog, mirroring
+// GroveThreeLawsSheet.tsx: the sheet already moved focus IN on open and RETURNED it on close, but a
+// keyboard/switch user could Tab straight past the Close button out to the page behind the modal.
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
+
 export interface RulesOfBuildingChipsProps {
   chips: RoBChipsType;
   onOpenMath: (depth: number) => Promise<OverrideMathSheet>;
@@ -69,6 +79,7 @@ export default function RulesOfBuildingChips({ chips, onOpenMath }: RulesOfBuild
   // (a keyboard/switch user would otherwise lose their place in the chip row entirely).
   const openedFromRef = useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const closeSheet = () => {
     setSheet(null);
@@ -125,12 +136,33 @@ export default function RulesOfBuildingChips({ chips, onOpenMath }: RulesOfBuild
         // open) + an `Escape` handler, matching every other native/OS dialog's keyboard contract —
         // §6.1 item 2 "full keyboard and switch navigation on every flow".
         <div
+          ref={panelRef}
           className={styles.card}
           role="dialog"
           aria-modal="true"
           aria-label={t('grow.rulesOfBuilding.overrideMathAriaLabel', { depth: sheet.depth })}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') closeSheet();
+            if (e.key === 'Escape') {
+              closeSheet();
+              return;
+            }
+            // T-57 RG9 — Tab-trap: cycle Tab/Shift+Tab within the sheet's own focusable controls
+            // only (mirrors GroveThreeLawsSheet.tsx), so a keyboard user can never Tab out to the
+            // page behind this modal.
+            if (e.key !== 'Tab') return;
+            const container = panelRef.current;
+            if (!container) return;
+            const focusable = getFocusableElements(container);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+              e.preventDefault();
+              last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+              e.preventDefault();
+              first.focus();
+            }
           }}
         >
           <p>{sheet.narrative}</p>

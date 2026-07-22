@@ -296,7 +296,8 @@
         "confirm": "Confirm"
       },
       "tryRitualCta": "Try the Warm-Market ritual",
-      "tryJoggerCta": "Try a Memory Jogger prompt"
+      "tryJoggerCta": "Try a Memory Jogger prompt",
+      "minutesEstimate": "~{minutes} min"
     },
     "calendarStrip": {
       "badge": "Team calendar",
@@ -341,7 +342,8 @@
       "emptyLine": "A quiet night — your agents found nothing that needed you.",
       "freshnessLabel": "as of {time}",
       "stopCta": "Stop",
-      "listenCta": "Listen"
+      "listenCta": "Listen",
+      "receiptCfeBandSuffix": " · CFE {band}"
     },
     "pipelineGlance": {
       "heading": "Pipeline",
@@ -713,7 +715,29 @@
         "generic": "your current licensing status"
       },
       "warmMarketRitualBody": "Ready for your first 20? The Warm-Market ritual walks you through it.",
-      "warmMarketRitualCta": "Start the Warm-Market ritual"
+      "warmMarketRitualCta": "Start the Warm-Market ritual",
+      "phase": {
+        "launch": "Days 1-7: Launch",
+        "licensing": "Days 8-30: Licensing"
+      },
+      "phaseGeneric": "Timeline phase",
+      "itemGeneric": "Timeline step",
+      "item": {
+        "ibaFiled": "IBA filed / POL registered",
+        "phoneListUploaded": "Phone list uploaded (Hidden Earnings generated)",
+        "harvestMethodCompleted": "Harvest Method completed",
+        "firstIntroSent": "First community introduction sent",
+        "tenIdentified": "10 members identified for kitchen-table conversations",
+        "opportunityInvitesSent": "Opportunity-meeting invites sent",
+        "intensitySelected": "Intensity selected",
+        "countdownRunning": "The 48-hour countdown running",
+        "pfsuEnrolled": "PFSU enrollment tracked",
+        "prelicensingCompletion": "Pre-licensing completion",
+        "examScheduled": "State-exam scheduling",
+        "objectionTreeReviewed": "Objection tree reviewed",
+        "teamCalendarLive": "Team calendar live",
+        "licensed": "State license obtained"
+      }
     },
     "orgSwitch": {
       "title": "Organization type",
@@ -817,7 +841,8 @@
       "noSignal": "No individual classifier signal.",
       "recommendationLabel": "Recommendation (advisory",
       "suggestedRewrite": "Suggested compliant rewrite",
-      "advisoryOnly": "Advisory only — a person still decides. Nothing here approves or sends anything."
+      "advisoryOnly": "Advisory only — a person still decides. Nothing here approves or sends anything.",
+      "riskSuffix": " · risk {score}"
     },
     "emptyState": {
       "awaiting": "Nothing waiting on you right now — a good day.",

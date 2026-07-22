@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { pipelineStageLabel } from '@/lib/i18n/team-token-display';
 import { StatusMessage } from '@/components/StatusMessage';
 import ContactCard, { type RecencyState } from './components/ContactCard';
 import PlotsRow, { type Plot } from './components/PlotsRow';
@@ -69,9 +70,14 @@ export default function CommunityPage() {
         return;
       }
       const body = await res.json();
+      // T-57 RG9 (i18n; master-spec §17.5, uiux §6.2/§0.5) — the plot-chip name was the raw
+      // de-snake-cased `PipelineStage` enum (`s.stage.replaceAll('_', ' ')`), so a Spanish rep saw
+      // every stage in English and the CLOSED_RECRUIT stage rendered off-vocabulary. Route it through
+      // the shipping `pipelineStageLabel` mapper (per-value catalog keys, doctrine-clean "teammate",
+      // generic localized fallback) — the same mapper the /team surfaces already use.
       const nextPlots: Plot[] = (body.summary ?? []).map((s: { stage: string; count: number }) => ({
         key: s.stage,
-        name: s.stage.replaceAll('_', ' '),
+        name: pipelineStageLabel(t, s.stage),
         count: s.count,
       }));
       const flat: PipelineContact[] = (body.summary ?? []).flatMap(
@@ -202,7 +208,7 @@ export default function CommunityPage() {
                   isClient={f.isClient}
                   onToggleRecruitTarget={(id, next) => toggleFlag(id, 'isRecruitTarget', next)}
                   onToggleClient={(id, next) => toggleFlag(id, 'isClient', next)}
-                  segmentTag={c.pipelineStage.replaceAll('_', ' ')}
+                  segmentTag={pipelineStageLabel(t, c.pipelineStage)}
                 />
               );
             })}
