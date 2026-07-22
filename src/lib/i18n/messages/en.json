@@ -1272,7 +1272,8 @@
       "skipPhotoCta": "Skip photo",
       "nameLabel": "Your name",
       "emailLabel": "Email",
-      "photoCaption": "Your face shows up in your launch kit — not in ads."
+      "photoCaption": "Your face shows up in your launch kit — not in ads.",
+      "submittingStatus": "Saving…"
     },
     "sponsor": {
       "linkedHeadline": "We found your Downline Sponsor",
@@ -1295,6 +1296,7 @@
       "blockedBody": "Here’s who to contact — we’ll route you to the compliance advisory team.",
       "contactComplianceCta": "Contact compliance",
       "finishSetupCta": "Finish setup",
+      "submittingStatus": "Finishing setup…",
       "license": {
         "cleared": "Cleared",
         "prelicensing": "In pre-licensing",
@@ -1923,6 +1925,7 @@
       "FAILED": "failed"
     },
     "INVALID_JSON": "That request could not be read. Please try again.",
+    "GDPR_CONSENT_REQUIRED": "Please grant consent before completing onboarding.",
     "NOT_PERMITTED": "You do not have permission to do that.",
     "NOT_FOUND": "That item could not be found.",
     "DRAFT_ID_REQUIRED": "Select an item before continuing.",

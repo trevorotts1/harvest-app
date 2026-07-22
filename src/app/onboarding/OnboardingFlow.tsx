@@ -10,9 +10,10 @@
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 
 import { useLocale } from '@/app/locale-context';
+import StatusMessage from '@/components/StatusMessage';
 import { errorDisplay } from '@/lib/i18n/error-display';
 import {
   isNativeContactsPlatform,
@@ -28,6 +29,7 @@ import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
 import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/warm-market/hidden-earnings';
 import type { LicensingState } from '@/services/compliance/licensing';
+import { OnboardingStep } from '@/types/onboarding';
 
 import ContactImportStep, { type ImportBeat } from './components/ContactImportStep';
 import First48Handoff from './components/First48Handoff';
@@ -45,6 +47,18 @@ import {
   trackKindForRole,
   type OnboardingScreen,
 } from './flow-model';
+import {
+  buildDenseTrackStepPlan,
+  buildGoalCardPayload,
+  buildIntensityDataPayload,
+  buildRoleOrgContextPayload,
+  buildSevenWhysResponses,
+  postOnboardingComplete,
+  postOnboardingStep,
+  sendOrderedSteps,
+  stepToScreen,
+  type ServerStepRef,
+} from './onboarding-step-client';
 import styles from './onboarding.module.css';
 
 // One warm, digit-free prompt per Seven Whys level (§5.1 O-5). A low resonance never surfaces here
@@ -95,6 +109,11 @@ export default function OnboardingFlow({
   const [intensity, setIntensity] = useState<IntensitySetting | null>(null);
   const [whyIndex, setWhyIndex] = useState(0);
   const [whyAnswer, setWhyAnswer] = useState('');
+  // T-R37 — each submitted Seven Whys answer, kept locally so the deferred `SEVEN_WHYS`/`GOAL_CARD`/
+  // `INTENSITY` step chain (fired on this screen's completion, see the crux note in
+  // onboarding-step-client.ts) has real answer text to persist — previously discarded on every
+  // submit (`setWhyAnswer('')`) with nothing retained anywhere.
+  const [whyAnswers, setWhyAnswers] = useState<string[]>([]);
   // AC-5.1-5 (O-5 completion) — local UI state, defaults OFF; T-18's WhySession already defaults
   // use_in_outreach_consent=false and only its own setOutreachConsent may ever flip it, so this is
   // purely the UI surface (no live wiring here, exactly like intensity/solutionNumber above).
@@ -127,6 +146,63 @@ export default function OnboardingFlow({
   const [gdprConsented, setGdprConsented] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+
+  // T-R37 — the LAST KNOWN persisted `current_step` for this user's real `OnboardingSession` row.
+  // Seeded from `GET /status` on mount (resume) and advanced after every successful `/step` call
+  // (see `sendOrderedSteps`'s `ServerStepRef` contract) — a plain ref (not React state) since it
+  // exists purely to make the step-sequencing calls resume-safe, never to drive a render.
+  const serverStepRef = useRef<ServerStepRef>({ current: null });
+  // Guards each screen's "meaningful advance" handler against a double-submit (no disabled-button
+  // wiring on IdentityStep/OrgStep's own Continue affordance — this ref-level guard is enough since
+  // a duplicate click while a request is in flight is simply ignored, not queued).
+  const inFlightRef = useRef(false);
+
+  const [identitySubmitting, setIdentitySubmitting] = useState(false);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [orgSubmitting, setOrgSubmitting] = useState(false);
+  const [orgError, setOrgError] = useState<string | null>(null);
+  const [sevenWhysSubmitting, setSevenWhysSubmitting] = useState(false);
+  const [sevenWhysError, setSevenWhysError] = useState<string | null>(null);
+  const [completeSubmitting, setCompleteSubmitting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+
+  // T-R37 — the dense (upline/RVP/DUAL/ADMIN) track's tail: every track shares the SAME trailing
+  // `CONSENT_CAPTURE` step (wp01 tracks.ts) and this app has exactly one compliant, tested GDPR
+  // consent affordance (`GdprConsentStep`) and one First-48 handoff (`First48Handoff`) — reused here
+  // rather than inventing a second consent surface for the dense track alone.
+  const [denseScreen, setDenseScreen] = useState<'checklist' | 'consent' | 'first48'>('checklist');
+  const [denseSubmitting, setDenseSubmitting] = useState(false);
+  const [denseError, setDenseError] = useState<string | null>(null);
+
+  // T-R37 (optional resume, per this unit's own brief) — GET /status once on mount. A found,
+  // not-yet-completed session repositions BOTH the rep-track screen and the dense-track sub-screen
+  // onto the persisted step, and seeds `serverStepRef` so the step-sequencers never re-send an
+  // already-cleared step. A missing session (fresh user, or a network hiccup) is not an error here —
+  // the flow simply starts at the top, exactly like before this fix.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/onboarding/status');
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { currentStep?: OnboardingStep; completed?: boolean };
+        if (!body.currentStep || body.completed) return;
+        serverStepRef.current.current = body.currentStep;
+        if (trackKindForRole(role) === 'dense') {
+          if (body.currentStep === OnboardingStep.CONSENT_CAPTURE) setDenseScreen('consent');
+          else if (body.currentStep === OnboardingStep.COMPLETE) setDenseScreen('first48');
+          return;
+        }
+        setScreen(stepToScreen(body.currentStep));
+      } catch {
+        // No session yet, or unreachable — start fresh, exactly like before this fix.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sponsor outcome consumed straight from the §6.5 matcher — with no candidate pool the rep is
   // waitlisted (never a dead end); the UI renders that verdict, it does not decide it.
@@ -181,7 +257,19 @@ export default function OnboardingFlow({
   // this screen on a failed request — a rep who never actually consented never reaches `first48`
   // (and, independently, `/api/onboarding/complete` also refuses completion without a recorded
   // consent — this is not the only enforcement point).
+  //
+  // T-R37 — ALSO advances the real session's `current_step` past `CONSENT_CAPTURE` (every role's
+  // `ROLE_STEP_MAP` trailing step, shared by both tracks — see `GdprConsentStep`'s reuse on the
+  // dense track below). This is a SEPARATE call from `/api/onboarding/consent` above: that route
+  // durably grants the real, versioned WP11 consent record `/complete`'s own gate reads; THIS call
+  // only advances the step-progression cursor `/step`'s own route reads. Both must succeed before
+  // this screen advances — a failure in EITHER surfaces honestly here, never a silent partial
+  // success (the consent grant is not undone on a step-call failure, since it is safely re-postable
+  // on retry — WP11's consent write, and this route's own CONSENT_CAPTURE branch, are both
+  // idempotent-safe to resend).
   async function handleGrantGdprConsent() {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setConsentSubmitting(true);
     setConsentError(null);
     try {
@@ -195,11 +283,165 @@ export default function OnboardingFlow({
         setConsentError(errorDisplay(t, body.code));
         return;
       }
-      advance();
+      const stepResult = await postOnboardingStep(OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: true });
+      if (!stepResult.ok) {
+        setConsentError(errorDisplay(t, stepResult.code));
+        return;
+      }
+      serverStepRef.current.current = stepResult.currentStep;
+      if (trackKindForRole(role) === 'dense') setDenseScreen('first48');
+      else advance();
     } catch {
       setConsentError(t('onboarding.gdprConsent.failedGeneric'));
     } finally {
+      inFlightRef.current = false;
       setConsentSubmitting(false);
+    }
+  }
+
+  // T-R37 — the final CTA (`First48Handoff.onShowToday`): completes onboarding for real
+  // (`POST /api/onboarding/complete`, which fires `user.onboarding_completed` -> WP10 provisioning
+  // and flips `User.onboarding_status` to `GATED_COMPLETE` — the exact column `withOnboardingGate`
+  // requires) and ONLY THEN navigates to `/today`. A failed completion never navigates — the rep
+  // would just bounce straight back off the gate — it surfaces honestly and lets the rep retry the
+  // same idempotent-safe call (a session already past `INTENSITY`/`CONSENT_CAPTURE` is untouched by
+  // a failed attempt; `completed` only flips to `true` in the same transaction as the WP10 publish).
+  async function handleShowToday() {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setCompleteSubmitting(true);
+    setCompleteError(null);
+    try {
+      const result = await postOnboardingComplete();
+      if (!result.ok) {
+        setCompleteError(errorDisplay(t, result.code));
+        return;
+      }
+      router.push('/today');
+    } catch {
+      setCompleteError(t('errors.generic'));
+    } finally {
+      inFlightRef.current = false;
+      setCompleteSubmitting(false);
+    }
+  }
+
+  // T-R37 — O-2 identity's "meaningful advance": the session's real `OnboardingSession` row does not
+  // exist until the FIRST authenticated `/step` submission (`getOrCreateOnboardingSession`,
+  // session-store.ts) — there is no separate `/api/onboarding/start` route. `REGISTER`/`ACCOUNT_TYPE`
+  // carry no server-side format requirement (no `validateStep` branch reads either), so both are
+  // sent with an (intentionally empty-but-truthy) `{}` payload — this screen's name/email/photo
+  // fields are not persisted through `/step` (the `User` row's identity fields are already set at
+  // registration, before this UI ever mounts; there is no route to revise them from here — a
+  // separate, pre-existing gap this fix does not extend its scope to close).
+  async function handleIdentityAdvance() {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setIdentitySubmitting(true);
+    setIdentityError(null);
+    try {
+      const outcome = await sendOrderedSteps(role, serverStepRef.current, [
+        { step: OnboardingStep.REGISTER, data: {} },
+        { step: OnboardingStep.ACCOUNT_TYPE, data: {} },
+      ]);
+      if (!outcome.ok) {
+        setIdentityError(errorDisplay(t, outcome.result.code));
+        return;
+      }
+      advance();
+    } finally {
+      inFlightRef.current = false;
+      setIdentitySubmitting(false);
+    }
+  }
+
+  // T-R37 — O-3 org gate's "meaningful advance": submits `ROLE_ORG_CONTEXT`. `validateStep` only
+  // format-checks a solution number when the user's REAL, already-persisted `org_type` is PRIMERICA
+  // (read from the `User` row, not this submission) — sending it regardless (when present) keeps
+  // this call correct for that case without needing to know the DB value client-side.
+  async function handleOrgContinue() {
+    if (inFlightRef.current) return;
+    if (orgType === OrgType.PRIMERICA && solutionNumber && !solutionConfirmed) {
+      setSolutionConfirmed(true);
+    }
+    inFlightRef.current = true;
+    setOrgSubmitting(true);
+    setOrgError(null);
+    try {
+      const result = await postOnboardingStep(
+        OnboardingStep.ROLE_ORG_CONTEXT,
+        buildRoleOrgContextPayload(orgType ?? OrgType.EXTERNAL, solutionNumber)
+      );
+      if (!result.ok) {
+        setOrgError(errorDisplay(t, result.code));
+        return;
+      }
+      serverStepRef.current.current = result.currentStep;
+      advance();
+    } finally {
+      inFlightRef.current = false;
+      setOrgSubmitting(false);
+    }
+  }
+
+  // T-R37 — O-5 Seven Whys completion's "meaningful advance": THE CRUX FIX. The UI screen order
+  // (goals_intensity BEFORE seven_whys) does not match the server's real `ROLE_STEP_MAP` order
+  // (`SEVEN_WHYS` must be submitted BEFORE `GOAL_CARD`/`INTENSITY`) — see onboarding-step-client.ts's
+  // header comment. The O-4 dial's selection was captured locally (no network call at that screen);
+  // all three steps fire together HERE, in the server-correct order, once the conversation completes.
+  async function handleSevenWhysContinue() {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setSevenWhysSubmitting(true);
+    setSevenWhysError(null);
+    try {
+      const anchorStatement = whyTurn.anchorStatement ?? '';
+      const sevenWhysResponses = buildSevenWhysResponses(
+        SEVEN_WHYS_ORDER.map((level, i) => ({ question: SEVEN_WHYS_QUESTIONS[level], answer: whyAnswers[i] ?? '' }))
+      );
+      const goalCard = buildGoalCardPayload({
+        anchorStatement,
+        primaryGoal: whyAnswers[0] ?? '',
+        motivationStatement: whyAnswers[1] ?? whyAnswers[0] ?? '',
+        intensity,
+      });
+      const intensityData = buildIntensityDataPayload(intensity ?? IntensitySetting.MEDIUM);
+      const outcome = await sendOrderedSteps(role, serverStepRef.current, [
+        { step: OnboardingStep.SEVEN_WHYS, data: { sevenWhys: sevenWhysResponses } },
+        { step: OnboardingStep.GOAL_CARD, data: { goalCard } },
+        { step: OnboardingStep.INTENSITY, data: { intensityData } },
+      ]);
+      if (!outcome.ok) {
+        setSevenWhysError(errorDisplay(t, outcome.result.code));
+        return;
+      }
+      advance();
+    } finally {
+      inFlightRef.current = false;
+      setSevenWhysSubmitting(false);
+    }
+  }
+
+  // T-R37 — the dense (upline/RVP/DUAL/ADMIN) track's "Finish setup": walks this role's REAL
+  // `ROLE_STEP_MAP` (minus the trailing `CONSENT_CAPTURE`, submitted separately by the reused
+  // `GdprConsentStep` tail below) via `buildDenseTrackStepPlan` — see that function's own doc
+  // comment for the documented Primerica solution-number gap this dense UI cannot source data for.
+  async function handleDenseFinish() {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    setDenseSubmitting(true);
+    setDenseError(null);
+    try {
+      const plan = buildDenseTrackStepPlan(role, orgType, solutionNumber);
+      const outcome = await sendOrderedSteps(role, serverStepRef.current, plan);
+      if (!outcome.ok) {
+        setDenseError(errorDisplay(t, outcome.result.code));
+        return;
+      }
+      setDenseScreen('consent');
+    } finally {
+      inFlightRef.current = false;
+      setDenseSubmitting(false);
     }
   }
 
@@ -431,11 +673,38 @@ export default function OnboardingFlow({
     if (file) void processCsvFile(file);
   }
 
-  // Dense upline/RVP track (Flow B/D): one shell, density not cinema — no vision splash, no reveal.
+  // Dense upline/RVP/DUAL/ADMIN track (Flow B/D): one shell, density not cinema — no vision splash,
+  // no reveal. T-R37 — "Finish setup" now walks this role's real `/step` plan (`handleDenseFinish`)
+  // before reaching the SAME shared consent + First-48 tail the rep track uses (every track's
+  // `ROLE_STEP_MAP` ends in the identical `CONSENT_CAPTURE` step; see this module's own header note
+  // for why a second consent surface was never built for this track). `onFinish` is only offered by
+  // `UplineTrack` at all once `evaluateTrackCompletion` allows it (the §16.5 licensure hard-block).
   if (trackKindForRole(role) === 'dense') {
+    if (denseScreen === 'consent') {
+      return (
+        <main className={styles.onboarding}>
+          <GdprConsentStep
+            consented={gdprConsented}
+            onConsentedChange={setGdprConsented}
+            onContinue={handleGrantGdprConsent}
+            submitting={consentSubmitting}
+            error={consentError}
+          />
+        </main>
+      );
+    }
+    if (denseScreen === 'first48') {
+      return (
+        <main className={styles.onboarding}>
+          <First48Handoff onShowToday={handleShowToday} submitting={completeSubmitting} error={completeError} />
+        </main>
+      );
+    }
     return (
       <main className={styles.onboarding}>
-        <UplineTrack role={role} licensingState={licensingState} onFinish={() => router.push('/today')} />
+        <UplineTrack role={role} licensingState={licensingState} onFinish={handleDenseFinish} />
+        {denseSubmitting ? <StatusMessage tone="polite">{t('onboarding.uplineTrack.submittingStatus')}</StatusMessage> : null}
+        {denseError ? <StatusMessage>{denseError}</StatusMessage> : null}
       </main>
     );
   }
@@ -445,20 +714,26 @@ export default function OnboardingFlow({
       {screen === 'vision' && <VisionSplash onBegin={advance} />}
 
       {screen === 'identity' && (
-        <IdentityStep
-          name={name}
-          email={email}
-          onNameChange={setName}
-          onEmailChange={setEmail}
-          photoState={photoState}
-          onTakePhoto={() => setPhotoState('chosen')}
-          onChooseFromLibrary={() => setPhotoState('chosen')}
-          onSkipPhoto={() => {
-            setPhotoState('skipped');
-            advance();
-          }}
-          onContinue={advance}
-        />
+        <>
+          <IdentityStep
+            name={name}
+            email={email}
+            onNameChange={setName}
+            onEmailChange={setEmail}
+            photoState={photoState}
+            onTakePhoto={() => setPhotoState('chosen')}
+            onChooseFromLibrary={() => setPhotoState('chosen')}
+            onSkipPhoto={() => {
+              setPhotoState('skipped');
+              void handleIdentityAdvance();
+            }}
+            onContinue={() => void handleIdentityAdvance()}
+          />
+          {identitySubmitting ? (
+            <StatusMessage tone="polite">{t('onboarding.identity.submittingStatus')}</StatusMessage>
+          ) : null}
+          {identityError ? <StatusMessage>{identityError}</StatusMessage> : null}
+        </>
       )}
 
       {screen === 'org' && (
@@ -478,18 +753,14 @@ export default function OnboardingFlow({
           <button
             type="button"
             className={`${styles.btn} ${styles.btnPrimary}`}
-            disabled={!orgType}
-            onClick={() => {
-              if (orgType === OrgType.PRIMERICA && solutionNumber && !solutionConfirmed) {
-                setSolutionConfirmed(true);
-              }
-              advance();
-            }}
+            disabled={!orgType || orgSubmitting}
+            onClick={() => void handleOrgContinue()}
           >
             {t('onboarding.continueCta')}
           </button>
         </div>
       )}
+      {screen === 'org' && orgError ? <StatusMessage>{orgError}</StatusMessage> : null}
 
       {screen === 'goals_intensity' && (
         <IntensityDial value={intensity} onChange={setIntensity} onContinue={advance} />
@@ -501,6 +772,7 @@ export default function OnboardingFlow({
           answer={whyAnswer}
           onAnswerChange={setWhyAnswer}
           onSubmit={() => {
+            setWhyAnswers((prev) => [...prev, whyAnswer]);
             setWhyAnswer('');
             setWhyIndex((i) => i + 1);
           }}
@@ -510,11 +782,17 @@ export default function OnboardingFlow({
       )}
       {screen === 'seven_whys' && whyTurn.complete && (
         <div className={styles.actions}>
-          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={advance}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            disabled={sevenWhysSubmitting}
+            onClick={() => void handleSevenWhysContinue()}
+          >
             {t('onboarding.continueCta')}
           </button>
         </div>
       )}
+      {screen === 'seven_whys' && sevenWhysError ? <StatusMessage>{sevenWhysError}</StatusMessage> : null}
 
       {screen === 'sponsor' && (
         <SponsorStep
@@ -609,7 +887,9 @@ export default function OnboardingFlow({
         />
       )}
 
-      {screen === 'first48' && <First48Handoff onShowToday={() => router.push('/today')} />}
+      {screen === 'first48' && (
+        <First48Handoff onShowToday={handleShowToday} submitting={completeSubmitting} error={completeError} />
+      )}
     </main>
   );
 }
