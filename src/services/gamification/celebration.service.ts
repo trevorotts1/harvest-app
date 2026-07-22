@@ -31,11 +31,34 @@ import type { CFEInput } from '@/types/compliance';
 // T-57 (server-msg-i18n) — locale-aware variants of MILESTONE_DISPLAY_NAME/MILESTONE_ANCHOR_LINE for
 // the two Today-zone rep-facing surfaces that render them today (mission-control/zones/header.ts's
 // Grove full-bloom narration, zones/milestones.ts's pin-strip label) — see `milestoneDisplayName` /
-// `milestoneAnchorLine` / `buildMilestoneFullBloomNarration` below. The raw English dicts above stay
-// the single source of truth for every OTHER existing caller (`buildMilestoneShareText` / the
-// share-to-social route `src/app/api/gamification/milestones/share/route.ts`) — deliberately left
-// English-only here, out of this fix's Today-zone lane (reported, not silently fixed — see the T-57
-// server-msg-i18n build report).
+// `milestoneAnchorLine` / `buildMilestoneFullBloomNarration` below.
+//
+// T-57 RG5-FINAL — `buildMilestoneShareText` (the share-to-social text builder just below) was left
+// out of that fix's lane and, until this unit, still read the raw English `MILESTONE_ANCHOR_LINE`
+// dict directly, with no locale — reported as an out-of-lane finding by the server-msg-i18n build,
+// fixed HERE. DETERMINATION (per this unit's remit to either thread the rep locale or document why
+// English is correct): this text is genuinely rep-facing, not a fixed-locale external context — the
+// REP reads it in-app (via the share route's JSON response) to decide whether/how to post it to
+// THEIR OWN social profile, for THEIR OWN (presumably same-locale) audience. There is no reason an
+// es-locale rep should be handed an English anchor line to post in Spanish-speaking company, the
+// same reasoning that already applies to every other rep-facing string this app localizes. Fixed by
+// giving `buildMilestoneShareText` the identical optional-trailing-`locale`-parameter shape every
+// zone service in this file/pass uses (defaults to `DEFAULT_LOCALE`, byte-identical to the pre-fix
+// behavior for any caller that omits it) and routing it through the ALREADY-locale-aware
+// `milestoneAnchorLine` helper below instead of the raw dict.
+//
+// SCOPE NOTE (file-ownership, not a technical limitation): this unit's owned files are this service
+// file + the 2 Today components + the guards + the catalog — NOT
+// `src/app/api/gamification/milestones/share/route.ts`, the one real caller. That route still calls
+// `buildMilestoneShareText` without a `locale` argument, so in production this resolves to English
+// today, exactly like `briefing.ts`'s own `explicitLocale` param did before `today.service.ts` wired
+// a real resolved locale through it (see that file's and `today.service.ts`'s header comments for
+// the identical precedent). The capability is real and tested (see the locale-aware describe block
+// in `tests/unit/gamification-celebration.test.ts`); wiring the route to resolve+pass the rep's
+// actual `User.locale` (the same duck-typed `db.user.findUnique` pattern `today.service.ts`'s
+// `resolveRepLocale` already uses — trivial since the route already imports `prisma` directly) is a
+// tiny, tracked, one-line fast-follow for whoever owns that route next. Reported, not silently left
+// unwired.
 import { t } from '@/lib/i18n/catalog';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
@@ -219,14 +242,23 @@ export interface MilestoneShareResult {
 
 /** §12.3 "a compliance-filtered share-to-social option (WP06)" — builds the anchor-tied share line
  *  and CFE-clears it BEFORE it is ever handed to WP06's share surface. Never assumes clean; a
- *  held/flagged/blocked verdict returns `held`, never a shareable string. */
+ *  held/flagged/blocked verdict returns `held`, never a shareable string.
+ *
+ *  T-57 RG5-FINAL — `locale` is an OPTIONAL trailing param defaulting to `DEFAULT_LOCALE`, exactly
+ *  mirroring `milestoneAnchorLine`/every zone-service locale param in this codebase: every existing
+ *  caller that omits it (including the one real caller, the share route — see this file's header
+ *  note) keeps compiling and behaving byte-identically (English). Passing a real `locale` (proven in
+ *  `tests/unit/gamification-celebration.test.ts`) resolves the anchor line through the catalog via
+ *  `milestoneAnchorLine`, so an es-locale rep gets a genuine Spanish share line once the route wires
+ *  a real locale through. */
 export async function buildMilestoneShareText(
   key: MilestoneKey,
   anchorStatement: string | null,
   userContext: CFEInput['userContext'],
-  cfe: CFEContentEvaluator = new ComplianceFilterEngine()
+  cfe: CFEContentEvaluator = new ComplianceFilterEngine(),
+  locale: Locale = DEFAULT_LOCALE
 ): Promise<MilestoneShareResult> {
-  const base = MILESTONE_ANCHOR_LINE[key];
+  const base = milestoneAnchorLine(key, locale);
   const text = anchorStatement ? `${base} ${anchorStatement}` : base;
   const gate = await gateRepFacingContent(text, cfe, userContext, 'SOCIAL');
   if (!gate.pass) return { status: 'held', reason: gate.reason };

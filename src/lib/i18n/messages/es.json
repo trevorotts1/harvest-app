@@ -295,7 +295,8 @@
       "noOrgNarrative": "Aún no tienes equipo — los eventos aparecerán aquí una vez que estés conectado a una organización.",
       "quietNarrative": "Tranquilo por ahora — sin próximos eventos de equipo.",
       "attendedCta": "Estuve ahí",
-      "missedCta": "No pude asistir"
+      "missedCta": "No pude asistir",
+      "eventTypeGeneric": "Evento de equipo"
     },
     "zoneErrorBoundary": {
       "message": "No pudimos mostrar tu {zone} ahora mismo — el resto de Hoy no se ve afectado."
@@ -335,7 +336,8 @@
       "listenCta": "Escuchar"
     },
     "pipelineGlance": {
-      "heading": "Pipeline"
+      "heading": "Pipeline",
+      "needsTending": "necesita atención"
     },
     "momentumPage": {
       "loading": "Preparando tu impulso…",

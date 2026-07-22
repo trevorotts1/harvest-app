@@ -295,7 +295,8 @@
       "noOrgNarrative": "No team yet — events will show here once you're connected to an organization.",
       "quietNarrative": "Quiet so far — no upcoming team events.",
       "attendedCta": "I was there",
-      "missedCta": "Couldn't make it"
+      "missedCta": "Couldn't make it",
+      "eventTypeGeneric": "Team event"
     },
     "zoneErrorBoundary": {
       "message": "We could not show your {zone} right now — the rest of Today is unaffected."
@@ -335,7 +336,8 @@
       "listenCta": "Listen"
     },
     "pipelineGlance": {
-      "heading": "Pipeline"
+      "heading": "Pipeline",
+      "needsTending": "needs tending"
     },
     "momentumPage": {
       "loading": "Gathering your momentum…",

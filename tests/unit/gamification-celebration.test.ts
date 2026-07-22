@@ -136,6 +136,39 @@ describe('buildMilestoneShareText — CFE-gated (§12.9-3 "shares are CFE-filter
     expect(result.status).toBe('held');
     expect(result.text).toBeUndefined();
   });
+
+  // T-57 RG5-FINAL — this used to read the raw English `MILESTONE_ANCHOR_LINE` dict directly, with
+  // no locale (an out-of-lane finding the server-msg-i18n build reported rather than fixed — see
+  // this file's own import-header note). `locale` is now an OPTIONAL trailing param defaulting to
+  // English, exactly mirroring `milestoneAnchorLine`'s own shape — every assertion above (which
+  // omits it) is proven UNCHANGED by this describe block; these prove the genuine Spanish half.
+  describe('buildMilestoneShareText — locale-aware (T-57 RG5-FINAL)', () => {
+    test('EN default (no locale arg): byte-identical to before this fix', async () => {
+      const result = await buildMilestoneShareText(MilestoneKey.FIRST_APPOINTMENT, null, USER_CONTEXT, passingCFE());
+      expect(result.status).toBe('ok');
+      expect(result.text).toBe(MILESTONE_ANCHOR_LINE[MilestoneKey.FIRST_APPOINTMENT]);
+    });
+
+    test.each(Object.values(MilestoneKey))('TEETH — %s: an es locale returns the genuine Spanish anchor line, never English', async (key) => {
+      const result = await buildMilestoneShareText(key, null, USER_CONTEXT, passingCFE(), 'es');
+      expect(result.status).toBe('ok');
+      expect(result.text).toBe(milestoneAnchorLine(key, 'es'));
+      expect(result.text).not.toBe(MILESTONE_ANCHOR_LINE[key]);
+    });
+
+    test('an es-locale share line still includes the (untranslated, rep-authored) anchor statement', async () => {
+      const result = await buildMilestoneShareText(MilestoneKey.FIRST_RECRUIT, 'Lo hago por mi familia.', USER_CONTEXT, passingCFE(), 'es');
+      expect(result.status).toBe('ok');
+      expect(result.text).toContain('Lo hago por mi familia.');
+      expect(result.text).toContain(milestoneAnchorLine(MilestoneKey.FIRST_RECRUIT, 'es'));
+    });
+
+    test('an es-locale blocked verdict still never returns shareable text (locale never bypasses the CFE gate)', async () => {
+      const result = await buildMilestoneShareText(MilestoneKey.FIRST_APPOINTMENT, null, USER_CONTEXT, blockingCFE(), 'es');
+      expect(result.status).toBe('held');
+      expect(result.text).toBeUndefined();
+    });
+  });
 });
 
 // T-52 (WCAG 2.2 AA §17.4 / uiux §6.1 item 5) — "Milestone full-bloom" narration script, verbatim:

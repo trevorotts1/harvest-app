@@ -133,6 +133,43 @@ describe('Today zone components — i18n (EN default + genuine ES render, T-R32b
     expect(es).toContain('No pude asistir');
   });
 
+  // T-57 RG5-FINAL — CalendarStrip used to render `{e.type.replaceAll('_', ' ')}`: the raw
+  // `TeamEvent.type` backend token, merely de-snake-cased, never translated. Proves each of the 4
+  // known types now resolves to a genuine, distinct EN/ES label (reusing
+  // `team.calendar.eventType.*`, the same keys team/calendar/page.tsx's event-type <select> uses),
+  // an unrecognized/future type falls back to a generic localized label, and the raw snake_case
+  // token never leaks through in either language.
+  test.each([
+    ['opportunity_night', 'Opportunity night', 'Noche de oportunidad'],
+    ['training', 'Training', 'Capacitación'],
+    ['team_call', 'Team call', 'Llamada de equipo'],
+    ['big_event', 'Big event', 'Gran evento'],
+  ])('CalendarStrip — event type %s renders "%s" (EN) / "%s" (ES), never the raw token', (type, en, es) => {
+    const withEvent: ZoneResult<CalendarZoneData> = {
+      status: 'ok',
+      data: { hasOrg: true, events: [{ id: 'e1', type, startsAt: new Date().toISOString(), attendanceState: 'none' }] },
+    };
+    const enHtml = textOf(renderEn(CalendarStrip, { result: withEvent, onMarkAttendance: () => {} }));
+    const esHtml = textOf(renderEs(CalendarStrip, { result: withEvent, onMarkAttendance: () => {} }));
+    expect(enHtml).toContain(en);
+    expect(esHtml).toContain(es);
+    expect(enHtml).not.toContain(type.replaceAll('_', ' '));
+    expect(esHtml).not.toContain(type.replaceAll('_', ' '));
+  });
+
+  test('CalendarStrip — an unrecognized/future event type falls back to a generic localized label, never the raw snake_case token', () => {
+    const withEvent: ZoneResult<CalendarZoneData> = {
+      status: 'ok',
+      data: { hasOrg: true, events: [{ id: 'e1', type: 'future_event_kind', startsAt: new Date().toISOString(), attendanceState: 'none' }] },
+    };
+    const enHtml = textOf(renderEn(CalendarStrip, { result: withEvent, onMarkAttendance: () => {} }));
+    const esHtml = textOf(renderEs(CalendarStrip, { result: withEvent, onMarkAttendance: () => {} }));
+    expect(enHtml).toContain('Team event');
+    expect(esHtml).toContain('Evento de equipo');
+    expect(enHtml).not.toContain('future event kind');
+    expect(esHtml).not.toContain('future event kind');
+  });
+
   test('WP07Panel — Milestones heading + the three nav cards (Learn/Grow/Momentum) translate', () => {
     const milestones: ZoneResult<MilestonesZoneData> = {
       status: 'ok',
@@ -179,6 +216,22 @@ describe('Today zone components — i18n (EN default + genuine ES render, T-R32b
     const es = textOf(renderEs(PipelineGlance, { result }));
     expect(en).toContain('Pipeline');
     expect(es).toContain('Pipeline');
+  });
+
+  // T-57 RG5-FINAL — `deltaLabel()`'s negative-delta text used to be the bare English literal
+  // `'needs tending'`, invisible to every scanner (a function-return literal, not JSX text/an
+  // attribute/a setState arg). Proves a negative-delta bucket now renders the genuine, idiomatic
+  // Spanish "necesita atención" (the SAME phrase this codebase already uses for the identical
+  // "wheat, not red" concept — grow.orchardCanvas.needsAttentionLabel/grow.treeList.healthLabel.red)
+  // — never the raw English literal — while the EN default stays byte-identical to before this fix.
+  test('PipelineGlance — a negative-delta bucket renders "needs tending" (EN, unchanged) / "necesita atención" (ES, genuine Spanish, never English)', () => {
+    const data: PipelineZoneData = { buckets: [{ key: 'responded', label: 'Responded', count: 5, deltaLast7d: -2 }] };
+    const result: ZoneResult<PipelineZoneData> = { status: 'ok', data };
+    const en = textOf(renderEn(PipelineGlance, { result }));
+    const es = textOf(renderEs(PipelineGlance, { result }));
+    expect(en).toContain('needs tending');
+    expect(es).toContain('necesita atención');
+    expect(es).not.toContain('needs tending');
   });
 
   test('BriefingCard — the "While you slept" badge translates independent of the AI-composed narrative lines (left English by design, out of this pass\'s scope)', () => {
