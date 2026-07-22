@@ -2,16 +2,5 @@
   "src/services/compliance/adjudication/sla-escalation.ts::english-in-server-prose::0::content_text: [SLA escalation for queue",
   "src/services/compliance/audit/sinks.ts::english-in-server-prose::0::narrative: Data-rights event:",
   "src/services/compliance/audit/sinks.ts::english-in-server-prose::0::narrative: Licensing state transition:",
-  "src/services/harvest-method/primerica-overlay.ts::english-in-server-prose::0::urgencyNote: Queue urgency is weighted toward your next promotion target at",
-  "src/services/onboarding/wp01/org-gate.ts::english-in-server-prose::0::caption: Not verified — we check the format only, not with Primerica.",
-  "src/services/onboarding/wp01/org-gate.ts::english-in-server-prose::0::label: Solution number",
-  "src/services/payment/cancellation.ts::english-in-server-prose::0::finalActionLabel: Cancel subscription",
-  "src/services/security/incident/incident-audit-sink.ts::english-in-server-prose::0::narrative: (system-detected via SecurityEvent correlation)",
-  "src/services/taprooting/override-math.ts::english-in-server-prose::0::narrative: At depth",
-  "src/services/taprooting/tree-builder.ts::english-in-server-prose::0::countLabel: 0 of 1",
-  "src/services/taprooting/tree-builder.ts::english-in-server-prose::0::label: A leg isn't a leg until it is four deep",
-  "src/services/taprooting/tree-builder.ts::english-in-server-prose::0::label: A recruit isn't a recruit until they have a recruit",
-  "src/services/taprooting/tree-builder.ts::english-in-server-prose::0::label: A team gets a life of its own when a leader emerges",
-  "src/services/taprooting/tree-builder.ts::english-in-server-prose::0::label: A team isn't a team until it has four legs",
-  "src/services/team-calendar/booking.service.ts::english-in-server-prose::0::note: prior engagement signal(s) on file — open warm, reference the relationship, not …"
+  "src/services/security/incident/incident-audit-sink.ts::english-in-server-prose::0::narrative: (system-detected via SecurityEvent correlation)"
 ]

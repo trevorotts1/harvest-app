@@ -25,6 +25,8 @@ import {
 } from './availability';
 import { deterministicSlotLockId, isSlotTakenError } from './slot-lock';
 import { decryptRequiredField, getContactEncryptionKey } from '../warm-market/vault/vault-encryption';
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 
 // ── Persistence seam ──────────────────────────────────────────────────────────────────────────────
 
@@ -202,7 +204,7 @@ export class BookingService {
       workingHours: input.workingHours ?? DEFAULT_WORKING_HOURS,
     });
 
-    const dossier = this.buildDossier(contact);
+    const dossier = await this.buildDossier(contact, input.repId);
 
     // §14.3/§18.4: a disconnected calendar NEVER auto-books, even if a window looks free — the
     // engine cannot trust availability data it cannot currently verify.
@@ -294,14 +296,40 @@ export class BookingService {
     }
   }
 
-  private buildDossier(contact: { interactions?: { id: string }[] } | null): Record<string, unknown> {
+  /** T-57 RG8 (i18n) — same fail-soft, duck-typed shape `zones/briefing.ts`'s own `resolveRepLocale`
+   *  uses: `this.prisma` is typed to the narrow `BookingPrismaClient` DI surface (no `.user`
+   *  accessor — widening that shared type is out of this fix's lane), but the REAL production
+   *  Prisma client passed in always has one, so this resolves the rep's actual `User.locale` with
+   *  zero change to `BookingPrismaClient` or any other file. Every existing test's in-memory fake
+   *  (which has no `.user`) safely falls through to `DEFAULT_LOCALE` — never throws; a locale
+   *  lookup hiccup must never block booking. */
+  private async resolveRepLocale(repId: string): Promise<Locale> {
+    const maybeUser = (this.prisma as unknown as {
+      user?: { findUnique?: (args: { where: { id: string }; select: { locale: true } }) => Promise<{ locale: string | null } | null> };
+    }).user;
+    if (typeof maybeUser?.findUnique !== 'function') return DEFAULT_LOCALE;
+    try {
+      const user = await maybeUser.findUnique({ where: { id: repId }, select: { locale: true } });
+      return isLocale(user?.locale) ? user.locale : DEFAULT_LOCALE;
+    } catch {
+      return DEFAULT_LOCALE;
+    }
+  }
+
+  /**
+   * T-57 RG8 (i18n; server-i18n-leak) — `note` USED to be hardcoded English composed here with no
+   * path to Spanish. Now resolves the rep's real locale (`resolveRepLocale`, above) and composes
+   * via the catalog (CLDR plural for the prior-engagement count).
+   */
+  private async buildDossier(contact: { interactions?: { id: string }[] } | null, repId: string): Promise<Record<string, unknown>> {
     const priorInteractionCount = contact?.interactions?.length ?? 0;
+    const locale = await this.resolveRepLocale(repId);
     return {
       generated_at: new Date().toISOString(),
       prior_interaction_count: priorInteractionCount,
       note: priorInteractionCount > 0
-        ? `${priorInteractionCount} prior engagement signal(s) on file — open warm, reference the relationship, not a cold intro.`
-        : 'First real touch with this contact — keep it warm and low-pressure.',
+        ? t(locale, 'booking.dossierNote.priorEngagement', { count: priorInteractionCount })
+        : t(locale, 'booking.dossierNote.firstTouch'),
     };
   }
 

@@ -127,5 +127,24 @@ describe('WP01 org gate — §17.1 branch lock (§6.3)', () => {
       const primericaCtx = buildOrgContext(OrgType.PRIMERICA);
       expect(() => assertNoPrimericaLeak(primericaCtx, OrgType.EXTERNAL)).toThrow(OrgBranchViolation);
     });
+
+    // T-57 RG8 (i18n; server-i18n-leak) — `label`/`caption` used to be hardcoded English composed
+    // with no path to Spanish. `locale` is now an explicit (optional, EN-default) parameter.
+    describe('T-57 RG8 — solution-number field i18n', () => {
+      test('defaults to English (byte-identical to the pre-fix behavior) when locale is omitted', () => {
+        const ctx = buildOrgContext(OrgType.PRIMERICA);
+        expect(ctx.solutionNumberField?.label).toBe('Solution number');
+        expect(ctx.solutionNumberField?.caption).toBe('Not verified — we check the format only, not with Primerica.');
+      });
+
+      test('renders a genuinely distinct, real Spanish label + caption when locale="es"', () => {
+        const en = buildOrgContext(OrgType.PRIMERICA, 'en');
+        const es = buildOrgContext(OrgType.PRIMERICA, 'es');
+        expect(es.solutionNumberField?.label).not.toBe(en.solutionNumberField?.label);
+        expect(es.solutionNumberField?.caption).not.toBe(en.solutionNumberField?.caption);
+        expect(es.solutionNumberField?.label).toBe('Número de solución');
+        expect(es.solutionNumberField?.caption).toMatch(/no verificado/i);
+      });
+    });
   });
 });

@@ -30,6 +30,7 @@ import {
 } from './eligibility';
 import { computeReadiness, toPublicQueueItem, assertNoRawScoreLeak } from './readiness-engine';
 import { buildPrimericaVelocityContext, isPrimericaBranch, type PrimericaVelocityContext } from './primerica-overlay';
+import type { Locale } from '@/lib/i18n/locale';
 import { assertNoPrimericaLeak } from '../onboarding/wp01/org-gate';
 import { decryptContactPII, getContactEncryptionKey } from '../warm-market/vault/vault-encryption';
 import type { HarvestMethodPrismaClient, ContactMethodProfileRow } from './method-state.service';
@@ -69,6 +70,10 @@ export interface GetQueueOptions {
   includeExcluded: boolean;
   /** Primerica-only; ignored (and never rendered) for a universal org. */
   rank?: string | null;
+  /** T-57 RG8 (i18n) — the rep's locale, threaded through to `buildPrimericaVelocityContext`'s
+   *  `urgencyNote` (server-composed rep-facing prose). Defaults to `DEFAULT_LOCALE` (English) when
+   *  omitted — every existing caller/test that doesn't pass it keeps behaving exactly as before. */
+  locale?: Locale;
 }
 
 export type PrioritizedQueueResult = QueueResult & { primericaVelocity?: PrimericaVelocityContext };
@@ -255,7 +260,7 @@ export class PrioritizedQueueService {
     assertNoRawScoreLeak(queue, 'prioritized_queue_service');
     assertNoPrimericaLeak(queue, orgType); // no-op for a Primerica caller; throws for a universal one
 
-    const primericaVelocity = buildPrimericaVelocityContext(orgType, options.rank ?? null);
+    const primericaVelocity = buildPrimericaVelocityContext(orgType, options.rank ?? null, options.locale);
     return primericaVelocity ? { available: true, queue, primericaVelocity } : { available: true, queue };
   }
 

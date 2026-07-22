@@ -162,6 +162,21 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
     expect(es).not.toMatch(/primerica/i);
   });
 
+  // T-57 RG8 (i18n; server-i18n-leak) — `org-gate.ts`'s `buildOrgContext` used to bake hardcoded
+  // English `label`/`caption` into the Primerica branch's solution-number field, with no path to
+  // Spanish. `OrgStep.tsx` now passes `useLocale().locale` through, so a Spanish rep genuinely sees
+  // the label + "not verified" caption in Spanish, not English.
+  test('OrgBranchPanel — Primerica branch solution-number label + caption render real Spanish (not English)', () => {
+    const en = textOf(renderEn(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.PRIMERICA, 'en'), solutionNumber: '' }));
+    const es = textOf(renderEs(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.PRIMERICA, 'es'), solutionNumber: '' }));
+    expect(en).toContain('Solution number');
+    expect(en).toMatch(/Not verified/);
+    expect(es).toContain('Número de solución');
+    expect(es).toMatch(/No verificado/i);
+    expect(es).not.toMatch(/solution number/i);
+    expect(es).not.toMatch(/not verified/i);
+  });
+
   test('GdprConsentStep — headline, lede, and the not-pre-selected caption translate (the GDPR legal consent statement itself stays the single fixed EN string, by design)', () => {
     const props = { consented: false };
     const en = textOf(renderEn(GdprConsentStep, props));

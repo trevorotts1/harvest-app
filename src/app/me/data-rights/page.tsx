@@ -26,6 +26,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocale } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
 import { errorDisplay } from '@/lib/i18n/error-display';
+import { StatusMessage } from '@/components/StatusMessage';
 import type { Locale } from '@/lib/i18n/locale';
 import styles from './data-rights.module.css';
 import StepUpPrompt from './components/StepUpPrompt';
@@ -198,7 +199,7 @@ export default function DataRightsPage() {
         )}
         {exportAction.stage === 'idle' || exportAction.stage === 'error' ? (
           <div className={styles.btnRow}>
-            {exportAction.errorMessage && <p className={styles.body}>{exportAction.errorMessage}</p>}
+            {exportAction.errorMessage && <StatusMessage className={styles.body}>{exportAction.errorMessage}</StatusMessage>}
             <label className={styles.fieldLabel} htmlFor="export-format">
               {t('dataRights.export.formatLabel')}
             </label>
@@ -238,7 +239,7 @@ export default function DataRightsPage() {
           <>
             {requestAction.stage === 'idle' || requestAction.stage === 'error' ? (
               <div className={styles.btnRow}>
-                {requestAction.errorMessage && <p className={styles.body}>{requestAction.errorMessage}</p>}
+                {requestAction.errorMessage && <StatusMessage className={styles.body}>{requestAction.errorMessage}</StatusMessage>}
                 <button type="button" className={styles.dangerBtn} onClick={() => void requestAction.run()}>
                   {t('dataRights.deletion.requestCta')}
                 </button>
@@ -287,7 +288,7 @@ export default function DataRightsPage() {
             </label>
             {confirmAction.stage === 'idle' || confirmAction.stage === 'error' ? (
               <div className={styles.btnRow}>
-                {confirmAction.errorMessage && <p className={styles.body}>{confirmAction.errorMessage}</p>}
+                {confirmAction.errorMessage && <StatusMessage className={styles.body}>{confirmAction.errorMessage}</StatusMessage>}
                 <button
                   type="button"
                   className={styles.dangerBtn}

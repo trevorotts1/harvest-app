@@ -290,6 +290,19 @@ describe('(c) org-gate — named WP03 critical failure "Primerica leak"', () => 
     expect(result.primericaVelocity!.rank).toBe('RVP');
   });
 
+  // T-57 RG8 (i18n) — `GetQueueOptions.locale` threads all the way to `urgencyNote`.
+  test('getQueue threads options.locale through to a real Spanish urgencyNote', async () => {
+    const { prisma, contacts } = createFakeQueuePrisma();
+    seedContact(contacts, { id: 'c1', userId: 'user-3', firstName: 'Alice', lastName: 'Jones' });
+    await completeAllThreeLayers(prisma, 'user-3', ['c1']);
+
+    const service = new PrioritizedQueueService(prisma);
+    const result = await service.getQueue('user-3', OrgType.PRIMERICA, { includeExcluded: true, rank: 'RVP', locale: 'es' });
+
+    expect(result.primericaVelocity?.urgencyNote).toMatch(/próxima meta de ascenso/);
+    expect(result.primericaVelocity?.urgencyNote.toLowerCase()).not.toMatch(/\bqueue urgency\b/);
+  });
+
   test('the underlying org-gate tripwire (assertNoPrimericaLeak) has real teeth: throws for a universal org carrying a Primerica string, no-ops for a Primerica org', () => {
     expect(() => assertNoPrimericaLeak({ note: 'Ask about your Primerica solution number' }, OrgType.EXTERNAL)).toThrow(OrgBranchViolation);
     expect(() => assertNoPrimericaLeak({ note: 'Ask about your Primerica solution number' }, OrgType.PRIMERICA)).not.toThrow();
@@ -298,6 +311,33 @@ describe('(c) org-gate — named WP03 critical failure "Primerica leak"', () => 
   test('buildPrimericaVelocityContext returns undefined outright for a universal org (not a null Primerica-shaped stub)', () => {
     expect(buildPrimericaVelocityContext(OrgType.EXTERNAL, 'RVP')).toBeUndefined();
     expect(buildPrimericaVelocityContext(OrgType.PRIMERICA, 'RVP')).toBeDefined();
+  });
+
+  // T-57 RG8 (i18n; server-i18n-leak) — `urgencyNote` used to be hardcoded English composed with no
+  // path to Spanish. `locale` is now an explicit (optional, EN-default) parameter.
+  describe('T-57 RG8 — urgencyNote i18n', () => {
+    test('renders a genuinely distinct, real Spanish urgencyNote (with a rank on file), the rank itself kept verbatim', () => {
+      const en = buildPrimericaVelocityContext(OrgType.PRIMERICA, 'RVP', 'en');
+      const es = buildPrimericaVelocityContext(OrgType.PRIMERICA, 'RVP', 'es');
+      expect(es?.urgencyNote).not.toBe(en?.urgencyNote);
+      expect(es?.urgencyNote).toContain('RVP');
+      expect(es?.urgencyNote).toMatch(/próxima meta de ascenso/);
+      expect(es?.urgencyNote.toLowerCase()).not.toMatch(/\bqueue urgency\b/);
+    });
+
+    test('renders a genuinely distinct, real Spanish urgencyNote (no rank on file yet)', () => {
+      const en = buildPrimericaVelocityContext(OrgType.PRIMERICA, null, 'en');
+      const es = buildPrimericaVelocityContext(OrgType.PRIMERICA, null, 'es');
+      expect(es?.urgencyNote).not.toBe(en?.urgencyNote);
+      expect(es?.urgencyNote).toMatch(/rango/);
+      expect(es?.urgencyNote.toLowerCase()).not.toMatch(/\bqueue urgency\b/);
+    });
+
+    test('defaults to English (byte-identical to the pre-fix behavior) when locale is omitted', () => {
+      expect(buildPrimericaVelocityContext(OrgType.PRIMERICA, 'RVP')?.urgencyNote).toBe(
+        'Queue urgency is weighted toward your next promotion target at RVP.'
+      );
+    });
   });
 });
 

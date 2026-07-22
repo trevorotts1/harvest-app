@@ -100,4 +100,21 @@ describe('cancellation flow — NO DARK PATTERNS (AC-5.8-6)', () => {
       new Date(end + REACTIVATION_WINDOW_DAYS * DAY).toISOString()
     );
   });
+
+  // T-57 RG8 (i18n; server-i18n-leak) — `finalActionLabel` used to be the hardcoded English
+  // literal-type `'Cancel subscription'` with no path to Spanish. It's now resolved via the SAME
+  // catalog key (`billing.cancelSubscription`) the trigger button already uses, so a Spanish rep
+  // sees the identical, plainly-labeled, non-euphemistic Spanish text for both.
+  test('T-57 RG8 — finalActionLabel renders real Spanish, identical to the catalog\'s billing.cancelSubscription key', () => {
+    const en = buildCancellationFlow({ openConversations: 0, downgradeAvailable: false, currentPeriodEndMs: null, locale: 'en' });
+    const es = buildCancellationFlow({ openConversations: 0, downgradeAvailable: false, currentPeriodEndMs: null, locale: 'es' });
+    expect(en.finalActionLabel).toBe('Cancel subscription');
+    expect(es.finalActionLabel).toBe('Cancelar suscripción');
+    expect(es.finalActionLabel).not.toBe(en.finalActionLabel);
+  });
+
+  test('T-57 RG8 — defaults to English (byte-identical to the pre-fix behavior) when locale is omitted', () => {
+    const flow = buildCancellationFlow({ openConversations: 0, downgradeAvailable: false, currentPeriodEndMs: null });
+    expect(flow.finalActionLabel).toBe('Cancel subscription');
+  });
 });

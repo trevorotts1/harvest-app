@@ -1,12 +1,19 @@
 // WP08 §13.2, uiux §4.8 — the Rules-of-Building chip row. Live ✓ / countdown / not-started chips
 // computed from real data (never slogans); tapping a chip opens the depth-scoped override-math
 // sheet, always FTC-safe-harbor-framed (master spec §13.2, uiux §4.13).
+//
+// T-57 RG8 (i18n; server-i18n-leak) — `tree-builder.ts`'s `computeRoBChips` used to hand this
+// component pre-composed ENGLISH `label`/`countLabel` prose (the four RoB axioms, including the
+// doctrine-forbidden "A recruit isn't a recruit until they have a recruit") that got rendered
+// verbatim regardless of the rep's locale. Now `chips.chips` carries only structural data
+// (`key`/`state`/`current`/`target`) and THIS component — the sole renderer — composes the
+// localized axiom + countdown text via the catalog, doctrine-clean ("teammate", never "recruit").
 
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 
-import type { OverrideMathSheet, RulesOfBuildingChips as RoBChipsType } from '@/types/taprooting';
+import type { OverrideMathSheet, RulesOfBuildingChip, RulesOfBuildingChips as RoBChipsType } from '@/types/taprooting';
 import styles from '../grow.module.css';
 import { useT } from '@/app/locale-context';
 
@@ -25,6 +32,32 @@ function stateLabelKey(state: 'met' | 'countdown' | 'not_started'): string {
   if (state === 'met') return 'grow.rulesOfBuilding.stateLabel.met';
   if (state === 'countdown') return 'grow.rulesOfBuilding.stateLabel.countdown';
   return 'grow.rulesOfBuilding.stateLabel.notStarted';
+}
+
+/** Maps a chip's `key` to its localized RoB axiom label catalog key (the famous four rules,
+ *  §13.2) — doctrine-clean ("teammate", never "recruit"). */
+const AXIOM_KEY: Record<RulesOfBuildingChip['key'], string> = {
+  recruit_has_recruit: 'grow.rulesOfBuilding.axiom.recruitHasRecruit',
+  leg_four_deep: 'grow.rulesOfBuilding.axiom.legFourDeep',
+  team_four_legs: 'grow.rulesOfBuilding.axiom.teamFourLegs',
+  leader_emerged: 'grow.rulesOfBuilding.axiom.leaderEmerged',
+};
+
+/** The live countdown string ("2 of 4 deep", "1 of 4 legs", "3 emerged") — same shape
+ *  `tree-builder.ts`'s `computeRoBChips` used to compose in English server-side; now composed here
+ *  from the real `current`/`target` numbers via the catalog, so it's genuinely localized (CLDR
+ *  plural for "emerged"), not a template that happens to only ever render in English. */
+function countLabelFor(chip: RulesOfBuildingChip, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  if (chip.key === 'leg_four_deep') {
+    return t('grow.rulesOfBuilding.countLabel.ofDeep', { current: chip.current, target: chip.target });
+  }
+  if (chip.key === 'team_four_legs') {
+    return t('grow.rulesOfBuilding.countLabel.ofLegs', { current: chip.current, target: chip.target });
+  }
+  if (chip.key === 'leader_emerged' && chip.current > 0) {
+    return t('grow.rulesOfBuilding.countLabel.emerged', { current: chip.current, count: chip.current });
+  }
+  return t('grow.rulesOfBuilding.countLabel.of', { current: chip.current, target: chip.target });
 }
 
 export default function RulesOfBuildingChips({ chips, onOpenMath }: RulesOfBuildingChipsProps) {
@@ -63,22 +96,26 @@ export default function RulesOfBuildingChips({ chips, onOpenMath }: RulesOfBuild
   return (
     <div>
       <div className={styles.chipRow} role="list" aria-label={t('grow.rulesOfBuilding.title')}>
-        {chips.chips.map((chip, index) => (
-          <button
-            key={chip.key}
-            type="button"
-            role="listitem"
-            className={`${styles.chip} ${chip.state === 'met' ? styles.chipMet : chip.state === 'countdown' ? styles.chipCountdown : ''}`}
-            onClick={(e) => handleTap(index, e.currentTarget)}
-            aria-label={t('grow.rulesOfBuilding.chipAriaLabel', { label: chip.label, state: t(stateLabelKey(chip.state)), count: chip.countLabel })}
-          >
-            <span className={styles.chipLabel}>{chip.label}</span>
-            <span className={styles.chipStatusRow}>
-              <span aria-hidden="true">{stateGlyph(chip.state)}</span>
-              <span>{chip.countLabel}</span>
-            </span>
-          </button>
-        ))}
+        {chips.chips.map((chip, index) => {
+          const label = t(AXIOM_KEY[chip.key]);
+          const countLabel = countLabelFor(chip, t);
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              role="listitem"
+              className={`${styles.chip} ${chip.state === 'met' ? styles.chipMet : chip.state === 'countdown' ? styles.chipCountdown : ''}`}
+              onClick={(e) => handleTap(index, e.currentTarget)}
+              aria-label={t('grow.rulesOfBuilding.chipAriaLabel', { label, state: t(stateLabelKey(chip.state)), count: countLabel })}
+            >
+              <span className={styles.chipLabel}>{label}</span>
+              <span className={styles.chipStatusRow}>
+                <span aria-hidden="true">{stateGlyph(chip.state)}</span>
+                <span>{countLabel}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {loadingDepth !== null && <p role="status">{t('grow.rulesOfBuilding.loadingDepthTemplate', { depth: loadingDepth })}</p>}

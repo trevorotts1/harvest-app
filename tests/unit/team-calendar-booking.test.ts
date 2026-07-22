@@ -290,4 +290,77 @@ describe('WP09 BookingService', () => {
     expect(confirmed.length).toBe(1);
     expect([a.outcome, b.outcome].filter((o) => o === 'booked').length).toBe(1);
   });
+
+  // T-57 RG8 (i18n; server-i18n-leak) — `buildDossier`'s `note` used to be hardcoded English with
+  // no path to Spanish. Now resolves the rep's real `User.locale` (duck-typed against `this.prisma`,
+  // same convention `zones/briefing.ts`'s own `resolveRepLocale` uses) and composes via the catalog.
+  describe('T-57 RG8 — dossier note i18n (server-i18n-leak)', () => {
+    it('a Spanish-locale rep gets a real ES dossier note (first-touch branch), not English', async () => {
+      const { prisma, appointments } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET });
+      const prismaWithLocale = Object.assign(prisma, {
+        user: { findUnique: async () => ({ locale: 'es' }) },
+      }) as unknown as BookingPrismaClient;
+      const service = new BookingService(prismaWithLocale, fakeDispatch);
+
+      const result = await service.proposeClosingAppointment({
+        repId: 'rep-1',
+        trainerId: 'trainer-1',
+        contactId: 'contact-1',
+        organizationId: 'org-1',
+        now: new Date('2025-06-09T13:00:00Z'),
+      });
+      expect(result.outcome).toBe('booked');
+
+      const row = appointments.get(result.appointmentId);
+      const dossier = row?.dossier as { note: string } | undefined;
+      expect(dossier?.note).toBe('Primer contacto real con esta persona — mantenlo cálido y sin presión.');
+      expect(dossier?.note.toLowerCase()).not.toContain('first real touch');
+    });
+
+    it('a Spanish-locale rep gets the real ES prior-engagement dossier note (CLDR plural), not English', async () => {
+      const contactWithHistory = { ...CONTACT_ET, interactions: [{ id: 'i1' }, { id: 'i2' }] };
+      const { prisma, appointments } = makeMockPrisma({ links: CONNECTED_LINKS, contact: contactWithHistory });
+      const prismaWithLocale = Object.assign(prisma, {
+        user: { findUnique: async () => ({ locale: 'es' }) },
+      }) as unknown as BookingPrismaClient;
+      const service = new BookingService(prismaWithLocale, fakeDispatch);
+
+      const result = await service.proposeClosingAppointment({
+        repId: 'rep-1',
+        trainerId: 'trainer-1',
+        contactId: 'contact-1',
+        organizationId: 'org-1',
+        now: new Date('2025-06-09T13:00:00Z'),
+      });
+      expect(result.outcome).toBe('booked');
+
+      const row = appointments.get(result.appointmentId);
+      const dossier = row?.dossier as { note: string } | undefined;
+      expect(dossier?.note).toBe(
+        '2 señales de contacto previo en el historial — abre con calidez, haciendo referencia a la relación, no como un primer acercamiento distante.'
+      );
+      expect(dossier?.note.toLowerCase()).not.toContain('prior engagement');
+    });
+
+    it('a locale-lookup failure (or absent `.user` on the DI prisma) fails soft to the English dossier note, never throws', async () => {
+      // The real DI type (`BookingPrismaClient`) has no `.user` accessor at all — every existing
+      // test's fake (above) matches that exactly, proving `resolveRepLocale`'s duck-type falls
+      // through to `DEFAULT_LOCALE` rather than crashing booking.
+      const { prisma, appointments } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET });
+      const service = new BookingService(prisma, fakeDispatch);
+
+      const result = await service.proposeClosingAppointment({
+        repId: 'rep-1',
+        trainerId: 'trainer-1',
+        contactId: 'contact-1',
+        organizationId: 'org-1',
+        now: new Date('2025-06-09T13:00:00Z'),
+      });
+      expect(result.outcome).toBe('booked');
+
+      const row = appointments.get(result.appointmentId);
+      const dossier = row?.dossier as { note: string } | undefined;
+      expect(dossier?.note).toBe('First real touch with this contact — keep it warm and low-pressure.');
+    });
+  });
 });
