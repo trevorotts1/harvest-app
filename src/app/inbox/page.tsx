@@ -35,6 +35,7 @@ import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useLocale } from '@/app/locale-context';
 import { errorDisplay, errorStateLabel } from '@/lib/i18n/error-display';
+import { multipleRejectedNotice, transientSyncNotice } from '@/lib/i18n/sync-notice';
 
 import ComposerHandoffSheet from '@/app/community/components/ComposerHandoffSheet';
 
@@ -148,17 +149,17 @@ export default function ApprovalInboxPage() {
 
     const notices: string[] = [];
     if (rejections.length > 0) {
-      notices.push(
-        rejections.length === 1
-          ? rejections[0].message
-          : `${rejections.length} queued actions could not complete — they need review again.`
-      );
+      // T-57 RG4 (B leak) — a single rejection surfaces its own already-localized message (resolved
+      // from the route's machine `code` via `errorDisplay` in ./offline.ts); 2+ collapse into one
+      // localized, token-free summary. No hardcoded English in this setState/notice chain anymore.
+      notices.push(rejections.length === 1 ? rejections[0].message : multipleRejectedNotice(t, rejections.length));
     }
     if (result.failed) {
       // A genuinely transient failure (network/5xx) — still queued, untouched, for the next attempt.
-      notices.push(
-        `${result.synced > 0 ? `${result.synced} item(s) synced. ` : ''}1 item couldn't sync yet (${result.failed.kind}) — it's still queued and we'll try again when you're back online.`
-      );
+      // T-57 RG4 (B leak) — localized via the catalog, and the raw internal mutation-kind token
+      // (`inbox/approve`, …) humanized through `syncActionLabel` inside `transientSyncNotice` rather
+      // than spliced verbatim into the notice as it used to be.
+      notices.push(transientSyncNotice(t, result.synced, result.failed.kind));
     }
     setSyncNotice(notices.length > 0 ? notices.join(' ') : null);
 
@@ -348,7 +349,9 @@ export default function ApprovalInboxPage() {
 
         {!loading && error && (
           <div className={styles.errorState}>
-            <p>{error}</p>
+            {/* T-57 RG4 (A, WCAG SC 4.1.3) — a top-level load failure must be announced. role="alert"
+                (assertive) mirrors the landed content/page.tsx queue-error precedent. */}
+            <p role="alert">{error}</p>
             <button type="button" className={styles.retryButton} onClick={() => load(filter)}>
               {t('inbox.retry')}
             </button>

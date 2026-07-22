@@ -767,8 +767,8 @@
       "joinedViaSeparator": "· se unió mediante",
       "photoAlt": "Foto real de incorporación de {name}",
       "noPhotoNotice": "No hay foto registrada — los recursos compartidos muestran un avatar de iniciales (nunca una foto de stock).",
-      "wholeKitHoldPrefix": "RETENCIÓN DE TODO EL KIT — una pieza fue bloqueada (",
-      "wholeKitHoldSuffix": "). Todo el kit se retiene hasta que cada pieza quede aprobada.",
+      "wholeKitHoldPrefix": "RETENCIÓN DE TODO EL KIT — ",
+      "wholeKitHoldSuffix": ". Todo el kit se retiene hasta que cada pieza quede aprobada.",
       "pieceNeedsRevision": "Esta pieza necesita revisión doctrinal antes de que el kit pueda continuar.",
       "approveKitCta": "Aprobar todo el kit",
       "withdrawKitCta": "El nuevo miembro se retiró — mover a borradores"
@@ -1724,6 +1724,30 @@
     "ATTENDANCE_STATE_INVALID": "Elige Asistió o No asistió para este evento.",
     "EVENT_NOT_FOUND": "No se pudo encontrar este evento para tu organización.",
     "NOT_OWNED": "Ese elemento no te pertenece.",
-    "REQUIRES_REVIEW": "Este borrador fue marcado por la revisión de cumplimiento y no se puede aprobar desde tu Turno — edítalo o revísalo en la Bandeja de aprobación."
+    "REQUIRES_REVIEW": "Este borrador fue marcado por la revisión de cumplimiento y no se puede aprobar desde tu Turno — edítalo o revísalo en la Bandeja de aprobación.",
+    "reasons": {
+      "generic": "una retención de cumplimiento",
+      "cfe_held": "retenido para revisión de cumplimiento",
+      "cfe_blocked": "bloqueado por cumplimiento",
+      "one_or_more_pieces_blocked_by_compliance_or_doctrine": "una pieza fue bloqueada por cumplimiento o doctrina"
+    },
+    "EDIT_SAVE_FAILED": "No se pudo guardar esta edición. Inténtalo de nuevo."
+  },
+  "offline": {
+    "sync": {
+      "multipleRejected": "{count} acciones en cola no pudieron completarse — necesitan revisión de nuevo.",
+      "transientOne": "1 elemento aún no se pudo sincronizar ({action}) — sigue en cola y lo intentaremos de nuevo cuando vuelvas a estar en línea.",
+      "syncedPrefix_one": "{count} elemento sincronizado. ",
+      "syncedPrefix_other": "{count} elementos sincronizados. ",
+      "action": {
+        "approve": "una aprobación",
+        "decline": "un rechazo",
+        "edit": "una edición",
+        "queueAction": "una acción de la cola",
+        "attendance": "una actualización de asistencia",
+        "ritualStep": "un paso del ritual",
+        "generic": "una actualización"
+      }
+    }
   }
 }

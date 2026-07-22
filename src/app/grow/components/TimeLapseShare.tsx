@@ -16,6 +16,7 @@ import { useMemo, useState } from 'react';
 import type { OrgTreeNode } from '@/types/taprooting';
 import styles from '../grow.module.css';
 import { useT } from '@/app/locale-context';
+import { reasonDisplay } from '@/lib/i18n/reason-display';
 
 export interface TimeLapseShareProps {
   ownerDisplayName: string;
@@ -73,7 +74,11 @@ export function ShareResultActions({
 }: ShareResultActionsProps) {
   const t = useT();
   if (state.kind === 'blocked') {
-    return <p role="alert">{t('grow.timeLapseShare.blockedMessageTemplate', { reason: state.reason })}</p>;
+    // T-57 RG4 (B leak) — `state.reason` is the raw backend token (`cfe_held`/`cfe_blocked`); resolve
+    // it to localized compliance-hold copy via `reasonDisplay` before interpolating, never render the
+    // token itself (see reason-display.ts's security note — the mapped copy keeps saying it's a
+    // compliance hold in both languages).
+    return <p role="alert">{t('grow.timeLapseShare.blockedMessageTemplate', { reason: reasonDisplay(t, state.reason) })}</p>;
   }
 
   if (state.kind !== 'released') return null; // 'idle' | 'checking' — nothing cleared yet, nothing to share
@@ -135,7 +140,10 @@ export default function TimeLapseShare({ ownerDisplayName, nodes }: TimeLapseSha
     if (res.ok && body.allowed) {
       setState({ kind: 'released', summary: body.exportSummary });
     } else {
-      setState({ kind: 'blocked', reason: body.reason ?? t('grow.timeLapseShare.blockedReasonFallback') });
+      // T-57 RG4 (B leak) — keep the RAW backend token in state (or '' if the block carried none);
+      // it is resolved to localized copy at render time by `reasonDisplay` (see `ShareResultActions`).
+      // An absent token maps to the generic compliance-hold phrase, so no English fallback is needed.
+      setState({ kind: 'blocked', reason: body.reason ?? '' });
     }
   };
 

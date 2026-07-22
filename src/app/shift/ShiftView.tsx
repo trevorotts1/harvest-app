@@ -241,7 +241,9 @@ export default function ShiftView({ mode = 'standard', initialShift, initialLear
   if (error) {
     return (
       <div className={styles.shell}>
-        <p className={styles.recapLine}>{error}</p>
+        {/* T-57 RG4 (A, WCAG SC 4.1.3) — a top-level Shift load failure must be announced to AT.
+            role="alert" (assertive) mirrors the landed content/page.tsx load-error precedent. */}
+        <p className={styles.recapLine} role="alert">{error}</p>
       </div>
     );
   }

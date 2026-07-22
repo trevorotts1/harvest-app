@@ -148,14 +148,20 @@ export function makeEditHandler(
         body: JSON.stringify({ draftId, body }),
       });
     } catch {
-      return { ok: false, error: 'This edit could not be saved.' };
+      // T-57 RG4 (B leak) — was hardcoded English rendered by ApprovalInboxItem; a transport/parse
+      // failure carries no server `code`, so resolve the localized "couldn't save this edit" copy
+      // from the catalog via `errorDisplay` (mirrors the approve/decline handlers above).
+      return { ok: false, error: errorDisplay(t, 'EDIT_SAVE_FAILED') };
     }
 
     let data: { ok?: boolean; error?: string; code?: string; currentState?: string; draft?: InboxItemData };
     try {
       data = await res.json();
     } catch {
-      return { ok: false, error: 'This edit could not be saved.' };
+      // T-57 RG4 (B leak) — was hardcoded English rendered by ApprovalInboxItem; a transport/parse
+      // failure carries no server `code`, so resolve the localized "couldn't save this edit" copy
+      // from the catalog via `errorDisplay` (mirrors the approve/decline handlers above).
+      return { ok: false, error: errorDisplay(t, 'EDIT_SAVE_FAILED') };
     }
 
     if (!res.ok || !data.ok || !data.draft) {

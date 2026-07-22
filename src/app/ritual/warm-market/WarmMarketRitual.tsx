@@ -65,6 +65,7 @@ import {
 } from './offline';
 import styles from './ritual.module.css';
 import { useT } from '@/app/locale-context';
+import { transientSyncNotice } from '@/lib/i18n/sync-notice';
 
 type Stage = MethodLayer | 'COMPLETE' | 'LOADING' | 'ERROR';
 
@@ -209,12 +210,11 @@ export default function WarmMarketRitual({ initialView }: WarmMarketRitualProps)
     setSyncing(null);
     // §6.4 "failures surface individually, never as a silent partial sync" — the failed mutation
     // (and anything after it) is still queued, untouched, for the next reconnect attempt.
-    setSyncFailure(
-      result.failed
-        ? `${result.synced > 0 ? `${result.synced} item(s) synced. ` : ''}1 item couldn't sync yet (${result.failed.kind}) — it's still queued and we'll try again when you're back online.`
-        : null
-    );
-  }, []);
+    // T-57 RG4 (B leak) — localized via the catalog; the raw internal mutation-kind token
+    // (`warm-market/blank-canvas`, …) is humanized through `syncActionLabel` inside
+    // `transientSyncNotice` rather than spliced verbatim into the notice as it used to be.
+    setSyncFailure(result.failed ? transientSyncNotice(t, result.synced, result.failed.kind) : null);
+  }, [t]);
 
   useEffect(() => {
     const unsubscribe = subscribeOnlineStatus((online) => {
