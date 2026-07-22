@@ -285,22 +285,24 @@ describe('REP track — REP_SCREEN_STEP_PLAN payloads run through the REAL /step
 });
 
 describe('Dense track (UPLINE/RVP/ADMIN) — buildDenseTrackStepPlan payloads run through the REAL /step + /complete routes', () => {
-  // DISCOVERED SERVER-SIDE BLOCKER (T-R37 finding — documented per this unit's own brief, NOT
-  // hacked around client-side; `src/app/api/onboarding/complete/route.ts` is untouched):
+  // FORMERLY A DOCUMENTED SERVER-SIDE BLOCKER (T-R37 finding), FIXED BY T-R38:
   //
-  // `/api/onboarding/complete` unconditionally requires `onboardingRow.intensity_data` to be
-  // non-null (route.ts lines ~99-108: "Intensity data is required before completing onboarding")
-  // and `commitmentScore >= 5`, regardless of role. But `OnboardingStep.INTENSITY` is ONLY a member
-  // of `ROLE_STEP_MAP[REP]` and `ROLE_STEP_MAP[DUAL]` (types/onboarding.ts) — UPLINE, RVP, and
-  // ADMIN's real `ROLE_STEP_MAP`s never include it, so their `intensity_data` column can never be
-  // populated by any real, in-order `/step` walk. The client CANNOT work around this: `/step`'s own
-  // ordering gate (`STEP_ORDER.indexOf(...)`) only accepts a submitted `INTENSITY` step when the
-  // session's OWN persisted `current_step` is already, literally, `INTENSITY` — which `getNextStep`
-  // (keyed off the real `ROLE_STEP_MAP`) never sets for these three roles. The tests below assert
-  // the REAL, current (blocked) behavior — proof, not a workaround — so a future server-side fix to
-  // `/complete`'s precondition is what should flip these to green, not a client-side hack here.
+  // `/api/onboarding/complete` used to require `onboardingRow.intensity_data` to be non-null
+  // (route.ts's old lines ~99-108: "Intensity data is required before completing onboarding") and
+  // `commitmentScore >= 5` UNCONDITIONALLY, regardless of role. But `OnboardingStep.INTENSITY` is
+  // ONLY a member of `ROLE_STEP_MAP[REP]` and `ROLE_STEP_MAP[DUAL]` (types/onboarding.ts) —
+  // UPLINE, RVP, and ADMIN's real `ROLE_STEP_MAP`s never include it, so their `intensity_data`
+  // column could never be populated by any real, in-order `/step` walk, and their `/complete` was
+  // permanently 400. T-R38 makes that precondition ROLE-AWARE (`roleRequiresIntensity` in
+  // route.ts, gated on the SAME `ROLE_STEP_MAP` source of truth): a role without the INTENSITY
+  // step now completes without it, with `intensity_setting` set to the documented, operator-
+  // reviewable `LOW` default (see route.ts's own T-R38 comment for the downstream-consumer
+  // justification) rather than being permanently blocked. The tests below now assert the FIXED,
+  // current (unblocked) behavior — see tests/unit/onboarding-role-aware-completion.test.ts for the
+  // dedicated T-R38 suite (all 5 roles, idempotency, publish-before-mutate, the LOW default, and
+  // REP/DUAL's requirement staying intact).
   test.each([Role.UPLINE, Role.RVP] as const)(
-    'DOCUMENTED BLOCKER: %s completes their FULL real ROLE_STEP_MAP + CONSENT_CAPTURE + real GDPR consent, yet /complete STILL 400s — this role can never pass this gate today',
+    'FIXED (T-R38): %s completes their FULL real ROLE_STEP_MAP + CONSENT_CAPTURE + real GDPR consent, and /complete now reaches GATED_COMPLETE',
     async (role) => {
       const userId = `dense-${role}-1`;
       actAs(userId, role);
@@ -319,16 +321,17 @@ describe('Dense track (UPLINE/RVP/ADMIN) — buildDenseTrackStepPlan payloads ru
 
       fakeUsers.get(userId)!.gdpr_consent = true; // the real /api/onboarding/consent write, simulated
 
-      // Every precondition THIS FIX's client wiring controls is satisfied (real progression, real
-      // consent) — yet /complete still refuses, because of the pre-existing server-side gap above.
+      // Every precondition the client wiring controls is satisfied (real progression, real
+      // consent) — and, as of T-R38, /complete no longer refuses a role with no INTENSITY step.
       const complete = await postComplete();
-      expect(complete.response.status).toBe(400);
-      expect(complete.body.error).toBe('Intensity data is required before completing onboarding');
-      expect(fakeUsers.get(userId)!.onboarding_status).toBeUndefined(); // never reaches GATED_COMPLETE
+      expect(complete.response.status).toBe(200);
+      expect(complete.body.completed).toBe(true);
+      expect(fakeUsers.get(userId)!.onboarding_status).toBe(OnboardingStatus.GATED_COMPLETE);
+      expect(fakeUsers.get(userId)!.intensity_setting).toBe(IntensitySetting.LOW); // T-R38's documented default
     }
   );
 
-  test('DOCUMENTED BLOCKER: ADMIN hits the SAME /complete gap (its minimal ROLE_STEP_MAP has no INTENSITY step either)', async () => {
+  test('FIXED (T-R38): ADMIN (its minimal ROLE_STEP_MAP has no INTENSITY step either) also now reaches GATED_COMPLETE', async () => {
     const userId = 'dense-admin-1';
     actAs(userId, Role.ADMIN);
     seedUser(userId, Role.ADMIN, OrgType.EXTERNAL);
@@ -342,8 +345,10 @@ describe('Dense track (UPLINE/RVP/ADMIN) — buildDenseTrackStepPlan payloads ru
     await postStep(OnboardingStep.CONSENT_CAPTURE, { gdpr_consent: true });
     fakeUsers.get(userId)!.gdpr_consent = true;
     const complete = await postComplete();
-    expect(complete.response.status).toBe(400);
-    expect(complete.body.error).toBe('Intensity data is required before completing onboarding');
+    expect(complete.response.status).toBe(200);
+    expect(complete.body.completed).toBe(true);
+    expect(fakeUsers.get(userId)!.onboarding_status).toBe(OnboardingStatus.GATED_COMPLETE);
+    expect(fakeUsers.get(userId)!.intensity_setting).toBe(IntensitySetting.LOW);
   });
 
   test('DUAL\'s full plan (rep-derived steps included, with the documented MIN_COMMITMENT_SCORE placeholder) clears every real gate through to /complete', async () => {
@@ -373,7 +378,15 @@ describe('Dense track (UPLINE/RVP/ADMIN) — buildDenseTrackStepPlan payloads ru
     expect(fakeUsers.get(userId)!.onboarding_status).toBe(OnboardingStatus.GATED_COMPLETE);
   });
 
-  test('DOCUMENTED GAP, PROVEN: a PRIMERICA dense-track user with no locally-available solution number 400s at ROLE_ORG_CONTEXT against the REAL route (an honest fail-closed surfaced error, not a silent skip/hack)', async () => {
+  // T-R38 note: this specific scenario — no persisted `User.solution_number` at all — is still
+  // EXPECTED to 400; that is correct, fail-closed behavior (never fabricate a number), not a
+  // remaining gap. T-R38's fix is a server-side REUSE of an already-persisted value (added a
+  // decrypt fallback in `/step`'s route, `decryptSolutionNumberFromStorage`) — it deliberately does
+  // NOT add a UI capture field, so a user who was NEVER given a solution number at §6.3
+  // registration genuinely has none to reuse. See
+  // tests/unit/onboarding-role-aware-completion.test.ts's "(2) Primerica dense-track solution_number
+  // reuse" suite for the now-fixed "persisted value exists" case this same route now clears.
+  test('a PRIMERICA dense-track user with no locally-available AND no persisted solution number still 400s at ROLE_ORG_CONTEXT against the REAL route (an honest fail-closed surfaced error, not a silent skip/hack)', async () => {
     const userId = 'dense-upline-primerica-1';
     actAs(userId, Role.UPLINE);
     seedUser(userId, Role.UPLINE, OrgType.PRIMERICA);
