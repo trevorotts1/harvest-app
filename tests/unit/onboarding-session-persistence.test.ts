@@ -194,8 +194,8 @@ async function getStatus() {
   return { response, body };
 }
 
-async function postComplete() {
-  const request = new NextRequest('http://localhost/api/onboarding/complete', { method: 'POST' });
+async function postComplete(headers?: Record<string, string>) {
+  const request = new NextRequest('http://localhost/api/onboarding/complete', { method: 'POST', headers });
   const response = await completeRoute(request, {});
   const body = await response.json();
   return { response, body };
@@ -453,5 +453,26 @@ describe('T-R36 — auth-binding: a user can only complete THEIR OWN persisted s
     const { response, body } = await getStatus();
     expect(response.status).toBe(404);
     expect(body.error).toBe('Onboarding session not found');
+  });
+
+  // Belt-and-suspenders on the "no forged-header trust" requirement: unlike the pre-T-R36 routes,
+  // this route no longer reads `x-user-id` (or any `x-*` identity header) at all — so sending one
+  // has ZERO effect, not merely "is out-ranked by the session." A caller authenticated as A who
+  // sends `x-user-id: <B>` still only ever completes A's own (nonexistent) session, never B's real
+  // one — mirroring tests/unit/onboarding-consent-route.test.ts's own "forged header must have ZERO
+  // effect" regression proof for the sibling /consent route.
+  test('a forged x-user-id header naming another real user has ZERO effect — the caller still only ever touches their OWN session', async () => {
+    const attacker = 'user-attacker-forged-header';
+    const victim = 'user-victim-real-session';
+    seedUser(victim, { org_type: OrgType.EXTERNAL, gdpr_consent: true });
+    const victimRow = directlySeedCompletableSession(victim);
+
+    actAs(attacker); // the REAL, verified session is attacker's own
+    const { response, body } = await postComplete({ 'x-user-id': victim });
+
+    expect(response.status).toBe(404); // attacker's own (nonexistent) session, never victim's
+    expect(body.error).toBe('Onboarding session not found');
+    expect(fakeOnboardingSessions.get(victimRow.id)!.completed).toBe(false); // victim untouched
+    expect(sentEvents).toHaveLength(0);
   });
 });
