@@ -8,6 +8,7 @@ import { OnboardingStep, OnboardingSession, STEP_ORDER, MIN_COMMITMENT_SCORE, Or
 import { onboardingService, type OnboardingStepPayload } from '@/services/onboarding/service';
 import {
   checkSolutionNumberForOrg,
+  decryptSolutionNumberFromStorage,
   encryptSolutionNumberForStorage,
 } from '@/services/onboarding/wp01/solution-number';
 // T-R36: the REAL onboarding-session persistence — replaces the in-memory `sessions: any[] = []`
@@ -81,9 +82,12 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, authSessi
       );
     }
 
+    // T-R38: `solution_number` is now also selected here — the dense-track (UPLINE/RVP) fallback
+    // below needs the already-persisted, encrypted value to satisfy `ROLE_ORG_CONTEXT` without
+    // requiring the caller to resubmit it.
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { role: true, org_type: true },
+      select: { role: true, org_type: true, solution_number: true },
     });
     if (!user) {
       return NextResponse.json({ error: 'Onboarding session not found' }, { status: 404 });
@@ -102,8 +106,36 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, authSessi
       completed: row.completed,
     } as unknown as OnboardingSession;
 
+    // T-R38 (§6.3, §17.1) — DENSE-TRACK SOLUTION-NUMBER FALLBACK: `UplineTrack.tsx` (the dense
+    // UPLINE/RVP/dual-derived onboarding UI) has no re-entry field for the Primerica solution
+    // number, so its real `ROLE_ORG_CONTEXT` submission omits `solution_number`/`solutionNumber`
+    // entirely (see `buildDenseTrackStepPlan`/`buildRoleOrgContextPayload`,
+    // onboarding-step-client.ts) — `validateStep`'s format gate then had no value to check and
+    // failed closed with a 400 for every Primerica dense user, even though the SAME value was
+    // already captured and persisted (encrypted) at §6.3 registration (`User.solution_number`).
+    // Rather than adding a new UI capture field or weakening the format gate, reuse the value that
+    // already exists: if this is a Primerica `ROLE_ORG_CONTEXT` submission and the payload itself
+    // supplies NO value (neither key — an explicit submission always wins and is never silently
+    // overridden), decrypt the persisted value server-side and hand `validateStep` an equivalent
+    // payload. Decryption only ever happens for this exact branch (Primerica + payload omitted) —
+    // never for a universal user, never when the caller already supplied their own value — and a
+    // decrypt failure (see `decryptSolutionNumberFromStorage`'s own fail-closed doc comment) simply
+    // leaves the payload unchanged, so the caller gets the same honest 400 as "never had one".
+    let stepData: OnboardingStepPayload = data;
+    if (step === OnboardingStep.ROLE_ORG_CONTEXT) {
+      const submittedSolutionNumber = (data.solution_number ?? data.solutionNumber) as string | undefined;
+      const effectiveOrgType =
+        (data.orgType as OrgType | undefined) ?? (data.org_type as OrgType | undefined) ?? user.org_type;
+      if (!submittedSolutionNumber && effectiveOrgType === OrgType.PRIMERICA && user.solution_number) {
+        const persistedSolutionNumber = decryptSolutionNumberFromStorage(user.solution_number);
+        if (persistedSolutionNumber) {
+          stepData = { ...data, solution_number: persistedSolutionNumber };
+        }
+      }
+    }
+
     // Business rule validation
-    const validation = onboardingService.validateStep(sessionView, step, data as OnboardingStepPayload);
+    const validation = onboardingService.validateStep(sessionView, step, stepData as OnboardingStepPayload);
 
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });

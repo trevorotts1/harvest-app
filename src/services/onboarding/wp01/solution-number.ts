@@ -24,6 +24,7 @@
 import { OrgType } from '@prisma/client';
 
 import {
+  decryptPII,
   encryptPII,
   type EncryptedPayload,
 } from '@/services/compliance/encryption/encryption';
@@ -144,4 +145,33 @@ export function getSolutionNumberEncryptionKey(): string {
 export function encryptSolutionNumberForStorage(raw: string, key = getSolutionNumberEncryptionKey()): string {
   const { ciphertext, iv, authTag, algorithm } = encryptSolutionNumber(raw, key);
   return JSON.stringify({ ciphertext, iv, authTag, algorithm });
+}
+
+/**
+ * T-R38 (§6.3, §17.1) — the inverse of `encryptSolutionNumberForStorage`, added so the dense
+ * onboarding track (UPLINE/RVP/dual-derived) can REUSE the solution number already captured and
+ * persisted (encrypted) at §6.3 registration, instead of requiring the user to re-enter it at the
+ * `ROLE_ORG_CONTEXT` step. `UplineTrack.tsx` has no re-entry field for it at all (see
+ * `onboarding-step-client.ts`'s own documented gap) — this is what lets the server satisfy that
+ * step's real format gate from data that already exists, server-side only, never by adding a new UI
+ * capture field or fabricating a value.
+ *
+ * Fails CLOSED to `null` on ANY error — a missing value, a malformed/non-JSON envelope, a
+ * wrong/rotated key, or a tampered ciphertext/authTag are all treated identically to "no persisted
+ * solution number exists": the caller's own fallback logic then behaves exactly as if the user had
+ * never supplied one (an honest 400 from the format gate), never a fabricated/garbage digit string
+ * that might accidentally happen to format-validate. The raw value is never logged; callers must
+ * uphold the same "never log/echo" law as the rest of this module.
+ */
+export function decryptSolutionNumberFromStorage(
+  stored: string | null | undefined,
+  key = getSolutionNumberEncryptionKey()
+): string | null {
+  if (!stored) return null;
+  try {
+    const envelope = JSON.parse(stored) as EncryptedPayload;
+    return decryptPII(envelope, key);
+  } catch {
+    return null;
+  }
 }

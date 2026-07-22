@@ -260,9 +260,18 @@ describe('T-R35 — completion route actually publishes user.onboarding_complete
       );
     });
 
+    // T-R38: this test's `role` is deliberately `REP` (was `UPLINE` before T-R38) — the route's
+    // intensity precondition is now role-aware (only REP/DUAL's `ROLE_STEP_MAP` includes
+    // `OnboardingStep.INTENSITY`), so `intensity_setting` is only ever sourced from this session's
+    // own `intensity_data.riskTolerance` for a role that actually has that step; for a role that
+    // doesn't (UPLINE/RVP/ADMIN), the route now applies a documented `LOW` default REGARDLESS of
+    // what a session row's `intensity_data` happens to contain — see
+    // tests/unit/onboarding-role-aware-completion.test.ts for that dedicated coverage. Keeping this
+    // test on a role that legitimately has the step is what makes "every field is sourced from this
+    // session's own real data" still literally true here.
     test('every field is sourced from this session\'s own real data — user_id, role, access_tier (§6.7 signals, not commitment score), organization, anchor_statement, intensity_setting', async () => {
       seedSession('user-pub-3', {
-        role: Role.UPLINE,
+        role: Role.REP,
         org_type: OrgType.PRIMERICA,
         sponsor_id: null, // Primerica org context alone implies sponsorship (§6.7) — see onboarding.test.ts
         intensity_data: { commitmentScore: 9, weeklyHours: 20, riskTolerance: 'HIGH', supportNeeds: [] },
@@ -275,7 +284,7 @@ describe('T-R35 — completion route actually publishes user.onboarding_complete
       expect(published).toEqual({
         event: 'user.onboarding_completed',
         user_id: 'user-pub-3',
-        role: Role.UPLINE,
+        role: Role.REP,
         access_tier: AccessTier.FREE_ORG_LINKED, // Primerica org context => sponsored, per body.accessTier below
         organization: [OrgType.PRIMERICA],
         anchor_statement: 'Built for my kids.',

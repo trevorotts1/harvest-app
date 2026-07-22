@@ -12,7 +12,7 @@ import { withRole } from '@/lib/auth/with-role';
 // `scripts/verify-api-auth.mjs`'s forged-header guard is moot here by construction: this route no
 // longer reads any `x-user-*` header at all (the T-R36 fix this file's own history warned about
 // making live the moment real persistence landed — see the retired ./store.ts).
-import { IntensitySetting, OrgType } from '@/types/onboarding';
+import { IntensitySetting, OrgType, ROLE_STEP_MAP } from '@/types/onboarding';
 // T-R35 (P1 fix, §6.9/§15.2): builds the exact declared `OnboardingCompletedEvent` shape and
 // publishes it through an `OnboardingEventSink`. This module has ZERO dependency on the `inngest`
 // package itself (see its own header comment) — only the production sink implementation
@@ -96,29 +96,11 @@ export const POST = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSess
       );
     }
 
-    // Validate intensity data exists — real persisted JSON, not an in-memory fixture.
-    const intensityData = onboardingRow.intensity_data as
-      | { commitmentScore?: number; riskTolerance?: string }
-      | null;
-    if (!intensityData) {
-      return NextResponse.json(
-        { error: 'Intensity data is required before completing onboarding' },
-        { status: 400 }
-      );
-    }
-
-    const commitmentScore = intensityData.commitmentScore ?? 0;
-
-    // Check commitment threshold
-    if (commitmentScore < 5) {
-      return NextResponse.json(
-        { error: 'Commitment score must be at least 5/10 to complete onboarding' },
-        { status: 400 }
-      );
-    }
-
     // T-R36: role/org_type/gdpr_consent are real `User` columns (prisma/schema.prisma) — never
     // duplicated onto the session row (see session-store.ts's header comment on field ownership).
+    // T-R38: moved ahead of the intensity precondition below (it used to run after) — the
+    // role-aware intensity gate that replaces it needs `user.role` to decide whether this role's
+    // own `ROLE_STEP_MAP` even has an INTENSITY step, so the user row must be in hand first.
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true, org_type: true, gdpr_consent: true },
@@ -130,6 +112,75 @@ export const POST = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSess
         { error: 'Onboarding session not found' },
         { status: 404 }
       );
+    }
+
+    // T-R38 (role-aware completion precondition — closes the T-R37-documented blocker): the
+    // pre-fix code below required `intensity_data` (+ commitmentScore>=5) UNCONDITIONALLY, for
+    // every role. But `OnboardingStep.INTENSITY` is only a member of `ROLE_STEP_MAP[REP]` /
+    // `ROLE_STEP_MAP[DUAL]` (types/onboarding.ts) — UPLINE/RVP/ADMIN's real, in-order `/step` walk
+    // can NEVER populate `intensity_data`, so an unconditional requirement made `/complete`
+    // permanently 400 for those three roles (proved by
+    // tests/unit/onboarding-client-mapping-integration.test.ts's own pre-fix "DOCUMENTED BLOCKER"
+    // tests). `roleRequiresIntensity` uses the EXACT SAME source of truth `ROLE_STEP_MAP` already
+    // is — a role only needs intensity_data/commitmentScore when its own step map genuinely
+    // includes `OnboardingStep.INTENSITY`; this can never drift from what `/step`'s own
+    // progression logic (`OnboardingService.getNextStep`) already enforces, because both read the
+    // identical map.
+    const roleRequiresIntensity = (ROLE_STEP_MAP[user.role] ?? []).includes(OnboardingStep.INTENSITY);
+
+    // Validate intensity data exists — real persisted JSON, not an in-memory fixture. Only for
+    // roles whose ROLE_STEP_MAP actually includes the INTENSITY step (REP, DUAL).
+    const intensityData = onboardingRow.intensity_data as
+      | { commitmentScore?: number; riskTolerance?: string }
+      | null;
+
+    let commitmentScore = 0;
+    let intensitySetting: IntensitySetting;
+
+    if (roleRequiresIntensity) {
+      if (!intensityData) {
+        return NextResponse.json(
+          { error: 'Intensity data is required before completing onboarding' },
+          { status: 400 }
+        );
+      }
+
+      commitmentScore = intensityData.commitmentScore ?? 0;
+
+      // Check commitment threshold
+      if (commitmentScore < 5) {
+        return NextResponse.json(
+          { error: 'Commitment score must be at least 5/10 to complete onboarding' },
+          { status: 400 }
+        );
+      }
+
+      // T-R36: the persisted `IntensityData.riskTolerance` ('LOW'|'MEDIUM'|'HIGH') literal values
+      // are IDENTICAL to the `IntensitySetting` enum's own members — the same value under two
+      // names, not an invented mapping — and `intensity_data` is guaranteed present by the
+      // required-field check just above.
+      intensitySetting = intensityData.riskTolerance as IntensitySetting;
+    } else {
+      // T-R38 — OPERATOR-REVIEWABLE PRODUCT DEFAULT (§6.9 is silent on non-REP intensity; this is
+      // NOT an invented rep-style semantic — UPLINE/RVP/ADMIN never run the INTENSITY step and
+      // never self-report an effort level, so nothing here claims they "committed" to one).
+      // `OnboardingCompletedEvent.intensity_setting` (types/onboarding.ts) is a non-nullable
+      // `IntensitySetting` — the type gives no way to omit/null it — so SOME value must be chosen
+      // for these roles. `LOW` is picked deliberately, because it is the uniformly
+      // LEAST-surprising / MOST-conservative value at every real downstream consumer of
+      // `User.intensity_setting` found in this codebase:
+      //   - `src/services/agent-runtime/cost-killswitch/run-gate.ts`'s
+      //     `DAILY_BUDGET_CENTS_BY_TIER_INTENSITY` table: LOW is the SMALLEST daily agent-spend
+      //     ceiling at every access tier (e.g. FREE_ORG_LINKED: LOW=40c vs MEDIUM=80c vs
+      //     HIGH=160c/day) — a leader who never took an intensity assessment gets the smallest,
+      //     safest cost ceiling, never one inflated beyond what they ever opted into.
+      //   - `src/services/gamification/streak.service.ts` / `src/services/learning-state/
+      //     shift.service.ts` ("grace day"): LOW is the ONLY value that ever grants extra
+      //     leniency (a weekly streak-repair grace day) — defaulting to it can never impose a
+      //     stricter rule on a leader than MEDIUM/HIGH would, only ever a gentler one.
+      // Both consumers point the same direction, so LOW is the smallest-blast-radius choice
+      // available under a non-nullable field. Flagged here explicitly for operator review.
+      intensitySetting = IntensitySetting.LOW;
     }
 
     // T-21R (§6.10-10) — GDPR CONSENT COMPLETION PRECONDITION: a user must never reach
@@ -175,7 +226,9 @@ export const POST = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSess
     });
 
     const goalCard = onboardingRow.goal_card as { anchorStatement?: string } | null;
-    const intensitySetting = intensityData.riskTolerance as IntensitySetting;
+    // `intensitySetting` is already computed above (role-aware: from the real persisted
+    // `intensity_data.riskTolerance` for a role whose ROLE_STEP_MAP includes INTENSITY, or the
+    // documented `LOW` operator-reviewable default otherwise — T-R38).
 
     // T-R35 (P1 fix, §6.9/§15.2) — PUBLISH `user.onboarding_completed` through the PRODUCTION
     // Inngest client, mirroring `InngestDurableQueue`'s `inngest.send` pattern
@@ -209,11 +262,12 @@ export const POST = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSess
     //     `OnboardingSession.goal_card.anchorStatement` — only the rep track (Flow A/C) ever
     //     produces one; per downstream-contracts.ts's own documented convention for this exact
     //     non-nullable field, a track with none passes `''`.
-    //   - intensity_setting: the persisted `OnboardingSession.intensity_data.riskTolerance`, whose
-    //     `'LOW' | 'MEDIUM' | 'HIGH'` literal values are IDENTICAL to the `IntensitySetting` enum's
-    //     own members (prisma/schema.prisma) — the same value under two names, not an invented
-    //     mapping — and `intensity_data` is guaranteed present by the required-field check earlier
-    //     in this handler.
+    //   - intensity_setting: for a role whose ROLE_STEP_MAP includes INTENSITY (REP, DUAL), the
+    //     persisted `OnboardingSession.intensity_data.riskTolerance`, whose `'LOW' | 'MEDIUM' |
+    //     'HIGH'` literal values are IDENTICAL to the `IntensitySetting` enum's own members
+    //     (prisma/schema.prisma) — the same value under two names, not an invented mapping. For a
+    //     role WITHOUT that step (UPLINE/RVP/ADMIN — T-R38), the documented `LOW`
+    //     operator-reviewable default computed above — never a fabricated rep-style value.
     const { InngestOnboardingEventSink } = await import(
       '@/services/payment/inngest/payment-inngest-functions'
     );
