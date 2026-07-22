@@ -22,7 +22,8 @@
 // `{ name, data }` the route handed to `inngest.send`.
 
 import { NextRequest } from 'next/server';
-import { AccessTier, OnboardingStatus, Role, IntensitySetting, OrgType } from '@prisma/client';
+import { AccessTier, OnboardingStatus, Role, IntensitySetting, OrgType, SponsorshipState } from '@prisma/client';
+import type { Session } from 'next-auth';
 
 const sentEvents: Array<{ name: string; data: unknown }> = [];
 let publishOverride: ((event: unknown) => void | Promise<void>) | null = null;
@@ -37,8 +38,76 @@ jest.mock('@/services/payment/inngest/payment-inngest-functions', () => ({
   },
 }));
 
+// T-R36 — the route under test now reads a REAL persisted `OnboardingSession` row via a REAL
+// Auth.js session (never the retired in-memory `sessions`/`users` arrays or an `x-user-id` header).
+// Faked at the module boundary exactly like tests/unit/onboarding.test.ts's own T-R36 update and
+// tests/unit/onboarding-session-persistence.test.ts (this fix's dedicated suite) — a stateful,
+// Map-backed fake so this suite's own intent (proving the REAL route publishes exactly the right
+// event, in the right order, idempotently) is unchanged.
+jest.mock('@/lib/auth/session', () => ({ getCurrentSession: jest.fn() }));
+
+interface FakeOnboardingSessionRow {
+  id: string;
+  user_id: string;
+  current_step: string;
+  seven_whys: unknown;
+  goal_card: unknown;
+  intensity_data: unknown;
+  completed: boolean;
+  created_at: Date;
+}
+interface FakeUserRow {
+  id: string;
+  role: Role;
+  org_type: OrgType;
+  gdpr_consent: unknown;
+  access_tier?: AccessTier;
+  commitment_score?: number;
+  intensity_setting?: IntensitySetting;
+  onboarding_status?: OnboardingStatus;
+}
+
+const fakeOnboardingSessions = new Map<string, FakeOnboardingSessionRow>();
+const fakeOnboardingUsers = new Map<string, FakeUserRow>();
+const fakeOnboardingSponsorships = new Map<string, { sponsor_user_id: string }>();
+let fakeRowSeq = 0;
+
+const fakeOnboardingPrisma = {
+  onboardingSession: {
+    findFirst: async ({ where }: { where: { user_id: string } }) => {
+      const rows = [...fakeOnboardingSessions.values()].filter((r) => r.user_id === where.user_id);
+      if (rows.length === 0) return null;
+      return rows.reduce((a, b) => (a.created_at >= b.created_at ? a : b));
+    },
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      const row = fakeOnboardingSessions.get(where.id);
+      if (!row) throw new Error(`no fake onboarding session ${where.id}`);
+      Object.assign(row, data);
+      return row;
+    },
+  },
+  user: {
+    findUnique: async ({ where }: { where: { id: string } }) => fakeOnboardingUsers.get(where.id) ?? null,
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      const row = fakeOnboardingUsers.get(where.id);
+      if (!row) throw new Error(`no fake user ${where.id}`);
+      Object.assign(row, data);
+      return row;
+    },
+  },
+  sponsorship: {
+    findFirst: async ({ where }: { where: { member_user_id: string; state: string } }) => {
+      if (where.state !== SponsorshipState.ACTIVE) return null;
+      return fakeOnboardingSponsorships.get(where.member_user_id) ?? null;
+    },
+  },
+  $transaction: async (ops: Array<Promise<unknown>>) => Promise.all(ops),
+};
+
+jest.mock('@/lib/prisma', () => ({ prisma: fakeOnboardingPrisma }));
+
+import { getCurrentSession } from '@/lib/auth/session';
 import { POST as completeOnboarding } from '@/app/api/onboarding/complete/route';
-import { sessions, users } from '@/app/api/onboarding/complete/store';
 import { projectToWP10 } from '@/services/onboarding/wp01/downstream-contracts';
 import type { OnboardingCompletedEvent } from '@/types/onboarding';
 import {
@@ -47,6 +116,23 @@ import {
   type ProvisioningPrismaClient,
   type ProvisionedSubscription,
 } from '@/services/payment/provisioning';
+
+const mockedGetCurrentSession = getCurrentSession as jest.MockedFunction<typeof getCurrentSession>;
+
+function fakeAuthSession(userId: string, role: Role = Role.REP): Session {
+  return {
+    user: {
+      id: userId,
+      role,
+      orgType: 'EXTERNAL',
+      organizationId: null,
+      accessTier: 'FREE_ORG_LINKED',
+      mfaEnrolled: false,
+      mfaVerifiedAt: null,
+    },
+    expires: new Date(Date.now() + 60_000).toISOString(),
+  } as Session;
+}
 
 /** Same stateful (Map-backed) fake Prisma convention as onboarding-event-bus-e2e.test.ts — a first
  *  `provisionFromContract` call's `subscription.create` is genuinely visible to a second call's
@@ -100,38 +186,59 @@ function runRealSubscriberChain(prisma: ProvisioningPrismaClient, publishedEvent
   return provisionFromContract(prisma, contract);
 }
 
+// T-R36: `role`/`org_type`/`sponsor_id`/`gdpr_consent` are real `User`/`Sponsorship` signals now —
+// split here the same way tests/unit/onboarding.test.ts's own T-R36 update splits them. Also arms
+// the mocked real session (`getCurrentSession`) for this user, since the route trusts only that now.
 function seedSession(userId: string, overrides: Record<string, unknown> = {}) {
-  sessions.push({
-    user_id: userId,
-    role: Role.REP,
-    org_type: OrgType.EXTERNAL,
-    current_step: 'INTENSITY',
-    completed: false,
-    sponsor_id: null,
-    gdpr_consent: true,
-    intensity_data: { commitmentScore: 8, weeklyHours: 12, riskTolerance: 'MEDIUM', supportNeeds: [] },
-    goal_card: { anchorStatement: 'I build so my children never have to wonder.' },
-    ...overrides,
+  const { role, org_type, sponsor_id, gdpr_consent, intensity_data, goal_card, current_step, ...rest } = overrides;
+  const resolvedRole = (role as Role) ?? Role.REP;
+  fakeOnboardingUsers.set(userId, {
+    id: userId,
+    role: resolvedRole,
+    org_type: (org_type as OrgType) ?? OrgType.EXTERNAL,
+    gdpr_consent: gdpr_consent ?? true,
   });
-  users.push({ id: userId });
+  if (sponsor_id) {
+    fakeOnboardingSponsorships.set(userId, { sponsor_user_id: sponsor_id as string });
+  }
+  fakeRowSeq += 1;
+  fakeOnboardingSessions.set(`sess-${fakeRowSeq}`, {
+    id: `sess-${fakeRowSeq}`,
+    user_id: userId,
+    current_step: (current_step as string) ?? 'INTENSITY',
+    seven_whys: null,
+    goal_card: goal_card !== undefined ? goal_card : { anchorStatement: 'I build so my children never have to wonder.' },
+    intensity_data:
+      intensity_data ?? { commitmentScore: 8, weeklyHours: 12, riskTolerance: 'MEDIUM', supportNeeds: [] },
+    completed: false,
+    created_at: new Date(2026, 0, 1, 0, 0, fakeRowSeq),
+    ...rest,
+  });
+  mockedGetCurrentSession.mockResolvedValue(fakeAuthSession(userId, resolvedRole));
+}
+
+function persistedSession(userId: string) {
+  return [...fakeOnboardingSessions.values()].find((s) => s.user_id === userId);
 }
 
 async function complete(userId: string) {
-  const request = new NextRequest('http://localhost/api/onboarding/complete', {
-    method: 'POST',
-    headers: { 'x-user-id': userId },
-  });
-  const response = await completeOnboarding(request);
+  // `userId` is no longer read from a header — it's whichever user `seedSession` last armed the
+  // mocked real session for. Kept as a parameter so call sites below stay unchanged.
+  void userId;
+  const request = new NextRequest('http://localhost/api/onboarding/complete', { method: 'POST' });
+  const response = await completeOnboarding(request, {});
   const body = await response.json();
   return { response, body };
 }
 
 describe('T-R35 — completion route actually publishes user.onboarding_completed (the previously-dead wire)', () => {
   afterEach(() => {
-    sessions.length = 0;
-    users.length = 0;
+    fakeOnboardingSessions.clear();
+    fakeOnboardingUsers.clear();
+    fakeOnboardingSponsorships.clear();
     sentEvents.length = 0;
     publishOverride = null;
+    mockedGetCurrentSession.mockReset();
   });
 
   describe('(1) the route publishes, with the exact declared payload shape, from real session data', () => {
@@ -295,8 +402,8 @@ describe('T-R35 — completion route actually publishes user.onboarding_complete
       expect(response.status).toBe(500);
       expect(body.error).toBe('Internal server error');
       expect(sentEvents).toHaveLength(0); // never recorded as sent
-      const session = sessions.find((s) => s.user_id === 'user-fail-1');
-      expect(session.completed).toBe(false); // NOT marked complete — safe to retry
+      const session = persistedSession('user-fail-1');
+      expect(session?.completed).toBe(false); // NOT marked complete — safe to retry
     });
 
     test('retrying after the transient fault clears succeeds and publishes exactly once', async () => {

@@ -87,7 +87,20 @@ export class OnboardingService {
     // lives in this legacy service — see the retirement note at the top of the file.
 
     if (step === OnboardingStep.INTENSITY) {
-      const intensityData = data.intensity_data as { commitmentScore?: number } | null | undefined;
+      // T-R36 fix: this read `data.intensity_data` (snake_case) only — but
+      // `/api/onboarding/step/route.ts`'s own INTENSITY branch (and every real caller of this
+      // route) has always sent `data.intensityData` (camelCase; see `OnboardingFlow.tsx`'s wire
+      // shape / the route's own `data.intensityData` reads a few lines below its `validateStep`
+      // call). No existing test called `validateStep` for this step directly, so this
+      // field-name mismatch was latent — the route's own progression check meant to gate on it
+      // silently always saw `undefined` and rejected as "Intensity data insufficient" the moment a
+      // REAL persisted session reached this step (surfaced by T-R36's own end-to-end lifecycle
+      // test). Fixed the same "accept the legacy shape too" way `canProgressTo` below already
+      // handles `orgType`/`org_type`.
+      const intensityData = (data.intensityData ?? data.intensity_data) as
+        | { commitmentScore?: number }
+        | null
+        | undefined;
       if (!intensityData || (intensityData.commitmentScore as number) < MIN_COMMITMENT_SCORE) {
         return { valid: false, error: 'Intensity data insufficient' };
       }

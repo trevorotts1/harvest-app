@@ -1,21 +1,56 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { OnboardingStep, OnboardingSession, STEP_ORDER, MIN_COMMITMENT_SCORE } from '@/types/onboarding';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { Role } from '@prisma/client';
+
+import { prisma } from '@/lib/prisma';
+import { withRole } from '@/lib/auth/with-role';
+import { OnboardingStep, OnboardingSession, STEP_ORDER, MIN_COMMITMENT_SCORE, OrgType } from '@/types/onboarding';
 import { onboardingService, type OnboardingStepPayload } from '@/services/onboarding/service';
+import {
+  checkSolutionNumberForOrg,
+  encryptSolutionNumberForStorage,
+} from '@/services/onboarding/wp01/solution-number';
+// T-R36: the REAL onboarding-session persistence — replaces the in-memory `sessions: any[] = []`
+// test seam this route used to read/write, which no real production call ever populated (every real
+// user's first submission 404'd downstream at `/complete`, since nothing ever created a session for
+// them). This route is the one lifecycle call-site allowed to CREATE a session on a miss — "when
+// onboarding starts" (see session-store.ts's own header comment for why that's the honest "start"
+// moment in an app whose real client doesn't call this route yet).
+import {
+  fromPersistedStep,
+  getOrCreateOnboardingSession,
+  toJsonUpdateValue,
+  toPersistedStep,
+  type OnboardingSessionUpdateData,
+} from '@/services/onboarding/wp01/session-store';
 
-// In-memory store for tests
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sessions: any[] = [];
+const ALL_ROLES = Object.values(Role);
 
-export async function POST(request: NextRequest) {
+// Force per-request (dynamic) rendering — this route now reads the live session on every request
+// (same rationale as /api/onboarding/consent, /api/onboarding/complete).
+export const dynamic = 'force-dynamic';
+
+interface StepRequestBody {
+  step?: OnboardingStep;
+  data?: Record<string, unknown>;
+}
+
+// Deliberately built on `withRole` (the REAL Auth.js session) — the same posture every other
+// real-persistence onboarding route in this codebase now uses (`/consent`, `/contacts-import`,
+// `/complete`). This route no longer trusts any `x-user-*` header: every session it reads or
+// writes is looked up by `authSession.user.id`, so a caller can only ever advance THEIR OWN
+// onboarding session.
+export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, authSession) => {
   try {
-    const userId = request.headers.get('x-user-id');
+    const userId = authSession.user.id;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let body: StepRequestBody;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-
-    const body = await request.json();
-    const { step, data } = body as { step: OnboardingStep; data: Record<string, unknown> };
+    const { step, data } = body;
 
     if (!step || !data) {
       return NextResponse.json(
@@ -24,47 +59,88 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const session = sessions.find((s) => s.user_id === userId);
+    const row = await getOrCreateOnboardingSession(prisma, userId);
 
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Onboarding session not found' },
-        { status: 404 }
-      );
-    }
-
-    if (session.completed) {
+    if (row.completed) {
       return NextResponse.json(
         { error: 'Onboarding already completed' },
         { status: 400 }
       );
     }
 
+    const currentStep = fromPersistedStep(row.current_step);
+
     // Validate step progression
-    const currentIdx = STEP_ORDER.indexOf(session.current_step);
+    const currentIdx = STEP_ORDER.indexOf(currentStep);
     const submittedIdx = STEP_ORDER.indexOf(step);
 
     if (submittedIdx !== currentIdx) {
       return NextResponse.json(
-        { error: `Expected step ${session.current_step}, received ${step}` },
+        { error: `Expected step ${currentStep}, received ${step}` },
         { status: 400 }
       );
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, org_type: true },
+    });
+    if (!user) {
+      return NextResponse.json({ error: 'Onboarding session not found' }, { status: 404 });
+    }
+
+    // A view shape matching the `OnboardingSession` TS interface `OnboardingService` expects —
+    // `role`/`org_type` come from the real `User` row (see session-store.ts's field-ownership
+    // comment), the rest from the real persisted session row.
+    const sessionView = {
+      role: user.role,
+      org_type: user.org_type,
+      current_step: step, // === currentStep, just proven equal by the STEP_ORDER index check above
+      seven_whys: row.seven_whys,
+      goal_card: row.goal_card,
+      intensity_data: row.intensity_data,
+      completed: row.completed,
+    } as unknown as OnboardingSession;
+
     // Business rule validation
-    const validation = onboardingService.validateStep(session as OnboardingSession, step, data as OnboardingStepPayload);
+    const validation = onboardingService.validateStep(sessionView, step, data as OnboardingStepPayload);
 
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // Update session data
+    // Update session data. `org_type`/`solution_number` are real `User` columns (already set at
+    // registration, `POST /api/auth/register` — this branch lets an ACCOUNT_TYPE/REGISTER-step
+    // submission correct/declare them later in the flow, same as before this fix, just written to
+    // the real column instead of a fake in-memory one). Solution number is encrypted before it ever
+    // touches persistence — the same `encryptSolutionNumberForStorage` the register route uses
+    // (§3.2 "encrypted, Primerica only") — never the raw digits.
     if (step === OnboardingStep.REGISTER) {
-      if (data.orgType) session.org_type = data.orgType;
-      if (data.solutionNumber) session.solution_number = data.solutionNumber;
+      const orgType = data.orgType as OrgType | undefined;
+      if (orgType) {
+        await prisma.user.update({ where: { id: userId }, data: { org_type: orgType } });
+      }
+      const solutionNumber = data.solutionNumber as string | undefined;
+      if (solutionNumber) {
+        const effectiveOrgType = orgType ?? user.org_type;
+        const check = checkSolutionNumberForOrg(effectiveOrgType, solutionNumber);
+        // Same posture as before this fix: this legacy REGISTER-step branch performs no format
+        // rejection of its own (that gate is `ROLE_ORG_CONTEXT`'s job, via `validateStep` above) —
+        // it just never persists a value it cannot safely encrypt-and-store, rather than silently
+        // writing plaintext or a garbage value.
+        if (check.formatValid) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { solution_number: encryptSolutionNumberForStorage(solutionNumber) },
+          });
+        }
+      }
     }
+
+    const updateData: OnboardingSessionUpdateData = {};
+
     if (step === OnboardingStep.SEVEN_WHYS) {
-      session.seven_whys = data.sevenWhys || null;
+      updateData.seven_whys = toJsonUpdateValue(data.sevenWhys);
       // Also check intensity commitment gate if present
       if (data.intensityData) {
         const score = (data.intensityData as { commitmentScore: number }).commitmentScore;
@@ -77,11 +153,11 @@ export async function POST(request: NextRequest) {
       }
     }
     if (step === OnboardingStep.GOAL_CARD) {
-      session.goal_card = data.goalCard || null;
+      updateData.goal_card = toJsonUpdateValue(data.goalCard);
     }
     if (step === OnboardingStep.INTENSITY) {
-      session.intensity_data = data.intensityData || null;
-      const score = (data.intensityData as { commitmentScore: number })?.commitmentScore ?? 0;
+      updateData.intensity_data = toJsonUpdateValue(data.intensityData);
+      const score = (data.intensityData as { commitmentScore?: number })?.commitmentScore ?? 0;
       if (score < MIN_COMMITMENT_SCORE) {
         return NextResponse.json(
           { error: `Commitment score must be at least ${MIN_COMMITMENT_SCORE}/10 to complete onboarding` },
@@ -90,24 +166,24 @@ export async function POST(request: NextRequest) {
       }
     }
     // T-21R (§6.10-10): `validateStep` above already rejected this request if `data.gdpr_consent`
-    // wasn't explicitly `true` — reaching here means an explicit affirmative consent act occurred, so
-    // this demo session's `gdpr_consent` field can be set true. (The REAL, durable, versioned
-    // `ComplianceConsent` row + `User.gdpr_consent` write happens via WP11's `ConsentManager` at
-    // `POST /api/onboarding/consent` — this route stays the same in-memory demo session store it
-    // always was; see the module comment on why it never imports `@/lib/prisma`.)
-    if (step === OnboardingStep.CONSENT_CAPTURE) {
-      session.gdpr_consent = data.gdpr_consent === true;
+    // wasn't explicitly `true` — reaching here means an explicit affirmative consent act occurred.
+    // Unlike the pre-T-R36 in-memory demo (which set a fake `session.gdpr_consent` field on the
+    // spot), this route does NOT itself write GDPR consent anywhere: the REAL, durable, versioned
+    // `ComplianceConsent` row + `User.gdpr_consent` write is `POST /api/onboarding/consent`'s job
+    // (WP11's `ConsentManager`, T-21R) — the completion route (`/complete`, T-R36) reads that same
+    // real column. Duplicating the write here would create a second, divergent consent-write path
+    // outside WP11's versioned audit trail, so this step only validates and advances.
+
+    const nextStep = onboardingService.getNextStep({ ...sessionView, current_step: step } as OnboardingSession);
+    if (nextStep) {
+      updateData.current_step = toPersistedStep(nextStep);
     }
 
-    // Advance step
-    const nextStep = onboardingService.getNextStep(session as OnboardingSession);
-    if (nextStep) {
-      session.current_step = nextStep;
-    }
+    const updated = await prisma.onboardingSession.update({ where: { id: row.id }, data: updateData });
 
     return NextResponse.json({
-      currentStep: session.current_step,
-      completed: session.completed,
+      currentStep: fromPersistedStep(updated.current_step),
+      completed: updated.completed,
     });
   } catch {
     return NextResponse.json(
@@ -115,6 +191,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// sessions array accessible via module internals for testing only
+});

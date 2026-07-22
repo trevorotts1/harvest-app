@@ -1,20 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { Role } from '@prisma/client';
 
-// @internal test store — not exported to avoid Next.js route type pollution
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _sessions: any[] = [];
+import { prisma } from '@/lib/prisma';
+import { withRole } from '@/lib/auth/with-role';
+// T-R36: the REAL onboarding-session persistence — replaces the in-memory `_sessions: any[] = []`
+// test seam this route used to read, which no real production call ever populated. Read-only lookup
+// (`getOnboardingSession`, never the get-or-create variant): a caller with no session yet gets an
+// honest 404, exactly like before this fix, never a silently-created empty one.
+import { fromPersistedStep, getOnboardingSession } from '@/services/onboarding/wp01/session-store';
 
-export async function GET(request: NextRequest) {
+const ALL_ROLES = Object.values(Role);
+
+// Force per-request (dynamic) rendering — this route now reads the live session on every request
+// (same rationale as /api/onboarding/consent, /api/onboarding/complete, /api/onboarding/step).
+export const dynamic = 'force-dynamic';
+
+// Deliberately built on `withRole` (the REAL Auth.js session) — the same posture every other
+// real-persistence onboarding route in this codebase now uses. No `x-user-*` header is read or
+// trusted: the session looked up is always the caller's own (`authSession.user.id`).
+export const GET = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSession) => {
   try {
-    const userId = request.headers.get('x-user-id');
+    const row = await getOnboardingSession(prisma, authSession.user.id);
 
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const session = _sessions.find((s) => s.user_id === userId);
-
-    if (!session) {
+    if (!row) {
       return NextResponse.json(
         { error: 'Onboarding session not found' },
         { status: 404 }
@@ -22,11 +31,11 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      currentStep: session.current_step,
-      completed: session.completed,
-      sevenWhys: session.seven_whys,
-      goalCard: session.goal_card,
-      intensityData: session.intensity_data,
+      currentStep: fromPersistedStep(row.current_step),
+      completed: row.completed,
+      sevenWhys: row.seven_whys,
+      goalCard: row.goal_card,
+      intensityData: row.intensity_data,
     });
   } catch {
     return NextResponse.json(
@@ -34,6 +43,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-// @internal test store accessor — not exported to avoid Next.js route type pollution
+});

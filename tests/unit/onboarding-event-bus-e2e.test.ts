@@ -22,14 +22,19 @@
 // (`projectToWP10`, `provisionFromContract`) and runs them in the exact same sequence against a REAL
 // published event object — never a hand-fabricated contract that bypasses the publish step.
 //
-// grep across the whole src tree for `emitOnboardingCompleted`/`OnboardingEventSink` turns up NO
-// production call site outside this event-bus module itself and its own unit test
-// (tests/unit/wp01-downstream-contracts.test.ts) — i.e. nothing in the live app actually PUBLISHES
-// `user.onboarding_completed` yet (src/app/api/onboarding/complete/route.ts, the only onboarding-
-// completion route, writes its own in-memory demo `users`/`sessions` arrays — see ./store.ts — and
-// never touches this event bus or a real `User.onboarding_status` column). That is a real
-// architecture gap, called out in the build report; it does not change what this suite proves about
-// the CONTRACT that does exist end-to-end today (publish -> project -> provision).
+// UPDATE (T-R35 then T-R36): at the time this suite was written, grepping the src tree for
+// `emitOnboardingCompleted`/`OnboardingEventSink` turned up NO production call site outside this
+// event-bus module itself and its own unit test (tests/unit/wp01-downstream-contracts.test.ts) —
+// i.e. nothing in the live app actually published `user.onboarding_completed`, and the completion
+// route wrote its own in-memory demo `users`/`sessions` arrays, never a real `User.onboarding_status`
+// column. Both halves of that gap are now closed: T-R35 wired the real publish
+// (`src/app/api/onboarding/complete/route.ts` -> `InngestOnboardingEventSink`), and T-R36 replaced
+// the in-memory demo arrays with a REAL, Prisma-backed `OnboardingSession` row (see
+// src/services/onboarding/wp01/session-store.ts) whose completion now durably writes
+// `User.onboarding_status = GATED_COMPLETE` — the exact column this suite's own
+// `provisionFromContract` precondition reads. tests/unit/onboarding-session-persistence.test.ts is
+// the dedicated suite proving that end-to-end against a real persisted session; this suite's own
+// scope (the pure publish -> project -> provision contract from a hand-built event) is unchanged.
 //
 // Existing unit coverage this suite is ADDITIVE to, not a duplicate of:
 //   - tests/unit/wp01-downstream-contracts.test.ts proves the pure shape of `buildOnboardingCompletedEvent`

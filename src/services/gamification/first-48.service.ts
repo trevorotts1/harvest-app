@@ -1,19 +1,24 @@
 // T-43 (WP07 §12.2) — the 48-Hour Countdown & First-48 guided mode.
 //
 // TRIGGER (a stated, documented deviation — read before assuming a real onboarding-completion hook
-// exists elsewhere): §12.2 says the countdown "activates immediately on `gated_complete`." The only
-// route in this build that flips onboarding to GATED_COMPLETE
-// (src/app/api/onboarding/complete/route.ts) still writes to an in-memory demo store, not real
-// Prisma (see that file's own header comments — a pre-existing WP01 gap, not something introduced or
-// papered over here). There is therefore no real-DB write moment for T-43 to hook synchronously
-// today. `ensureFirstFortyEightStarted` is the honest bridge: it lazily stamps `User.gated_complete_at`
-// the FIRST time a GATED_COMPLETE rep's Today surface is actually read — and since "Today is the
-// default landing surface, always" (uiux §2.1) and is itself gated behind `withOnboardingGate`
-// (nothing downstream of onboarding is reachable before GATED_COMPLETE, §6.10-1), this is the
-// earliest real, production-wired moment available, not a cron guess. Once WP01 wires a real
-// GATED_COMPLETE write path, that write can additionally call this same function directly for a
-// truly synchronous start with zero code change here (`ensureFirstFortyEightStarted` is idempotent —
-// a second call after the timestamp is already set is a no-op).
+// exists elsewhere): §12.2 says the countdown "activates immediately on `gated_complete`."
+//
+// UPDATE (T-R36): the route that flips onboarding to GATED_COMPLETE
+// (src/app/api/onboarding/complete/route.ts) now DOES write real Prisma — it durably sets
+// `User.onboarding_status = GATED_COMPLETE` inside a real `$transaction` on every successful
+// completion (see that file's own header comments; this was previously a pre-existing WP01 gap,
+// now closed). That said, this module's own `ensureFirstFortyEightStarted` bridge is deliberately
+// left as-is by T-R36 (out of that fix's scope — a cross-work-package wiring change, not an
+// onboarding-persistence one): the completion route does NOT itself call
+// `ensureFirstFortyEightStarted` synchronously. `ensureFirstFortyEightStarted` remains the live
+// mechanism: it lazily stamps `User.gated_complete_at` the FIRST time a GATED_COMPLETE rep's Today
+// surface is actually read — and since "Today is the default landing surface, always" (uiux §2.1)
+// and is itself gated behind `withOnboardingGate` (nothing downstream of onboarding is reachable
+// before GATED_COMPLETE, §6.10-1), this is still a correct, real, production-wired moment, just not
+// the earliest possible one. Wiring a synchronous call from the completion route into this function
+// (now genuinely possible post-T-R36, and still "zero code change here" — idempotent, a second call
+// after the timestamp is already set is a no-op) remains a small, deferred follow-up for whichever
+// unit owns that cross-cutting change.
 
 export type FirstFortyEightPhase = 'ON_TIME' | 'WARNING' | 'EXPIRED';
 

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import type { Session } from 'next-auth';
 
 import { OnboardingService } from '../../src/services/onboarding/service';
 import { OnboardingStep, Role, OrgType, AccessTier, ROLE_VISIBILITY, type OnboardingSession } from '../../src/types/onboarding';
@@ -18,16 +19,99 @@ jest.mock('@/services/payment/inngest/payment-inngest-functions', () => ({
   },
 }));
 
+// T-R36 — the completion route now reads a REAL persisted `OnboardingSession` row (never the
+// retired in-memory `sessions`/`users` arrays — see the removed `./complete/store.ts`) via the real
+// Auth.js session (`withRole`/`getCurrentSession`), never an `x-user-id` header. Faked at the module
+// boundary the same way `tests/unit/onboarding-consent-route.test.ts` fakes `getCurrentSession` and
+// `tests/unit/onboarding-session-persistence.test.ts` (this fix's own dedicated suite) fakes
+// `@/lib/prisma` — a stateful, Map-backed fake so these pre-existing T-19/T-21R regression tests
+// keep proving the SAME thing they always did (the route's §6.7 tier sourcing / GDPR gate), just
+// against the new real-persistence shape.
+jest.mock('@/lib/auth/session', () => ({ getCurrentSession: jest.fn() }));
+
+interface FakeOnboardingSessionRow {
+  id: string;
+  user_id: string;
+  current_step: string;
+  seven_whys: unknown;
+  goal_card: unknown;
+  intensity_data: unknown;
+  completed: boolean;
+  created_at: Date;
+}
+interface FakeUserRow {
+  id: string;
+  role: Role;
+  org_type: OrgType;
+  gdpr_consent: unknown;
+  access_tier?: AccessTier;
+  commitment_score?: number;
+  intensity_setting?: string;
+  onboarding_status?: string;
+}
+
+const fakeOnboardingSessions = new Map<string, FakeOnboardingSessionRow>();
+const fakeOnboardingUsers = new Map<string, FakeUserRow>();
+const fakeOnboardingSponsorships = new Map<string, { sponsor_user_id: string }>();
+let fakeRowSeq = 0;
+
+const fakeOnboardingPrisma = {
+  onboardingSession: {
+    findFirst: async ({ where }: { where: { user_id: string } }) => {
+      const rows = [...fakeOnboardingSessions.values()].filter((r) => r.user_id === where.user_id);
+      if (rows.length === 0) return null;
+      return rows.reduce((a, b) => (a.created_at >= b.created_at ? a : b));
+    },
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      const row = fakeOnboardingSessions.get(where.id);
+      if (!row) throw new Error(`no fake onboarding session ${where.id}`);
+      Object.assign(row, data);
+      return row;
+    },
+  },
+  user: {
+    findUnique: async ({ where }: { where: { id: string } }) => fakeOnboardingUsers.get(where.id) ?? null,
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      const row = fakeOnboardingUsers.get(where.id);
+      if (!row) throw new Error(`no fake user ${where.id}`);
+      Object.assign(row, data);
+      return row;
+    },
+  },
+  sponsorship: {
+    findFirst: async ({ where }: { where: { member_user_id: string; state: string } }) => {
+      if (where.state !== 'ACTIVE') return null;
+      return fakeOnboardingSponsorships.get(where.member_user_id) ?? null;
+    },
+  },
+  $transaction: async (ops: Array<Promise<unknown>>) => Promise.all(ops),
+};
+
+jest.mock('@/lib/prisma', () => ({ prisma: fakeOnboardingPrisma }));
+
 // T-19 QC CRITICAL fix regression tests: exercise the ACTUAL live route handler (not just the
 // service function it used to call), since the defect was in the route's wiring, not only in
 // `OnboardingService.determineAccessTier` — see the `POST /api/onboarding/complete` describe block
-// at the bottom of this file. `sessions`/`users` are imported from the route's dedicated store
-// module (not the route module itself — see src/app/api/onboarding/complete/store.ts for why).
+// at the bottom of this file.
+import { getCurrentSession } from '../../src/lib/auth/session';
 import { POST as completeOnboarding } from '../../src/app/api/onboarding/complete/route';
-import {
-  sessions as completeSessions,
-  users as completeUsers,
-} from '../../src/app/api/onboarding/complete/store';
+
+const mockedGetCurrentSession = getCurrentSession as jest.MockedFunction<typeof getCurrentSession>;
+
+function fakeAuthSession(userId: string, role: Role = Role.REP): Session {
+  return {
+    user: {
+      id: userId,
+      role,
+      orgType: 'EXTERNAL',
+      organizationId: null,
+      accessTier: 'FREE_ORG_LINKED',
+      mfaEnrolled: false,
+      mfaVerifiedAt: null,
+    },
+    expires: new Date(Date.now() + 60_000).toISOString(),
+  } as Session;
+}
 
 describe('OnboardingService', () => {
   const service = new OnboardingService();
@@ -251,38 +335,60 @@ describe('OnboardingService', () => {
 // HTTP-shaped entry point, not a proxy for it.
 describe('POST /api/onboarding/complete — LIVE route sources access_tier from §6.7 signals, never commitment score (T-19 CRITICAL fix)', () => {
   afterEach(() => {
-    completeSessions.length = 0;
-    completeUsers.length = 0;
+    fakeOnboardingSessions.clear();
+    fakeOnboardingUsers.clear();
+    fakeOnboardingSponsorships.clear();
     sentOnboardingEvents.length = 0;
+    mockedGetCurrentSession.mockReset();
   });
 
+  // T-R36: `org_type`/`sponsor_id`/`role`/`gdpr_consent` are real `User` columns now (never a fake
+  // in-memory session field) — split here into the real `User` row + a real `Sponsorship` row
+  // (`sponsor_id` truthy => an ACTIVE Sponsorship row for this member, the same real signal
+  // `provisionFromContract` itself reads downstream), while the rest stays on the persisted
+  // `OnboardingSession` row. Also arms the mocked real session (`getCurrentSession`) for this user —
+  // this route trusts ONLY that now, never an `x-user-id` header.
   function seedSession(userId: string, overrides: Record<string, unknown> = {}) {
-    completeSessions.push({
-      user_id: userId,
-      // T-R35: a real `role` — every test in this describe block predates the publish wiring and
-      // never set one; the completion route now reads it straight through onto the published
-      // `user.onboarding_completed` event, so a real value belongs in the fixture even though none
-      // of these tests assert on it directly.
-      role: Role.REP,
-      current_step: 'INTENSITY',
-      completed: false,
-      intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+    const { org_type, sponsor_id, role, gdpr_consent, ...sessionOverrides } = overrides;
+    const resolvedRole = (role as Role) ?? Role.REP;
+    fakeOnboardingUsers.set(userId, {
+      id: userId,
+      role: resolvedRole,
+      org_type: (org_type as OrgType) ?? OrgType.EXTERNAL,
       // T-21R (§6.10-10): every test in this describe block is about access-tier sourcing, not
-      // consent — default the session to already-consented so those assertions are unaffected by the
-      // new completion precondition below. The precondition itself is proven separately with
-      // `gdpr_consent` explicitly overridden to `false`/absent.
-      gdpr_consent: true,
-      ...overrides,
+      // consent — default to already-consented so those assertions are unaffected by the
+      // completion precondition. The precondition itself is proven separately, below.
+      gdpr_consent: gdpr_consent ?? true,
     });
-    completeUsers.push({ id: userId });
+    if (sponsor_id) {
+      fakeOnboardingSponsorships.set(userId, { sponsor_user_id: sponsor_id as string });
+    }
+    fakeRowSeq += 1;
+    fakeOnboardingSessions.set(`sess-${fakeRowSeq}`, {
+      id: `sess-${fakeRowSeq}`,
+      user_id: userId,
+      current_step: 'INTENSITY',
+      seven_whys: null,
+      goal_card: null,
+      intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+      completed: false,
+      created_at: new Date(2026, 0, 1, 0, 0, fakeRowSeq),
+      ...sessionOverrides,
+    });
+    mockedGetCurrentSession.mockResolvedValue(fakeAuthSession(userId, resolvedRole));
+  }
+
+  function persistedUser(userId: string) {
+    return fakeOnboardingUsers.get(userId);
   }
 
   async function complete(userId: string) {
-    const request = new NextRequest('http://localhost/api/onboarding/complete', {
-      method: 'POST',
-      headers: { 'x-user-id': userId },
-    });
-    const response = await completeOnboarding(request);
+    // `userId` is no longer read from a header — it's whichever user `seedSession` last armed the
+    // mocked real session for (see `mockedGetCurrentSession.mockResolvedValue` above). Kept as a
+    // parameter purely so call sites below stay unchanged / self-documenting.
+    void userId;
+    const request = new NextRequest('http://localhost/api/onboarding/complete', { method: 'POST' });
+    const response = await completeOnboarding(request, {});
     const body = await response.json();
     return { response, body };
   }
@@ -307,8 +413,8 @@ describe('POST /api/onboarding/complete — LIVE route sources access_tier from 
     expect(body.accessTier).toBe(AccessTier.FREE_ORG_LINKED);
     expect(body.accessTier).not.toBe(AccessTier.ENTERPRISE);
     expect(body.accessTier).not.toBe(AccessTier.PAID_INDIVIDUAL);
-    const user = completeUsers.find((u) => u.id === 'user-sponsored-high-commitment');
-    expect(user.access_tier).toBe(AccessTier.FREE_ORG_LINKED);
+    const user = persistedUser('user-sponsored-high-commitment');
+    expect(user?.access_tier).toBe(AccessTier.FREE_ORG_LINKED);
   });
 
   test('a no-sponsor EXTERNAL user resolves to FREE_PAID_EXTERNAL', async () => {
@@ -362,30 +468,52 @@ describe('POST /api/onboarding/complete — LIVE route sources access_tier from 
 // session reached `completed: true` / 200 with no consent recorded whatsoever.
 describe('POST /api/onboarding/complete — GDPR consent completion precondition (T-21R, §6.10-10)', () => {
   afterEach(() => {
-    completeSessions.length = 0;
-    completeUsers.length = 0;
+    fakeOnboardingSessions.clear();
+    fakeOnboardingUsers.clear();
+    fakeOnboardingSponsorships.clear();
     sentOnboardingEvents.length = 0;
+    mockedGetCurrentSession.mockReset();
   });
 
+  // T-R36: `gdpr_consent` is the REAL `User.gdpr_consent` column now (durably written by
+  // `POST /api/onboarding/consent`'s `grantGdprConsent`, T-21R — this route only ever READS it) —
+  // no default here (unlike `seedSession` above), matching the real column's own `@default(false)`,
+  // so "omitted entirely" (the first test below) means genuinely absent, not defaulted-to-consented.
   function seedSessionNoDefaultConsent(userId: string, overrides: Record<string, unknown> = {}) {
-    completeSessions.push({
-      user_id: userId,
-      // T-R35: see the identical note on `seedSession` above — a real `role` for the published event.
-      role: Role.REP,
-      current_step: 'CONSENT_CAPTURE',
-      completed: false,
-      intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
-      ...overrides,
+    const { org_type, sponsor_id, role, gdpr_consent, ...sessionOverrides } = overrides;
+    const resolvedRole = (role as Role) ?? Role.REP;
+    fakeOnboardingUsers.set(userId, {
+      id: userId,
+      role: resolvedRole,
+      org_type: (org_type as OrgType) ?? OrgType.EXTERNAL,
+      gdpr_consent,
     });
-    completeUsers.push({ id: userId });
+    if (sponsor_id) {
+      fakeOnboardingSponsorships.set(userId, { sponsor_user_id: sponsor_id as string });
+    }
+    fakeRowSeq += 1;
+    fakeOnboardingSessions.set(`sess-${fakeRowSeq}`, {
+      id: `sess-${fakeRowSeq}`,
+      user_id: userId,
+      current_step: 'CONSENT_CAPTURE',
+      seven_whys: null,
+      goal_card: null,
+      intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
+      completed: false,
+      created_at: new Date(2026, 0, 1, 0, 0, fakeRowSeq),
+      ...sessionOverrides,
+    });
+    mockedGetCurrentSession.mockResolvedValue(fakeAuthSession(userId, resolvedRole));
+  }
+
+  function persistedSession(userId: string) {
+    return [...fakeOnboardingSessions.values()].find((s) => s.user_id === userId);
   }
 
   async function complete(userId: string) {
-    const request = new NextRequest('http://localhost/api/onboarding/complete', {
-      method: 'POST',
-      headers: { 'x-user-id': userId },
-    });
-    const response = await completeOnboarding(request);
+    void userId; // see the identical note on `complete` in the describe block above
+    const request = new NextRequest('http://localhost/api/onboarding/complete', { method: 'POST' });
+    const response = await completeOnboarding(request, {});
     const body = await response.json();
     return { response, body };
   }
@@ -401,8 +529,8 @@ describe('POST /api/onboarding/complete — GDPR consent completion precondition
 
     expect(response.status).toBe(400);
     expect(body.code).toBe('GDPR_CONSENT_REQUIRED');
-    const session = completeSessions.find((s) => s.user_id === 'user-never-consented');
-    expect(session.completed).toBe(false); // never flipped to complete
+    const session = persistedSession('user-never-consented');
+    expect(session?.completed).toBe(false); // never flipped to complete
   });
 
   test('a session with gdpr_consent EXPLICITLY false is REJECTED', async () => {
@@ -430,8 +558,8 @@ describe('POST /api/onboarding/complete — GDPR consent completion precondition
 
     expect(response.status).toBe(200);
     expect(body.completed).toBe(true);
-    const session = completeSessions.find((s) => s.user_id === 'user-consented');
-    expect(session.completed).toBe(true);
+    const session = persistedSession('user-consented');
+    expect(session?.completed).toBe(true);
   });
 
   test('current_step CONSENT_CAPTURE (the real last step for every role) is now an accepted pre-complete step', async () => {
