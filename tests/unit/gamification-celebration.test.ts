@@ -6,7 +6,9 @@ import {
   buildMilestoneFullBloomNarration,
   buildMilestoneShareText,
   checkMilestones,
+  milestoneAnchorLine,
   MILESTONE_ANCHOR_LINE,
+  milestoneDisplayName,
   MILESTONE_DISPLAY_NAME,
   MilestoneKey,
 } from '../../src/services/gamification/celebration.service';
@@ -153,5 +155,36 @@ describe('buildMilestoneFullBloomNarration — uiux §6.1 item 5 script, verbati
   test('an unrecognized key returns null rather than a garbled sentence', () => {
     expect(buildMilestoneFullBloomNarration('NOT_A_REAL_MILESTONE')).toBeNull();
     expect(buildMilestoneFullBloomNarration('')).toBeNull();
+  });
+});
+
+// T-57 (server-msg-i18n) — this narration used to be bare English regardless of the rep's locale
+// (both here and via header.ts's Grove full-bloom render, and the identical anchor line rendered raw
+// by milestones.ts's pin-strip zone). `locale` is an OPTIONAL trailing param defaulting to English —
+// every EN assertion above (which omits it) is proven UNCHANGED by this describe block; these add the
+// genuine Spanish half.
+describe('buildMilestoneFullBloomNarration / milestoneDisplayName / milestoneAnchorLine — locale-aware (T-57 server-msg-i18n)', () => {
+  test('EN default (no locale arg): matches the exported English dicts, byte-identical to before this fix', () => {
+    for (const key of Object.values(MilestoneKey)) {
+      expect(milestoneDisplayName(key)).toBe(MILESTONE_DISPLAY_NAME[key]);
+      expect(milestoneAnchorLine(key)).toBe(MILESTONE_ANCHOR_LINE[key]);
+    }
+  });
+
+  test.each(Object.values(MilestoneKey))('TEETH — %s composes a genuine Spanish "Hito: {name}. {anchor} Este momento queda guardado en tu campo." for es locale', (key) => {
+    const narration = buildMilestoneFullBloomNarration(key, 'es');
+    expect(narration).toBe(`Hito: ${milestoneDisplayName(key, 'es')}. ${milestoneAnchorLine(key, 'es')} Este momento queda guardado en tu campo.`);
+    expect(narration).toMatch(/^Hito: /);
+    expect(narration).not.toContain('Milestone:');
+    expect(narration).not.toBe(buildMilestoneFullBloomNarration(key)); // never falls back to English
+  });
+
+  test('an unrecognized key returns null for es locale too, never a garbled sentence', () => {
+    expect(buildMilestoneFullBloomNarration('NOT_A_REAL_MILESTONE', 'es')).toBeNull();
+  });
+
+  test('specific Spanish anchor lines (spot-check real idiomatic copy, not a mechanical placeholder)', () => {
+    expect(milestoneAnchorLine(MilestoneKey.FIRST_RECRUIT, 'es')).toBe('Alguien eligió construir junto a ti. Esa es la cosecha multiplicándose.');
+    expect(milestoneDisplayName(MilestoneKey.THIRTY_DAY_STREAK, 'es')).toBe('Racha de treinta días');
   });
 });

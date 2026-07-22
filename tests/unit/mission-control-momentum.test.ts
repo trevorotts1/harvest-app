@@ -136,6 +136,41 @@ describe('groveCaptionFor — AC-3-2 (no state text ever shames the rep)', () =>
   });
 });
 
+// T-57 (server-msg-i18n) — `groveCaptionFor` used to return bare English literals regardless of
+// locale; mirrors the already-landed briefing.ts fix. `locale` is an OPTIONAL trailing param, so
+// every EN assertion above (which omits it) is proven UNCHANGED; these tests add the genuine Spanish
+// half, plus a regression guard that a request-quality "no locale info at all" call still renders
+// English (byte-identical to every pre-existing caller).
+describe('groveCaptionFor — locale-aware (T-57 server-msg-i18n)', () => {
+  test('EN default (no locale arg): every state renders the pre-existing English caption, unchanged', () => {
+    expect(groveCaptionFor('seed')).toBe('Your field is planted — the First 48 starts now');
+    expect(groveCaptionFor('sprout')).toBe("It's alive. Keep going.");
+    expect(groveCaptionFor('thriving')).toBe('Thriving');
+    expect(groveCaptionFor('growing')).toBe('Growing');
+    expect(groveCaptionFor('quiet')).toBe('Your field is quiet — one small action wakes it up');
+    expect(groveCaptionFor('resting')).toBe('Resting, ready to regrow');
+    expect(groveCaptionFor('stale')).toBe('as of last update');
+    expect(groveCaptionFor('bloom')).toBe('Bloom');
+  });
+
+  test('TEETH — es locale: every state renders genuine Spanish, never the English fallback', () => {
+    expect(groveCaptionFor('seed', undefined, 'es')).toBe('Tu campo está sembrado — las Primeras 48 comienzan ahora');
+    expect(groveCaptionFor('sprout', undefined, 'es')).toBe('Está vivo. Sigue adelante.');
+    expect(groveCaptionFor('thriving', undefined, 'es')).toBe('Floreciendo');
+    expect(groveCaptionFor('growing', undefined, 'es')).toBe('Creciendo');
+    expect(groveCaptionFor('quiet', undefined, 'es')).toBe('Tu campo está tranquilo — una pequeña acción lo despierta');
+    expect(groveCaptionFor('resting', undefined, 'es')).toBe('En reposo, listo para volver a crecer');
+    expect(groveCaptionFor('stale', undefined, 'es')).toBe('desde la última actualización');
+    expect(groveCaptionFor('bloom', undefined, 'es')).toBe('Florecimiento');
+    expect(groveCaptionFor('resting', undefined, 'es')).not.toBe('Resting, ready to regrow');
+  });
+
+  test('a real bloomLabel is passed through verbatim regardless of locale (data-derived, not composed prose)', () => {
+    expect(groveCaptionFor('bloom', 'FIRST RECRUIT', 'es')).toBe('FIRST RECRUIT');
+    expect(groveCaptionFor('bloom', 'FIRST RECRUIT')).toBe('FIRST RECRUIT');
+  });
+});
+
 describe('computeBloomOverride — transient milestone overlay', () => {
   test('a fresh, uncelebrated milestone triggers bloom', () => {
     const milestones: MilestoneLike[] = [{ milestone_key: 'first_recruit', achieved_at: new Date(NOW.getTime() - 60 * 1000), celebrated: false }];

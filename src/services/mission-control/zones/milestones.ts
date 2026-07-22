@@ -6,8 +6,14 @@
 // a 5-minute Inngest cron sweep (gamification-inngest-functions.ts) — see celebration.service.ts's
 // file header for the full reachability reasoning.
 
-import { MILESTONE_ANCHOR_LINE, MilestoneKey } from '../../gamification/celebration.service';
+import { milestoneAnchorLine, MilestoneKey } from '../../gamification/celebration.service';
 import type { MissionControlPrismaClient } from '../prisma-types';
+// T-57 (server-msg-i18n) — `label` below used to be a bare English literal composed server-side
+// (`MILESTONE_ANCHOR_LINE[...]`), rendered raw by WP07Panel.tsx's milestone pin-strip (`item.label`,
+// no client-side translation layer over it). `locale` is an OPTIONAL trailing param (defaulting to
+// `DEFAULT_LOCALE`) threaded in from today.service.ts; every existing caller/test that omits it keeps
+// compiling and rendering byte-identical English (see `milestoneAnchorLine` in celebration.service.ts).
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 export interface MilestoneSummary {
   key: string;
@@ -20,13 +26,17 @@ export interface MilestonesZoneData {
   items: MilestoneSummary[];
 }
 
-export async function buildMilestonesZone(db: MissionControlPrismaClient, userId: string): Promise<MilestonesZoneData> {
+export async function buildMilestonesZone(
+  db: MissionControlPrismaClient,
+  userId: string,
+  locale: Locale = DEFAULT_LOCALE
+): Promise<MilestonesZoneData> {
   const rows = await db.milestone.findMany({ where: { user_id: userId } });
   const items: MilestoneSummary[] = rows
     .filter((r) => (Object.values(MilestoneKey) as string[]).includes(r.milestone_key))
     .map((r) => ({
       key: r.milestone_key,
-      label: MILESTONE_ANCHOR_LINE[r.milestone_key as MilestoneKey],
+      label: milestoneAnchorLine(r.milestone_key as MilestoneKey, locale),
       achievedAt: r.achieved_at.toISOString(),
       celebrated: r.celebrated,
     }))

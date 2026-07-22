@@ -342,6 +342,90 @@
       "loadFailed": "No pudimos cargar esto en este momento — tu trabajo está seguro.",
       "backToTodayPlain": "Volver a Hoy",
       "yourLevelBadge": "Tu nivel"
+    },
+    "zones": {
+      "error": {
+        "generic": "No pudimos cargar esto ahora mismo — el resto de Hoy no se ve afectado."
+      },
+      "actionQueue": {
+        "title": {
+          "reviewFlagged": "Revisar borrador marcado",
+          "approveDraft": "Aprobar borrador",
+          "confirmAppointment": "Confirmar horario de la cita"
+        },
+        "why": {
+          "reviewFlagged": "Este borrador necesita tu revisión antes de poder enviarse.",
+          "approveDraft": "Tu agente redactó esta introducción comunitaria — apruébala para enviarla.",
+          "confirmAppointment": "Hay un horario de cita propuesto esperando tu confirmación."
+        }
+      },
+      "pipeline": {
+        "label": {
+          "introduced": "Presentado",
+          "responded": "Respondió",
+          "appointment": "Cita",
+          "closed": "Cerrado"
+        }
+      },
+      "ratios": {
+        "labels": {
+          "introductions": "Introducciones",
+          "appointmentsSet": "Citas agendadas",
+          "confirmedShows": "Asistencias confirmadas",
+          "appointmentsRun": "Citas realizadas",
+          "clientSigns": "Clientes firmados",
+          "recruitJoins": "Compañeros de equipo incorporados"
+        },
+        "agentBaselineExplainer": "La Proporción de tu Agente mide qué tan efectivos son tus agentes de IA: introducciones que obtienen respuesta, se convierten en una cita agendada y se presentan. Los nuevos representantes comienzan con la referencia de la comunidad (20 introducciones por 5 citas por 1 asistencia confirmada) hasta que se acumule tu propio historial.",
+        "trainerBaselineExplainer": "La Proporción de tu Entrenador de Campo mide la tasa de cierre de tu entrenador una vez que realiza la cita: cuántas se convierten en un cliente o en un nuevo compañero de equipo. Los nuevos representantes comienzan con la referencia de la comunidad (20 citas realizadas por 5 clientes firmados por 1 compañero de equipo incorporado) hasta que se acumulen suficientes citas propias.",
+        "agentRecord": {
+          "template": "Tu propio historial: {introPart} -> {apptPart} -> {showsPart}. Así de efectivos son tus agentes de IA para tu comunidad.",
+          "introPart_one": "{count} introducción",
+          "introPart_other": "{count} introducciones",
+          "apptPart_one": "{count} cita agendada",
+          "apptPart_other": "{count} citas agendadas",
+          "showsPart_one": "{count} asistencia confirmada",
+          "showsPart_other": "{count} asistencias confirmadas"
+        },
+        "trainerRecord": {
+          "template": "El historial de tu entrenador: de {runPart}, {signPart} y {joinPart}.",
+          "runPart_one": "{count} cita realizada",
+          "runPart_other": "{count} citas realizadas",
+          "signPart_one": "{count} se convirtió en cliente",
+          "signPart_other": "{count} se convirtieron en clientes",
+          "joinPart_one": "{count} se unió como compañero de equipo",
+          "joinPart_other": "{count} se unieron como compañeros de equipo"
+        }
+      },
+      "grove": {
+        "caption": {
+          "seed": "Tu campo está sembrado — las Primeras 48 comienzan ahora",
+          "sprout": "Está vivo. Sigue adelante.",
+          "thriving": "Floreciendo",
+          "growing": "Creciendo",
+          "quiet": "Tu campo está tranquilo — una pequeña acción lo despierta",
+          "resting": "En reposo, listo para volver a crecer",
+          "staleSuffix": "desde la última actualización",
+          "bloomFallback": "Florecimiento"
+        }
+      },
+      "milestones": {
+        "displayName": {
+          "FIRST_RESPONSE": "Primera respuesta",
+          "FIRST_APPOINTMENT": "Primera cita",
+          "FIRST_RECRUIT": "Primer compañero de equipo",
+          "FIRST_LICENSED_TEAM_MEMBER": "Primer miembro del equipo con licencia",
+          "THIRTY_DAY_STREAK": "Racha de treinta días"
+        },
+        "anchorLine": {
+          "FIRST_RESPONSE": "Alguien en tu comunidad acaba de responder — la relación es real.",
+          "FIRST_APPOINTMENT": "Acabas de ayudar a una familia de tu comunidad a protegerse — para eso estás aquí.",
+          "FIRST_RECRUIT": "Alguien eligió construir junto a ti. Esa es la cosecha multiplicándose.",
+          "FIRST_LICENSED_TEAM_MEMBER": "Una persona que incorporaste ahora tiene licencia y está construyendo — beneficio colectivo, en acción.",
+          "THIRTY_DAY_STREAK": "Treinta días de constancia. La brillantez es opcional; elegiste la constancia."
+        },
+        "fullBloomNarration": "Hito: {name}. {anchor} Este momento queda guardado en tu campo."
+      }
     }
   },
   "community": {

@@ -28,6 +28,16 @@ import type { GamificationPrismaClient, MilestoneRow } from './prisma-types';
 import { gateRepFacingContent, type CFEContentEvaluator } from './cfe-gate';
 import { ComplianceFilterEngine } from '../compliance/engine';
 import type { CFEInput } from '@/types/compliance';
+// T-57 (server-msg-i18n) — locale-aware variants of MILESTONE_DISPLAY_NAME/MILESTONE_ANCHOR_LINE for
+// the two Today-zone rep-facing surfaces that render them today (mission-control/zones/header.ts's
+// Grove full-bloom narration, zones/milestones.ts's pin-strip label) — see `milestoneDisplayName` /
+// `milestoneAnchorLine` / `buildMilestoneFullBloomNarration` below. The raw English dicts above stay
+// the single source of truth for every OTHER existing caller (`buildMilestoneShareText` / the
+// share-to-social route `src/app/api/gamification/milestones/share/route.ts`) — deliberately left
+// English-only here, out of this fix's Today-zone lane (reported, not silently fixed — see the T-57
+// server-msg-i18n build report).
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 export enum MilestoneKey {
   FIRST_RESPONSE = 'FIRST_RESPONSE',
@@ -55,13 +65,24 @@ export const MILESTONE_ANCHOR_LINE: Record<MilestoneKey, string> = {
 };
 
 /** T-52 (WCAG 2.2 AA, master-spec §17.4 / uiux §6.1 item 5) — the human-friendly `{name}` the
- *  "Milestone full-bloom" narration script names, e.g. "Milestone: First recruit. ..." Kept
+ *  "Milestone full-bloom" narration script names, e.g. "Milestone: First appointment. ..." Kept
  *  separate from `MILESTONE_ANCHOR_LINE` (the emotional tie-in sentence) so each half of the
- *  script has exactly one source of truth. */
+ *  script has exactly one source of truth.
+ *
+ *  T-57 (server-msg-i18n) — `FIRST_RECRUIT`'s display name was `'First recruit'` until this fix.
+ *  Moving it into the i18n catalog (`today.zones.milestones.displayName.*`, so an es-locale rep gets
+ *  a genuine Spanish name here too) subjected it to `guard-i18n.mjs`'s doctrine copy-lint for the
+ *  first time — this string had never been catalog-scanned before, since it lived only as a bare TS
+ *  literal. The lint correctly caught a real, pre-existing doctrine violation:
+ *  `src/services/compliance/vocabulary.ts`'s `FORBIDDEN_TERMS` bans "recruit" (replacement: "invite /
+ *  sponsor / bring in"). Corrected to `'First teammate'` here (and in the catalog) to comply — the
+ *  underlying milestone/enum (`MilestoneKey.FIRST_RECRUIT`, unchanged — a downline member joining) is
+ *  the same event; only the doctrine-violating display word changes. Reported, not silently
+ *  patched — see the T-57 server-msg-i18n build report. */
 export const MILESTONE_DISPLAY_NAME: Record<MilestoneKey, string> = {
   [MilestoneKey.FIRST_RESPONSE]: 'First response',
   [MilestoneKey.FIRST_APPOINTMENT]: 'First appointment',
-  [MilestoneKey.FIRST_RECRUIT]: 'First recruit',
+  [MilestoneKey.FIRST_RECRUIT]: 'First teammate',
   [MilestoneKey.FIRST_LICENSED_TEAM_MEMBER]: 'First licensed team member',
   [MilestoneKey.THIRTY_DAY_STREAK]: 'Thirty-day streak',
 };
@@ -81,10 +102,26 @@ export const MILESTONE_DISPLAY_NAME: Record<MilestoneKey, string> = {
  * module does not recognize, so the Grove can fall back to silence rather than announce a
  * garbled/incomplete sentence for data it cannot map.
  */
-export function buildMilestoneFullBloomNarration(key: string): string | null {
+export function buildMilestoneFullBloomNarration(key: string, locale: Locale = DEFAULT_LOCALE): string | null {
   const milestoneKey = (Object.values(MilestoneKey) as string[]).includes(key) ? (key as MilestoneKey) : null;
   if (!milestoneKey) return null;
-  return `Milestone: ${MILESTONE_DISPLAY_NAME[milestoneKey]}. ${MILESTONE_ANCHOR_LINE[milestoneKey]} This moment is saved to your field.`;
+  return t(locale, 'today.zones.milestones.fullBloomNarration', {
+    name: milestoneDisplayName(milestoneKey, locale),
+    anchor: milestoneAnchorLine(milestoneKey, locale),
+  });
+}
+
+/** Locale-aware `MILESTONE_DISPLAY_NAME` — see this file's import-header note. Defaults to
+ *  `DEFAULT_LOCALE` (English), matching `MILESTONE_DISPLAY_NAME[key]` byte-for-byte when omitted. */
+export function milestoneDisplayName(key: MilestoneKey, locale: Locale = DEFAULT_LOCALE): string {
+  return t(locale, `today.zones.milestones.displayName.${key}`);
+}
+
+/** Locale-aware `MILESTONE_ANCHOR_LINE` — see this file's import-header note. Defaults to
+ *  `DEFAULT_LOCALE` (English), matching `MILESTONE_ANCHOR_LINE[key]` byte-for-byte when omitted. Also
+ *  the label `mission-control/zones/milestones.ts`'s pin-strip zone renders per milestone. */
+export function milestoneAnchorLine(key: MilestoneKey, locale: Locale = DEFAULT_LOCALE): string {
+  return t(locale, `today.zones.milestones.anchorLine.${key}`);
 }
 
 interface DetectionDb {

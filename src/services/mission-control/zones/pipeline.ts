@@ -12,6 +12,14 @@
 
 import type { ContactRow, MissionControlPrismaClient } from '../prisma-types';
 import type { PipelineBucket, PipelineZoneData } from '../types';
+// T-57 (server-msg-i18n) — `BUCKET_LABELS` below used to be bare English literals composed
+// server-side and rendered raw by PipelineGlance.tsx (only the zone HEADING is client-translated —
+// see today-zones-i18n.test.ts's own note that "Pipeline" itself stays untranslated business
+// vocabulary; the four bucket labels are a distinct gap this fix closes). `locale` is an OPTIONAL
+// trailing param (defaulting to `DEFAULT_LOCALE`) threaded in from today.service.ts; every existing
+// caller/test that omits it keeps compiling and rendering byte-identical English.
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,11 +30,11 @@ const BUCKET_STAGES: Record<PipelineBucket['key'], string[]> = {
   closed: ['CLOSED_CLIENT', 'CLOSED_RECRUIT'],
 };
 
-const BUCKET_LABELS: Record<PipelineBucket['key'], string> = {
-  introduced: 'Introduced',
-  responded: 'Responded',
-  appointment: 'Appointment',
-  closed: 'Closed',
+const BUCKET_LABEL_KEYS: Record<PipelineBucket['key'], string> = {
+  introduced: 'today.zones.pipeline.label.introduced',
+  responded: 'today.zones.pipeline.label.responded',
+  appointment: 'today.zones.pipeline.label.appointment',
+  closed: 'today.zones.pipeline.label.closed',
 };
 
 function countInWindow(contacts: ContactRow[], stages: string[], from: Date, to: Date): number {
@@ -38,7 +46,8 @@ function countInWindow(contacts: ContactRow[], stages: string[], from: Date, to:
 export async function buildPipelineZone(
   db: MissionControlPrismaClient,
   userId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  locale: Locale = DEFAULT_LOCALE
 ): Promise<PipelineZoneData> {
   const contacts = await db.contact.findMany({ where: { user_id: userId } });
 
@@ -50,7 +59,7 @@ export async function buildPipelineZone(
     const count = contacts.filter((c) => stages.includes(c.pipeline_stage)).length;
     const thisWeek = countInWindow(contacts, stages, last7Start, now);
     const priorWeek = countInWindow(contacts, stages, prior7Start, last7Start);
-    return { key, label: BUCKET_LABELS[key], count, deltaLast7d: thisWeek - priorWeek };
+    return { key, label: t(locale, BUCKET_LABEL_KEYS[key]), count, deltaLast7d: thisWeek - priorWeek };
   });
 
   return { buckets };
