@@ -767,8 +767,8 @@
       "joinedViaSeparator": "· joined via",
       "photoAlt": "{name}'s real onboarding photo",
       "noPhotoNotice": "No photo on file — the share assets render an initials avatar (never a stock photo).",
-      "wholeKitHoldPrefix": "WHOLE-KIT HOLD — one piece was blocked (",
-      "wholeKitHoldSuffix": "). The entire kit is held until every piece clears.",
+      "wholeKitHoldPrefix": "WHOLE-KIT HOLD — ",
+      "wholeKitHoldSuffix": ". The entire kit is held until every piece clears.",
       "pieceNeedsRevision": "This piece needs doctrine revision before the kit can proceed.",
       "approveKitCta": "Approve whole kit",
       "withdrawKitCta": "New member withdrew — move to drafts"
@@ -1724,6 +1724,30 @@
     "ATTENDANCE_STATE_INVALID": "Choose Attended or Missed for this event.",
     "EVENT_NOT_FOUND": "This event could not be found for your organization.",
     "NOT_OWNED": "That item doesn't belong to you.",
-    "REQUIRES_REVIEW": "This draft was flagged by compliance review and can't be approved from your Shift — edit it or review it in the Approval Inbox."
+    "REQUIRES_REVIEW": "This draft was flagged by compliance review and can't be approved from your Shift — edit it or review it in the Approval Inbox.",
+    "reasons": {
+      "generic": "a compliance hold",
+      "cfe_held": "held for compliance review",
+      "cfe_blocked": "blocked by compliance",
+      "one_or_more_pieces_blocked_by_compliance_or_doctrine": "a piece was blocked by compliance or doctrine"
+    },
+    "EDIT_SAVE_FAILED": "This edit couldn't be saved. Please try again."
+  },
+  "offline": {
+    "sync": {
+      "multipleRejected": "{count} queued actions couldn't complete — they need review again.",
+      "transientOne": "1 item couldn't sync yet ({action}) — it's still queued and we'll try again when you're back online.",
+      "syncedPrefix_one": "{count} item synced. ",
+      "syncedPrefix_other": "{count} items synced. ",
+      "action": {
+        "approve": "an approval",
+        "decline": "a decline",
+        "edit": "an edit",
+        "queueAction": "a queue action",
+        "attendance": "an attendance update",
+        "ritualStep": "a ritual step",
+        "generic": "an update"
+      }
+    }
   }
 }

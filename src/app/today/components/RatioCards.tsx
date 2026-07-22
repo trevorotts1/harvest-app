@@ -76,7 +76,7 @@ export default function RatioCards({ result }: RatioCardsProps) {
     return (
       <section className={styles.zoneCard} data-zone="ratios">
         <span className={styles.zoneBadge}>{t('today.ratioCards.heading')}</span>
-        <p className={styles.zoneErrorText}>{result.message}</p>
+        <p className={styles.zoneErrorText} role="status">{result.message}</p>
       </section>
     );
   }

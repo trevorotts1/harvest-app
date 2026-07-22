@@ -26,6 +26,7 @@ import { useSession } from 'next-auth/react';
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useLocale } from '@/app/locale-context';
+import { multipleRejectedNotice, transientSyncNotice } from '@/lib/i18n/sync-notice';
 import { canSeeTeam } from '@/components/AppShell/navConfig';
 
 import AnchorHeader from './components/AnchorHeader';
@@ -150,16 +151,15 @@ export default function TodayPage() {
 
     const notices: string[] = [];
     if (rejections.length > 0) {
-      notices.push(
-        rejections.length === 1
-          ? rejections[0].message
-          : `${rejections.length} queued actions could not complete — they need review again.`
-      );
+      // T-57 RG4 (B leak) — single rejection uses its own already-localized message (resolved from
+      // the route `code` via `errorDisplay` in ./offline.ts); 2+ collapse into one localized summary.
+      notices.push(rejections.length === 1 ? rejections[0].message : multipleRejectedNotice(t, rejections.length));
     }
     if (result.failed) {
-      notices.push(
-        `${result.synced > 0 ? `${result.synced} item(s) synced. ` : ''}1 item couldn't sync yet (${result.failed.kind}) — it's still queued and we'll try again when you're back online.`
-      );
+      // T-57 RG4 (B leak) — localized via the catalog; the raw internal mutation-kind token
+      // (`today/queue-action`, …) is humanized through `syncActionLabel` inside `transientSyncNotice`
+      // rather than spliced raw into the notice.
+      notices.push(transientSyncNotice(t, result.synced, result.failed.kind));
     }
     setSyncNotice(notices.length > 0 ? notices.join(' ') : null);
 

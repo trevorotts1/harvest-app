@@ -35,7 +35,7 @@ export default function AnchorHeader({ result }: AnchorHeaderProps) {
   if (result.status === 'error') {
     return (
       <section className={styles.zoneCard} data-zone="header">
-        <p className={styles.zoneErrorText}>{result.message}</p>
+        <p className={styles.zoneErrorText} role="status">{result.message}</p>
       </section>
     );
   }

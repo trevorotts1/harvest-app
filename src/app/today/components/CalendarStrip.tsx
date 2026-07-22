@@ -26,7 +26,7 @@ export default function CalendarStrip({ result, onMarkAttendance, queuedOfflineE
     return (
       <section className={styles.zoneCard} data-zone="calendar">
         <span className={styles.zoneBadge}>{t('today.calendarStrip.badge')}</span>
-        <p className={styles.zoneErrorText}>{result.message}</p>
+        <p className={styles.zoneErrorText} role="status">{result.message}</p>
       </section>
     );
   }

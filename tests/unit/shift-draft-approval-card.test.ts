@@ -309,11 +309,24 @@ describe('makeEditHandler — editing a draft from inside the Shift RE-ENTERS TH
     expect(result.error).not.toBe('Internal server error');
   });
 
-  test('a network failure (fetch throws) resolves to a safe fallback error, never throws out of the handler', async () => {
+  // T-57 RG4 (B leak) — the edit-catch used to return a HARDCODED English "This edit could not be
+  // saved." string, rendered verbatim by ApprovalInboxItem (a Spanish rep saw English). It now
+  // resolves the localized `errors.EDIT_SAVE_FAILED` catalog copy via `errorDisplay` — proven here
+  // against the REAL es.json (a transport failure carries no server `code`; the client sentinel code
+  // is a real catalog key, so it resolves to real Spanish, never English, never blank).
+  test('a network failure (fetch throws) resolves to the LOCALIZED errors.EDIT_SAVE_FAILED catalog copy (ES), never the old hardcoded English, never throws out of the handler', async () => {
     const fetchImpl = jest.fn().mockRejectedValue(new Error('network down'));
-    const edit = makeEditHandler(cardToInboxItem(draftCard()), tEn, fetchImpl as unknown as typeof fetch);
+    const edit = makeEditHandler(cardToInboxItem(draftCard()), tEs, fetchImpl as unknown as typeof fetch);
     const result = await edit('d1', 'x');
-    expect(result).toEqual({ ok: false, error: 'This edit could not be saved.' });
+    expect(result).toEqual({ ok: false, error: catalog('es', 'errors.EDIT_SAVE_FAILED') });
+    expect(result.error).not.toBe('This edit could not be saved.');
+  });
+
+  test('a malformed (non-JSON) response also resolves to the localized errors.EDIT_SAVE_FAILED copy, never English', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({ ok: true, json: async () => { throw new Error('not json'); } });
+    const edit = makeEditHandler(cardToInboxItem(draftCard()), tEs, fetchImpl as unknown as typeof fetch);
+    const result = await edit('d1', 'x');
+    expect(result).toEqual({ ok: false, error: catalog('es', 'errors.EDIT_SAVE_FAILED') });
   });
 });
 

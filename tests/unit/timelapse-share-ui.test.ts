@@ -35,10 +35,14 @@ describe('T-R30 GAP 2: share affordance appears ONLY after CFE clearance', () =>
     });
   }
 
-  test('a "blocked" verdict renders the block reason as an alert and STILL no share/download/copy control', () => {
+  // T-57 RG4 (B leak) — this used to render the RAW backend token `cfe_held` verbatim (a Spanish rep
+  // saw `cfe_held`); it now resolves to localized compliance-hold copy via `reasonDisplay`, which
+  // keeps saying it's a compliance hold. The token itself must never appear in rendered text again.
+  test('a "blocked" verdict renders the block reason as an alert, HUMANIZED (never the raw token), and STILL no share/download/copy control', () => {
     const html = render({ kind: 'blocked', reason: 'cfe_held' });
     expect(html).toContain('role="alert"');
-    expect(html).toContain('cfe_held');
+    expect(html).not.toContain('cfe_held'); // the raw machine token is never rendered
+    expect(html).toMatch(/held for compliance review/i); // the localized (EN-default) mapped copy
     expect(html).not.toMatch(/<button|<a /);
     expect(html).not.toMatch(/download=/);
   });

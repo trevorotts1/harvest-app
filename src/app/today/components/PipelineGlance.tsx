@@ -23,7 +23,7 @@ export default function PipelineGlance({ result }: PipelineGlanceProps) {
     return (
       <section className={styles.zoneCard} data-zone="pipeline">
         <span className={styles.zoneBadge}>{t('today.pipelineGlance.heading')}</span>
-        <p className={styles.zoneErrorText}>{result.message}</p>
+        <p className={styles.zoneErrorText} role="status">{result.message}</p>
       </section>
     );
   }

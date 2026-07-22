@@ -10,6 +10,7 @@ import Link from 'next/link';
 
 import styles from '../../content.module.css';
 import { useT } from '@/app/locale-context';
+import { reasonDisplay } from '@/lib/i18n/reason-display';
 
 interface KitData {
   kit: {
@@ -96,7 +97,11 @@ export default function LaunchKitPage({ params }: PageProps) {
 
         {kit.state === 'HELD_FOR_REVIEW' && (
           <div className={styles.pausedBanner} role="alert">
-            {t('content.launchKit.wholeKitHoldPrefix')}{kit.held_reason}{t('content.launchKit.wholeKitHoldSuffix')}
+            {/* T-57 RG4 (B leak) — the raw `held_reason` machine token
+                (`one_or_more_pieces_blocked_by_compliance_or_doctrine`) was spliced in verbatim; now
+                resolved to localized copy via `reasonDisplay`, which keeps saying it's a compliance
+                hold in both languages (see reason-display.ts's security note). */}
+            {t('content.launchKit.wholeKitHoldPrefix')}{reasonDisplay(t, kit.held_reason)}{t('content.launchKit.wholeKitHoldSuffix')}
           </div>
         )}
 

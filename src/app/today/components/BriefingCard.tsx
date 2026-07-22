@@ -116,7 +116,7 @@ export default function BriefingCard({ result }: BriefingCardProps) {
     return (
       <section className={styles.zoneCard} data-zone="briefing">
         <span className={styles.zoneBadge}>{t('today.briefingCard.whileYouSlept')}</span>
-        <p className={styles.zoneErrorText}>{result.message}</p>
+        <p className={styles.zoneErrorText} role="status">{result.message}</p>
       </section>
     );
   }

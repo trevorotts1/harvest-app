@@ -47,7 +47,7 @@ export default function ActionQueue({ result, onAction, queuedOfflineIds, locale
     return (
       <section className={styles.zoneCard} data-zone="action-queue">
         <span className={styles.zoneBadge}>{t(locale, 'today.actionQueue.badge')}</span>
-        <p className={styles.zoneErrorText}>{result.message}</p>
+        <p className={styles.zoneErrorText} role="status">{result.message}</p>
       </section>
     );
   }
