@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { errorDisplay } from '@/lib/i18n/error-display';
 import PendingBridgesList from './components/PendingBridgesList';
 import type { PendingBridgeData } from './components/PendingBridgeItem';
@@ -79,7 +80,8 @@ export default function TeamBridgesPage() {
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>{t('team.bridges.loadFailed')}</p>
+        {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+        <StatusMessage>{t('team.bridges.loadFailed')}</StatusMessage>
         <button type="button" className="btn btn-secondary" onClick={load}>{t('common.retry')}</button>
       </div>
     );

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import type { PhasedTimelineResult } from '@/types/taprooting';
 import styles from '../grow.module.css';
 import { useT } from '@/app/locale-context';
+import { licensingStateLabel } from '@/lib/i18n/licensing-display';
 
 export interface PhasedTimelinePanelProps {
   timeline: PhasedTimelineResult;
@@ -92,7 +93,10 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
 
       {timeline.insuranceHardBlockActive && (
         <div className={styles.blockedBanner} role="alert">
-          {t('grow.phasedTimeline.hardBlockTemplate', { state: timeline.licensingState })}
+          {/* T-57 RG7 (i18n) — was raw `{ state: timeline.licensingState }`: the raw `LicensingState`
+              enum token (UNLICENSED/…) interpolated into an otherwise-translated compliance message.
+              `licensingStateLabel` localizes the token before interpolation. */}
+          {t('grow.phasedTimeline.hardBlockTemplate', { state: licensingStateLabel(t, timeline.licensingState) })}
         </div>
       )}
 
@@ -108,7 +112,7 @@ export default function PhasedTimelinePanel({ timeline, onMarkAttested, onPrevie
           <p role="status">
             {previewResult.released
               ? t('grow.phasedTimeline.releasedStatus')
-              : t('grow.phasedTimeline.blockedStatusTemplate', { state: previewResult.licensingState })}
+              : t('grow.phasedTimeline.blockedStatusTemplate', { state: licensingStateLabel(t, previewResult.licensingState) })}
           </p>
         )}
       </div>

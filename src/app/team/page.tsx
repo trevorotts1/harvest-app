@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 // T-57 RG6 (i18n) — `needsYouNow[].triggerReason` is the identical `TriggerReason` machine token
 // (`three-way-handoff.service.ts`) the Pending Bridges list's own per-item component
@@ -88,7 +89,8 @@ export default function TeamDashboardPage() {
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>{t('team.dashboard.loadFailed')}</p>
+        {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+        <StatusMessage>{t('team.dashboard.loadFailed')}</StatusMessage>
         <button type="button" className="btn btn-secondary" onClick={() => load(sort)}>{t('common.retry')}</button>
       </div>
     );

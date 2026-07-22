@@ -23,6 +23,7 @@ import OrgSwitchPanel from './components/OrgSwitchPanel';
 import TimeLapseShare from './components/TimeLapseShare';
 import styles from './grow.module.css';
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 type LoadState =
   | { kind: 'loading' }
@@ -97,7 +98,8 @@ export default function GrowPage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.card}>
-            <p>{t('grow.page.loadFailed')}</p>
+            {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+            <StatusMessage>{t('grow.page.loadFailed')}</StatusMessage>
             <button type="button" className={styles.iconButton} onClick={load}>
               {t('common.retry')}
             </button>

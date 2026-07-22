@@ -39,6 +39,7 @@ import SponsorStep from '@/app/onboarding/components/SponsorStep';
 import VisionSplash from '@/app/onboarding/components/VisionSplash';
 import UplineTrack from '@/app/onboarding/components/UplineTrack';
 import { resumeScreen } from '@/app/onboarding/flow-model';
+import { t as catalogT } from '@/lib/i18n/catalog';
 
 import { buildOrgContext } from '@/services/onboarding/wp01/org-gate';
 import {
@@ -55,6 +56,14 @@ const render = (el: ReactElement) => renderToStaticMarkup(el);
 /** Visible text only — strips HTML tags (and thus attributes like `rows="3"`) so digit checks test
  *  what the rep actually SEES, not incidental markup. */
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
+
+// T-57 RG7 (dimension B) — the safe-harbor line's VISUAL form now renders through the sanctioned FTC
+// catalog key (`grow.goalCard.potentialNotPromise`), so a Spanish rep sees the approved ES translation
+// instead of the hardcoded English `SAFE_HARBOR_LINE`. That constant is still the SR/spoken form. These
+// are the exact visible strings each locale must render (meaning identical; only punctuation differs
+// from `SAFE_HARBOR_LINE` — see HiddenEarningsReveal.tsx / hidden-earnings.ts's SPOKEN note).
+const SAFE_HARBOR_VISUAL_EN = catalogT('en', 'grow.goalCard.potentialNotPromise');
+const SAFE_HARBOR_VISUAL_ES = catalogT('es', 'grow.goalCard.potentialNotPromise');
 
 // ─── (a) Seven Whys UI never renders a score ─────────────────────────────────────────────────────
 describe('(a) Seven Whys conversation UI never renders a score (§6.4 / AC-5.1-4 invisible contract)', () => {
@@ -154,7 +163,7 @@ describe('(b) Hidden Earnings Reveal (§4.13 / §18.5 / AC-5.1-8)', () => {
         estimatedClients: 0,
       })
     );
-    expect(html).toContain(SAFE_HARBOR_LINE);
+    expect(html).toContain(SAFE_HARBOR_VISUAL_EN);
     // The SR utterance for the growth path must ALSO be a single element carrying growth copy +
     // disclaimer together, never two separate announcements.
     const srMatch = html.match(/id="reveal-zero-sr"[^>]*>([^<]*)</);
@@ -177,7 +186,7 @@ describe('(b) Hidden Earnings Reveal (§4.13 / §18.5 / AC-5.1-8)', () => {
     );
     expect(html).not.toMatch(/\$0\b/);
     expect(textOf(html)).toMatch(/field|add people|grows/i);
-    expect(html).toContain(SAFE_HARBOR_LINE);
+    expect(html).toContain(SAFE_HARBOR_VISUAL_EN);
   });
 
   test('with real data: safe harbor is present, inseparable, and NO share control exists', () => {
@@ -189,7 +198,7 @@ describe('(b) Hidden Earnings Reveal (§4.13 / §18.5 / AC-5.1-8)', () => {
         estimatedClients: 5,
       })
     );
-    expect(html).toContain(SAFE_HARBOR_LINE);
+    expect(html).toContain(SAFE_HARBOR_VISUAL_EN);
     expect(html).toContain('$125,000');
     expect(html).not.toMatch(/share/i);
   });
@@ -242,8 +251,12 @@ describe('(b) Hidden Earnings Reveal (§4.13 / §18.5 / AC-5.1-8)', () => {
     // exist for this specific locale pair + currency.
     expect(htmlEn).toContain('$125,000');
     expect(htmlEs).toContain('$125,000');
-    // The safe harbor + no-share invariants hold regardless of locale.
-    expect(htmlEs).toContain(SAFE_HARBOR_LINE);
+    // T-57 RG7 (dimension B) — the safe harbor + no-share invariants hold regardless of locale, and
+    // the ES rep now sees the SANCTIONED SPANISH safe-harbor visual, NOT the English SAFE_HARBOR_LINE
+    // (the leak this fix closes). EN renders the EN visual; ES renders the ES visual.
+    expect(htmlEn).toContain(SAFE_HARBOR_VISUAL_EN);
+    expect(htmlEs).toContain(SAFE_HARBOR_VISUAL_ES);
+    expect(htmlEs).not.toContain(SAFE_HARBOR_LINE);
     expect(htmlEs).not.toMatch(/share/i);
   });
 

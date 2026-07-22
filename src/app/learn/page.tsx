@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import CourseModulesList, { type CourseLoadState, type CourseModuleSummary } from './components/CourseModulesList';
 
 interface StreakSummary {
@@ -59,12 +60,13 @@ export default function LearnPage() {
         {courseState === 'ready' && <p style={{ color: 'var(--muted)' }}>{disclosure}</p>}
         {courseState === 'loading' && <p style={{ color: 'var(--muted)' }}>{t('learn.loadingCourse')}</p>}
         {courseState === 'failed' && (
-          <p style={{ color: 'var(--muted)' }}>
+          /* T-57 RG7 (SC 4.1.3) — course-load failure announced via StatusMessage (role=alert). */
+          <StatusMessage style={{ color: 'var(--muted)' }}>
             {t('learn.loadFailed')}{' '}
             <button type="button" className="badge" onClick={loadCourse} style={{ cursor: 'pointer' }}>
               {t('learn.retry')}
             </button>
-          </p>
+          </StatusMessage>
         )}
       </section>
 

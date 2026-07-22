@@ -9,6 +9,7 @@
 import { Component, type ReactNode } from 'react';
 
 import styles from '../today.module.css';
+import { StatusMessage } from '@/components/StatusMessage';
 import { t } from '@/lib/i18n/catalog';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
@@ -38,9 +39,10 @@ export default class ZoneErrorBoundary extends Component<Props, State> {
       const locale = this.props.locale ?? DEFAULT_LOCALE;
       return (
         <section className={styles.zoneCard} data-zone-error={this.props.zoneName}>
-          <p className={styles.zoneErrorText}>
+          {/* T-57 RG7 (SC 4.1.3) — a crashed zone's fallback (P0) now announced via StatusMessage. */}
+          <StatusMessage className={styles.zoneErrorText}>
             {t(locale, 'today.zoneErrorBoundary.message', { zone: this.props.zoneName })}
-          </p>
+          </StatusMessage>
         </section>
       );
     }

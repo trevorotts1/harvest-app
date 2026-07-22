@@ -140,6 +140,87 @@ describe('scripts/guard-status-live-region.mjs', () => {
     expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
   });
 
+  // T-57 RG7 — the CLOSED BLIND SPOT: a `{t('…')}` child rendered in an error/failed branch (the
+  // page-failed-to-load class) IS now flagged, while happy-path `{t('…')}` and decorative badges
+  // beside an already-announced message stay quiet.
+  describe('RG7: {t(\'…\')} rendered in an error/failed branch (the page-failed blind spot)', () => {
+    test('TEETH: `if (state.kind === "failed") return <p>{t("…failed")}</p>` FAILS — no live region', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Failed.tsx',
+        `export function P({ state, t }: { state: { kind: string }; t: (k: string) => string }) {\n  if (state.kind === 'failed') {\n    return <div><p>{t('x.loadFailed')}</p></div>;\n  }\n  return <span>{t('x.ready')}</span>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/x\.loadFailed/);
+      // the happy-path {t('x.ready')} in the SAME component must NOT be flagged.
+      expect(r.stderr).not.toMatch(/x\.ready/);
+    });
+
+    test('TEETH: `{cond === "failed" && <p>{t("…")}</p>}` (the JSX && shape) FAILS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'AndFail.tsx',
+        `export function P({ courseState, t }: { courseState: string; t: (k: string) => string }) {\n  return <section>{courseState === 'failed' && <p>{t('x.loadFailed')}</p>}</section>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(1);
+    });
+
+    test('MUTATION PROOF: wrapping the failed-state text in <StatusMessage> reverts the FAIL to a PASS (the structural fix the guard recognizes)', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'FailedOk.tsx',
+        `import { StatusMessage } from '@/components/StatusMessage';\nexport function P({ state, t }: { state: { kind: string }; t: (k: string) => string }) {\n  if (state.kind === 'failed') {\n    return <div><StatusMessage>{t('x.loadFailed')}</StatusMessage></div>;\n  }\n  return <span>{t('x.ready')}</span>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('a retry <button>{t(\'…retry\')}</button> in the SAME failed branch is NOT flagged — an interactive control label is not a status message', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Retry.tsx',
+        `import { StatusMessage } from '@/components/StatusMessage';\nexport function P({ state, t, onRetry }: { state: { kind: string }; t: (k: string) => string; onRetry: () => void }) {\n  if (state.kind === 'failed') {\n    return <div><StatusMessage>{t('x.loadFailed')}</StatusMessage><button onClick={onRetry}>{t('x.retry')}</button></div>;\n  }\n  return null;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('a decorative badge beside an ALREADY-announced status (role="status" on the message) is NOT flagged — the branch already announces', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'ZoneErr.tsx',
+        `export function P({ result, t }: { result: { status: string; message: string }; t: (k: string) => string }) {\n  if (result.status === 'error') {\n    return <section><span>{t('x.zoneBadge')}</span><p role="status">{result.message}</p></section>;\n  }\n  return null;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('a happy-path `{t(\'…heading\')}` (no error branch anywhere) is NOT flagged', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Happy.tsx',
+        `export function P({ t }: { t: (k: string) => string }) {\n  return <section><h2>{t('x.heading')}</h2><p>{t('x.body')}</p></section>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
+
   test('a violation present in the baseline is grandfathered (WARN-EXEMPT), and a SECOND new one still fails', () => {
     const s = makeScratchSrc();
     dir = s.dir;

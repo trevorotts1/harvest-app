@@ -26,6 +26,7 @@ import { useSession } from 'next-auth/react';
 import { PersistentOfflineQueue } from '@/lib/offline/offline-queue';
 import { isOnline, subscribeOnlineStatus } from '@/lib/offline/online-status';
 import { useLocale } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { multipleRejectedNotice, transientSyncNotice } from '@/lib/i18n/sync-notice';
 import { canSeeTeam } from '@/components/AppShell/navConfig';
 
@@ -255,7 +256,8 @@ export default function TodayPage() {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.zoneCard}>
-            <p className={styles.zoneErrorText}>{t('today.loadFailed')}</p>
+            {/* T-57 RG7 (SC 4.1.3) — page-failed state now announced via StatusMessage (role=alert). */}
+            <StatusMessage className={styles.zoneErrorText}>{t('today.loadFailed')}</StatusMessage>
             <button type="button" className={styles.queueActionButton} onClick={load}>
               {t('today.retry')}
             </button>

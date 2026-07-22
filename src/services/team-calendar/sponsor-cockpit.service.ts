@@ -8,10 +8,15 @@
 // sponsees, never anyone else's. The route layer (src/app/api/team/cockpit/route.ts) never accepts
 // a caller-supplied sponsor id; it always passes the SESSION user's own id.
 
-// The exact, mandatory FTC safe-harbor copy (§4.13 uiux / §7.3 / §0.5) — reused verbatim from its
-// one source of truth (hidden-earnings.ts, WP02) rather than re-declared, per uiux §5.1's own note
-// that this line is "Used by ... Sponsor Cockpit ROI (§5.9)."
-import { SAFE_HARBOR_LINE } from '../warm-market/hidden-earnings';
+// T-57 RG7 (i18n; dimension B, uiux §6.2/§0.5) — this service used to COMPOSE the per-seat `roiNote`
+// as a hardcoded-English template (`\`${n} recruit(s) activated …\` + SAFE_HARBOR_LINE`), a rep-facing
+// string a Spanish rep saw in English no matter how the client rendered it — the exact server-side
+// i18n leak `guard-server-i18n-leak.mjs` now catches (blind-spot c). It also used a Record to turn the
+// raw `onboarding_status` token into an English `activationStatus` label. Both English compositions are
+// GONE: the service now returns the RAW tokens (`activationStatus`, `sponsorshipState`) and the RAW
+// counts (`recruitsActivated`/`appointmentsGenerated`), and `team/cockpit/page.tsx` composes the
+// localized ROI note client-side via the catalog + the mandatory FTC safe-harbor key
+// (`grow.goalCard.potentialNotPromise`, the sanctioned ES translation), doctrine-clean ("teammate(s)").
 
 export interface SponsorshipRow {
   id: string;
@@ -45,20 +50,13 @@ export interface SponsorCockpitPrismaClient {
 export interface SponsorCockpitSeat {
   memberUserId: string;
   memberName: string;
-  activationStatus: string; // the member's onboarding_status, plain-language
-  sponsorshipState: string; // active | member_grace | anniversary_pending | lapsed | ...
+  activationStatus: string; // RAW OnboardingStatus token (IN_PROGRESS | GATED_COMPLETE); client localizes via activationStatusLabel
+  sponsorshipState: string; // RAW SponsorshipState token (ACTIVE | MEMBER_GRACE | ...); client localizes via sponsorshipStateLabel
   seatCostCents: number; // this billing period's real AgentRun cost roll-up (§4.5)
-  recruitsActivated: number;
+  recruitsActivated: number; // client renders the localized, doctrine-clean ("teammate(s)") ROI note from this + appointmentsGenerated
   appointmentsGenerated: number;
   renewalDate: string | null; // aligned to §5.8 anniversary flow (term_end)
-  roiNote: string; // safe-harbor-qualified ROI framing
 }
-
-const ONBOARDING_STATUS_LABEL: Record<string, string> = {
-  GATED_COMPLETE: 'Active',
-  IN_PROGRESS: 'Onboarding in progress',
-  NOT_STARTED: 'Invited, not started',
-};
 
 export class SponsorCockpitService {
   constructor(private readonly prisma: SponsorCockpitPrismaClient) {}
@@ -86,13 +84,12 @@ export class SponsorCockpitService {
       return {
         memberUserId: s.member_user_id,
         memberName: member?.name ?? 'Sponsored member',
-        activationStatus: member ? (ONBOARDING_STATUS_LABEL[member.onboarding_status] ?? member.onboarding_status) : 'Unknown',
+        activationStatus: member ? member.onboarding_status : 'UNKNOWN',
         sponsorshipState: s.state,
         seatCostCents,
         recruitsActivated,
         appointmentsGenerated,
         renewalDate: s.term_end ? s.term_end.toISOString() : null,
-        roiNote: `${recruitsActivated} recruit(s) activated and ${appointmentsGenerated} appointment(s) generated for this seat. ${SAFE_HARBOR_LINE}`,
       } satisfies SponsorCockpitSeat;
     });
   }

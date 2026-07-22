@@ -126,11 +126,30 @@ function exprIsStatusValue(expr) {
 // ─────────────────────────────────────────────────────────────────────────────
 const LIVE_ROLE_VALUES = new Set(['alert', 'status', 'log']);
 
+/** T-57 RG7 — shared components that build a live region IN (role + aria-live baked in). Rendering a
+ *  status/error inside one of these is the STRUCTURAL fix this guard enforces: `<StatusMessage>` (see
+ *  `src/components/StatusMessage.tsx`) always emits `role="alert"|"status"` + `aria-live`, so a
+ *  failed-state render wrapped in it is announced by construction — the guard treats it exactly like
+ *  a role/aria-live attribute on a plain element. This is what turns "remember to add aria-live on
+ *  every error text" (heuristic, forever leaking) into "route failed-state text through one component
+ *  the guard recognizes" (structural, enumerable). Add a component here ONLY if it unconditionally
+ *  renders an ARIA live region around its children. */
+const LIVE_REGION_COMPONENTS = new Set(['StatusMessage']);
+
+/** The last identifier of a JSX tag name (`Foo.Bar` -> `Bar`, `StatusMessage` -> `StatusMessage`). */
+function tagLeafName(tagName) {
+  let n = tagName;
+  while (ts.isPropertyAccessExpression(n)) n = n.name;
+  return ts.isIdentifier(n) ? n.text : n.getText();
+}
+
 /** Does this opening/self-closing element declare an ARIA live region (role=alert/status/log or any
- *  aria-live)? A `role`/`aria-live` written as a `{expr}` (dynamic) is conservatively treated as a
- *  live region too — we cannot statically prove it isn't, and this guard errs toward NOT
- *  false-positiving a site that clearly intends one. */
+ *  aria-live) — OR is it one of the known live-region COMPONENTS (`LIVE_REGION_COMPONENTS`)? A
+ *  `role`/`aria-live` written as a `{expr}` (dynamic) is conservatively treated as a live region too
+ *  — we cannot statically prove it isn't, and this guard errs toward NOT false-positiving a site that
+ *  clearly intends one. */
 function elementHasLiveRegion(openingLike) {
+  if (LIVE_REGION_COMPONENTS.has(tagLeafName(openingLike.tagName))) return true;
   for (const attr of openingLike.attributes.properties) {
     if (!ts.isJsxAttribute(attr)) continue;
     const name = attr.name.getText();
@@ -148,7 +167,7 @@ function elementHasLiveRegion(openingLike) {
 }
 
 /** Walk up every JSX-element ancestor of `node` (inclusive of the element it renders in) and return
- *  true if any declares a live region. */
+ *  true if any declares a live region (or is a live-region component). */
 function ancestorHasLiveRegion(node) {
   let current = node.parent;
   while (current) {
@@ -160,6 +179,115 @@ function ancestorHasLiveRegion(node) {
     current = current.parent;
   }
   return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T-57 RG7 — ERROR/FAILED-STATE BRANCH detection (closes the guard's `{t('…')}` blind spot).
+//
+// The original guard deliberately never matched a `{t('…')}` CallExpression child (it would
+// false-positive on every translated happy-path label). But the re-gate found the whole
+// "page-failed-to-load" class hiding in exactly that shape: `if (state.kind === 'failed') return
+// <p>{t('…loadFailed')}</p>` — a REAL SC-4.1.3 status render the guard couldn't see. The fix: a
+// `{t('…')}`/`{translate('…')}` child IS flagged, but ONLY when it renders inside an ERROR/FAILED
+// render branch AND isn't inside an interactive control (a retry <button>'s label is not a status
+// message). Happy-path `{t('…')}` stays quiet — the branch scoping is what keeps FP low.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Interactive elements whose text content is a control label, never an announced status message
+ *  (the retry `<button>` living next to a failed-state message must not be flagged). */
+const INTERACTIVE_TAGS = new Set(['button', 'a', 'Link', 'input', 'select', 'textarea', 'label', 'summary', 'option']);
+
+/** Is the JSX element DIRECTLY containing this child an interactive control? */
+function inInteractiveElement(node) {
+  const parent = node.parent;
+  if (parent && ts.isJsxElement(parent)) {
+    return INTERACTIVE_TAGS.has(tagLeafName(parent.openingElement.tagName));
+  }
+  return false;
+}
+
+/** Is this JSX child a `t(…)` / `translate(…)` catalog call? (the shape the guard used to skip). */
+function isTranslateCall(expr) {
+  const e = expr && ts.isParenthesizedExpression(expr) ? expr.expression : expr;
+  if (!e || !ts.isCallExpression(e)) return false;
+  const callee = e.expression;
+  if (ts.isIdentifier(callee)) return callee.text === 't' || callee.text === 'translate';
+  if (ts.isPropertyAccessExpression(callee)) return callee.name.text === 't' || callee.name.text === 'translate';
+  return false;
+}
+
+/** A POSITIVE error/failed signal in a branch condition — `x === 'failed'`/`=== 'error'`, a bare
+ *  `error`/`loadError`/`hasError`/`*Failed` identifier or `.hasError`/`.loadError` property, or any
+ *  operand of an `&&`/`||` that is one. A NEGATION (`!error`) is NOT positive (it guards the happy
+ *  branch) — so it is never treated as an error branch. */
+function isPositiveErrorSignal(expr) {
+  if (!expr) return false;
+  let e = expr;
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  if (ts.isBinaryExpression(e)) {
+    const op = e.operatorToken.kind;
+    if (op === ts.SyntaxKind.EqualsEqualsEqualsToken || op === ts.SyntaxKind.EqualsEqualsToken) {
+      const lit = ts.isStringLiteral(e.left) ? e.left : ts.isStringLiteral(e.right) ? e.right : null;
+      return !!lit && /^(failed|error)$/i.test(lit.text);
+    }
+    if (op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.BarBarToken) {
+      return isPositiveErrorSignal(e.left) || isPositiveErrorSignal(e.right);
+    }
+    return false;
+  }
+  if (ts.isIdentifier(e)) return /error|failed/i.test(e.text);
+  if (ts.isPropertyAccessExpression(e)) return /error|failed/i.test(e.name.text);
+  return false;
+}
+
+/** Walk up from a rendered child and return the ROOT of the enclosing error/failed RENDER BRANCH — an
+ *  enclosing `catch` block, an `if (<error signal>) { … }` THEN branch, a `<error signal> && (…)` JSX
+ *  conditional's right operand, or a `<error signal> ? (…) : …` ternary's whenTrue — or null if the
+ *  node isn't in one. As we walk, `child` is always the direct child of `current` on the path, so
+ *  branch membership is an exact `child === current.<branch>` check (no subtree search needed). */
+function enclosingErrorBranchRoot(node) {
+  let child = node;
+  let current = node.parent;
+  while (current) {
+    if (ts.isCatchClause(current)) return current.block;
+    if (ts.isIfStatement(current)) {
+      if (child === current.thenStatement && isPositiveErrorSignal(current.expression)) return current.thenStatement;
+    } else if (ts.isConditionalExpression(current)) {
+      if (child === current.whenTrue && isPositiveErrorSignal(current.condition)) return current.whenTrue;
+    } else if (ts.isBinaryExpression(current) && current.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+      if (child === current.right && isPositiveErrorSignal(current.left)) return current.right;
+    }
+    child = current;
+    current = current.parent;
+  }
+  return null;
+}
+
+/** Does the given branch-root subtree contain ANY live region? If an error branch ALREADY announces
+ *  its status (a `role="status"`/`alert`/`aria-live` element, or a `<StatusMessage>`, somewhere in
+ *  it), the branch is handled — a decorative zone BADGE/HEADING alongside that announced message
+ *  (`<span className={badge}>{t('…badge')}</span>` next to `<p role="status">{result.message}</p>`,
+ *  the Today zone-error shape) is NOT itself an un-announced status render. Only a branch with NO
+ *  live region at all is the page-failed leak this closes. */
+function subtreeHasLiveRegion(root) {
+  let found = false;
+  const walk = (n) => {
+    if (found) return;
+    if (ts.isJsxElement(n)) {
+      if (elementHasLiveRegion(n.openingElement)) {
+        found = true;
+        return;
+      }
+    } else if (ts.isJsxSelfClosingElement(n)) {
+      if (elementHasLiveRegion(n)) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(root);
+  return found;
 }
 
 /** Truncated, whitespace-collapsed snippet for reporting + fingerprinting. */
@@ -186,8 +314,19 @@ function scanFile(filePath) {
     if (ts.isJsxExpression(node)) {
       // Only a JSX CHILD (rendered content) — never an attribute value (`aria-label={error}`).
       const isAttributeValue = ts.isJsxAttribute(node.parent);
-      if (!isAttributeValue && exprIsStatusValue(node.expression)) {
-        if (!ancestorHasLiveRegion(node)) {
+      if (!isAttributeValue) {
+        const isStatus = exprIsStatusValue(node.expression);
+        // T-57 RG7 — the closed blind spot: a `{t('…')}` child rendered INSIDE an error/failed branch
+        // (and not inside a retry <button> etc.), WHEN that whole branch announces nothing (no
+        // role/aria-live/<StatusMessage> anywhere in it). Scoped to error branches — and to branches
+        // that don't already announce — so happy-path translated text and decorative badges beside an
+        // already-announced message both stay quiet.
+        let isErrorBranchTranslate = false;
+        if (!isStatus && isTranslateCall(node.expression) && !inInteractiveElement(node)) {
+          const branchRoot = enclosingErrorBranchRoot(node);
+          isErrorBranchTranslate = branchRoot !== null && !subtreeHasLiveRegion(branchRoot);
+        }
+        if ((isStatus || isErrorBranchTranslate) && !ancestorHasLiveRegion(node)) {
           raw.push({ snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
         }
       }

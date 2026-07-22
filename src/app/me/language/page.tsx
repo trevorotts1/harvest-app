@@ -17,6 +17,7 @@
 import { useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { LOCALE_LABEL, SUPPORTED_LOCALES, type Locale } from '@/lib/i18n/locale';
 import styles from './language.module.css';
 
@@ -62,7 +63,8 @@ export default function LanguagePage() {
           ))}
         </div>
         {notice === 'saved' && <p className={styles.notice}>{t('settings.language.saved')}</p>}
-        {notice === 'failed' && <p className={styles.notice}>{t('settings.language.saveFailed')}</p>}
+        {/* T-57 RG7 (SC 4.1.3) — save-failure announced via StatusMessage (role=alert). */}
+        {notice === 'failed' && <StatusMessage className={styles.notice}>{t('settings.language.saveFailed')}</StatusMessage>}
       </section>
     </main>
   );
