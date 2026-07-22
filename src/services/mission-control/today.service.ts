@@ -12,6 +12,8 @@
 // return real data.
 
 import { prisma } from '@/lib/prisma';
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 import type { MissionControlPrismaClient } from './prisma-types';
 import type { MissionControlToday, ZoneResult } from './types';
 import { buildHeaderZone } from './zones/header';
@@ -25,13 +27,58 @@ import { buildMilestonesZone } from './zones/milestones';
 /** Never leaks internals (stack traces, query shapes) into the zone's error message — the honest,
  *  non-shaming copy every degraded zone shows while its siblings keep working (uiux §4.1 error
  *  states / master spec §18.6 "no fabricated content" cuts both ways: no fabricated failure detail
- *  either). */
-async function safeZone<T>(fn: () => Promise<T>): Promise<ZoneResult<T>> {
+ *  either).
+ *
+ *  T-57 (server-msg-i18n): this message used to be a bare English literal — the one string EVERY
+ *  degraded zone's component renders verbatim via `result.message` (AnchorHeader/BriefingCard/
+ *  ActionQueue/PipelineGlance/RatioCards/CalendarStrip — the 6 Today zone components RG4-hardening
+ *  flagged). Now resolved through the catalog (`today.zones.error.generic`), keyed to the already-
+ *  resolved rep locale (see `resolveRepLocale` below) — an es-locale rep sees a genuine Spanish
+ *  degraded-zone message, not silently-still-English text, exactly like every other zone fix in this
+ *  pass. */
+async function safeZone<T>(fn: () => Promise<T>, locale: Locale): Promise<ZoneResult<T>> {
   try {
     const data = await fn();
     return { status: 'ok', data };
   } catch {
-    return { status: 'error', message: 'We could not load this right now — the rest of Today is unaffected.' };
+    return { status: 'error', message: t(locale, 'today.zones.error.generic') };
+  }
+}
+
+/**
+ * T-57 (server-msg-i18n) — locale resolution, HOISTED here from each zone re-deriving its own (the
+ * approach `zones/briefing.ts`'s module header documents as the "DOCUMENTED GAP ... for the next unit
+ * with route.ts/today.service.ts in its lane": "the instant today.service.ts starts threading a real
+ * locale argument through ... that value should simply be passed to buildBriefingZone as the optional
+ * 4th explicitLocale parameter"). This is that one-line change (see the buildBriefingZone call below)
+ * plus the same duck-typed lookup, done ONCE for all seven zones instead of once per zone.
+ *
+ * Same duck-typed shape/rationale as briefing.ts's own (private, still in place there for any direct
+ * caller that omits `explicitLocale`): `MissionControlPrismaClient` (prisma-types.ts) is a narrow,
+ * intentionally-minimal DI surface shared by every zone and declares no `user` accessor; widening it
+ * is out of this fix's lane. In production `db` is always the real Prisma client (this function's own
+ * `opts.db ?? (prisma as unknown as MissionControlPrismaClient)` fallback below — never overridden by
+ * the one real caller, `/api/mission-control/today`'s route.ts), which really does have
+ * `.user.findUnique`, so this resolves the rep's actual `User.locale` with zero changes to any file
+ * outside this unit's lane. Any `db` lacking `.user` (every existing zone test's in-memory fake)
+ * safely falls through to `DEFAULT_LOCALE`. Never throws — a locale-lookup hiccup degrades to
+ * English, it must never fail the whole Today response.
+ */
+type LocaleCapableDb = {
+  user?: {
+    findUnique?: (args: { where: { id: string }; select: { locale: true } }) => Promise<{ locale: string | null } | null>;
+  };
+};
+
+async function resolveRepLocale(db: MissionControlPrismaClient, userId: string, explicitLocale?: Locale): Promise<Locale> {
+  if (explicitLocale) return explicitLocale;
+  const maybeUser = (db as unknown as LocaleCapableDb).user;
+  if (typeof maybeUser?.findUnique !== 'function') return DEFAULT_LOCALE;
+  try {
+    const user = await maybeUser.findUnique({ where: { id: userId }, select: { locale: true } });
+    return isLocale(user?.locale) ? user.locale : DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
   }
 }
 
@@ -40,20 +87,31 @@ export interface BuildTodayOptions {
   greetingName: string;
   organizationId: string | null;
   now?: Date;
+  /** Optional explicit locale override — skips the duck-typed `db.user` lookup above. Every existing
+   *  caller (the real `/api/mission-control/today` route, every existing test) omits this and gets
+   *  IDENTICAL behavior to before this fix (English, unless a real `User.locale` says otherwise). */
+  locale?: Locale;
 }
 
 export async function buildMissionControlToday(userId: string, opts: BuildTodayOptions): Promise<MissionControlToday> {
   const db = opts.db ?? (prisma as unknown as MissionControlPrismaClient);
   const now = opts.now ?? new Date();
+  const locale = await resolveRepLocale(db, userId, opts.locale);
 
   const [header, briefing, actionQueue, pipeline, ratios, calendar, milestones] = await Promise.all([
-    safeZone(() => buildHeaderZone(db, userId, opts.greetingName, now)),
-    safeZone(() => buildBriefingZone(db, userId, now)),
-    safeZone(() => buildActionQueueZone(db, userId)),
-    safeZone(() => buildPipelineZone(db, userId, now)),
-    safeZone(() => buildRatiosZone(db, userId)),
-    safeZone(() => buildCalendarZone(db, userId, opts.organizationId, now)),
-    safeZone(() => buildMilestonesZone(db, userId)),
+    safeZone(() => buildHeaderZone(db, userId, opts.greetingName, now, locale), locale),
+    // The resolved `locale` is passed as briefing.ts's own `explicitLocale` 4th param — this is the
+    // "one-line change" that file's module header anticipated; it skips buildBriefingZone's internal
+    // duck-typed lookup entirely rather than duplicating it.
+    safeZone(() => buildBriefingZone(db, userId, now, locale), locale),
+    safeZone(() => buildActionQueueZone(db, userId, locale), locale),
+    safeZone(() => buildPipelineZone(db, userId, now, locale), locale),
+    safeZone(() => buildRatiosZone(db, userId, locale), locale),
+    // Calendar zone's own data (event type/attendance state) carries no server-composed prose — see
+    // the T-57 server-msg-i18n build report — so only the shared `safeZone` error message needs
+    // `locale` here, not the builder call itself.
+    safeZone(() => buildCalendarZone(db, userId, opts.organizationId, now), locale),
+    safeZone(() => buildMilestonesZone(db, userId, locale), locale),
   ]);
 
   return { generatedAt: now.toISOString(), header, briefing, actionQueue, pipeline, ratios, calendar, milestones };

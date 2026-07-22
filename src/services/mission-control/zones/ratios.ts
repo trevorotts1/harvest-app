@@ -12,33 +12,35 @@
 import { RATIO_BASELINE, RATIO_LEARNING_THRESHOLD } from '../types';
 import type { RatioTriple, RatiosZoneData } from '../types';
 import type { MissionControlPrismaClient } from '../prisma-types';
+// T-57 (server-msg-i18n) — every explainer/label below used to be bare English literals composed
+// server-side and rendered raw by RatioCards.tsx (`ratio.explainer`, `ratio.labels.join(' → ')` —
+// only the zone heading and the two ratio TITLES were already client-translated, per T-R32b). Also
+// fixes the pre-existing bare-count plural bug (e.g. "1 introductions" was always plural, the SAME
+// class of bug briefing.ts's CLDR fix (T-57 R4-residual2) already retired there) via real CLDR
+// one/other on each independent count, mirroring that fix's "each part-phrase is its own independent
+// t() call with its OWN count" pattern. `locale` is an OPTIONAL trailing param (defaulting to
+// `DEFAULT_LOCALE`) threaded in from today.service.ts; every existing caller/test that omits it keeps
+// compiling and rendering byte-identical English (this zone builder had zero dedicated unit-test
+// string assertions before this fix — see the T-57 server-msg-i18n build report).
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 const MET_OR_CLOSED = ['MET', 'CLOSED_CLIENT', 'CLOSED_RECRUIT'];
 
-// T-R16 (§9.7/§9.9-7 "both ratios display WITH explainers") — "what this means" copy for each ratio,
-// baseline vs real-data branch. Display-only text alongside the tally computed below; never itself
-// a score (Readiness stays hidden, uiux AC-5.4-4 — these two ratios are the ones that ARE shown).
-const AGENT_RATIO_BASELINE_EXPLAINER =
-  "Your Agent's Ratio measures how effective your AI agents are: introductions that get a response, " +
-  'turn into a set appointment, and show up. New reps start on the community baseline (20 introductions ' +
-  'to 5 appointments to 1 confirmed show) until your own record builds up.';
-const FIELD_TRAINER_RATIO_BASELINE_EXPLAINER =
-  "Your Field Trainer's Ratio measures your trainer's close rate once they run the appointment: how " +
-  'many become a client or a new teammate. New reps start on the community baseline (20 appointments ' +
-  'run to 5 client signs to 1 recruit join) until enough of your own appointments have run.';
-
-function agentRatioExplainer(introductions: number, appointmentsSet: number, confirmedShows: number): string {
-  return (
-    `Your own record: ${introductions} introductions -> ${appointmentsSet} appointments set -> ` +
-    `${confirmedShows} confirmed shows. This is how effective your AI agents are for your community.`
-  );
+function agentRatioExplainer(introductions: number, appointmentsSet: number, confirmedShows: number, locale: Locale): string {
+  return t(locale, 'today.zones.ratios.agentRecord.template', {
+    introPart: t(locale, 'today.zones.ratios.agentRecord.introPart', { count: introductions }),
+    apptPart: t(locale, 'today.zones.ratios.agentRecord.apptPart', { count: appointmentsSet }),
+    showsPart: t(locale, 'today.zones.ratios.agentRecord.showsPart', { count: confirmedShows }),
+  });
 }
 
-function fieldTrainerRatioExplainer(appointmentsRun: number, clientSigns: number, recruitJoins: number): string {
-  return (
-    `Your trainer's own record: of ${appointmentsRun} appointments run, ${clientSigns} became a client and ` +
-    `${recruitJoins} joined as a recruit.`
-  );
+function fieldTrainerRatioExplainer(appointmentsRun: number, clientSigns: number, recruitJoins: number, locale: Locale): string {
+  return t(locale, 'today.zones.ratios.trainerRecord.template', {
+    runPart: t(locale, 'today.zones.ratios.trainerRecord.runPart', { count: appointmentsRun }),
+    signPart: t(locale, 'today.zones.ratios.trainerRecord.signPart', { count: clientSigns }),
+    joinPart: t(locale, 'today.zones.ratios.trainerRecord.joinPart', { count: recruitJoins }),
+  });
 }
 
 function baselineTriple(labels: [string, string, string], dataPoints: number, explainer: string): RatioTriple {
@@ -53,7 +55,11 @@ function baselineTriple(labels: [string, string, string], dataPoints: number, ex
   };
 }
 
-export async function buildRatiosZone(db: MissionControlPrismaClient, userId: string): Promise<RatiosZoneData> {
+export async function buildRatiosZone(
+  db: MissionControlPrismaClient,
+  userId: string,
+  locale: Locale = DEFAULT_LOCALE
+): Promise<RatiosZoneData> {
   const [approvedDrafts, appointments, contacts] = await Promise.all([
     db.draftMessage.findMany({ where: { user_id: userId, approval_state: 'APPROVED' } }),
     db.appointment.findMany({ where: { rep_id: userId } }),
@@ -68,12 +74,20 @@ export async function buildRatiosZone(db: MissionControlPrismaClient, userId: st
   const clientSigns = contacts.filter((c) => c.is_client).length;
   const recruitJoins = contacts.filter((c) => c.pipeline_stage === 'CLOSED_RECRUIT').length;
 
-  const agentLabels: [string, string, string] = ['Introductions', 'Appointments set', 'Confirmed shows'];
-  const trainerLabels: [string, string, string] = ['Appointments run', 'Client signs', 'Recruit joins'];
+  const agentLabels: [string, string, string] = [
+    t(locale, 'today.zones.ratios.labels.introductions'),
+    t(locale, 'today.zones.ratios.labels.appointmentsSet'),
+    t(locale, 'today.zones.ratios.labels.confirmedShows'),
+  ];
+  const trainerLabels: [string, string, string] = [
+    t(locale, 'today.zones.ratios.labels.appointmentsRun'),
+    t(locale, 'today.zones.ratios.labels.clientSigns'),
+    t(locale, 'today.zones.ratios.labels.recruitJoins'),
+  ];
 
   const agentRatio: RatioTriple =
     introductions < RATIO_LEARNING_THRESHOLD
-      ? baselineTriple(agentLabels, introductions, AGENT_RATIO_BASELINE_EXPLAINER)
+      ? baselineTriple(agentLabels, introductions, t(locale, 'today.zones.ratios.agentBaselineExplainer'))
       : {
           a: introductions,
           b: appointmentsSet,
@@ -81,12 +95,12 @@ export async function buildRatiosZone(db: MissionControlPrismaClient, userId: st
           labels: agentLabels,
           learning: false,
           dataPoints: introductions,
-          explainer: agentRatioExplainer(introductions, appointmentsSet, confirmedShows),
+          explainer: agentRatioExplainer(introductions, appointmentsSet, confirmedShows, locale),
         };
 
   const fieldTrainerRatio: RatioTriple =
     appointmentsRun < RATIO_LEARNING_THRESHOLD
-      ? baselineTriple(trainerLabels, appointmentsRun, FIELD_TRAINER_RATIO_BASELINE_EXPLAINER)
+      ? baselineTriple(trainerLabels, appointmentsRun, t(locale, 'today.zones.ratios.trainerBaselineExplainer'))
       : {
           a: appointmentsRun,
           b: clientSigns,
@@ -94,7 +108,7 @@ export async function buildRatiosZone(db: MissionControlPrismaClient, userId: st
           labels: trainerLabels,
           learning: false,
           dataPoints: appointmentsRun,
-          explainer: fieldTrainerRatioExplainer(appointmentsRun, clientSigns, recruitJoins),
+          explainer: fieldTrainerRatioExplainer(appointmentsRun, clientSigns, recruitJoins, locale),
         };
 
   return { agentRatio, fieldTrainerRatio };

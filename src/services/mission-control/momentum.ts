@@ -27,6 +27,15 @@ import {
   MomentumCriterion,
   type MomentumCriteriaBreakdown,
 } from '../gamification/momentum-criteria';
+// T-57 (server-msg-i18n) — `groveCaptionFor` used to return bare English literals unconditionally,
+// even for an es-locale rep (this Today zone's own module-header note above never anticipated i18n —
+// WP04 predates T-53's catalog by several waves). Mirrors the already-landed briefing.ts fix: real
+// copy now lives in the catalog (`today.zones.grove.caption.*`, en.json/es.json), looked up through
+// `t()`, with `locale` an OPTIONAL trailing param defaulting to `DEFAULT_LOCALE` so every existing
+// caller/test that omits it (this file's own tests in mission-control-momentum.test.ts) keeps
+// compiling and rendering byte-identical English.
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 export interface MomentumEventLike {
   law: string; // 'grow' | 'engage' | 'wealth' | 'cross'
@@ -108,27 +117,29 @@ export function computeGroveBandState(momentum: MomentumResult): GroveState {
   return momentum.band;
 }
 
-/** uiux §3.2 caption table — "always icon + text", never shaming. */
-export function groveCaptionFor(state: GroveState, bloomLabel?: string): string {
+/** uiux §3.2 caption table — "always icon + text", never shaming. `bloomLabel` (the raw
+ *  milestone-key-derived compact label — see `computeBloomOverride` below) is passed through
+ *  verbatim, unchanged by this fix — it is a data-derived fallback label, not composed prose. */
+export function groveCaptionFor(state: GroveState, bloomLabel?: string, locale: Locale = DEFAULT_LOCALE): string {
   switch (state) {
     case 'seed':
-      return 'Your field is planted — the First 48 starts now';
+      return t(locale, 'today.zones.grove.caption.seed');
     case 'sprout':
-      return "It's alive. Keep going.";
+      return t(locale, 'today.zones.grove.caption.sprout');
     case 'thriving':
-      return 'Thriving';
+      return t(locale, 'today.zones.grove.caption.thriving');
     case 'growing':
-      return 'Growing';
+      return t(locale, 'today.zones.grove.caption.growing');
     case 'quiet':
-      return 'Your field is quiet — one small action wakes it up';
+      return t(locale, 'today.zones.grove.caption.quiet');
     case 'resting':
-      return 'Resting, ready to regrow';
+      return t(locale, 'today.zones.grove.caption.resting');
     case 'bloom':
-      return bloomLabel ?? 'Bloom';
+      return bloomLabel ?? t(locale, 'today.zones.grove.caption.bloomFallback');
     case 'stale':
-      return 'as of last update';
+      return t(locale, 'today.zones.grove.caption.staleSuffix');
     default:
-      return 'Resting, ready to regrow';
+      return t(locale, 'today.zones.grove.caption.resting');
   }
 }
 

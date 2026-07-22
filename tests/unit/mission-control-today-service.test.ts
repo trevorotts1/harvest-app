@@ -90,8 +90,12 @@ describe('header zone — groveBloomNarration (uiux §6.1 item 5, T-52)', () => 
     expect(today.header.status).toBe('ok');
     if (today.header.status !== 'ok') return;
     expect(today.header.data.groveState).toBe('bloom');
+    // T-57 (server-msg-i18n): "First recruit" -> "First teammate" — a doctrine-forbidden-term
+    // correction (src/services/compliance/vocabulary.ts bans "recruit"), surfaced by moving this
+    // display name into the i18n-catalog-linted path for the first time. See celebration.service.ts's
+    // `MILESTONE_DISPLAY_NAME` doc comment.
     expect(today.header.data.groveBloomNarration).toBe(
-      'Milestone: First recruit. Someone chose to build alongside you. That is the harvest multiplying. This moment is saved to your field.'
+      'Milestone: First teammate. Someone chose to build alongside you. That is the harvest multiplying. This moment is saved to your field.'
     );
   });
 
@@ -103,6 +107,25 @@ describe('header zone — groveBloomNarration (uiux §6.1 item 5, T-52)', () => 
     if (today.header.status !== 'ok') return;
     expect(today.header.data.groveBloomNarration).toBeNull();
     expect(today.header.data.groveState).not.toBe('bloom');
+  });
+
+  // T-57 (server-msg-i18n) — the Grove full-bloom narration used to be bare English regardless of
+  // locale. Mirrors the EN test above exactly (same seed/milestone), proving the es-locale rep gets a
+  // genuine Spanish script end-to-end through the real aggregator, not just the pure helper.
+  test('TEETH — es locale (explicit BuildTodayOptions.locale): the same fresh milestone produces the genuine Spanish narration script, never English', async () => {
+    const db = createInMemoryMissionControlDb({
+      momentumEvents: [{ user_id: USER, law: 'grow', points: 10, created_at: NOW }],
+      milestones: [{ user_id: USER, milestone_key: 'FIRST_RECRUIT', achieved_at: new Date(NOW.getTime() - 60 * 1000), celebrated: false }],
+    });
+    const today = await buildMissionControlToday(USER, { db, greetingName: 'Alex', organizationId: ORG, now: NOW, locale: 'es' });
+
+    expect(today.header.status).toBe('ok');
+    if (today.header.status !== 'ok') return;
+    expect(today.header.data.groveState).toBe('bloom');
+    expect(today.header.data.groveBloomNarration).toBe(
+      'Hito: Primer compañero de equipo. Alguien eligió construir junto a ti. Esa es la cosecha multiplicándose. Este momento queda guardado en tu campo.'
+    );
+    expect(today.header.data.groveBloomNarration).not.toContain('Milestone:');
   });
 });
 

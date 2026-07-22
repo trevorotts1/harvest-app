@@ -19,6 +19,12 @@ import {
 import { buildMilestoneFullBloomNarration } from '../../gamification/celebration.service';
 import type { MissionControlPrismaClient } from '../prisma-types';
 import type { HeaderZoneData } from '../types';
+// T-57 (server-msg-i18n) — `groveCaption`/`groveBloomNarration` below used to be bare English
+// (momentum.ts's `groveCaptionFor` / celebration.service.ts's `buildMilestoneFullBloomNarration`),
+// unconditionally, even for an es-locale rep. `locale` is an OPTIONAL trailing param (defaulting to
+// `DEFAULT_LOCALE`) threaded in from today.service.ts's aggregator-level `resolveRepLocale` — every
+// existing caller/test that omits it keeps compiling and rendering byte-identical English.
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 const PENDING_APPROVAL_STATES = ['PENDING', 'HELD'];
 
@@ -26,7 +32,8 @@ export async function buildHeaderZone(
   db: MissionControlPrismaClient,
   userId: string,
   greetingName: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  locale: Locale = DEFAULT_LOCALE
 ): Promise<HeaderZoneData> {
   const [events, milestones, drafts] = await Promise.all([
     db.momentumEvent.findMany({ where: { user_id: userId } }),
@@ -38,8 +45,8 @@ export async function buildHeaderZone(
   const momentumCriteria = computeMomentumCriteria(events, now);
   const bloom = computeBloomOverride(milestones, now);
   const groveState = bloom ? 'bloom' : computeGroveBandState(momentum);
-  const groveCaption = groveCaptionFor(groveState, bloom?.label);
-  const groveBloomNarration = bloom ? buildMilestoneFullBloomNarration(bloom.key) : null;
+  const groveCaption = groveCaptionFor(groveState, bloom?.label, locale);
+  const groveBloomNarration = bloom ? buildMilestoneFullBloomNarration(bloom.key, locale) : null;
 
   return {
     greetingName,

@@ -10,6 +10,13 @@
 
 import type { AppointmentRow, ContactRow, DraftMessageRow, MissionControlPrismaClient } from '../prisma-types';
 import type { ActionQueueZoneData, QueueItem } from '../types';
+// T-57 (server-msg-i18n) — `title`/`why` below used to be bare English literals composed server-side
+// (ActionQueue.tsx renders both raw, with no client-side translation layer over them — unlike the
+// component's OWN badge/CTA copy, which T-R32b already routed through the catalog). `locale` is an
+// OPTIONAL trailing param (defaulting to `DEFAULT_LOCALE`) threaded in from today.service.ts; every
+// existing caller/test that omits it keeps compiling and rendering byte-identical English.
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 const DISPLAY_CAP = 5;
 
@@ -34,7 +41,8 @@ function contactLabel(contact: ContactRow | undefined): string | null {
 
 export async function buildActionQueueZone(
   db: MissionControlPrismaClient,
-  userId: string
+  userId: string,
+  locale: Locale = DEFAULT_LOCALE
 ): Promise<ActionQueueZoneData> {
   const [drafts, appointments] = await Promise.all([
     db.draftMessage.findMany({
@@ -48,8 +56,8 @@ export async function buildActionQueueZone(
   const contacts = contactIds.length > 0 ? await db.contact.findMany({ where: { user_id: userId, id: { in: contactIds } } }) : [];
   const contactById = new Map(contacts.map((c) => [c.id, c]));
 
-  const draftItems: QueueItem[] = drafts.map((d) => draftToItem(d, contactById.get(d.contact_id)));
-  const appointmentItems: QueueItem[] = appointments.map((a) => appointmentToItem(a, contactById.get(a.contact_id)));
+  const draftItems: QueueItem[] = drafts.map((d) => draftToItem(d, contactById.get(d.contact_id), locale));
+  const appointmentItems: QueueItem[] = appointments.map((a) => appointmentToItem(a, contactById.get(a.contact_id), locale));
 
   // Priority order (§5.2 "priority-ordered"): flagged review first (time-sensitive/compliance-
   // adjacent), then appointments (calendar-bound), then ordinary approve-drafts.
@@ -64,7 +72,7 @@ export async function buildActionQueueZone(
   };
 }
 
-function draftToItem(d: DraftMessageRow, contact: ContactRow | undefined): QueueItem {
+function draftToItem(d: DraftMessageRow, contact: ContactRow | undefined, locale: Locale): QueueItem {
   // T-R12 (defense-in-depth hardening): review_flagged on ANY non-PASS `cfe_outcome` — not just
   // 'FLAG' — plus the pre-existing `approval_state === 'HELD'` check. Today BLOCK always implies
   // HELD by construction (agent-runtime.ts's `bandToOutcome`/`held` derivation) and the service-
@@ -76,10 +84,8 @@ function draftToItem(d: DraftMessageRow, contact: ContactRow | undefined): Queue
   return {
     id: d.id,
     kind,
-    title: kind === 'review_flagged' ? 'Review flagged draft' : 'Approve draft',
-    why: kind === 'review_flagged'
-      ? 'This draft needs your review before it can send.'
-      : 'Your agent drafted this community introduction — approve to hand it off.',
+    title: t(locale, kind === 'review_flagged' ? 'today.zones.actionQueue.title.reviewFlagged' : 'today.zones.actionQueue.title.approveDraft'),
+    why: t(locale, kind === 'review_flagged' ? 'today.zones.actionQueue.why.reviewFlagged' : 'today.zones.actionQueue.why.approveDraft'),
     contactLabel: contactLabel(contact),
     minutes: minutesFor(kind),
     cfeBand: d.cfe_outcome,
@@ -87,12 +93,12 @@ function draftToItem(d: DraftMessageRow, contact: ContactRow | undefined): Queue
   };
 }
 
-function appointmentToItem(a: AppointmentRow, contact: ContactRow | undefined): QueueItem {
+function appointmentToItem(a: AppointmentRow, contact: ContactRow | undefined, locale: Locale): QueueItem {
   return {
     id: a.id,
     kind: 'confirm_appointment',
-    title: 'Confirm appointment window',
-    why: 'A proposed appointment time is waiting for your confirmation.',
+    title: t(locale, 'today.zones.actionQueue.title.confirmAppointment'),
+    why: t(locale, 'today.zones.actionQueue.why.confirmAppointment'),
     contactLabel: contactLabel(contact),
     minutes: minutesFor('confirm_appointment'),
     cfeBand: null,

@@ -342,6 +342,90 @@
       "loadFailed": "We couldn't load this right now — your work is safe.",
       "backToTodayPlain": "Back to Today",
       "yourLevelBadge": "Your level"
+    },
+    "zones": {
+      "error": {
+        "generic": "We could not load this right now — the rest of Today is unaffected."
+      },
+      "actionQueue": {
+        "title": {
+          "reviewFlagged": "Review flagged draft",
+          "approveDraft": "Approve draft",
+          "confirmAppointment": "Confirm appointment window"
+        },
+        "why": {
+          "reviewFlagged": "This draft needs your review before it can send.",
+          "approveDraft": "Your agent drafted this community introduction — approve to hand it off.",
+          "confirmAppointment": "A proposed appointment time is waiting for your confirmation."
+        }
+      },
+      "pipeline": {
+        "label": {
+          "introduced": "Introduced",
+          "responded": "Responded",
+          "appointment": "Appointment",
+          "closed": "Closed"
+        }
+      },
+      "ratios": {
+        "labels": {
+          "introductions": "Introductions",
+          "appointmentsSet": "Appointments set",
+          "confirmedShows": "Confirmed shows",
+          "appointmentsRun": "Appointments run",
+          "clientSigns": "Client signs",
+          "recruitJoins": "Teammates brought in"
+        },
+        "agentBaselineExplainer": "Your Agent's Ratio measures how effective your AI agents are: introductions that get a response, turn into a set appointment, and show up. New reps start on the community baseline (20 introductions to 5 appointments to 1 confirmed show) until your own record builds up.",
+        "trainerBaselineExplainer": "Your Field Trainer's Ratio measures your trainer's close rate once they run the appointment: how many become a client or a new teammate. New reps start on the community baseline (20 appointments run to 5 client signs to 1 teammate brought in) until enough of your own appointments have run.",
+        "agentRecord": {
+          "template": "Your own record: {introPart} -> {apptPart} -> {showsPart}. This is how effective your AI agents are for your community.",
+          "introPart_one": "{count} introduction",
+          "introPart_other": "{count} introductions",
+          "apptPart_one": "{count} appointment set",
+          "apptPart_other": "{count} appointments set",
+          "showsPart_one": "{count} confirmed show",
+          "showsPart_other": "{count} confirmed shows"
+        },
+        "trainerRecord": {
+          "template": "Your trainer's own record: of {runPart}, {signPart} and {joinPart}.",
+          "runPart_one": "{count} appointment run",
+          "runPart_other": "{count} appointments run",
+          "signPart_one": "{count} became a client",
+          "signPart_other": "{count} became clients",
+          "joinPart_one": "{count} joined as a teammate",
+          "joinPart_other": "{count} joined as teammates"
+        }
+      },
+      "grove": {
+        "caption": {
+          "seed": "Your field is planted — the First 48 starts now",
+          "sprout": "It's alive. Keep going.",
+          "thriving": "Thriving",
+          "growing": "Growing",
+          "quiet": "Your field is quiet — one small action wakes it up",
+          "resting": "Resting, ready to regrow",
+          "staleSuffix": "as of last update",
+          "bloomFallback": "Bloom"
+        }
+      },
+      "milestones": {
+        "displayName": {
+          "FIRST_RESPONSE": "First response",
+          "FIRST_APPOINTMENT": "First appointment",
+          "FIRST_RECRUIT": "First teammate",
+          "FIRST_LICENSED_TEAM_MEMBER": "First licensed team member",
+          "THIRTY_DAY_STREAK": "Thirty-day streak"
+        },
+        "anchorLine": {
+          "FIRST_RESPONSE": "Someone in your community just responded — the relationship is real.",
+          "FIRST_APPOINTMENT": "You just helped a family in your community get protected — that's why you're here.",
+          "FIRST_RECRUIT": "Someone chose to build alongside you. That is the harvest multiplying.",
+          "FIRST_LICENSED_TEAM_MEMBER": "A person you brought in is now licensed and building — collective benefit, in action.",
+          "THIRTY_DAY_STREAK": "Thirty days of consistency. Brilliance is optional; you chose consistency."
+        },
+        "fullBloomNarration": "Milestone: {name}. {anchor} This moment is saved to your field."
+      }
     }
   },
   "community": {
