@@ -1,5 +1,19 @@
 [
+  "src/app/content/launch-kit/[id]/page.tsx::humanized-raw-token-jsx::0::{item.launch_kit_piece_type?.replace(/_/g, ' ')}",
+  "src/app/content/launch-kit/[id]/page.tsx::humanized-raw-token-jsx::0::{kit.version.replace(/_/g, ' ')}",
+  "src/app/content/launch-kit/[id]/page.tsx::humanized-raw-token-jsx::0::{kit.welcome_variant.replace(/_/g, ' ').toLowerCase()}",
+  "src/app/content/page.tsx::humanized-raw-token-jsx::0::{item.category.replace(/_/g, ' ')}",
+  "src/app/content/page.tsx::humanized-raw-token-jsx::0::{item.state.replace(/_/g, ' ')}",
+  "src/app/content/templates/components/TemplateListSection.tsx::humanized-raw-token-jsx::0::{c.replace(/_/g, ' ')}",
+  "src/app/content/templates/components/TemplateListSection.tsx::humanized-raw-token-jsx::0::{tpl.defaultPersonalizationTier.replace(/_/g, ' ').toLowerCase()}",
+  "src/app/inbox/components/ApprovalInboxItem.tsx::humanized-raw-token-jsx::0::{current.channel.replaceAll('_', ' ')}",
+  "src/app/team/calendar/page.tsx::humanized-raw-token-jsx::0::{e.type.replace(/_/g, ' ')}",
   "src/app/team/calendar/page.tsx::raw-token-jsx::0::{a.status}",
   "src/app/team/calendar/page.tsx::raw-token-jsx::0::{c.status}",
-  "src/app/team/cockpit/page.tsx::raw-token-jsx::0::{s.status}"
+  "src/app/team/cockpit/page.tsx::raw-token-jsx::0::{s.status}",
+  "src/app/team/compliance-review/page.tsx::humanized-raw-token-jsx::0::{item.channel.replace(/_/g, ' ')}",
+  "src/app/team/page.tsx::humanized-raw-token-jsx::0::{item.triggerReason.replace(/_/g, ' ').toLowerCase()}",
+  "src/app/team/rep/[userId]/components/RepDataPanels.tsx::humanized-raw-token-jsx::0::{n.pipelineStage.toLowerCase().replace(/_/g, ' ')}",
+  "src/app/team/rep/[userId]/components/RepDataPanels.tsx::humanized-raw-token-jsx::0::{stage.toLowerCase().replace(/_/g, ' ')}",
+  "src/app/team/rep/[userId]/page.tsx::humanized-raw-token-jsx::0::{m.key.replace(/_/g, ' ')}"
 ]

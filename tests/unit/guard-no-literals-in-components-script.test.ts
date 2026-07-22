@@ -325,6 +325,162 @@ describe('scripts/guard-no-literals-in-components.mjs', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/Scanned 0 \.tsx file/);
   });
+
+  // T-57 RG5-FINAL — shape (7): a function-return English literal rendered as a JSX child, one hop
+  // removed from the literal (PipelineGlance.tsx's real, pre-fix `deltaLabel()` bug).
+  describe('shape (7): function-return English literal rendered as a JSX child', () => {
+    test('TEETH: the real deltaLabel() shape — a helper returns { text: \'needs tending\', … }, rendered via {d.text} — FAILS', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'Pipeline.tsx'),
+        [
+          "function deltaLabel(delta: number): { text: string; className: string } {",
+          "  if (delta < 0) return { text: 'needs tending', className: 'warn' };",
+          "  return { text: '—', className: 'flat' };",
+          '}',
+          'export function Pipeline({ delta }: { delta: number }) {',
+          '  const d = deltaLabel(delta);',
+          '  return <span>{d.text}</span>;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+
+      const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/fn-return-literal-prop-access/);
+      expect(result.stderr).toMatch(/d\.text/);
+    });
+
+    test('MUTATION PROOF: threading t() into the helper (the real fix) reverts the FAIL to a PASS', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'Pipeline.tsx'),
+        [
+          "function deltaLabel(t: (k: string) => string, delta: number): { text: string; className: string } {",
+          "  if (delta < 0) return { text: t('today.pipelineGlance.needsTending'), className: 'warn' };",
+          "  return { text: '—', className: 'flat' };",
+          '}',
+          "export function Pipeline({ delta, t }: { delta: number; t: (k: string) => string }) {",
+          '  const d = deltaLabel(t, delta);',
+          '  return <span>{d.text}</span>;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+      expect(runGuard(scratch.srcRoot, scratch.baselinePath).status).toBe(0);
+    });
+
+    test('TEETH: a helper returning a BARE literal directly, called inline as a JSX child ({helperName(x)}), FAILS', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'Bare.tsx'),
+        [
+          "function statusLine(n: number): string {",
+          "  return 'Nothing pending right now';",
+          '}',
+          'export function Bare({ n }: { n: number }) {',
+          '  return <p>{statusLine(n)}</p>;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+      const result = runGuard(scratch.srcRoot, scratch.baselinePath);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(/fn-return-literal-direct-call/);
+    });
+
+    test('a helper that ALREADY resolves its text via t() internally is never flagged — the fixed shape stays silent', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'Fixed.tsx'),
+        [
+          "function deltaLabel(t: (k: string) => string, delta: number): { text: string; className: string } {",
+          "  if (delta < 0) return { text: t('x.needsTending'), className: 'warn' };",
+          "  return { text: '—', className: 'flat' };",
+          '}',
+          "export function Fixed({ delta, t }: { delta: number; t: (k: string) => string }) {",
+          '  const d = deltaLabel(t, delta);',
+          '  return <span>{d.text}</span>;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+      expect(runGuard(scratch.srcRoot, scratch.baselinePath).status).toBe(0);
+    });
+
+    test('a PascalCase-named helper with the IDENTICAL risky shape is never treated as a "risky helper" — this shape only targets lowercase (non-component, non-hook) names', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'Comp.tsx'),
+        [
+          "function DeltaLabel(delta: number): { text: string } {",
+          "  return delta < 0 ? { text: 'needs tending' } : { text: '—' };",
+          '}',
+          'export function Pipeline({ delta }: { delta: number }) {',
+          '  const d = DeltaLabel(delta);',
+          '  return <span>{d.text}</span>;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+      // Identical shape to the TEETH test above, just PascalCase-named — proves the exclusion is
+      // real (a lowercase rename of this exact fixture is the TEETH test and DOES fail).
+      expect(runGuard(scratch.srcRoot, scratch.baselinePath).status).toBe(0);
+    });
+
+    test('a single-word (no space) literal property, e.g. { key: \'flat\' }, is never flagged — an enum/state key, not prose', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'EnumKey.tsx'),
+        [
+          "function stateOf(n: number): { key: string } {",
+          "  return n > 0 ? { key: 'up' } : { key: 'flat' };",
+          '}',
+          'export function EnumKey({ n }: { n: number }) {',
+          '  const s = stateOf(n);',
+          '  return <span data-state={s.key} />;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+      expect(runGuard(scratch.srcRoot, scratch.baselinePath).status).toBe(0);
+    });
+
+    test('a hook (use-prefixed, PascalCase-after-use) is never treated as a risky helper', () => {
+      const scratch = makeScratchSrc();
+      dir = scratch.dir;
+      writeFileSync(
+        path.join(scratch.srcRoot, 'HookUser.tsx'),
+        [
+          "function useGreeting(): string {",
+          "  return 'Welcome back to your dashboard';",
+          '}',
+          'export function HookUser() {',
+          '  const g = useGreeting();',
+          '  return <p>{g}</p>;',
+          '}',
+          '',
+        ].join('\n')
+      );
+      writeBaseline(scratch.baselinePath, []);
+      // `g` is a bare identifier JSX child (not `{helperName(x)}` nor `{x.prop}`) — shape (7) cannot
+      // see it either way; this proves the `use*` exclusion doesn't misfire into a different shape.
+      expect(runGuard(scratch.srcRoot, scratch.baselinePath).status).toBe(0);
+    });
+  });
 });
 
 describe('scripts/guard-no-literals-in-components.mjs — against the REAL repo (no fixtures)', () => {

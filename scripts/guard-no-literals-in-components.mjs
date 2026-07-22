@@ -47,6 +47,16 @@
  *       strings BLOCKER-B5/B6 exist to surface (an enum-key false negative here is an acceptable
  *       trade — a human/QC pass, or a future tightening, still catches it; a wave of enum-key false
  *       positives would make the guard's real signal unusable).
+ *   (7) T-57 RG5-FINAL fix — FUNCTION-RETURN ENGLISH LITERAL RENDERED AS A JSX CHILD: a local helper
+ *       (name starting lowercase, not a `use*` hook — i.e. not a component and not a hook) whose
+ *       `return` is a bare wordy multi-word string/template literal, or an object literal with such a
+ *       literal on one of its properties (`PipelineGlance.tsx`'s pre-fix `deltaLabel()` returning
+ *       `{ text: 'needs tending', … }`), flagged when that helper's result — or, for the
+ *       object-literal shape, a tracked local variable's matching property — is rendered as a JSX
+ *       CHILD (`{helperName(x)}` / `const d = helperName(x); …{d.text}…`) in the SAME file. See this
+ *       file's own dedicated header block further down (right above `isRiskyHelperName`) for the full
+ *       design/false-positive rationale — kept separate because this shape needed considerably more
+ *       explanation than a paragraph here allows.
  *
  * BASELINE ALLOWLIST (mirrors `guard-no-opacity-on-text.mjs`'s `KNOWN_PRE_EXISTING_EXEMPTIONS`
  * pattern exactly): full pre-existing component-string coverage across this whole app is a large,
@@ -161,6 +171,144 @@ function snippetOf(raw) {
 const CONTENT_ATTRS = new Set(['placeholder', 'alt', 'title', 'aria-label']);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shape (7), T-57 RG5-FINAL — FUNCTION-RETURN ENGLISH LITERAL RENDERED AS A JSX CHILD.
+//
+// The gap this closes: `PipelineGlance.tsx`'s pre-fix `deltaLabel()` returned
+// `{ text: 'needs tending', className: … }` — a bare English literal one function-return hop away
+// from the JSX that renders it (`{d.text}`, a plain `PropertyAccessExpression`, not a string literal
+// itself). Every shape above requires the literal to appear DIRECTLY at the JSX site (as JSX text, a
+// literal expression child, a ternary branch, a content-attribute, or a setState argument) — none of
+// them can see a literal that is authored inside a HELPER FUNCTION's `return`, then merely read back
+// out through a variable + property access at the render site. That is a real, distinct blind spot,
+// not a rephrasing of an existing shape.
+//
+// WHAT COUNTS AS A "RISKY" HELPER (kept deliberately narrow — same "an enum-key/technical-token
+// false negative is an acceptable trade; a false-positive wave is not" philosophy every shape above
+// states): a function or arrow/function-expression `const` declared ANYWHERE in the file whose name
+// starts with a lowercase letter and is NOT a hook (`/^use[A-Z]/` — hooks return state/values, not
+// authored copy, and are a completely different call shape) — this excludes every React COMPONENT
+// (PascalCase by this codebase's own convention) — with at least one `return` of:
+//   - a bare wordy, multi-word string/template literal, OR
+//   - an object literal with a property whose value is such a literal (`deltaLabel`'s exact shape).
+// A helper that already resolves its text via `t()`/a mapper call internally is correctly NEVER
+// flagged — the literal-ness check only matches an actual `StringLiteral`/
+// `NoSubstitutionTemplateLiteral` node, never a `CallExpression` — so an already-fixed helper (or
+// one that was never broken) produces zero candidates and this shape is silent for it.
+//
+// WHAT COUNTS AS "RENDERED AS A JSX CHILD" (same file only — no cross-file/type-checker analysis,
+// consistent with every other shape's syntax-only scope):
+//   - a direct call `{helperName(…)}` as a JSX child, where that helper's flagged return was the
+//     BARE-literal shape, or
+//   - `const x = helperName(…)` followed by `{x.prop}` as a JSX child elsewhere in the file, where
+//     `prop` is one of that helper's flagged object-literal property names.
+// Verified empirically against this repo's own real `src/` tree at introduction: exactly ONE hit
+// (the real `deltaLabel` bug), zero false positives across the other 121 `.tsx` files — the
+// narrowness above (lowercase-non-hook name, literal-only return, tracked same-file variable) is
+// what keeps this shape's false-positive rate at zero on real code, not merely in theory.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Is `name` a plausible "helper, not a component or hook" identifier? Components in this codebase
+ *  are always PascalCase; hooks are lowercase but start `use` + an uppercase letter. */
+function isRiskyHelperName(name) {
+  return typeof name === 'string' && /^[a-z]/.test(name) && !/^use[A-Z]/.test(name);
+}
+
+/** The literal TEXT of a plain string or substitution-free template literal, or `null` for anything
+ *  else (a `CallExpression` like `t('x')`, an identifier, a template WITH substitutions, etc.) —
+ *  deliberately not `staticTemplateText`'s "drop the substitutions and keep going" behavior: a
+ *  return with any dynamic part is not a "bare literal" for this shape's purposes. */
+function bareLiteralText(node) {
+  if (ts.isStringLiteral(node)) return node.text;
+  if (ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
+  return null;
+}
+
+/** Walks every function/arrow/function-expression declared anywhere in `sourceFile` and records, for
+ *  each `isRiskyHelperName` one, whether it has a bare-literal return (`direct`) and/or which
+ *  object-literal property names carry a wordy literal value (`props`). Returns
+ *  `Map<name, { direct: boolean, props: Set<string> }>` — only names with at least one hit. */
+function collectRiskyHelperReturns(sourceFile) {
+  const candidates = new Map();
+
+  function record(name, retExpr) {
+    const e = unwrapParens(retExpr);
+    if (!e) return;
+    const direct = bareLiteralText(e);
+    if (direct !== null && isWordyUserFacingText(direct) && direct.trim().includes(' ')) {
+      const c = candidates.get(name) ?? { direct: false, props: new Set() };
+      c.direct = true;
+      candidates.set(name, c);
+      return;
+    }
+    if (ts.isObjectLiteralExpression(e)) {
+      for (const prop of e.properties) {
+        if (!ts.isPropertyAssignment(prop) || !ts.isIdentifier(prop.name)) continue;
+        const val = bareLiteralText(unwrapParens(prop.initializer));
+        if (val !== null && isWordyUserFacingText(val) && val.trim().includes(' ')) {
+          const c = candidates.get(name) ?? { direct: false, props: new Set() };
+          c.props.add(prop.name.text);
+          candidates.set(name, c);
+        }
+      }
+    }
+  }
+
+  /** Collects `return` statements belonging to exactly ONE function body — stops at any nested
+   *  function-like boundary so a closure's own returns are never attributed to its enclosing
+   *  helper (and vice versa). */
+  function walkReturnsOf(body, name) {
+    const walk = (n) => {
+      if (ts.isFunctionLike(n) && n !== body.parent) return; // don't cross into a nested closure
+      if (ts.isReturnStatement(n) && n.expression) record(name, n.expression);
+      ts.forEachChild(n, walk);
+    };
+    if (ts.isBlock(body)) walk(body);
+    else record(name, body); // concise arrow body: the expression itself IS the return value
+  }
+
+  function visitDecl(node) {
+    if (ts.isFunctionDeclaration(node) && node.name && node.body && isRiskyHelperName(node.name.text)) {
+      walkReturnsOf(node.body, node.name.text);
+    } else if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) &&
+      isRiskyHelperName(node.name.text)
+    ) {
+      walkReturnsOf(node.initializer.body, node.name.text);
+    }
+    ts.forEachChild(node, visitDecl);
+  }
+  visitDecl(sourceFile);
+
+  return candidates;
+}
+
+/** `const x = helperName(…)` for a tracked `helperName` → `Map<varName, helperName>`, so a later
+ *  `{x.prop}` JSX-child can be traced back to the helper whose object-literal shape it destructures
+ *  from. Deliberately shallow (direct call initializer only — a variable reassigned or
+ *  destructured differently is out of this narrow shape's scope). */
+function collectHelperResultVars(sourceFile, candidates) {
+  const varToFn = new Map();
+  function visit(node) {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isCallExpression(node.initializer) &&
+      ts.isIdentifier(node.initializer.expression) &&
+      candidates.has(node.initializer.expression.text)
+    ) {
+      varToFn.set(node.name.text, node.initializer.expression.text);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return varToFn;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // The scanner — one file in, its violations out.
 // ─────────────────────────────────────────────────────────────────────────────
 /** Strips one layer of `ParenthesizedExpression` wrapping (`('A')` → `'A'`) — a ternary branch is
@@ -194,6 +342,12 @@ function scanFile(filePath) {
   function lineOf(node) {
     return sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
   }
+
+  // Shape (7) — computed once per file, ahead of the main walk (see this file's header for the
+  // full rationale): which helper functions have a risky literal return, and which local variables
+  // were assigned straight from calling one of them.
+  const riskyHelpers = collectRiskyHelperReturns(sourceFile);
+  const helperResultVars = riskyHelpers.size > 0 ? collectHelperResultVars(sourceFile, riskyHelpers) : new Map();
 
   function visit(node) {
     if (ts.isJsxText(node)) {
@@ -249,6 +403,25 @@ function scanFile(filePath) {
             if (ts.isStringLiteral(unwrapped) && isWordyUserFacingText(unwrapped.text)) {
               raw.push({ kind: 'jsx-ternary-branch', snippet: snippetOf(unwrapped.text), line: lineOf(node) });
             }
+          }
+        }
+      } else if (expr && riskyHelpers.size > 0 && !ts.isJsxAttribute(node.parent)) {
+        // Shape (7), T-57 RG5-FINAL — a function-return English literal rendered as a JSX child,
+        // one hop removed from the literal itself (see this file's header for the full rationale).
+        // JSX-child-only (mirrors shape (4)'s attribute exclusion in spirit): a helper's return
+        // value feeding a content ATTRIBUTE is already covered by (2)/(5) when it's a direct
+        // literal, and destructured-into-an-attribute is out of this narrow shape's scope.
+        const unwrapped = unwrapParens(expr);
+        if (ts.isCallExpression(unwrapped) && ts.isIdentifier(unwrapped.expression)) {
+          const fn = riskyHelpers.get(unwrapped.expression.text);
+          if (fn?.direct) {
+            raw.push({ kind: 'fn-return-literal-direct-call', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
+          }
+        } else if (ts.isPropertyAccessExpression(unwrapped) && ts.isIdentifier(unwrapped.expression)) {
+          const fnName = helperResultVars.get(unwrapped.expression.text);
+          const fn = fnName ? riskyHelpers.get(fnName) : undefined;
+          if (fn?.props.has(unwrapped.name.text)) {
+            raw.push({ kind: 'fn-return-literal-prop-access', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
           }
         }
       }

@@ -170,6 +170,100 @@ describe('scripts/guard-rendered-i18n-leak.mjs', () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/WARN-EXEMPT/);
   });
+
+  // T-57 RG5-FINAL — shape (d): a raw backend token merely de-snake-cased via
+  // `.replace()`/`.replaceAll('_', ' ')` before being rendered as a JSX child (CalendarStrip's
+  // pre-fix `{e.type.replaceAll('_', ' ')}` shape) — humanizing the PUNCTUATION never translates the
+  // LANGUAGE, so this is the same leak class as shape (b), just one AST layer removed.
+  describe('shape (d): humanized raw token (.replace*(\'_\', \' \')) rendered as JSX content', () => {
+    test('TEETH: {e.type.replaceAll(\'_\', \' \')} as a JSX child FAILS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Calendar.tsx',
+        `export function Calendar({ e }: { e: { type: string } }) {\n  return <strong>{e.type.replaceAll('_', ' ')}</strong>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/humanized-raw-token-jsx/);
+      expect(r.stderr).toMatch(/e\.type\.replaceAll/);
+    });
+
+    test('TEETH: a CHAINED humanize (.replace(/_/g, \' \').toLowerCase()) still FAILS — the trailing call does not hide it', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Team.tsx',
+        `export function Team({ item }: { item: { triggerReason: string } }) {\n  return <strong>{item.triggerReason.replace(/_/g, ' ').toLowerCase()}</strong>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/humanized-raw-token-jsx/);
+    });
+
+    test('MUTATION PROOF: fixing it via a catalog mapper (mirroring CalendarStrip\'s real fix) reverts the FAIL to a PASS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      const fixedSource = `export function Calendar({ e, t }: { e: { type: string }; t: (k: string) => string }) {\n  const LABELS: Record<string, string> = { opportunity_night: 'x' };\n  return <strong>{t(LABELS[e.type] ?? 'generic')}</strong>;\n}\n`;
+      write(s.srcRoot, 'Calendar.tsx', fixedSource);
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('an UNRELATED .replace() call (digit-stripping, no underscore/space pattern) is NOT flagged', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Digits.tsx',
+        `export function Digits({ v }: { v: { raw: string } }) {\n  return <span>{v.raw.replace(/\\D/g, '')}</span>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('the same humanize call used on a JSX ATTRIBUTE (not a rendered child) is NOT flagged — out of this shape\'s scope', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Attr.tsx',
+        `export function Attr({ e }: { e: { type: string } }) {\n  return <span data-kind={e.type.replaceAll('_', ' ')} />;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
+
+  // T-57 RG5-FINAL — `type` added to TOKEN_FIELDS (shape (b)/(c) now also catch a BARE `{x.type}`
+  // render, not merely the humanized-via-.replace* shape (d) above).
+  describe('TOKEN_FIELDS now includes `type`', () => {
+    test('TEETH: a bare {event.type} JSX child FAILS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(s.srcRoot, 'Bare.tsx', `export function Bare({ event }: { event: { type: string } }) {\n  return <span>{event.type}</span>;\n}\n`);
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/raw-token-jsx/);
+    });
+
+    test('a {`${item.type}-${idx}`} used as a `key` ATTRIBUTE (not rendered content) is NOT flagged', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'KeyAttr.tsx',
+        `export function KeyAttr({ items }: { items: { type: string }[] }) {\n  return <ul>{items.map((item, idx) => <li key={\`\${item.type}-\${idx}\`}>x</li>)}</ul>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
 });
 
 describe('scripts/guard-rendered-i18n-leak.mjs — against the REAL repo (no fixtures)', () => {

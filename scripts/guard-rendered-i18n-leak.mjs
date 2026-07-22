@@ -33,11 +33,30 @@
  *       (`t('…', { reason: state.reason })` — the pre-fix `TimeLapseShare` shape). A value that is a
  *       CallExpression (`{ currentState: errorStateLabel(t, x) }`, `{ reason: reasonDisplay(t, r) }`)
  *       is NOT matched — passing the token THROUGH a mapper is the correct pattern.
+ *   (d) T-57 RG5-FINAL — HUMANIZED RAW TOKEN RENDERED AS JSX CONTENT: a JsxExpression CHILD (not an
+ *       attribute — same scoping as shape (b)) whose expression is (or, for a chained call like
+ *       `.replace(/_/g, ' ').toLowerCase()`, CONTAINS anywhere in its callee chain) a call to
+ *       `.replace(...)`/`.replaceAll(...)` whose pattern arg is specifically an underscore
+ *       (`'_'` or a bare `/_/` regex, any flags) and whose replacement arg is a single space (`' '`)
+ *       — i.e. the "de-snake-case a backend enum token" idiom (`{e.type.replaceAll('_', ' ')}`,
+ *       CalendarStrip's pre-fix shape). This merely humanizes the token's PUNCTUATION, never its
+ *       LANGUAGE — a Spanish rep still sees the raw English word ("opportunity night"), so it is the
+ *       same class of leak as (b)/(c), just one AST layer removed (the token is read through a
+ *       `.replace*()` call, not a bare property access, which is why TOKEN_FIELDS/shape (b) alone
+ *       cannot see it). Scoped deliberately narrow to the underscore→space pattern/replacement pair
+ *       so it never flags an unrelated `.replace()` call (digit-stripping, prefix-stripping, router
+ *       navigation, etc.) — see `isUnderscoreHumanizeCall` below.
  *
  * NOTE ON `.status`/tabular tokens: shape (b) will flag a raw `{x.status}` render (a raw enum token
  * a rep shouldn't see untranslated) — several such long-tail sites (team-calendar/cockpit status
  * columns) exist and are baselined for burn-down, not fixed this pass. That is the intended
  * behavior: enumerate the whole class, ratchet it, fix the P0 subset, track the rest.
+ *
+ * T-57 RG5-FINAL also added `type` to `TOKEN_FIELDS` (shape (b)/(c) now also catch a BARE raw
+ * `{x.type}` render, not just the humanized-via-`.replace*()` shape (d) above) — verified LOW
+ * false-positive: a fresh sweep of every `.tsx` under `src/` for a raw `{…type}` JSX-child render
+ * found zero legitimate current hits (the one `.type` usage found, `me/notifications/page.tsx`'s
+ * `key={\`${item.type}-${idx}\`}`, is a `key` ATTRIBUTE, already out of shape (b)'s scope).
  *
  * BASELINE (shrink-only — identical policy to the sibling guards' baselines):
  * `RENDERED_I18N_LEAK_BASELINE.json`, checked in beside this script, is the one-time frozen snapshot
@@ -68,7 +87,7 @@ const REPORT_ROOT = process.env.GUARD_RENDERED_I18N_LEAK_SRC_ROOT ? path.join(SR
 // enum/reason token straight from a route/service to the screen). NOT `message` (that's free English
 // prose — the `guard-no-literals`/manual-sweep concern — and legit localized `.message` values also
 // exist), NOT `state`/`name`/`body` (either enum chips already treated as design, or real content).
-const TOKEN_FIELDS = new Set(['reason', 'kind', 'held_reason', 'heldReason', 'status', 'code']);
+const TOKEN_FIELDS = new Set(['reason', 'kind', 'held_reason', 'heldReason', 'status', 'code', 'type']);
 const MAPPER_CALLEES = new Set(['errorDisplay', 'errorStateLabel', 'reasonDisplay', 't', 'translate']);
 
 function findTsxFiles(dir) {
@@ -149,6 +168,44 @@ function isRawTokenAccess(node) {
   return ts.isPropertyAccessExpression(e) && TOKEN_FIELDS.has(e.name.text);
 }
 
+/** Shape (d) — is this call ITSELF a `.replace(...)`/`.replaceAll(...)` whose pattern is an
+ *  underscore and whose replacement is a single space (the "de-snake-case a token" idiom)? Scoped
+ *  tightly to that exact pattern/replacement pair so an unrelated `.replace()` call (digit-stripping
+ *  `/\D/g` → `''`, prefix-stripping a named regex constant, `router.replace('/today')` navigation,
+ *  etc.) is never matched. */
+function isUnderscoreHumanizeCall(node) {
+  if (!ts.isCallExpression(node)) return false;
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return false;
+  if (callee.name.text !== 'replace' && callee.name.text !== 'replaceAll') return false;
+  const [pattern, replacement] = node.arguments;
+  if (!pattern || !replacement) return false;
+  const patternIsUnderscore =
+    (ts.isStringLiteral(pattern) && pattern.text === '_') ||
+    (ts.isRegularExpressionLiteral(pattern) && /^\/_\/[a-z]*$/.test(pattern.text));
+  const replacementIsSpace = ts.isStringLiteral(replacement) && replacement.text === ' ';
+  return patternIsUnderscore && replacementIsSpace;
+}
+
+/** Shape (d) — walks a member/call CHAIN (e.g. `e.type.replace(/_/g, ' ').toLowerCase()`) looking
+ *  for an `isUnderscoreHumanizeCall` ANYWHERE in it, so a trailing `.toLowerCase()`/similar chained
+ *  after the humanize call doesn't hide it. */
+function containsUnderscoreHumanize(node) {
+  let current = unwrapParens(node);
+  for (;;) {
+    if (ts.isCallExpression(current)) {
+      if (isUnderscoreHumanizeCall(current)) return true;
+      current = unwrapParens(current.expression);
+      continue;
+    }
+    if (ts.isPropertyAccessExpression(current)) {
+      current = unwrapParens(current.expression);
+      continue;
+    }
+    return false;
+  }
+}
+
 function scanFile(filePath) {
   const relPath = path.relative(REPORT_ROOT, filePath).split(path.sep).join('/');
   const text = readFileSync(filePath, 'utf8');
@@ -188,15 +245,21 @@ function scanFile(filePath) {
         }
       }
     }
-    // (b) raw machine token rendered as JSX content.
+    // (b) raw machine token rendered as JSX content. (d) the same token merely de-snake-cased via
+    // `.replace*('_', ' ')` before rendering — punctuation-humanized, still untranslated.
     if (ts.isJsxExpression(node) && !ts.isJsxAttribute(node.parent) && node.expression) {
       const expr = unwrapParens(node.expression);
       if (isRawTokenAccess(expr)) {
         raw.push({ kind: 'raw-token-jsx', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
+      } else if (containsUnderscoreHumanize(expr)) {
+        raw.push({ kind: 'humanized-raw-token-jsx', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
       } else if (ts.isTemplateExpression(expr)) {
         for (const span of expr.templateSpans) {
           if (isRawTokenAccess(span.expression)) {
             raw.push({ kind: 'raw-token-jsx-template', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
+            break;
+          } else if (containsUnderscoreHumanize(span.expression)) {
+            raw.push({ kind: 'humanized-raw-token-jsx-template', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
             break;
           }
         }
@@ -263,9 +326,13 @@ function main() {
     console.error(
       '\nMove hardcoded English into the catalog (t()), and resolve a backend token through a ' +
         'display-mapper (errorDisplay / errorStateLabel / reasonDisplay in src/lib/i18n/) before ' +
-        'rendering — never splice a raw reason/kind/held_reason/status/code token into visible text. ' +
-        'Do NOT add these to RENDERED_I18N_LEAK_BASELINE.json — it is frozen debt for burn-down, not ' +
-        'an escape hatch for new code.'
+        'rendering — never splice a raw reason/kind/held_reason/status/code/type token into visible ' +
+        'text, and never merely de-snake-case one via .replace()/.replaceAll(\'_\', \' \') before ' +
+        'rendering it (that changes the punctuation, not the language). Map the token to a catalog ' +
+        'key per known value instead (see CalendarStrip.tsx\'s eventTypeLabel for the pattern), with ' +
+        'a generic localized fallback for unknown values. Do NOT add these to ' +
+        'RENDERED_I18N_LEAK_BASELINE.json — it is frozen debt for burn-down, not an escape hatch for ' +
+        'new code.'
     );
     process.exit(1);
   }
