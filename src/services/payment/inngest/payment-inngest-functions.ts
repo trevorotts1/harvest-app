@@ -24,6 +24,7 @@ import { inngest } from '@/lib/inngest/client';
 
 import { prisma } from '@/lib/prisma';
 import { projectToWP10 } from '@/services/onboarding/wp01/downstream-contracts';
+import type { OnboardingEventSink } from '@/services/onboarding/wp01/downstream-contracts';
 import type { OnboardingCompletedEvent } from '@/types/onboarding';
 
 import {
@@ -65,6 +66,27 @@ export const provisionOnOnboardingCompletedFunction = inngest.createFunction(
       return provisionFromContract(prisma as unknown as ProvisioningPrismaClient, contract);
     })
 );
+
+// T-R35 (P1 fix) — THE REAL PRODUCTION PUBLISHER. Before this, nothing in the live app ever called
+// `inngest.send` for `user.onboarding_completed`: `emitOnboardingCompleted` / the
+// `OnboardingEventSink` interface (downstream-contracts.ts) only ever had the test-only
+// `InMemoryOnboardingEventSink` as an implementation, so `provisionOnOnboardingCompletedFunction`
+// above — correctly built and correctly registered at the /api/inngest serve route — was never
+// actually triggered by anything. This is the missing production implementation of that same
+// `OnboardingEventSink` interface, mirroring the EXACT `inngest.send({ name, data })` shape
+// `InngestDurableQueue.send` uses for `AGENT_DISPATCH_EVENT` (agent-runtime/inngest-functions.ts) —
+// the one other real producer in this codebase. Constructed lazily, per-request, by the onboarding
+// completion route (`src/app/api/onboarding/complete/route.ts`) via a dynamic `import()` — never at
+// module scope — the same build-safety / Jest-safety convention `POST /api/agents/dispatch` already
+// uses for `InngestDurableQueue` (this file, like that one, imports the ESM-only `inngest` package,
+// so it cannot be loaded under Jest's CJS runtime; a dynamic, request-time import keeps the route
+// module itself Jest-loadable, and tests mock this module's export the same way
+// tests/unit/agent-dispatch-route.test.ts mocks `InngestDurableQueue`).
+export class InngestOnboardingEventSink implements OnboardingEventSink {
+  async publish(event: OnboardingCompletedEvent): Promise<void> {
+    await inngest.send({ name: event.event, data: event as unknown as Record<string, unknown> });
+  }
+}
 
 // 1) Sponsor-lapse cascade (§15.3) — protect + expiry, in one daily pass.
 export const sponsorLapseCascadeFunction = inngest.createFunction(
