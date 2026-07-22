@@ -353,6 +353,88 @@ describe('durable queue (Inngest, D-4)', () => {
     await expect(dispatchAgentJob(data, { modelClient: model, cfe: clearCFE(), store })).rejects.toBeInstanceOf(AgentModelError);
     expect(await store.wasProcessed('retry-key')).toBe(false); // a genuine retry will re-run
   });
+
+  // T-58 — event-bus contract: PAYLOAD SHAPE AT THE BOUNDARY. `AgentDispatchEventData`
+  // (durable-queue.ts) declares exactly: agentKey, userId, trigger, idempotencyKey, and the
+  // OPTIONAL contactId/channel/task/rep/contact/segmentContactId. The real Inngest handler
+  // (inngest-functions.ts's `agentDispatchFunction`) does `event.data as unknown as
+  // AgentDispatchEventData` with NO validation/whitelist step — so anything a caller smuggles
+  // onto the wire is exactly what `dispatchAgentJob` receives. `dispatchAgentJob` (dispatch.ts)
+  // forwards ONLY the named fields it destructures — no spread — so a phantom field a caller adds
+  // must be silently dropped, never read by the runtime. This asserts that boundary holds by
+  // publishing THROUGH the real queue with an extra, undeclared field riding along.
+  test('an event with a phantom undeclared field is delivered through the real queue with the phantom ignored', async () => {
+    const store = new InMemoryAgentRuntimeStore();
+    const model = new ScriptedModelClient();
+    const queue = new InMemoryDurableQueue();
+    const withPhantomField = {
+      agentKey: AgentKey.PROSPECTING,
+      userId: 'u1',
+      trigger: 'wave',
+      idempotencyKey: 'phantom-key',
+      contactId: 'c1',
+      rep: REP_CONTEXT,
+      // Not part of AgentDispatchEventData — simulates a forged/legacy field riding the wire.
+      // A handler that (incorrectly) read this instead of `userId`/`contactId` would corrupt
+      // whose draft gets created; asserting draftMessages below proves it never does.
+      impersonateUserId: 'attacker-controlled',
+    } as unknown as Parameters<InMemoryDurableQueue['send']>[0];
+    await queue.send(withPhantomField);
+    const [res] = await queue.drain({ modelClient: model, cfe: clearCFE(), store });
+    expect(res.outcome).toBe('surfaced');
+    expect(store.draftMessages).toHaveLength(1);
+    expect(store.draftMessages[0].user_id).toBe('u1'); // the REAL declared field, not the phantom
+  });
+
+  // T-58 — event-bus contract: FAIL-CLOSED (§0.3) THROUGH THE REAL BUS, not via a hand-constructed
+  // `AgentRuntime`. Publishing a real `agent/dispatch.requested` event and draining it with NO
+  // `modelClient` override means `dispatchAgentJob`/`AgentRuntime` falls back to its default —
+  // the LIVE `AnthropicRuntimeClient` — which must fail closed with no ANTHROPIC_API_KEY: the run
+  // HOLDS, nothing is fabricated, no non-Claude fallback is ever reached.
+  test('missing ANTHROPIC_API_KEY, published through the real queue, HOLDS (no fallback, no draft)', async () => {
+    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined(); // beforeEach() above deletes it
+    const store = new InMemoryAgentRuntimeStore();
+    const queue = new InMemoryDurableQueue();
+    await queue.send({ agentKey: AgentKey.PROSPECTING, userId: 'u2', trigger: 'wave', idempotencyKey: 'k-no-key', contactId: 'c2', rep: REP_CONTEXT });
+    // No modelClient in deps -> AgentRuntime's default AnthropicRuntimeClient (the live path).
+    const [res] = await queue.drain({ cfe: clearCFE(), store });
+    expect(res.outcome).toBe('held');
+    expect(store.draftMessages).toHaveLength(0);
+    expect(res.reasoningLog).toMatch(/resting|not configured|nothing was lost/i);
+  });
+
+  // T-58 — event-bus contract invariant (3): "a handler that throws doesn't corrupt other
+  // subscribers." This codebase's real bus (Inngest) invokes one function execution PER EVENT —
+  // a crash processing event A can never touch the separate invocation processing event B (that
+  // isolation is Inngest's own platform guarantee, not something this app's code implements).
+  // Deliberately NOT exercised via a single `queue.drain()` call over a multi-item queue: this
+  // dev/test harness's `drain()` is a plain sequential loop with no per-item try/catch (durable-
+  // queue.ts), so an earlier item's throw would abort the loop before later items run — that is a
+  // characteristic of the IN-MEMORY TEST HARNESS ONLY (worth hardening — see build report), not a
+  // claim about production Inngest, which this test instead models faithfully: two INDEPENDENT
+  // dispatchAgentJob invocations (exactly what two separate Inngest function calls look like),
+  // proving the failing one's error never corrupts the succeeding one's state.
+  test('two independently-dispatched events: one throws, the other is fully unaffected (isolation)', async () => {
+    const store = new InMemoryAgentRuntimeStore(); // shared store, as production shares one DB
+    const throwingModel = new ScriptedModelClient({ throwError: new AgentModelError('429 rate limited') });
+    const healthyModel = new ScriptedModelClient();
+
+    const failing = { agentKey: AgentKey.PROSPECTING, userId: 'u-fail', trigger: 'wave', idempotencyKey: 'iso-fail-key', contactId: 'c-fail', rep: REP_CONTEXT };
+    const healthy = { agentKey: AgentKey.PROSPECTING, userId: 'u-ok', trigger: 'wave', idempotencyKey: 'iso-ok-key', contactId: 'c-ok', rep: REP_CONTEXT };
+
+    await expect(dispatchAgentJob(failing, { modelClient: throwingModel, cfe: clearCFE(), store })).rejects.toBeInstanceOf(AgentModelError);
+    const healthyResult = await dispatchAgentJob(healthy, { modelClient: healthyModel, cfe: clearCFE(), store });
+
+    expect(healthyResult.outcome).toBe('surfaced');
+    expect(await store.wasProcessed('iso-fail-key')).toBe(false); // failing event stays retriable
+    expect(await store.wasProcessed('iso-ok-key')).toBe(true);
+    // The healthy event's own draft exists, addressed to the healthy contact/user only — the
+    // failing sibling contributed nothing to it and blocked nothing on it.
+    expect(store.draftMessages).toHaveLength(1);
+    expect(store.draftMessages[0].contact_id).toBe('c-ok');
+    expect(store.draftMessages[0].user_id).toBe('u-ok');
+    expect(healthyModel.calls).toHaveLength(1);
+  });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
