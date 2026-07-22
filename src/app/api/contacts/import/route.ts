@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
-import { ContactSource, type ClientPlatform, type RawContactImportRow } from '@/types/warm-market';
+import { resolveClientPlatform } from '@/lib/client-platform';
+import { ContactSource, type RawContactImportRow } from '@/types/warm-market';
 // T-20 §6.10-1: downstream (WP02) route, behind the real onboarding gate. `withOnboardingGate`
 // resolves the caller's identity from the VERIFIED Auth.js session (never a client-forged header) —
 // this file never reads `x-user-id` or any `x-user-*`/`x-auth-*`/`x-identity-*` header, so
@@ -23,13 +23,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 const VALID_SOURCES = new Set<string>(Object.values(ContactSource));
-
-function resolveClientPlatform(req: NextRequest, body: { clientPlatform?: unknown }): ClientPlatform | undefined {
-  const header = req.headers.get('x-harvest-platform');
-  const candidate = (typeof body.clientPlatform === 'string' ? body.clientPlatform : header) ?? undefined;
-  if (candidate === 'web' || candidate === 'ios' || candidate === 'android') return candidate;
-  return undefined;
-}
 
 interface ImportRequestBody {
   source?: string;

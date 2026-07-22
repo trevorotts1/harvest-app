@@ -535,6 +535,69 @@
   border-color: var(--color-action);
   background: var(--surface-2);
 }
+/* ---- T-58 native-contacts selection list (O-7 "select" beat) ----
+   The CHECKBOX itself is left at its native OS-rendered size (no explicit width/height rule here —
+   guard-touch-target.mjs only flags an EXPLICIT sub-44px declaration on an interactive element, and
+   deliberately does not enforce a floor on an element with none). The real 44px tap target is the
+   whole `.contactPickRow` `<label>` the checkbox sits inside (`min-height: var(--touch-target-min)`),
+   which is what actually receives the tap/click — a `<label>` wrapping a checkbox toggles it no
+   matter where within the label the tap lands, so this meets the real WCAG 2.5.8 target-size intent
+   without needing to blow up the checkbox glyph itself. */
+.contactPickHeaderRow {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.contactPickList {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-2);
+}
+.contactPickRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-target-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.contactPickRow:hover {
+  background: var(--surface-3);
+}
+.contactPickCheckbox {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.contactPickText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.contactPickName {
+  font-weight: 800;
+  color: var(--text-primary);
+  font-size: var(--type-body-size);
+}
+.contactPickMeta {
+  color: var(--text-secondary);
+  font-size: var(--type-caption-size);
+}
+.contactPickDuplicate {
+  color: var(--color-caution-text);
+  font-size: var(--type-caption-size);
+  font-weight: 800;
+}
+
 @media (hover: hover) and (pointer: fine) and (min-width: 860px) {
   .csvDropZone {
     display: block;

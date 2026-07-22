@@ -4,15 +4,29 @@ import type { NextRequest } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { withRole } from '@/lib/auth/with-role';
-import { ContactSource } from '@/types/warm-market';
+import { resolveClientPlatform } from '@/lib/client-platform';
+import { ContactSource, type RawContactImportRow } from '@/types/warm-market';
 import { ImportLimitExceededError } from '@/services/warm-market/vault/csv-parser';
-import { VaultService, type VaultPrismaClient } from '@/services/warm-market/vault/vault.service';
+import { decryptOptionalField } from '@/services/warm-market/vault/vault-encryption';
+import {
+  ModalityNotAllowedError,
+  VaultService,
+  type VaultPrismaClient,
+} from '@/services/warm-market/vault/vault.service';
 
 // T-R30 (parity GAP 1, T-51: onboarding's CSV import was faked — `OnboardingFlow.tsx`'s `onUseCsv`
-// set `contactCount=24` and never read a file). This is the REAL onboarding-time CSV ingestion
-// endpoint: same Vault pipeline as `/api/contacts/import` (AES-256-GCM PII encryption, keyed-HMAC
-// dedupe, resumable/idempotent batches, minors gate — VaultService, T-22) — never a parallel
-// unencrypted contact path.
+// set `contactCount=24` and never read a file). This is the REAL onboarding-time ingestion endpoint:
+// same Vault pipeline as `/api/contacts/import` (AES-256-GCM PII encryption, keyed-HMAC dedupe,
+// resumable/idempotent batches, minors gate — VaultService, T-22) — never a parallel unencrypted
+// contact path.
+//
+// T-58 additive scope: this route originally handled ONLY `source: CSV` (`csvText`). It now ALSO
+// accepts `source: IOS_NATIVE | ANDROID_NATIVE` with an already-fetched+mapped `contacts` array (see
+// src/services/warm-market/vault/native-contacts-adapter.ts for that mapping step and
+// native-import-flow.ts for the permission-gated device read that produces it) — replacing
+// OnboardingFlow.tsx's OTHER fake handler, `onRequestPermission`, which never asked OS permission and
+// never read a device contact either. `source` defaults to `CSV` when omitted, so every pre-existing
+// caller (which never sent a `source` field) is unaffected byte-for-byte.
 //
 // Deliberately built on `withRole` (the REAL Auth.js session via `getCurrentSession`) — NOT
 // `withOnboardingGate`. `withOnboardingGate` requires `onboarding_status === GATED_COMPLETE`, which
@@ -29,25 +43,63 @@ export const dynamic = 'force-dynamic';
 
 const ALL_ROLES = Object.values(Role);
 
-interface OnboardingCsvImportBody {
+// The only sources THIS route (onboarding-time) ever accepts — CSV (pre-existing) plus the two
+// native-shell-only sources T-58 adds. Deliberately narrower than the general `/api/contacts/import`
+// route's `VALID_SOURCES` (which also allows MANUAL/MOBILE/SOCIAL/SYNC/GOOGLE_OAUTH): the O-7
+// "contacts" onboarding screen only ever offers CSV, native, or manual-one-at-a-time (which never
+// calls this API at all — see OnboardingFlow.tsx's `onAddManually`), so a request naming any other
+// source here is always either a bug or a forged call, not a real product path.
+const ONBOARDING_VALID_SOURCES: ReadonlySet<string> = new Set([
+  ContactSource.CSV,
+  ContactSource.IOS_NATIVE,
+  ContactSource.ANDROID_NATIVE,
+]);
+
+interface OnboardingImportBody {
+  source?: string;
   csvText?: string;
+  contacts?: RawContactImportRow[];
   idempotencyKey?: string;
+  clientPlatform?: string;
 }
 
 export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) => {
-  let body: OnboardingCsvImportBody;
+  let body: OnboardingImportBody;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body', code: 'INVALID_JSON' }, { status: 400 });
   }
 
-  if (!body.csvText || typeof body.csvText !== 'string' || body.csvText.trim().length === 0) {
+  // Backward-compatible default: every pre-T-58 caller never sent `source` at all and only ever
+  // meant CSV.
+  const source = body.source ?? ContactSource.CSV;
+  if (!ONBOARDING_VALID_SOURCES.has(source)) {
     return NextResponse.json(
-      { error: '"csvText" is required — read the selected file as text first', code: 'CSV_TEXT_REQUIRED' },
+      { error: `"source" must be one of: ${[...ONBOARDING_VALID_SOURCES].join(', ')}`, code: 'SOURCE_INVALID' },
       { status: 400 }
     );
   }
+
+  if (source === ContactSource.CSV) {
+    if (!body.csvText || typeof body.csvText !== 'string' || body.csvText.trim().length === 0) {
+      return NextResponse.json(
+        { error: '"csvText" is required — read the selected file as text first', code: 'CSV_TEXT_REQUIRED' },
+        { status: 400 }
+      );
+    }
+  } else if (!Array.isArray(body.contacts)) {
+    return NextResponse.json(
+      {
+        error:
+          '"contacts" must be an array of already-mapped rows for a native import — see ' +
+          'native-contacts-adapter.ts\'s mapNativeContactToRow.',
+        code: 'CONTACTS_REQUIRED',
+      },
+      { status: 400 }
+    );
+  }
+
   if (!body.idempotencyKey || typeof body.idempotencyKey !== 'string') {
     return NextResponse.json(
       {
@@ -60,14 +112,27 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
     );
   }
 
+  // CSV always ran as `clientPlatform: 'web'` before T-58 (onboarding's CSV path is web-only) — kept
+  // as the fallback default so an existing caller that never declares a platform is unaffected.
+  // Native sources have NO safe default: `VaultService.assertModalityAllowed` must see the caller's
+  // OWN declared 'ios'/'android' (via `resolveClientPlatform`, the same header/body convention
+  // `/api/contacts/import` already uses) or it fails closed with `ModalityNotAllowedError` below.
+  const clientPlatform =
+    source === ContactSource.CSV ? (resolveClientPlatform(req, body) ?? 'web') : resolveClientPlatform(req, body);
+
   const vaultService = new VaultService(prisma as unknown as VaultPrismaClient);
 
   try {
-    const result = await vaultService.importBatch(session.user.id, ContactSource.CSV, undefined, {
-      idempotencyKey: body.idempotencyKey,
-      clientPlatform: 'web',
-      csvText: body.csvText,
-    });
+    const result = await vaultService.importBatch(
+      session.user.id,
+      source as ContactSource,
+      source === ContactSource.CSV ? undefined : body.contacts,
+      {
+        idempotencyKey: body.idempotencyKey,
+        clientPlatform,
+        csvText: source === ContactSource.CSV ? body.csvText : undefined,
+      }
+    );
 
     return NextResponse.json(
       {
@@ -86,6 +151,12 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
       { status: result.status === 'COMPLETED' ? 201 : 202 }
     );
   } catch (err) {
+    if (err instanceof ModalityNotAllowedError) {
+      // §7.1 fail-closed: a native source declared from a caller that isn't actually the matching
+      // native shell (e.g. a forged/mismatched `clientPlatform`) is refused — never silently
+      // downgraded, never partially imported.
+      return NextResponse.json({ error: err.message, code: 'MODALITY_NOT_ALLOWED' }, { status: 400 });
+    }
     if (err instanceof ImportLimitExceededError) {
       // T-57 RE-GATE B [af7789d3] Finding 1 — forward the error's OWN granular code (CSV_TOO_LARGE /
       // CSV_TOO_MANY_ROWS / IMPORT_ROWS_LIMIT_EXCEEDED), not a single bucket code, so the client can
@@ -94,4 +165,27 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
     }
     throw err;
   }
+});
+
+// ── GET /api/onboarding/contacts-import ────────────────────────────────────
+// T-58 addition — the dedupe surface the real "Import from Phone" selection list reads BEFORE
+// presenting device contacts to the rep (§7.6 "cross-source duplicate... merge, keep most
+// complete"). Session-gated only (same `withRole` posture as the POST above, for the same
+// onboarding-reachability reason) and deliberately minimal: only the two fields dedupe needs
+// (normalized phone/email), decrypted for the OWNER's own read (the same "the owner is the
+// authorized reader of their own PII" posture `/api/contacts/import`'s GET handler already
+// documents) — never the full contact record (name/notes/pipeline stage etc. are not this
+// endpoint's concern and are not fetched).
+export const GET = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, session) => {
+  const contacts = await prisma.contact.findMany({
+    where: { user_id: session.user.id },
+    select: { phone: true, email: true },
+  });
+
+  const keys = contacts.map((c) => ({
+    phone: decryptOptionalField(c.phone),
+    email: decryptOptionalField(c.email),
+  }));
+
+  return NextResponse.json({ contacts: keys });
 });
