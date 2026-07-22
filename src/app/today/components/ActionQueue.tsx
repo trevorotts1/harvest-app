@@ -125,7 +125,9 @@ export default function ActionQueue({ result, onAction, queuedOfflineIds, locale
               )}
               <span className={styles.queueMeta}>
                 {item.contactLabel ? `${item.contactLabel} · ` : ''}
-                {`~${item.minutes} min`}
+                {/* T-57 RG9 (i18n) — was a hardcoded `~${item.minutes} min` template; localized so a
+                    Spanish rep gets the wrapping text from the catalog (the minute count interpolates). */}
+                {t(locale, 'today.actionQueue.minutesEstimate', { minutes: item.minutes })}
               </span>
             </div>
             <div className={styles.queueActions}>

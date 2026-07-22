@@ -296,7 +296,8 @@
         "confirm": "Confirmar"
       },
       "tryRitualCta": "Prueba el ritual de Mercado Cálido",
-      "tryJoggerCta": "Prueba una idea del Recordatorio de Memoria"
+      "tryJoggerCta": "Prueba una idea del Recordatorio de Memoria",
+      "minutesEstimate": "~{minutes} min"
     },
     "calendarStrip": {
       "badge": "Calendario del equipo",
@@ -341,7 +342,8 @@
       "emptyLine": "Una noche tranquila — tus agentes no encontraron nada que necesitara tu atención.",
       "freshnessLabel": "a las {time}",
       "stopCta": "Detener",
-      "listenCta": "Escuchar"
+      "listenCta": "Escuchar",
+      "receiptCfeBandSuffix": " · CFE {band}"
     },
     "pipelineGlance": {
       "heading": "Pipeline",
@@ -713,7 +715,29 @@
         "generic": "tu estado de licencia actual"
       },
       "warmMarketRitualBody": "¿Listo para tus primeros 20? El ritual de Mercado Cálido te guía paso a paso.",
-      "warmMarketRitualCta": "Comenzar el ritual de Mercado Cálido"
+      "warmMarketRitualCta": "Comenzar el ritual de Mercado Cálido",
+      "phase": {
+        "launch": "Días 1-7: Lanzamiento",
+        "licensing": "Días 8-30: Licenciamiento"
+      },
+      "phaseGeneric": "Fase del cronograma",
+      "itemGeneric": "Paso del cronograma",
+      "item": {
+        "ibaFiled": "IBA presentado / POL registrado",
+        "phoneListUploaded": "Lista de teléfonos subida (Ganancias Ocultas generadas)",
+        "harvestMethodCompleted": "Método Harvest completado",
+        "firstIntroSent": "Primera presentación a la comunidad enviada",
+        "tenIdentified": "10 miembros identificados para conversaciones de mesa",
+        "opportunityInvitesSent": "Invitaciones a la reunión de oportunidad enviadas",
+        "intensitySelected": "Intensidad seleccionada",
+        "countdownRunning": "La cuenta regresiva de 48 horas en marcha",
+        "pfsuEnrolled": "Inscripción en PFSU registrada",
+        "prelicensingCompletion": "Finalización de la pre-licencia",
+        "examScheduled": "Programación del examen estatal",
+        "objectionTreeReviewed": "Árbol de objeciones revisado",
+        "teamCalendarLive": "Calendario del equipo activo",
+        "licensed": "Licencia estatal obtenida"
+      }
     },
     "orgSwitch": {
       "title": "Tipo de organización",
@@ -817,7 +841,8 @@
       "noSignal": "No hay señal individual del clasificador.",
       "recommendationLabel": "Recomendación (asesoría",
       "suggestedRewrite": "Redacción alternativa conforme",
-      "advisoryOnly": "Solo asesoría — una persona sigue decidiendo. Esto no aprueba ni envía nada."
+      "advisoryOnly": "Solo asesoría — una persona sigue decidiendo. Esto no aprueba ni envía nada.",
+      "riskSuffix": " · riesgo {score}"
     },
     "emptyState": {
       "awaiting": "No tienes nada pendiente en este momento — un buen día.",

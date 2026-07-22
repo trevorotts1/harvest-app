@@ -45,7 +45,22 @@
  *       `.replace*()` call, not a bare property access, which is why TOKEN_FIELDS/shape (b) alone
  *       cannot see it). Scoped deliberately narrow to the underscore→space pattern/replacement pair
  *       so it never flags an unrelated `.replace()` call (digit-stripping, prefix-stripping, router
- *       navigation, etc.) — see `isUnderscoreHumanizeCall` below.
+ *       navigation, etc.) — see `isUnderscoreHumanizeCall` below. RG9 also recognizes the
+ *       `.split('_').join(' ')` de-snake idiom as the same humanize.
+ *   (e) T-57 RG9 — HUMANIZED TOKEN ASSIGNED TO A RENDERED-TEXT PROP: the same de-snake humanize as
+ *       (d), but assigned to a component/JSX prop whose value is rendered one AST layer removed — a
+ *       JSX ATTRIBUTE (`segmentTag={c.stage.replaceAll('_',' ')}`) or an object-literal property
+ *       (`{ name: s.stage.replaceAll('_',' ') }` built in a `.map()` then rendered as `{plot.name}`).
+ *       Shape (d) only inspects a DIRECT JSX child, so both slipped through — the exact blind spot the
+ *       re-gate demonstrated on `/community`. Scoped to a fixed set of rendered-text prop names
+ *       (`RENDER_PROP_NAMES`), never `data-`/`aria-`/`key`/`className`, still gated on the de-snake call.
+ *   (f) T-57 RG9 — HARDCODED ENGLISH IN A TEMPLATE-LITERAL JSX CHILD: a template literal rendered as a
+ *       JSX child (directly or behind a `??`/`||`/ternary) whose STATIC text carries a ≥3-letter word
+ *       (`{typeof s === 'number' ? \` · risk ${s}\` : ''}`, ClassifierAdjudicationDrawer's pre-fix
+ *       shape; `{\`~${n} min\`}`). Shape (a) only sees set*()/.push() sinks and shapes (b)/(d) look for
+ *       a raw/humanized TOKEN, so hardcoded English spliced around an interpolated value in a rendered
+ *       child had no rule. Three-letter minimum keeps unit fragments (`px`/`ms`) and pure-punctuation
+ *       segments (` · `) quiet.
  *
  * NOTE ON `.status`/tabular tokens: shape (b) will flag a raw `{x.status}` render (a raw enum token
  * a rep shouldn't see untranslated) — several such long-tail sites (team-calendar/cockpit status
@@ -235,14 +250,38 @@ function isUnderscoreHumanizeCall(node) {
   return patternIsUnderscore && replacementIsSpace;
 }
 
-/** Shape (d) — walks a member/call CHAIN (e.g. `e.type.replace(/_/g, ' ').toLowerCase()`) looking
- *  for an `isUnderscoreHumanizeCall` ANYWHERE in it, so a trailing `.toLowerCase()`/similar chained
- *  after the humanize call doesn't hide it. */
+/** Shape (d)/(e) — `.split('_')` (the first half of the `.split('_').join(' ')` de-snake idiom). */
+function isSplitUnderscoreCall(node) {
+  if (!ts.isCallExpression(node)) return false;
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== 'split') return false;
+  const [arg] = node.arguments;
+  return !!arg && ts.isStringLiteral(arg) && arg.text === '_';
+}
+/** Shape (d)/(e) — `.join(' ')` (the second half of the `.split('_').join(' ')` de-snake idiom). */
+function isJoinSpaceCall(node) {
+  if (!ts.isCallExpression(node)) return false;
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== 'join') return false;
+  const [arg] = node.arguments;
+  return !!arg && ts.isStringLiteral(arg) && arg.text === ' ';
+}
+
+/** Shape (d)/(e) — walks a member/call CHAIN (e.g. `e.type.replace(/_/g, ' ').toLowerCase()`) looking
+ *  for a token-HUMANIZE idiom ANYWHERE in it: `.replace*('_', ' ')` (isUnderscoreHumanizeCall) OR the
+ *  `.split('_')…join(' ')` pair, so a trailing `.toLowerCase()`/similar chained after doesn't hide it.
+ *  Bare `.toUpperCase()`/`.toLowerCase()` is deliberately NOT a humanize marker on its own — it fires
+ *  far too often on legit content (`{c.name.toUpperCase()}`) and would flood; the underscore→space
+ *  de-snake idioms are the precise "humanize a machine enum token" signal (see the T-57 RG9 header). */
 function containsUnderscoreHumanize(node) {
   let current = unwrapParens(node);
+  let sawSplitUnderscore = false;
+  let sawJoinSpace = false;
   for (;;) {
     if (ts.isCallExpression(current)) {
       if (isUnderscoreHumanizeCall(current)) return true;
+      if (isSplitUnderscoreCall(current)) sawSplitUnderscore = true;
+      if (isJoinSpaceCall(current)) sawJoinSpace = true;
       current = unwrapParens(current.expression);
       continue;
     }
@@ -250,8 +289,47 @@ function containsUnderscoreHumanize(node) {
       current = unwrapParens(current.expression);
       continue;
     }
-    return false;
+    break;
   }
+  return sawSplitUnderscore && sawJoinSpace;
+}
+
+// T-57 RG9 — shape (e): the set of component/JSX prop names whose VALUE is rendered as visible text
+// one AST layer removed from the render site. A humanized machine token (`s.stage.replaceAll('_',' ')`)
+// assigned to one of these — as a JSX attribute (`segmentTag={…}`) or an object-literal property
+// (`{ name: … }` built in a `.map()` and later rendered) — is the exact blind spot the re-gate proved
+// shape (d) missed (shape (d) only fires on a DIRECT JSX child, never an attribute/prop). Deliberately
+// EXCLUDES data-*/aria-*/key/id/className etc. (non-text-bearing attributes) — only rendered-text props.
+const RENDER_PROP_NAMES = new Set([
+  'name', 'segmentTag', 'label', 'title', 'heading', 'subtitle', 'caption', 'tag', 'badge', 'text', 'header',
+]);
+
+// T-57 RG9 — shape (f): a run of ≥3 ASCII letters (a "word"). Used ONLY on the STATIC segments of a
+// template-literal JSX child, so `{`… risk ${x}`}` (the pre-fix ClassifierAdjudicationDrawer shape) and
+// `{`~${n} min`}` are caught, while a technical template (`{`${a}/${b}`}`, `{`${x}%`}`, `{`v${n}`}`)
+// with no ≥3-letter static word is not. Three letters (not two) keeps unit fragments like `px`/`ms` quiet.
+const ENGLISH_WORD_RE = /[A-Za-z]{3,}/;
+
+/** Shape (f) — a template literal (direct, or hidden behind a `??`/`||`/ternary the same way shape (b)
+ *  raw tokens hide) rendered as a JSX child whose STATIC text carries a ≥3-letter English word — i.e.
+ *  hardcoded English prose spliced around an interpolated value, the gap shape (a) leaves (it only
+ *  inspects set*()/.push() sinks) and shapes (b)/(d) leave (they look for a raw/humanized TOKEN, not
+ *  hardcoded English). Returns the leak kind or null. */
+function classifyTemplateEnglishJsxChild(node) {
+  const e = unwrapParens(node);
+  if (ts.isTemplateExpression(e) || ts.isNoSubstitutionTemplateLiteral(e)) {
+    return staticTemplateSegments(e).some((seg) => ENGLISH_WORD_RE.test(seg)) ? 'english-in-template-jsx' : null;
+  }
+  if (
+    ts.isBinaryExpression(e) &&
+    (e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken || e.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+  ) {
+    return classifyTemplateEnglishJsxChild(e.left) ?? classifyTemplateEnglishJsxChild(e.right);
+  }
+  if (ts.isConditionalExpression(e)) {
+    return classifyTemplateEnglishJsxChild(e.whenTrue) ?? classifyTemplateEnglishJsxChild(e.whenFalse);
+  }
+  return null;
 }
 
 function scanFile(filePath) {
@@ -298,9 +376,30 @@ function scanFile(filePath) {
     // (b): `classifyJsxChildExpr` also unwraps the `??`/`||`/ternary a raw token routinely hides
     // behind, so `{x?.status ?? t('…')}` still flags the raw `x.status`.
     if (ts.isJsxExpression(node) && !ts.isJsxAttribute(node.parent) && node.expression) {
-      const kind = classifyJsxChildExpr(node.expression);
+      // (b)/(d) a raw or humanized machine token; (f) hardcoded English spliced into a template child.
+      const kind = classifyJsxChildExpr(node.expression) ?? classifyTemplateEnglishJsxChild(node.expression);
       if (kind) {
         raw.push({ kind, snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
+      }
+    }
+    // (e) a humanized machine token assigned to a rendered-text PROP — as a JSX attribute
+    // (`segmentTag={c.stage.replaceAll('_',' ')}`) or an object-literal property (`{ name: … }` built
+    // in a `.map()` and rendered later). Rendered one AST layer removed, which is why shape (d) (a
+    // DIRECT JSX child only) could not see it — the exact blind spot the T-57 re-gate demonstrated.
+    if (ts.isJsxAttribute(node) && node.initializer && ts.isJsxExpression(node.initializer) && node.initializer.expression) {
+      const propName = node.name.getText(sourceFile);
+      if (RENDER_PROP_NAMES.has(propName) && containsUnderscoreHumanize(node.initializer.expression)) {
+        raw.push({ kind: 'humanized-token-render-prop', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
+      }
+    }
+    if (ts.isPropertyAssignment(node)) {
+      const pn = ts.isIdentifier(node.name)
+        ? node.name.text
+        : ts.isStringLiteral(node.name)
+          ? node.name.text
+          : null;
+      if (pn && RENDER_PROP_NAMES.has(pn) && containsUnderscoreHumanize(node.initializer)) {
+        raw.push({ kind: 'humanized-token-render-prop', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
       }
     }
     ts.forEachChild(node, visit);

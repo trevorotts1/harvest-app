@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 interface GoalCard {
   incomeTarget: string | null;
@@ -91,7 +92,9 @@ export default function GoalCardPage() {
         </label>
 
         <button type="button" className="btn btn-primary" onClick={save}>{t('grow.goalCard.saveCommitmentCta')}</button>
-        {saved && <p className="badge">{t('grow.goalCard.savedBadge')}</p>}
+        {/* T-57 RG9 (SC 4.1.3) — the "saved" confirmation is now announced (was a silent <p className="badge">):
+            a polite (role="status") live region so a screen-reader rep hears the save landed. */}
+        {saved && <StatusMessage tone="polite" className="badge">{t('grow.goalCard.savedBadge')}</StatusMessage>}
       </section>
 
       {card?.weeklyActivityMath && (

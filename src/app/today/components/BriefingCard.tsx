@@ -189,7 +189,10 @@ export default function BriefingCard({ result }: BriefingCardProps) {
                 {line.receipts.map((r) => (
                   <li key={r.agentRunId}>
                     {r.agentDisplayName} · {r.action} · {formatDateTime(locale, r.when)}
-                    {r.cfeBand ? ` · CFE ${r.cfeBand}` : ''}
+                    {/* T-57 RG9 (i18n) — was a hardcoded ` · CFE ${r.cfeBand}` template; localized so
+                        the "CFE" suffix comes from the catalog (the band token interpolates, same
+                        pattern as ActionQueue's cfeBandSuffix). */}
+                    {r.cfeBand ? t('today.briefingCard.receiptCfeBandSuffix', { band: r.cfeBand }) : ''}
                   </li>
                 ))}
               </ul>

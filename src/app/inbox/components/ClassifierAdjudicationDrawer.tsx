@@ -94,7 +94,11 @@ export default function ClassifierAdjudicationDrawer({
   return (
     <details className={styles.adjudicationDrawer}>
       <summary className={styles.adjudicationSummary}>
-        {t('inbox.adjudication.complianceDetail')}{typeof riskScore === 'number' ? ` · risk ${riskScore}` : ''}
+        {/* T-57 RG9 (i18n) — the risk suffix was a hardcoded English template literal (` · risk
+            ${riskScore}`) spliced into this always-visible summary, so a Spanish rep saw "· risk 42".
+            Localized via a catalog key with a {score} interpolation. */}
+        {t('inbox.adjudication.complianceDetail')}
+        {typeof riskScore === 'number' ? t('inbox.adjudication.riskSuffix', { score: riskScore }) : ''}
       </summary>
 
       <div className={styles.adjudicationBody}>

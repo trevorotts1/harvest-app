@@ -62,7 +62,12 @@ export default function LanguagePage() {
             </button>
           ))}
         </div>
-        {notice === 'saved' && <p className={styles.notice}>{t('settings.language.saved')}</p>}
+        {/* T-57 RG9 (SC 4.1.3) — the SUCCESS notice is now announced too (was a bare <p>, silent to
+            AT while its failure sibling announced): a polite (role="status") live region, so a
+            screen-reader rep hears "saved" without the assertive interruption a hard failure uses. */}
+        {notice === 'saved' && (
+          <StatusMessage tone="polite" className={styles.notice}>{t('settings.language.saved')}</StatusMessage>
+        )}
         {/* T-57 RG7 (SC 4.1.3) — save-failure announced via StatusMessage (role=alert). */}
         {notice === 'failed' && <StatusMessage className={styles.notice}>{t('settings.language.saveFailed')}</StatusMessage>}
       </section>
