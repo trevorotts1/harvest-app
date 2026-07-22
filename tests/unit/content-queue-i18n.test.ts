@@ -73,4 +73,20 @@ describe('Content Queue page — i18n (EN default + genuine ES render, T-R32c)',
     expect(t('en', 'content.queue.launchKitTrigger.generateCta')).toBe('Generate launch kit');
     expect(t('es', 'content.queue.launchKitTrigger.generateCta')).toBe('Generar kit de lanzamiento');
   });
+
+  // T-57 RG6 (i18n) — `item.category`/`item.state`/`item.content_type` in this page's item list used
+  // to render raw or merely de-snake-cased `ContentCategory`/`ContentQueueState`/`ContentType`
+  // tokens (`RENDERED_I18N_LEAK_BASELINE.json`, now closed to empty) via `contentCategoryLabel`/
+  // `contentStateLabel`/`contentTypeLabel` (`@/lib/i18n/content-token-display.ts`, unit-proven in
+  // tests/unit/i18n-content-token-display.test.ts). The item list itself is behind the unresolved
+  // fetch this suite's own header note documents — these assert the underlying catalog keys those
+  // mappers resolve through are real, distinct EN/ES copy.
+  test('the new category/state/content-type catalog namespaces this page\'s item list reads through resolve to real, distinct EN/ES copy', () => {
+    expect(t('en', 'content.queue.category.communitySpotlight')).toBe('Community spotlight');
+    expect(t('es', 'content.queue.category.communitySpotlight')).toBe('Historia destacada de la comunidad');
+    expect(t('en', 'content.queue.state.complianceCheck')).toBe('Compliance check');
+    expect(t('es', 'content.queue.state.complianceCheck')).toBe('Revisión de cumplimiento');
+    expect(t('en', 'content.queue.contentType.socialPost')).toBe('Social post');
+    expect(t('es', 'content.queue.contentType.socialPost')).toBe('Publicación social');
+  });
 });

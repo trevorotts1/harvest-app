@@ -13,6 +13,7 @@ import Link from 'next/link';
 import ClassifierAdjudicationDrawer from '../../inbox/components/ClassifierAdjudicationDrawer';
 import { useT } from '@/app/locale-context';
 import { errorDisplay, errorStateLabel } from '@/lib/i18n/error-display';
+import { channelLabel } from '@/lib/i18n/channel-display';
 
 interface QueueItem {
   queueId: string;
@@ -136,7 +137,11 @@ export default function ComplianceReviewPage() {
         return (
           <section key={item.queueId} className="card panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <strong>{t('team.complianceReview.toLabel')} {name} · {item.channel.replace(/_/g, ' ')}</strong>
+              {/* T-57 RG6 (i18n) — was `{item.channel.replace(/_/g, ' ')}`: the raw `MessageChannel`
+                  token, merely de-snake-cased, never translated. `channelLabel`
+                  (`@/lib/i18n/channel-display.ts`) is the same mapper `ApprovalInboxItem.tsx` uses
+                  for the identical enum. */}
+              <strong>{t('team.complianceReview.toLabel')} {name} · {channelLabel(t, item.channel)}</strong>
               {item.status === 'ESCALATED' ? <span className="badge">{t('team.complianceReview.escalatedBadge')}</span> : <span className="badge">{t('team.complianceReview.flaggedBadge')}</span>}
             </div>
             <p style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{item.body}</p>

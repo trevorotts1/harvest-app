@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocale } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
 import { errorDisplay } from '@/lib/i18n/error-display';
+import { eventTypeLabel, agendaStatusLabel } from '@/lib/i18n/team-token-display';
 
 interface BroadcastEvent {
   id: string;
@@ -177,7 +178,12 @@ export default function TeamCalendarPage() {
         <ul>
           {data.broadcastEvents.map((e) => (
             <li key={e.id}>
-              {e.type.replace(/_/g, ' ')} — {formatDateTime(locale, e.starts_at)} {t('team.calendar.attendanceLabel')} {e.myAttendanceState}
+              {/* T-57 RG6 (i18n) — was `{e.type.replace(/_/g, ' ')}`: the raw `BroadcastEvent.type`
+                  token, merely de-snake-cased, never translated. `eventTypeLabel` reuses this file's
+                  own `team.calendar.eventType.*` <select> keys (below) via
+                  `@/lib/i18n/team-token-display.ts` — single source of truth for the 4 known
+                  values, generic fallback for any future one. */}
+              {eventTypeLabel(t, e.type)} — {formatDateTime(locale, e.starts_at)} {t('team.calendar.attendanceLabel')} {e.myAttendanceState}
             </li>
           ))}
           {data.broadcastEvents.length === 0 && <li>{t('team.calendar.noUpcomingEvents')}</li>}
@@ -207,11 +213,16 @@ export default function TeamCalendarPage() {
       <section className="card panel">
         <span className="badge">{t('team.calendar.agendaBadge')}</span>
         <ul>
+          {/* T-57 RG6 (i18n) — `a.status`/`c.status` used to render the raw `Appointment.status`/
+              `CoachingSession.status` machine token verbatim (e.g. "RESCHEDULED"). `agendaStatusLabel`
+              (`@/lib/i18n/team-token-display.ts`) maps the known values from both enums (a superset
+              covers both, since both render through this same agenda list) to catalog labels, with a
+              generic localized fallback for any future value. */}
           {data.personalAgenda.appointments.map((a) => (
-            <li key={a.id}>{t('team.calendar.closingAppointmentPrefix')} {a.status} — {a.startsAt ? formatDateTime(locale, a.startsAt) : t('team.calendar.proposedFallback')}</li>
+            <li key={a.id}>{t('team.calendar.closingAppointmentPrefix')} {agendaStatusLabel(t, a.status)} — {a.startsAt ? formatDateTime(locale, a.startsAt) : t('team.calendar.proposedFallback')}</li>
           ))}
           {data.personalAgenda.coachingSessions.map((c) => (
-            <li key={c.id}>{t('team.calendar.coachingSessionPrefix')} {c.status} — {c.startsAt ? formatDateTime(locale, c.startsAt) : t('team.calendar.proposedFallback')}</li>
+            <li key={c.id}>{t('team.calendar.coachingSessionPrefix')} {agendaStatusLabel(t, c.status)} — {c.startsAt ? formatDateTime(locale, c.startsAt) : t('team.calendar.proposedFallback')}</li>
           ))}
           {data.personalAgenda.appointments.length === 0 && data.personalAgenda.coachingSessions.length === 0 && <li>{t('team.calendar.noAgendaItems')}</li>}
         </ul>

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
 import { formatDate } from '@/lib/i18n/format';
+import { enterpriseSeatStatusLabel } from '@/lib/i18n/team-token-display';
 
 interface SponsorSeat {
   memberUserId: string;
@@ -114,8 +115,12 @@ export default function SponsorCockpitPage() {
           <span className="badge">{t('team.cockpit.enterpriseConsoleBadge')}</span>
           <h3 style={{ marginTop: 8 }}>{t('team.cockpit.seatPoolHeading')}</h3>
           <ul>
+            {/* T-57 RG6 (i18n) — was `{s.status}`: the raw `EnterpriseSeatAssignment.status` token
+                (`ACTIVE`/`REVOKED`) rendered verbatim. `enterpriseSeatStatusLabel`
+                (`@/lib/i18n/team-token-display.ts`) maps the known values to catalog labels, with a
+                generic localized fallback for any future value. */}
             {enterprise.seats.map((s) => (
-              <li key={s.id}>{s.assigned_user_id} — {s.status}</li>
+              <li key={s.id}>{s.assigned_user_id} — {enterpriseSeatStatusLabel(t, s.status)}</li>
             ))}
             {enterprise.seats.length === 0 && <li>{t('team.cockpit.noSeatsAssigned')}</li>}
           </ul>

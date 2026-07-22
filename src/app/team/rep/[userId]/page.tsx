@@ -11,6 +11,22 @@ import { useLocale } from '@/app/locale-context';
 import { formatDate } from '@/lib/i18n/format';
 import { NamesInPlayPanel, PipelineStatesPanel } from './components/RepDataPanels';
 
+// T-57 RG6 (i18n) — `data.milestones[].key` is the identical `MilestoneKey` machine token
+// `celebration.service.ts`'s `today.zones.milestones.displayName.*` catalog namespace already
+// names (`milestoneDisplayName`) — REUSES those exact keys (single source of truth for the copy)
+// via a small local literal list, rather than importing that service module here: it pulls in the
+// full `ComplianceFilterEngine`/classifier graph (a runtime, non-type import,
+// `buildMilestoneShareText`'s CFE-gating dependency) that has no business in this 'use client'
+// page's bundle. Any future 6th milestone falls back to a generic localized label, never the raw
+// token.
+const KNOWN_MILESTONE_KEYS: ReadonlySet<string> = new Set([
+  'FIRST_RESPONSE',
+  'FIRST_APPOINTMENT',
+  'FIRST_RECRUIT',
+  'FIRST_LICENSED_TEAM_MEMBER',
+  'THIRTY_DAY_STREAK',
+]);
+
 interface DrillIn {
   repUserId: string;
   repName: string;
@@ -76,7 +92,11 @@ export default function RepDrillInPage() {
           <span className="badge">{t('team.rep.milestonesBadge')}</span>
           <ul>
             {data.milestones.map((m) => (
-              <li key={m.key}>{m.key.replace(/_/g, ' ')} — {formatDate(locale, m.achievedAtIso)}</li>
+              <li key={m.key}>
+                {KNOWN_MILESTONE_KEYS.has(m.key) ? t(`today.zones.milestones.displayName.${m.key}`) : t('team.rep.milestoneGenericLabel')}
+                {' — '}
+                {formatDate(locale, m.achievedAtIso)}
+              </li>
             ))}
           </ul>
         </section>

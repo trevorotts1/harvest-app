@@ -9,6 +9,7 @@
 
 import styles from '../../content.module.css';
 import { useT } from '@/app/locale-context';
+import { contentCategoryLabel, contentTypeLabel, personalizationTierLabel } from '@/lib/i18n/content-token-display';
 
 export interface TemplateData {
   key: string;
@@ -35,6 +36,10 @@ export default function TemplateListSection({ categories, filter, visible, onSel
   const t = useT();
   return (
     <>
+      {/* T-57 RG6 (i18n) — was `{c.replace(/_/g, ' ')}`: the raw `ContentCategory` token (or the
+          synthesized `'ALL'` chip), merely de-snake-cased, never translated. `contentCategoryLabel`
+          reuses `content.queue.filters.all` for `'ALL'` and the queue's own new `category.*` keys
+          for the 5 real categories. */}
       <div className={styles.filterRow}>
         {categories.map((c) => (
           <button
@@ -43,7 +48,7 @@ export default function TemplateListSection({ categories, filter, visible, onSel
             className={`${styles.filterChip} ${filter === c ? styles.filterChipActive : ''}`}
             onClick={() => onSelectFilter(c)}
           >
-            {c.replace(/_/g, ' ')}
+            {contentCategoryLabel(t, c)}
           </button>
         ))}
       </div>
@@ -64,12 +69,15 @@ export default function TemplateListSection({ categories, filter, visible, onSel
           <div key={tpl.key} className={styles.item}>
             <div className={styles.itemHeader}>
               <p className={styles.headline}>{tpl.name}</p>
-              <span className={styles.stateChip}>{tpl.contentType}</span>
+              <span className={styles.stateChip}>{contentTypeLabel(t, tpl.contentType)}</span>
             </div>
             <p className={styles.itemBody}>{tpl.copySkeleton}</p>
             {tpl.imageConceptPrompt && <p className={styles.itemMeta}>{t('content.templates.list.imageConceptLabel')} {tpl.imageConceptPrompt}</p>}
+            {/* T-57 RG6 (i18n) — was `{tpl.defaultPersonalizationTier.replace(/_/g, '
+                ').toLowerCase()}`: the raw `PersonalizationTier` token, merely de-snake-cased, never
+                translated. */}
             <p className={styles.itemMeta}>
-              {t('content.templates.list.toneLabel')} {tpl.toneGuidance} {t('content.templates.list.personalizationSeparator')} {tpl.defaultPersonalizationTier.replace(/_/g, ' ').toLowerCase()} · v{tpl.version} {t('content.templates.list.doctrineVerifiedSuffix')}
+              {t('content.templates.list.toneLabel')} {tpl.toneGuidance} {t('content.templates.list.personalizationSeparator')} {personalizationTierLabel(t, tpl.defaultPersonalizationTier)} · v{tpl.version} {t('content.templates.list.doctrineVerifiedSuffix')}
             </p>
           </div>
         ))}

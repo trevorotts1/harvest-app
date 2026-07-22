@@ -21,7 +21,10 @@ describe('PipelineStatesPanel — zero pipeline activity never renders blank (SC
     const html = render(PipelineStatesPanel, { counts: { INTRODUCED: 4, RESPONDED: 2 } });
     const text = textOf(html);
     expect(text).toContain('4');
-    expect(text).toContain('introduced');
+    // T-57 RG6 (i18n) — was the raw/de-snake-cased-and-lowercased token ("introduced"); now a real
+    // catalog label ("Introduced") via `pipelineStageLabel` — see rep-data-panels-i18n.test.ts for
+    // the full EN/ES proof.
+    expect(text).toContain('Introduced');
     expect(text).not.toContain('Learning this rep');
   });
 

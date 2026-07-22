@@ -9,6 +9,20 @@ import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
 
+// T-57 RG6 (i18n) — `needsYouNow[].triggerReason` is the identical `TriggerReason` machine token
+// (`three-way-handoff.service.ts`) the Pending Bridges list's own per-item component
+// (`team/bridges/components/`, its own `REASON_LABEL_KEY`) already maps — REUSES those exact
+// `team.bridges.item.reasonLabel.*` catalog keys (single source of truth for the 3 known values +
+// fallback) rather than duplicating the translated copy under a second namespace. Deliberately NOT
+// importing that component here — this dashboard renders its OWN roster/needs-you-now view, never
+// the bridges list itself (see tests/unit/team-bridges-mount.test.ts's own static-source-scan
+// regression guard for that separation).
+const REASON_LABEL_KEY: Readonly<Record<string, string>> = {
+  BUYING_SIGNAL: 'team.bridges.item.reasonLabel.buyingSignal',
+  HARD_QUESTION: 'team.bridges.item.reasonLabel.hardQuestion',
+  MANUAL: 'team.bridges.item.reasonLabel.manual',
+};
+
 interface RosterRow {
   userId: string;
   name: string;
@@ -110,7 +124,7 @@ export default function TeamDashboardPage() {
               <div key={item.handoffId} className="action-row">
                 <span className="priority">!</span>
                 <div>
-                  <strong>{item.triggerReason.replace(/_/g, ' ').toLowerCase()}</strong>
+                  <strong>{t(REASON_LABEL_KEY[item.triggerReason] ?? 'team.bridges.item.reasonLabel.fallback')}</strong>
                   <br />
                   <span style={{ color: 'var(--muted)' }}>{t('team.dashboard.needsYouNowItemBody')}</span>
                 </div>

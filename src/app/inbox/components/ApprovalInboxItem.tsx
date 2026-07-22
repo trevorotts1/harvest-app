@@ -44,6 +44,7 @@ import { useState } from 'react';
 import { useLocale } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
 import type { TVars } from '@/lib/i18n/catalog';
+import { channelLabel } from '@/lib/i18n/channel-display';
 import ContactControls from './ContactControls';
 import ClassifierAdjudicationDrawer from './ClassifierAdjudicationDrawer';
 import CfeExplainer from './CfeExplainer';
@@ -179,10 +180,18 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
     setMode('view');
   }
 
+  // T-57 RG6 (i18n; master-spec §17.5) — the raw `MessageChannel` machine token (e.g. `SMS_HANDOFF`)
+  // used to render either merely de-snake-cased ("sms handoff", the header chip below) or spliced
+  // raw into the `draftToAria` interpolation (a Spanish rep/screen-reader user saw the raw English
+  // token in both places) — now resolved through `channelLabel` (`@/lib/i18n/channel-display.ts`),
+  // the same catalog-mapper shape as `errorDisplay`/`reasonDisplay`, ONCE, so both sites (and any
+  // future one) can never drift apart.
+  const channelText = channelLabel(t, current.channel);
+
   return (
     <article
       className={`${styles.item} ${isHeld ? styles.itemHeld : ''}`}
-      aria-label={t('inbox.item.draftToAria', { name: contactName, channel: current.channel })}
+      aria-label={t('inbox.item.draftToAria', { name: contactName, channel: channelText })}
     >
       <div className={styles.itemHeader}>
         <div className={styles.itemHeaderMeta}>
@@ -190,7 +199,7 @@ export default function ApprovalInboxItem({ item, onApprove, onDecline, onEdit }
           <span>{t('inbox.item.separator')}</span>
           <span>{contactName}</span>
           <span>{t('inbox.item.separator')}</span>
-          <span>{current.channel.replaceAll('_', ' ')}</span>
+          <span>{channelText}</span>
         </div>
         {/* T-54: while queued offline, the last-known band is stale-to-the-rep's-own-pending-action
             — showing it (esp. the chip's default "Pass" branch) would misrepresent an item that has
