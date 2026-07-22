@@ -1143,6 +1143,16 @@
     "start": "Comenzar",
     "continueAt297": "Continuar por $297",
     "talkToUs": "Habla con nosotros",
+    "switchToAnnual": "Cambiar a facturación anual",
+    "switchToMonthly": "Cambiar a facturación mensual",
+    "change": {
+      "heading": "Revisa este cambio",
+      "previewFailed": "No pudimos previsualizar este cambio. Tu plan no se ve afectado.",
+      "applyFailed": "No pudimos aplicar este cambio. Tu plan no se ve afectado.",
+      "confirmCta": "Confirmar",
+      "notNowCta": "Ahora no",
+      "workingStatus": "Trabajando…"
+    },
     "sponsored": {
       "coveredThroughWithSponsor": "Cubierto hasta el {date} por tu patrocinador de línea descendente.",
       "coveredThroughNoSponsor": "Cubierto hasta el {date}.",

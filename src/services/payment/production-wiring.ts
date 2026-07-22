@@ -343,6 +343,27 @@ export function buildStripeWebhookHandlers(): StripeWebhookHandlers {
       });
     },
 
+    // `customer.subscription.deleted` (T-R41) → Stripe-side terminal cancellation (dashboard, API,
+    // or Stripe itself giving up after dunning). Same find-by-`stripe_subscription_id`, no-op-if-
+    // unresolvable pattern as `onPaymentFailed`/`onSubscriptionUpdated` above. Writes CANCELED
+    // UNCONDITIONALLY — mirroring `SubscriptionService.cancel`'s own direct write for the in-app
+    // cancel flow — rather than routing through `nextSubscriptionStatus` (billing-lifecycle.ts):
+    // that state machine intentionally leaves a DISPUTED/EXPIRED row untouched by ordinary payment
+    // events, but a `.deleted` event means Stripe has ALREADY deleted the subscription resource —
+    // that terminal fact is true regardless of what phase our own row was in, so it always wins.
+    // Idempotent the same way every other handler here is: the route's `withIdempotency` wrapper
+    // (idempotency.ts) claims the Stripe event id BEFORE dispatch, so a replayed `.deleted` event
+    // for an already-CANCELED row never reaches this handler a second time.
+    async onSubscriptionDeleted({ stripeSubscriptionId }) {
+      if (!stripeSubscriptionId) return;
+      const sub = await db.subscription.findUnique({
+        where: { stripe_subscription_id: stripeSubscriptionId },
+        select: { id: true },
+      });
+      if (!sub) return;
+      await db.subscription.update({ where: { id: sub.id }, data: { status: SubscriptionStatus.CANCELED } });
+    },
+
     // `charge.dispute.created` → chargeback handling (§15.5 / §15.7-8).
     //
     // CUSTOMER RESOLUTION (the T-47R2 fix). The Stripe Dispute object exposes NO top-level

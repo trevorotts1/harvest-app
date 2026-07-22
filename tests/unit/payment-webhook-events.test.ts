@@ -26,6 +26,7 @@ function handlers(): StripeWebhookHandlers & { calls: Record<string, unknown[]> 
     onPaymentFailed: rec('failed'),
     onSubscriptionUpdated: rec('updated'),
     onDisputeCreated: rec('dispute'),
+    onSubscriptionDeleted: rec('deleted'),
   };
 }
 
@@ -60,6 +61,28 @@ describe('dispatchStripeEvent (§15.5 event map)', () => {
     await dispatchStripeEvent(evt('charge.dispute.created', { id: 'dp_1', charge: 'ch_1', customer: 'cus_1' }), h);
     expect(h.calls.dispute[0]).toMatchObject({ disputeId: 'dp_1' });
   });
+  test('customer.subscription.deleted → onSubscriptionDeleted with the bare subscription id (T-R41)', async () => {
+    const h = handlers();
+    // The REAL documented Stripe Subscription object shape (the SAME object `.updated` above
+    // reads) — includes plenty of other fields (customer, current_period_end, cancel_at, etc.) that
+    // a real event carries but this handler deliberately does NOT read (see webhook-events.ts's
+    // SubscriptionDeletedArgs doc comment) — only `id`.
+    const r = await dispatchStripeEvent(
+      evt('customer.subscription.deleted', {
+        id: 'sub_1',
+        object: 'subscription',
+        customer: 'cus_1',
+        status: 'canceled',
+        current_period_end: 1_700_000_000,
+        canceled_at: 1_699_999_000,
+      }),
+      h
+    );
+    expect(r.handled).toBe(true);
+    // Exactly the bare id — proves the handler never reached for `status`/`customer`/etc.
+    expect(h.calls.deleted[0]).toEqual({ stripeSubscriptionId: 'sub_1' });
+  });
+
   test('an UNMAPPED event type is a safe no-op (handled:false)', async () => {
     const h = handlers();
     const r = await dispatchStripeEvent(evt('customer.created', {}), h);

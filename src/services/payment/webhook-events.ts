@@ -5,7 +5,11 @@
 // unit-testable without a live Stripe.
 //
 // Event map (§15.5): `checkout.session.completed`, `invoice.payment_succeeded`,
-// `invoice.payment_failed`, `customer.subscription.updated`, `charge.dispute.created`.
+// `invoice.payment_failed`, `customer.subscription.updated`, `charge.dispute.created`,
+// `customer.subscription.deleted` (T-R41 — closes the gap where a Stripe-dashboard/API-terminal
+// cancellation never reached us; the in-app cancel flow already writes CANCELED directly via
+// SubscriptionService.cancel, but a subscription deleted from Stripe's side — dashboard, API, or
+// Stripe's own dunning giving up — previously fell through to the default no-op).
 
 import type { StripeEvent } from './stripe-client';
 
@@ -38,6 +42,21 @@ export interface DisputeArgs {
   disputeId: string;
 }
 
+/**
+ * T-R41 — `customer.subscription.deleted`. Stripe's Subscription object (the SAME object shape
+ * `customer.subscription.updated` above already reads `id`/`status`/`current_period_end` off) is
+ * the `data.object` on this event too — Stripe documents ONE Subscription resource shared by both
+ * the `.updated` and `.deleted` subscription events (https://docs.stripe.com/api/subscriptions/object,
+ * https://docs.stripe.com/api/events/types#event_types-customer.subscription.deleted). Only `id`
+ * is read here — the bare Stripe subscription id string, always present — which is all
+ * `onSubscriptionDeleted` needs to look the row up by `stripe_subscription_id` and cancel it. No
+ * invented field: this is a strict subset of the fields `SubscriptionUpdatedArgs` above already
+ * reads from the identical object shape.
+ */
+export interface SubscriptionDeletedArgs {
+  stripeSubscriptionId: string | null;
+}
+
 /** The handlers the dispatcher calls. Production wiring backs these with Prisma + provisioner + chargeback. */
 export interface StripeWebhookHandlers {
   onCheckoutCompleted(args: CheckoutCompletedArgs): Promise<void>;
@@ -45,6 +64,8 @@ export interface StripeWebhookHandlers {
   onPaymentFailed(args: InvoiceArgs): Promise<void>;
   onSubscriptionUpdated(args: SubscriptionUpdatedArgs): Promise<void>;
   onDisputeCreated(args: DisputeArgs): Promise<void>;
+  /** T-R41 — `customer.subscription.deleted` (Stripe-side terminal cancellation). */
+  onSubscriptionDeleted(args: SubscriptionDeletedArgs): Promise<void>;
 }
 
 function str(obj: Record<string, unknown>, key: string): string | null {
@@ -105,6 +126,17 @@ export async function dispatchStripeEvent(
         stripeStatus: str(obj, 'status'),
         periodEndSeconds: num(obj, 'current_period_end'),
       });
+      return { handled: true, type: event.type };
+
+    case 'customer.subscription.deleted':
+      // T-R41. Reads only `id` — the bare Stripe subscription id string every real Subscription
+      // object carries (see the SubscriptionDeletedArgs doc comment above for the Stripe-schema
+      // citation). Deliberately does NOT read `status` here: unlike `customer.subscription.updated`
+      // (where the status can be `active`/`past_due`/`canceled`/`unpaid` and the handler maps it),
+      // a `.deleted` event's own existence IS the terminal signal — the subscription resource no
+      // longer exists — so the handler always cancels; there is no other status this event could
+      // rationally map to.
+      await handlers.onSubscriptionDeleted({ stripeSubscriptionId: str(obj, 'id') });
       return { handled: true, type: event.type };
 
     case 'charge.dispute.created':

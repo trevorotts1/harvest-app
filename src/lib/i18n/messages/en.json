@@ -1143,6 +1143,16 @@
     "start": "Start",
     "continueAt297": "Continue at $297",
     "talkToUs": "Talk to us",
+    "switchToAnnual": "Switch to annual billing",
+    "switchToMonthly": "Switch to monthly billing",
+    "change": {
+      "heading": "Review this change",
+      "previewFailed": "We couldn't preview this change. Your plan is unaffected.",
+      "applyFailed": "We couldn't apply this change. Your plan is unaffected.",
+      "confirmCta": "Confirm",
+      "notNowCta": "Not now",
+      "workingStatus": "Working…"
+    },
     "sponsored": {
       "coveredThroughWithSponsor": "Covered through {date} by your Downline Sponsor.",
       "coveredThroughNoSponsor": "Covered through {date}.",
