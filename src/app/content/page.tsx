@@ -15,6 +15,7 @@ import styles from './content.module.css';
 import { useLocale, useT } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
 import { errorDisplay } from '@/lib/i18n/error-display';
+import { reasonDisplay } from '@/lib/i18n/reason-display';
 import { contentCategoryLabel, contentStateLabel, contentTypeLabel } from '@/lib/i18n/content-token-display';
 
 type QueueState = 'DRAFTING' | 'COMPLIANCE_CHECK' | 'READY_FOR_REVIEW' | 'SCHEDULED' | 'PUBLISHED' | 'BLOCKED';
@@ -306,7 +307,12 @@ export default function ContentQueuePage() {
                 )}
 
                 {!item.vocab_clean && <p className={styles.violationNote}>{t('content.queue.vocabViolationNote')}</p>}
-                {item.publish_hold_reason && <p className={styles.violationNote}>{t('content.queue.holdReasonLabel')} {item.publish_hold_reason}</p>}
+                {/* T-57 RG7 (i18n) — was raw `{item.publish_hold_reason}`: a backend compliance-hold
+                    token (`CFE_BLOCKED_AT_PUBLISH_TIME`, `DOCTRINE_VOCABULARY_VIOLATION`, `CFE_<band>`)
+                    rendered verbatim. `reasonDisplay` resolves it to a localized phrase, falling back
+                    to a localized "a compliance hold" for the open-ended `CFE_*` set — never the raw
+                    token, always still communicating a compliance hold (see reason-display.ts). */}
+                {item.publish_hold_reason && <p className={styles.violationNote}>{t('content.queue.holdReasonLabel')} {reasonDisplay(t, item.publish_hold_reason)}</p>}
                 {item.scheduled_for && <p className={styles.itemMeta}>{t('content.queue.scheduledForLabel')} {formatDateTime(locale, item.scheduled_for)}</p>}
 
                 <div className={styles.itemFooter}>

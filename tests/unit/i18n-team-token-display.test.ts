@@ -11,6 +11,10 @@ import {
   agendaStatusLabel,
   pipelineStageLabel,
   enterpriseSeatStatusLabel,
+  activationStatusLabel,
+  sponsorshipStateLabel,
+  calendarLinkStatusLabel,
+  attendanceStateLabel,
 } from '@/lib/i18n/team-token-display';
 
 const translateEn = (key: string, vars?: Record<string, string | number>) => t('en', key, vars);
@@ -105,5 +109,67 @@ describe('enterpriseSeatStatusLabel — EnterpriseSeatAssignment.status (team/co
   test('an unrecognized/future status falls back to a generic localized label', () => {
     expect(enterpriseSeatStatusLabel(translateEn, 'SUSPENDED')).toBe('Status');
     expect(enterpriseSeatStatusLabel(translateEs, 'SUSPENDED')).toBe('Estado');
+  });
+});
+
+// ─── T-57 RG7 — new mappers closing the hardened-guard blind-spot leaks ─────────────────────────────
+describe('activationStatusLabel — User.onboarding_status (team/cockpit/page.tsx)', () => {
+  test('the raw OnboardingStatus tokens resolve to real, distinct EN/ES labels, never the raw token', () => {
+    expect(activationStatusLabel(translateEn, 'IN_PROGRESS')).toBe('Onboarding in progress');
+    expect(activationStatusLabel(translateEs, 'IN_PROGRESS')).toBe('Incorporación en curso');
+    expect(activationStatusLabel(translateEn, 'GATED_COMPLETE')).toBe('Active');
+    expect(activationStatusLabel(translateEs, 'GATED_COMPLETE')).toBe('Activo');
+  });
+  test('null/unrecognized (incl. the service\'s UNKNOWN sentinel) falls back to a generic localized label', () => {
+    expect(activationStatusLabel(translateEn, 'UNKNOWN')).toBe('Unknown');
+    expect(activationStatusLabel(translateEn, null)).toBe('Unknown');
+    expect(activationStatusLabel(translateEs, 'UNKNOWN')).toBe('Desconocido');
+  });
+});
+
+describe('sponsorshipStateLabel — Sponsorship.state (team/cockpit/page.tsx)', () => {
+  test.each(['ACTIVE', 'MEMBER_GRACE', 'SPONSOR_LAPSED', 'ANNIVERSARY_PENDING', 'CONVERTED', 'ENDED'])(
+    'TEETH — %s resolves to a real, distinct EN/ES label, never the raw token',
+    (state) => {
+      const en = sponsorshipStateLabel(translateEn, state);
+      const es = sponsorshipStateLabel(translateEs, state);
+      expect(en).not.toBe(state);
+      expect(es).not.toBe(state);
+      expect(en).not.toBe(es);
+    }
+  );
+  test('null/unrecognized falls back to a generic localized label', () => {
+    expect(sponsorshipStateLabel(translateEn, null)).toBe('Unknown');
+    expect(sponsorshipStateLabel(translateEs, 'SOME_FUTURE_STATE')).toBe('Desconocido');
+  });
+});
+
+describe('calendarLinkStatusLabel — CalendarLink.status (team/calendar/page.tsx)', () => {
+  test('CONNECTED / EXPIRED / REVOKED resolve to real, distinct EN/ES labels', () => {
+    expect(calendarLinkStatusLabel(translateEn, 'CONNECTED')).toBe('Connected');
+    expect(calendarLinkStatusLabel(translateEs, 'CONNECTED')).toBe('Conectado');
+    expect(calendarLinkStatusLabel(translateEn, 'EXPIRED')).toBe('Expired');
+    expect(calendarLinkStatusLabel(translateEs, 'REVOKED')).toBe('Revocado');
+  });
+  test('a NULL status (no link on file) folds in the "not connected" label the page used to render via `?? t(...)`', () => {
+    expect(calendarLinkStatusLabel(translateEn, null)).toBe('Not connected');
+    expect(calendarLinkStatusLabel(translateEs, undefined)).toBe('No conectado');
+  });
+});
+
+describe('attendanceStateLabel — Attendance.state (team/calendar/page.tsx)', () => {
+  test.each(['none', 'rsvp_yes', 'rsvp_no', 'attended', 'missed'])(
+    'TEETH — %s resolves to a real, distinct EN/ES label, never the raw token',
+    (state) => {
+      const en = attendanceStateLabel(translateEn, state);
+      const es = attendanceStateLabel(translateEs, state);
+      expect(en).not.toBe(state);
+      expect(es).not.toBe(state);
+      expect(en).not.toBe(es);
+    }
+  );
+  test('null/unrecognized falls back to a localized label (never the raw token)', () => {
+    expect(attendanceStateLabel(translateEn, null)).toBe('No RSVP yet');
+    expect(attendanceStateLabel(translateEn, 'SOME_FUTURE_STATE')).toBe('Unknown');
   });
 });

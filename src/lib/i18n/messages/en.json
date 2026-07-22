@@ -689,6 +689,13 @@
       },
       "releasedStatus": "Released — you are fully licensed.",
       "blockedStatusTemplate": "Blocked ({state}) — insurance content stays held until you're licensed.",
+      "licensingState": {
+        "unlicensed": "unlicensed",
+        "preLicensing": "in pre-licensing",
+        "licensed": "licensed",
+        "licenseExpired": "license expired",
+        "generic": "your current licensing status"
+      },
       "warmMarketRitualBody": "Ready for your first 20? The Warm-Market ritual walks you through it.",
       "warmMarketRitualCta": "Start the Warm-Market ritual"
     },
@@ -1562,6 +1569,20 @@
         "completed": "Completed",
         "generic": "Status pending"
       },
+      "linkStatus": {
+        "connected": "Connected",
+        "expired": "Expired",
+        "revoked": "Revoked",
+        "generic": "Unknown"
+      },
+      "attendanceState": {
+        "none": "No RSVP yet",
+        "rsvpYes": "Going",
+        "rsvpNo": "Not going",
+        "attended": "Attended",
+        "missed": "Missed",
+        "generic": "Unknown"
+      },
       "startsAtLabel": "Starts at",
       "addEventCta": "Add to team calendar (RVP only)",
       "rvpOnlyNotice": "Only the RVP/admin can add to the team calendar.",
@@ -1604,6 +1625,21 @@
         "revoked": "Revoked",
         "generic": "Status"
       },
+      "activationStatus": {
+        "inProgress": "Onboarding in progress",
+        "active": "Active",
+        "generic": "Unknown"
+      },
+      "sponsorshipState": {
+        "active": "Active",
+        "memberGrace": "Grace period",
+        "sponsorLapsed": "Sponsor lapsed",
+        "anniversaryPending": "Anniversary pending",
+        "converted": "Converted to own plan",
+        "ended": "Ended",
+        "generic": "Unknown"
+      },
+      "roiNote": "{teammates} teammate(s) activated and {appointments} appointment(s) generated for this seat.",
       "noSeatsAssigned": "No enterprise seats assigned yet.",
       "orgAnalyticsHeading": "Org analytics narrative",
       "noNarrativeYet": "No narrative generated yet.",

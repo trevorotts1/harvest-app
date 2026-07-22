@@ -7,9 +7,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { formatDateTime } from '@/lib/i18n/format';
 import { errorDisplay } from '@/lib/i18n/error-display';
-import { eventTypeLabel, agendaStatusLabel } from '@/lib/i18n/team-token-display';
+import { eventTypeLabel, agendaStatusLabel, calendarLinkStatusLabel, attendanceStateLabel } from '@/lib/i18n/team-token-display';
 
 interface BroadcastEvent {
   id: string;
@@ -145,7 +146,8 @@ export default function TeamCalendarPage() {
   if (state.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>{t('team.calendar.loadFailed')}</p>
+        {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+        <StatusMessage>{t('team.calendar.loadFailed')}</StatusMessage>
         <button type="button" className="btn btn-secondary" onClick={load}>{t('common.retry')}</button>
       </div>
     );
@@ -161,12 +163,15 @@ export default function TeamCalendarPage() {
         <span className="badge">{t('team.calendar.connectionsBadge')}</span>
         <div className="stack" style={{ marginTop: 12 }}>
           <div>
-            {t('team.calendar.googleLabel')} <strong>{googleLink?.status ?? t('team.calendar.notConnected')}</strong>
+            {/* T-57 RG7 (i18n) — was raw `{googleLink?.status ?? t(…notConnected)}`: the raw
+                `CalendarLink.status` token. `calendarLinkStatusLabel` localizes CONNECTED/EXPIRED/
+                REVOKED and folds the null "not connected" case in. */}
+            {t('team.calendar.googleLabel')} <strong>{calendarLinkStatusLabel(t, googleLink?.status)}</strong>
             {googleLink?.status === 'EXPIRED' && <span> {t('team.calendar.googleExpiredNotice')}</span>}
             {googleLink && <button type="button" className="btn btn-secondary" onClick={() => disconnect('google')} style={{ marginLeft: 8 }}>{t('team.calendar.disconnectCta')}</button>}
           </div>
           <div>
-            {t('team.calendar.caldavLabel')} <strong>{caldavLink?.status ?? t('team.calendar.notConnected')}</strong>
+            {t('team.calendar.caldavLabel')} <strong>{calendarLinkStatusLabel(t, caldavLink?.status)}</strong>
             {caldavLink && <button type="button" className="btn btn-secondary" onClick={() => disconnect('caldav_ios')} style={{ marginLeft: 8 }}>{t('team.calendar.disconnectCta')}</button>}
           </div>
         </div>
@@ -183,7 +188,9 @@ export default function TeamCalendarPage() {
                   own `team.calendar.eventType.*` <select> keys (below) via
                   `@/lib/i18n/team-token-display.ts` — single source of truth for the 4 known
                   values, generic fallback for any future one. */}
-              {eventTypeLabel(t, e.type)} — {formatDateTime(locale, e.starts_at)} {t('team.calendar.attendanceLabel')} {e.myAttendanceState}
+              {/* T-57 RG7 (i18n) — was raw `{e.myAttendanceState}`: the raw `Attendance.state` token
+                  (`rsvp_yes`/`attended`/…). `attendanceStateLabel` localizes it. */}
+              {eventTypeLabel(t, e.type)} — {formatDateTime(locale, e.starts_at)} {t('team.calendar.attendanceLabel')} {attendanceStateLabel(t, e.myAttendanceState)}
             </li>
           ))}
           {data.broadcastEvents.length === 0 && <li>{t('team.calendar.noUpcomingEvents')}</li>}

@@ -264,6 +264,87 @@ describe('scripts/guard-rendered-i18n-leak.mjs', () => {
       expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
     });
   });
+  // T-57 RG7 — BLIND-SPOT (a): field names matched by PATTERN (suffix), not just an exact list, so the
+  // whole `*Status`/`*State`/`*_reason`/`*_status` enum-token class is enumerable.
+  describe('RG7 blind-spot (a): token fields matched by SUFFIX PATTERN', () => {
+    test.each([
+      ['{seat.activationStatus}', 'export function C({ seat }: { seat: { activationStatus: string } }) {\n  return <span>{seat.activationStatus}</span>;\n}\n'],
+      ['{seat.sponsorshipState}', 'export function C({ seat }: { seat: { sponsorshipState: string } }) {\n  return <span>{seat.sponsorshipState}</span>;\n}\n'],
+      ['{e.myAttendanceState}', 'export function C({ e }: { e: { myAttendanceState: string } }) {\n  return <li>{e.myAttendanceState}</li>;\n}\n'],
+      ['{item.publish_hold_reason}', 'export function C({ item }: { item: { publish_hold_reason: string } }) {\n  return <p>{item.publish_hold_reason}</p>;\n}\n'],
+    ])('TEETH: a raw %s render FAILS (previously invisible — not in the old exact list)', (_label, body) => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(s.srcRoot, 'Suffix.tsx', body);
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/raw-token-jsx/);
+    });
+
+    test('MUTATION PROOF: routing the same field through a display mapper reverts the FAIL to a PASS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'SuffixOk.tsx',
+        `import { activationStatusLabel } from '@/lib/i18n/team-token-display';\nexport function C({ seat, t }: { seat: { activationStatus: string }; t: (k: string) => string }) {\n  return <span>{activationStatusLabel(t, seat.activationStatus)}</span>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+
+    test('a field that does NOT match the token pattern ({item.headline}) is NOT flagged', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(s.srcRoot, 'NonToken.tsx', `export function C({ item }: { item: { headline: string } }) {\n  return <p>{item.headline}</p>;\n}\n`);
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
+
+  // T-57 RG7 — BLIND-SPOT (b): the `??`/`||`/ternary a raw token hides behind is unwrapped, so
+  // `{x?.status ?? t('…')}` still flags the raw `x.status`.
+  describe('RG7 blind-spot (b): raw token inside a ??/||/ternary fallback', () => {
+    test('TEETH: {googleLink?.status ?? t(\'…\')} FAILS — the raw status in the ?? fallback is caught', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Nullish.tsx',
+        `export function C({ googleLink, t }: { googleLink?: { status: string }; t: (k: string) => string }) {\n  return <strong>{googleLink?.status ?? t('x.notConnected')}</strong>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      const r = runGuard(s.srcRoot, s.baselinePath);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/raw-token-jsx/);
+      expect(r.stderr).toMatch(/googleLink\?\.status \?\?/);
+    });
+
+    test('TEETH: {cond ? x.reason : t(\'…\')} FAILS — the raw reason in a ternary branch is caught', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'Ternary.tsx',
+        `export function C({ x, cond, t }: { x: { reason: string }; cond: boolean; t: (k: string) => string }) {\n  return <p>{cond ? x.reason : t('x.ok')}</p>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(1);
+    });
+
+    test('MUTATION PROOF: mapping the token inside the fallback ({calendarLinkStatusLabel(t, x?.status)}) reverts to a PASS', () => {
+      const s = makeScratchSrc();
+      dir = s.dir;
+      write(
+        s.srcRoot,
+        'NullishOk.tsx',
+        `import { calendarLinkStatusLabel } from '@/lib/i18n/team-token-display';\nexport function C({ googleLink, t }: { googleLink?: { status: string }; t: (k: string) => string }) {\n  return <strong>{calendarLinkStatusLabel(t, googleLink?.status)}</strong>;\n}\n`
+      );
+      writeBaseline(s.baselinePath, []);
+      expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+    });
+  });
 });
 
 describe('scripts/guard-rendered-i18n-leak.mjs — against the REAL repo (no fixtures)', () => {

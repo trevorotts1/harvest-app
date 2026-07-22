@@ -86,8 +86,28 @@ const REPORT_ROOT = process.env.GUARD_RENDERED_I18N_LEAK_SRC_ROOT ? path.join(SR
 // The backend machine-token field names a raw render of which is a leak (they carry an untranslated
 // enum/reason token straight from a route/service to the screen). NOT `message` (that's free English
 // prose — the `guard-no-literals`/manual-sweep concern — and legit localized `.message` values also
-// exist), NOT `state`/`name`/`body` (either enum chips already treated as design, or real content).
-const TOKEN_FIELDS = new Set(['reason', 'kind', 'held_reason', 'heldReason', 'status', 'code', 'type']);
+// exist), NOT `name`/`body` (real content).
+//
+// T-57 RG7 — BLIND-SPOT (a) CLOSED: the field set is no longer a bare exact list. It now also matches
+// by PATTERN — any property name ENDING in `Status`/`State`/`_reason`/`_status` — so the whole
+// enum-token class is enumerable, not just the handful of literal names a prior pass happened to list.
+// This is what lets the re-gate's surviving leaks (`activationStatus`, `sponsorshipState`,
+// `myAttendanceState`, `publish_hold_reason`, `held_reason`, …) all be caught by ONE rule rather than
+// slipping through because their exact spelling wasn't in the set. `state`/`channel` are added to the
+// exact set too (they carry a raw enum a rep shouldn't see untranslated — `SponsorshipState`,
+// `MessageChannel`). Still deliberately EXCLUDES `message`/`body`/`name` (prose/content, above).
+const TOKEN_FIELDS = new Set(['reason', 'kind', 'held_reason', 'heldReason', 'status', 'state', 'channel', 'code', 'type']);
+// PATTERN half of blind-spot (a): a compound field whose SUFFIX marks it as an enum/reason token
+// (`activationStatus`, `sponsorshipState`, `myAttendanceState`, `publish_hold_reason`, `*_status`).
+const TOKEN_FIELD_SUFFIX_RE = /(?:Status|State)$|_(?:reason|status)$/;
+
+/** Blind-spot (a): a property name is a raw machine token if it is one of the exact token fields OR
+ *  its suffix matches the enum/reason-token pattern. Tuned to enum/reason/status/state/channel — NOT
+ *  free-prose fields (`message`/`body`/`name`), which are a different guard's / the manual sweep's
+ *  concern (see this const's header note). */
+function fieldNameIsToken(name) {
+  return TOKEN_FIELDS.has(name) || TOKEN_FIELD_SUFFIX_RE.test(name);
+}
 const MAPPER_CALLEES = new Set(['errorDisplay', 'errorStateLabel', 'reasonDisplay', 't', 'translate']);
 
 function findTsxFiles(dir) {
@@ -165,7 +185,35 @@ function snippetOf(raw) {
 /** A raw machine-token property access (`x.reason`), unwrapped through parens and optional-chains. */
 function isRawTokenAccess(node) {
   const e = unwrapParens(node);
-  return ts.isPropertyAccessExpression(e) && TOKEN_FIELDS.has(e.name.text);
+  return ts.isPropertyAccessExpression(e) && fieldNameIsToken(e.name.text);
+}
+
+/** Blind-spot (b) CLOSED — classify a JSX-CHILD expression as a raw-token leak, UNWRAPPING the
+ *  `??`/`||` fallback and the ternary a leak routinely hides behind (`{x?.status ?? t('…')}`,
+ *  `{cond ? x.reason : t('…')}`). Recurses into each operand/branch: the raw token in ONE branch is
+ *  the leak; the mapper/`t()` in the other is the intended fix and is (correctly) not a token access,
+ *  so it never matches. Returns the leak `kind` (for the fingerprint) or `null`. */
+function classifyJsxChildExpr(node) {
+  const e = unwrapParens(node);
+  if (isRawTokenAccess(e)) return 'raw-token-jsx';
+  if (containsUnderscoreHumanize(e)) return 'humanized-raw-token-jsx';
+  if (ts.isTemplateExpression(e)) {
+    for (const span of e.templateSpans) {
+      if (isRawTokenAccess(span.expression)) return 'raw-token-jsx-template';
+      if (containsUnderscoreHumanize(span.expression)) return 'humanized-raw-token-jsx-template';
+    }
+    return null;
+  }
+  if (
+    ts.isBinaryExpression(e) &&
+    (e.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken || e.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+  ) {
+    return classifyJsxChildExpr(e.left) ?? classifyJsxChildExpr(e.right);
+  }
+  if (ts.isConditionalExpression(e)) {
+    return classifyJsxChildExpr(e.whenTrue) ?? classifyJsxChildExpr(e.whenFalse);
+  }
+  return null;
 }
 
 /** Shape (d) — is this call ITSELF a `.replace(...)`/`.replaceAll(...)` whose pattern is an
@@ -246,23 +294,13 @@ function scanFile(filePath) {
       }
     }
     // (b) raw machine token rendered as JSX content. (d) the same token merely de-snake-cased via
-    // `.replace*('_', ' ')` before rendering — punctuation-humanized, still untranslated.
+    // `.replace*('_', ' ')` before rendering — punctuation-humanized, still untranslated. Blind-spot
+    // (b): `classifyJsxChildExpr` also unwraps the `??`/`||`/ternary a raw token routinely hides
+    // behind, so `{x?.status ?? t('…')}` still flags the raw `x.status`.
     if (ts.isJsxExpression(node) && !ts.isJsxAttribute(node.parent) && node.expression) {
-      const expr = unwrapParens(node.expression);
-      if (isRawTokenAccess(expr)) {
-        raw.push({ kind: 'raw-token-jsx', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
-      } else if (containsUnderscoreHumanize(expr)) {
-        raw.push({ kind: 'humanized-raw-token-jsx', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
-      } else if (ts.isTemplateExpression(expr)) {
-        for (const span of expr.templateSpans) {
-          if (isRawTokenAccess(span.expression)) {
-            raw.push({ kind: 'raw-token-jsx-template', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
-            break;
-          } else if (containsUnderscoreHumanize(span.expression)) {
-            raw.push({ kind: 'humanized-raw-token-jsx-template', snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
-            break;
-          }
-        }
+      const kind = classifyJsxChildExpr(node.expression);
+      if (kind) {
+        raw.push({ kind, snippet: snippetOf(node.getText(sourceFile)), line: lineOf(node) });
       }
     }
     ts.forEachChild(node, visit);

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
 import { useLocale } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { formatDate } from '@/lib/i18n/format';
 import { NamesInPlayPanel, PipelineStatesPanel } from './components/RepDataPanels';
 
@@ -72,7 +73,7 @@ export default function RepDrillInPage() {
 
   if (state.kind === 'loading') return <div className="card panel"><p>{t('common.loading')}</p></div>;
   if (state.kind === 'not_found') return <div className="card panel"><p>{t('team.rep.notFound')}</p></div>;
-  if (state.kind === 'failed') return <div className="card panel"><p>{t('team.rep.loadFailed')}</p></div>;
+  if (state.kind === 'failed') return <div className="card panel"><StatusMessage>{t('team.rep.loadFailed')}</StatusMessage></div>;
 
   const { data } = state;
 

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 interface MomentumDetail {
   levelName: string;
@@ -41,7 +42,8 @@ export default function MomentumDetailPage() {
 
       {state.kind === 'failed' && (
         <section className="card panel" style={{ marginTop: 18 }}>
-          <p>{t('today.momentumPage.loadFailed')} <Link href="/today">{t('today.momentumPage.backToTodayPlain')}</Link>.</p>
+          {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+          <StatusMessage>{t('today.momentumPage.loadFailed')} <Link href="/today">{t('today.momentumPage.backToTodayPlain')}</Link>.</StatusMessage>
         </section>
       )}
 

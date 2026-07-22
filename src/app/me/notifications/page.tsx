@@ -24,6 +24,7 @@
 import { useEffect, useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { formatDateTime } from '@/lib/i18n/format';
 import styles from './notifications.module.css';
 
@@ -152,7 +153,8 @@ export default function NotificationsPage() {
   if (load === 'failed' || !prefs) {
     return (
       <main className={styles.page}>
-        <p className={styles.loading}>{t('me.notifications.loadFailed')}</p>
+        {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+        <StatusMessage className={styles.loading}>{t('me.notifications.loadFailed')}</StatusMessage>
       </main>
     );
   }

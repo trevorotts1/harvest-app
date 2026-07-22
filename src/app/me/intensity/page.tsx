@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { IntensitySetting } from '@prisma/client';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import IntensityDial from '@/app/onboarding/components/IntensityDial';
 import styles from './intensity.module.css';
 
@@ -76,7 +77,8 @@ export default function IntensityPage() {
   if (load === 'failed') {
     return (
       <main className={styles.page}>
-        <p className={styles.loading}>{t('me.intensity.loadFailed')}</p>
+        {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+        <StatusMessage className={styles.loading}>{t('me.intensity.loadFailed')}</StatusMessage>
       </main>
     );
   }

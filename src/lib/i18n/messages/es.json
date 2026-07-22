@@ -689,6 +689,13 @@
       },
       "releasedStatus": "Liberado — estás completamente licenciado.",
       "blockedStatusTemplate": "Bloqueado ({state}) — el contenido de seguros permanece retenido hasta que estés licenciado.",
+      "licensingState": {
+        "unlicensed": "sin licencia",
+        "preLicensing": "en prelicencia",
+        "licensed": "con licencia",
+        "licenseExpired": "licencia vencida",
+        "generic": "tu estado de licencia actual"
+      },
       "warmMarketRitualBody": "¿Listo para tus primeros 20? El ritual de Mercado Cálido te guía paso a paso.",
       "warmMarketRitualCta": "Comenzar el ritual de Mercado Cálido"
     },
@@ -1562,6 +1569,20 @@
         "completed": "Completada",
         "generic": "Estado pendiente"
       },
+      "linkStatus": {
+        "connected": "Conectado",
+        "expired": "Vencido",
+        "revoked": "Revocado",
+        "generic": "Desconocido"
+      },
+      "attendanceState": {
+        "none": "Sin confirmar aún",
+        "rsvpYes": "Asistirá",
+        "rsvpNo": "No asistirá",
+        "attended": "Asistió",
+        "missed": "No asistió",
+        "generic": "Desconocido"
+      },
       "startsAtLabel": "Comienza a las",
       "addEventCta": "Agregar al calendario del equipo (solo RVP)",
       "rvpOnlyNotice": "Solo el RVP/administrador puede agregar al calendario del equipo.",
@@ -1604,6 +1625,21 @@
         "revoked": "Revocado",
         "generic": "Estado"
       },
+      "activationStatus": {
+        "inProgress": "Incorporación en curso",
+        "active": "Activo",
+        "generic": "Desconocido"
+      },
+      "sponsorshipState": {
+        "active": "Activo",
+        "memberGrace": "Periodo de gracia",
+        "sponsorLapsed": "Patrocinador vencido",
+        "anniversaryPending": "Aniversario pendiente",
+        "converted": "Convertido a plan propio",
+        "ended": "Finalizado",
+        "generic": "Desconocido"
+      },
+      "roiNote": "{teammates} compañero(s) de equipo activado(s) y {appointments} cita(s) generada(s) para este asiento.",
       "noSeatsAssigned": "Aún no hay asientos empresariales asignados.",
       "orgAnalyticsHeading": "Narrativa de análisis de la organización",
       "noNarrativeYet": "Aún no se ha generado una narrativa.",

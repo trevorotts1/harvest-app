@@ -4,7 +4,6 @@
 // suite proves the DATA is correct given a sponsor id.
 
 import { SponsorCockpitService, type SponsorCockpitPrismaClient } from '../../src/services/team-calendar/sponsor-cockpit.service';
-import { SAFE_HARBOR_LINE } from '../../src/services/warm-market/hidden-earnings';
 
 function makeMockPrisma(fixtures: {
   sponsorships?: { id: string; sponsor_user_id: string; member_user_id: string; organization_id: string; state: string; term_start: Date | null; term_end: Date | null; grace_until: Date | null }[];
@@ -48,7 +47,7 @@ function makeMockPrisma(fixtures: {
 }
 
 describe('WP09 SponsorCockpitService', () => {
-  it('returns activation, seat cost, recruits activated, appointments generated, and the safe-harbor line per sponsored seat', async () => {
+  it('returns raw activation/sponsorship tokens, seat cost, recruits activated, and appointments generated per sponsored seat (T-57 RG7: rep-facing ROI note + safe harbor are composed & localized client-side)', async () => {
     const prisma = makeMockPrisma({
       sponsorships: [
         { id: 's1', sponsor_user_id: 'sponsor-1', member_user_id: 'member-1', organization_id: 'org-1', state: 'active', term_start: new Date('2025-01-01'), term_end: new Date('2026-01-01'), grace_until: null },
@@ -64,13 +63,18 @@ describe('WP09 SponsorCockpitService', () => {
 
     expect(seats.length).toBe(1);
     expect(seats[0].memberName).toBe('Member One');
-    expect(seats[0].activationStatus).toBe('Active');
+    // T-57 RG7 — RAW OnboardingStatus token (was the English label 'Active'); the client localizes it.
+    expect(seats[0].activationStatus).toBe('GATED_COMPLETE');
     expect(seats[0].seatCostCents).toBe(200);
     expect(seats[0].recruitsActivated).toBe(1);
     expect(seats[0].appointmentsGenerated).toBe(2);
     expect(seats[0].renewalDate).toBe(new Date('2026-01-01').toISOString());
-    // uiux §5.1/§4.13/§0.5 — the FTC safe-harbor line, verbatim, on any projected ROI figure.
-    expect(seats[0].roiNote).toContain(SAFE_HARBOR_LINE);
+    // T-57 RG7 — the service hands the RAW sponsorship-state token (client localizes) and the raw
+    // counts above; it no longer composes any rep-facing English (the ROI note + FTC safe-harbor line
+    // are built & localized client-side in team/cockpit/page.tsx). Proven here: the returned object
+    // carries the raw token, not a pre-composed English `roiNote`.
+    expect(seats[0].sponsorshipState).toBe('active');
+    expect('roiNote' in seats[0]).toBe(false);
   });
 
   it('returns an empty cockpit (never a crash) when the caller sponsors no one — the recruit-your-first-sponsee state', async () => {

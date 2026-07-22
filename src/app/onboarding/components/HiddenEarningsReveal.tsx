@@ -95,8 +95,13 @@ export default function HiddenEarningsReveal({
           <h1 className={styles.visionTitle}>{GROWTH_PATH_HEADLINE}</h1>
           <p className={styles.revealZero}>{GROWTH_PATH_BODY}</p>
           {/* Safe harbor: same composition, vision voice, screenshot-inseparable, not dismissible —
-              present in the growth path too (§18.5). */}
-          <p className={styles.safeHarbor}>{SAFE_HARBOR_LINE}</p>
+              present in the growth path too (§18.5). T-57 RG7 (dimension B) — the VISUAL line was the
+              hardcoded English `SAFE_HARBOR_LINE` even for es reps; it now renders through the
+              SANCTIONED FTC-safe-harbor catalog key (`grow.goalCard.potentialNotPromise`, ES value is
+              the approved translation — SECURITY §0.5). Meaning is identical (only the two-sentence vs
+              em-dash punctuation differs — see hidden-earnings.ts's SAFE_HARBOR_LINE_SPOKEN note). The
+              SR utterance below keeps SAFE_HARBOR_LINE_SPOKEN verbatim by the R4-residual2 design. */}
+          <p className={styles.safeHarbor}>{t(locale, 'grow.goalCard.potentialNotPromise')}</p>
         </div>
         <div className={styles.actions}>
           <button type="button" className={`${styles.btn} ${styles.btnHarvest}`} onClick={onAddContacts}>
@@ -146,8 +151,10 @@ export default function HiddenEarningsReveal({
         <p className={styles.revealFigure}>{formatUsd(monthlyValueUsd, locale)}</p>
         <p className={styles.revealStat}>{t(locale, 'onboarding.hiddenEarnings.conversationsStat', { count: estimatedAppointments })}</p>
         <p className={styles.revealStat}>{t(locale, 'onboarding.hiddenEarnings.familiesStat', { count: estimatedClients })}</p>
-        {/* Safe harbor: same composition, vision voice, screenshot-inseparable, not dismissible. */}
-        <p className={styles.safeHarbor}>{SAFE_HARBOR_LINE}</p>
+        {/* Safe harbor: same composition, vision voice, screenshot-inseparable, not dismissible.
+            T-57 RG7 (dimension B) — localized via the sanctioned `grow.goalCard.potentialNotPromise`
+            catalog key (see the growth-path branch above for the full rationale). */}
+        <p className={styles.safeHarbor}>{t(locale, 'grow.goalCard.potentialNotPromise')}</p>
       </div>
 
       {/* Exactly one action — no share affordance exists on this screen (§5.1 O-8). */}

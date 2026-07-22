@@ -83,3 +83,73 @@ export function enterpriseSeatStatusLabel(t: Translate, status: string | null | 
   const key = SEAT_STATUS_CATALOG_KEY[status];
   return t(key ?? 'team.cockpit.seatStatus.generic');
 }
+
+/** T-57 RG7 — `team/cockpit/page.tsx`'s per-seat `activationStatus`, now the raw `User.onboarding_status`
+ *  token (`prisma/schema.prisma`'s `OnboardingStatus`: `IN_PROGRESS | GATED_COMPLETE`). Before RG7 the
+ *  service mapped this to an English label server-side and the rep saw it untranslated; the service now
+ *  hands the raw token and this maps it per-locale. Generic fallback (incl. a null member) never renders
+ *  the raw token. */
+const ACTIVATION_STATUS_CATALOG_KEY: Readonly<Record<string, string>> = {
+  IN_PROGRESS: 'team.cockpit.activationStatus.inProgress',
+  GATED_COMPLETE: 'team.cockpit.activationStatus.active',
+};
+
+export function activationStatusLabel(t: Translate, status: string | null | undefined): string {
+  if (!status) return t('team.cockpit.activationStatus.generic');
+  const key = ACTIVATION_STATUS_CATALOG_KEY[status];
+  return t(key ?? 'team.cockpit.activationStatus.generic');
+}
+
+/** T-57 RG7 — `team/cockpit/page.tsx`'s per-seat `sponsorshipState` (raw `Sponsorship.state`,
+ *  `prisma/schema.prisma`'s `SponsorshipState`: `ACTIVE | MEMBER_GRACE | SPONSOR_LAPSED |
+ *  ANNIVERSARY_PENDING | CONVERTED | ENDED`). Generic fallback for any future value never renders the
+ *  raw token. */
+const SPONSORSHIP_STATE_CATALOG_KEY: Readonly<Record<string, string>> = {
+  ACTIVE: 'team.cockpit.sponsorshipState.active',
+  MEMBER_GRACE: 'team.cockpit.sponsorshipState.memberGrace',
+  SPONSOR_LAPSED: 'team.cockpit.sponsorshipState.sponsorLapsed',
+  ANNIVERSARY_PENDING: 'team.cockpit.sponsorshipState.anniversaryPending',
+  CONVERTED: 'team.cockpit.sponsorshipState.converted',
+  ENDED: 'team.cockpit.sponsorshipState.ended',
+};
+
+export function sponsorshipStateLabel(t: Translate, state: string | null | undefined): string {
+  if (!state) return t('team.cockpit.sponsorshipState.generic');
+  const key = SPONSORSHIP_STATE_CATALOG_KEY[state];
+  return t(key ?? 'team.cockpit.sponsorshipState.generic');
+}
+
+/** T-57 RG7 — `team/calendar/page.tsx`'s `CalendarLink.status` (`prisma/schema.prisma`: a free
+ *  `String @default("CONNECTED")`, documented `CONNECTED | EXPIRED | REVOKED`). A NULL/absent status
+ *  means "no link on file" → the "not connected" label the page used to render via a bare
+ *  `?? t('…notConnected')` fallback, so this mapper folds that fallback in. Generic fallback for any
+ *  future value never renders the raw token. */
+const CALENDAR_LINK_STATUS_CATALOG_KEY: Readonly<Record<string, string>> = {
+  CONNECTED: 'team.calendar.linkStatus.connected',
+  EXPIRED: 'team.calendar.linkStatus.expired',
+  REVOKED: 'team.calendar.linkStatus.revoked',
+};
+
+export function calendarLinkStatusLabel(t: Translate, status: string | null | undefined): string {
+  if (!status) return t('team.calendar.notConnected');
+  const key = CALENDAR_LINK_STATUS_CATALOG_KEY[status];
+  return t(key ?? 'team.calendar.linkStatus.generic');
+}
+
+/** T-57 RG7 — `team/calendar/page.tsx`'s per-event `myAttendanceState` (`Attendance.state`,
+ *  `prisma/schema.prisma`: `rsvp_yes | rsvp_no | attended | missed`, plus the service-synthesized
+ *  `'none'` for an event the viewer has no attendance row on). Generic fallback for any future value
+ *  never renders the raw token. */
+const ATTENDANCE_STATE_CATALOG_KEY: Readonly<Record<string, string>> = {
+  none: 'team.calendar.attendanceState.none',
+  rsvp_yes: 'team.calendar.attendanceState.rsvpYes',
+  rsvp_no: 'team.calendar.attendanceState.rsvpNo',
+  attended: 'team.calendar.attendanceState.attended',
+  missed: 'team.calendar.attendanceState.missed',
+};
+
+export function attendanceStateLabel(t: Translate, state: string | null | undefined): string {
+  if (!state) return t('team.calendar.attendanceState.none');
+  const key = ATTENDANCE_STATE_CATALOG_KEY[state];
+  return t(key ?? 'team.calendar.attendanceState.generic');
+}

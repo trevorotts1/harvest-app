@@ -8,8 +8,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { useLocale } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import { formatDate } from '@/lib/i18n/format';
-import { enterpriseSeatStatusLabel } from '@/lib/i18n/team-token-display';
+import { enterpriseSeatStatusLabel, activationStatusLabel, sponsorshipStateLabel } from '@/lib/i18n/team-token-display';
 
 interface SponsorSeat {
   memberUserId: string;
@@ -20,7 +21,6 @@ interface SponsorSeat {
   recruitsActivated: number;
   appointmentsGenerated: number;
   renewalDate: string | null;
-  roiNote: string;
 }
 
 interface EnterpriseSeat {
@@ -79,7 +79,8 @@ export default function SponsorCockpitPage() {
   if (cockpit.kind === 'failed') {
     return (
       <div className="card panel">
-        <p>{t('team.cockpit.loadFailed')}</p>
+        {/* T-57 RG7 (SC 4.1.3) — page-failed state announced via StatusMessage (role=alert). */}
+        <StatusMessage>{t('team.cockpit.loadFailed')}</StatusMessage>
         <button type="button" className="btn btn-secondary" onClick={loadCockpit}>{t('common.retry')}</button>
       </div>
     );
@@ -99,11 +100,22 @@ export default function SponsorCockpitPage() {
             {cockpit.seats.map((seat) => (
               <div className="metric" key={seat.memberUserId}>
                 <strong>{seat.memberName}</strong>
-                <div>{t('team.cockpit.statusLabel')} {seat.activationStatus} ({seat.sponsorshipState})</div>
+                {/* T-57 RG7 (i18n) — was raw `{seat.activationStatus} ({seat.sponsorshipState})`: the
+                    server's English/enum tokens rendered verbatim. Now the service hands the RAW tokens
+                    and these localize per-locale via `@/lib/i18n/team-token-display`. */}
+                <div>{t('team.cockpit.statusLabel')} {activationStatusLabel(t, seat.activationStatus)} ({sponsorshipStateLabel(t, seat.sponsorshipState)})</div>
                 <div>{t('team.cockpit.seatCostLabel')}{(seat.seatCostCents / 100).toFixed(2)}</div>
                 <div>{t('team.cockpit.recruitsActivatedLabel')} {seat.recruitsActivated} {t('team.cockpit.appointmentsGeneratedLabel')} {seat.appointmentsGenerated}</div>
                 {seat.renewalDate && <div>{t('team.cockpit.renewsLabel')} {formatDate(locale, seat.renewalDate)}</div>}
-                <p style={{ fontStyle: 'italic' }}>{seat.roiNote}</p>
+                {/* T-57 RG7 (i18n + DOCTRINE) — the ROI note was composed server-side in English
+                    ("recruit(s) activated …" + SAFE_HARBOR_LINE). Now composed client-side, localized,
+                    doctrine-clean ("teammate(s)"), with the mandatory FTC safe-harbor line appended via
+                    its sanctioned catalog key (`grow.goalCard.potentialNotPromise`) — screenshot-
+                    inseparable from the ROI figure, per §4.13/§5.9. */}
+                <p style={{ fontStyle: 'italic' }}>
+                  {t('team.cockpit.roiNote', { teammates: seat.recruitsActivated, appointments: seat.appointmentsGenerated })}{' '}
+                  {t('grow.goalCard.potentialNotPromise')}
+                </p>
               </div>
             ))}
           </div>

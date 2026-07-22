@@ -14,6 +14,7 @@
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 export type CourseLoadState = 'loading' | 'ready' | 'failed';
 
@@ -37,12 +38,13 @@ export default function CourseModulesList({ state, modules, onRetry }: CourseMod
   return (
     <div className="stack" style={{ marginTop: 16 }}>
       {state === 'failed' && (
-        <p style={{ color: 'var(--muted)' }}>
+        /* T-57 RG7 (SC 4.1.3) — modules-load failure announced via StatusMessage (role=alert). */
+        <StatusMessage style={{ color: 'var(--muted)' }}>
           {t('learn.courseModules.loadFailed')}{' '}
           <button type="button" className="badge" onClick={onRetry} style={{ cursor: 'pointer' }}>
             {t('common.retry')}
           </button>
-        </p>
+        </StatusMessage>
       )}
       {state === 'ready' && modules.length === 0 && (
         <p style={{ color: 'var(--muted)' }}>
