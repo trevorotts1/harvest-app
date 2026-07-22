@@ -7,7 +7,13 @@ import { NextRequest, NextResponse } from 'next/server';
 // a route is wired to real persistence. This route still isn't — `sessions`/`users` (./store.ts)
 // are the same in-memory demo arrays they always were; only the enum's import path changed, not
 // what backs it.
-import { OrgType } from '@/types/onboarding';
+import { IntensitySetting, OrgType } from '@/types/onboarding';
+// T-R35 (P1 fix, §6.9/§15.2): builds the exact declared `OnboardingCompletedEvent` shape and
+// publishes it through an `OnboardingEventSink`. This module has ZERO dependency on the `inngest`
+// package itself (see its own header comment) — only the production sink implementation
+// (`InngestOnboardingEventSink`, payment-inngest-functions.ts) does, which is why THAT is imported
+// lazily below rather than here at module scope.
+import { emitOnboardingCompleted } from '@/services/onboarding/wp01/downstream-contracts';
 // T-19 QC CRITICAL fix (§6.7): the ONLY tier source this route may consult now. It used to call
 // `onboardingService.determineAccessTier(commitmentScore, session.org_type)` — a legacy function
 // that assigned tier BY COMMITMENT SCORE (>=9 -> ENTERPRISE $25,000/yr, >=7 -> PAID_INDIVIDUAL
@@ -114,6 +120,56 @@ export async function POST(request: NextRequest) {
     const accessTier = assignAccessTierFromSignals({
       authMethod: 'email_password',
       sponsorLinked: Boolean(session.sponsor_id) || session.org_type === OrgType.PRIMERICA,
+    });
+
+    // T-R35 (P1 fix, §6.9/§15.2) — PUBLISH `user.onboarding_completed` through the PRODUCTION
+    // Inngest client, mirroring `InngestDurableQueue`'s `inngest.send` pattern
+    // (agent-runtime/inngest-functions.ts) — the only other real producer in this codebase. This is
+    // what makes the registered `provisionOnOnboardingCompletedFunction` subscriber
+    // (payment-inngest-functions.ts, served at /api/inngest) actually fire; before this fix nothing
+    // in the live app ever called it.
+    //
+    // Deliberately published BEFORE the session/user are mutated below (not after): a publish
+    // failure (`inngest.send` throwing — e.g. a transient Inngest/network fault) propagates to this
+    // route's own top-level try/catch and surfaces as a real 500, fail-closed rather than silently
+    // swallowed, and — because the session is NOT yet marked `completed` — the caller can safely
+    // retry the same POST, which will attempt the publish again (`session.completed` still blocks a
+    // SECOND attempt only once this call has actually succeeded). A duplicate publish from a client
+    // retry lands on the exact same idempotent guard `provisionFromContract` already enforces for
+    // an Inngest-level redelivery (at most one ACTIVE subscription per user_id) — see
+    // provisioning.ts's own doc comment — so it can never double-provision either way.
+    //
+    // Payload — every field is one of the exact 7 declared on `OnboardingCompletedEvent`
+    // (types/onboarding.ts:463-471: `event`, `user_id`, `role`, `access_tier`, `organization`,
+    // `anchor_statement`, `intensity_setting`), sourced from real onboarding data already
+    // established above in this handler, never fabricated:
+    //   - user_id / role: this session's own identity + role (OnboardingSession.role).
+    //   - access_tier: `accessTier`, the §6.7-correct value just computed above from signals, never
+    //     `commitmentScore` (see the T-19 fix comment above).
+    //   - organization: §6.8 models org membership as a SET, but this demo session only ever
+    //     tracks a single `org_type` category (there is no real multi-org id list yet — the
+    //     session-lifecycle gap already noted in ./store.ts) — carried here as the one-element array
+    //     the session actually has, never a fabricated org id.
+    //   - anchor_statement: §6.4's Seven Whys anchor, sourced from `session.goal_card.anchorStatement`
+    //     — only the rep track (Flow A/C) ever produces one; per downstream-contracts.ts's own
+    //     documented convention for this exact non-nullable field, a track with none passes `''`.
+    //   - intensity_setting: prefers the session's own dedicated (not yet populated by any live
+    //     route — a pre-existing T-20 session-lifecycle gap) `intensity_setting` field; falls back to
+    //     `intensity_data.riskTolerance`, whose `'LOW' | 'MEDIUM' | 'HIGH'` literal values are
+    //     IDENTICAL to the `IntensitySetting` enum's own members (prisma/schema.prisma) — the same
+    //     value under two names, not an invented mapping — and `intensity_data` is guaranteed
+    //     present by the required-field check earlier in this handler.
+    const { InngestOnboardingEventSink } = await import(
+      '@/services/payment/inngest/payment-inngest-functions'
+    );
+    await emitOnboardingCompleted(new InngestOnboardingEventSink(), {
+      user_id: userId,
+      role: session.role,
+      access_tier: accessTier,
+      organization: [session.org_type],
+      anchor_statement: session.goal_card?.anchorStatement ?? '',
+      intensity_setting:
+        session.intensity_setting ?? (session.intensity_data.riskTolerance as IntensitySetting),
     });
 
     // Mark session completed

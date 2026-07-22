@@ -2,6 +2,22 @@ import { NextRequest } from 'next/server';
 
 import { OnboardingService } from '../../src/services/onboarding/service';
 import { OnboardingStep, Role, OrgType, AccessTier, ROLE_VISIBILITY, type OnboardingSession } from '../../src/types/onboarding';
+
+// T-R35 (P1 fix): the completion route now publishes `user.onboarding_completed` through
+// `InngestOnboardingEventSink` (dynamically imported at request time — see route.ts's own header
+// comment on why). That sink's module imports the ESM-only `inngest` package, which cannot load
+// under Jest's CJS runtime — mocked here the same module-boundary way
+// tests/unit/agent-dispatch-route.test.ts mocks `InngestDurableQueue`, so this suite never loads the
+// real `inngest` package and can capture exactly what the route published.
+const sentOnboardingEvents: Array<{ name: string; data: unknown }> = [];
+jest.mock('@/services/payment/inngest/payment-inngest-functions', () => ({
+  InngestOnboardingEventSink: class {
+    async publish(event: { event: string }) {
+      sentOnboardingEvents.push({ name: event.event, data: event });
+    }
+  },
+}));
+
 // T-19 QC CRITICAL fix regression tests: exercise the ACTUAL live route handler (not just the
 // service function it used to call), since the defect was in the route's wiring, not only in
 // `OnboardingService.determineAccessTier` — see the `POST /api/onboarding/complete` describe block
@@ -237,11 +253,17 @@ describe('POST /api/onboarding/complete — LIVE route sources access_tier from 
   afterEach(() => {
     completeSessions.length = 0;
     completeUsers.length = 0;
+    sentOnboardingEvents.length = 0;
   });
 
   function seedSession(userId: string, overrides: Record<string, unknown> = {}) {
     completeSessions.push({
       user_id: userId,
+      // T-R35: a real `role` — every test in this describe block predates the publish wiring and
+      // never set one; the completion route now reads it straight through onto the published
+      // `user.onboarding_completed` event, so a real value belongs in the fixture even though none
+      // of these tests assert on it directly.
+      role: Role.REP,
       current_step: 'INTENSITY',
       completed: false,
       intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
@@ -342,11 +364,14 @@ describe('POST /api/onboarding/complete — GDPR consent completion precondition
   afterEach(() => {
     completeSessions.length = 0;
     completeUsers.length = 0;
+    sentOnboardingEvents.length = 0;
   });
 
   function seedSessionNoDefaultConsent(userId: string, overrides: Record<string, unknown> = {}) {
     completeSessions.push({
       user_id: userId,
+      // T-R35: see the identical note on `seedSession` above — a real `role` for the published event.
+      role: Role.REP,
       current_step: 'CONSENT_CAPTURE',
       completed: false,
       intensity_data: { commitmentScore: 9, weeklyHours: 10, riskTolerance: 'HIGH', supportNeeds: [] },
