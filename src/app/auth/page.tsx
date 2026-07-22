@@ -7,6 +7,9 @@ import { useRouter } from 'next/navigation';
 
 import { useT } from '@/app/locale-context';
 import { landsOnTeamView } from '@/components/AppShell/navConfig';
+import StatusMessage from '@/components/StatusMessage';
+
+import { registerAndSignIn, type RegisterFields } from './register-client';
 
 const industries = [
   'Financial services',
@@ -43,15 +46,25 @@ export default function AuthPage() {
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
   const [organizationName, setOrganizationName] = useState('');
 
-  // Login mode (T-04): wired to Auth.js's real Credentials sign-in, replacing the demo stub. The
-  // register wizard below is unchanged — registration (WP01 territory) still POSTs to
-  // /api/auth/register (src/app/api/auth/register/route.ts) then continues to /onboarding; a
-  // successful registration does not itself start a session, so sign-in after registering still
-  // goes through this same login form.
+  // Login mode (T-04): wired to Auth.js's real Credentials sign-in, replacing the demo stub.
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginPending, setLoginPending] = useState(false);
+
+  // T-R39: the register wizard now REALLY creates an account. It used to be a plain GET-navigating
+  // form (its `action` attribute pointed straight at /onboarding) carrying hardcoded demo defaults
+  // (name="Spaulding Demo", email="demo@theharvest.local") that never touched the network, despite
+  // a since-removed comment here claiming it "still POSTs to /api/auth/register". No account was
+  // ever created, so a real new person could never sign in — and `/api/onboarding/step`'s
+  // `withRole` gate (src/lib/auth/with-role.ts) requires a real authenticated session, so they
+  // could not reach onboarding at all either. `handleRegister` below POSTs
+  // /api/auth/register (src/app/api/auth/register/route.ts) to create the User row with a real
+  // bcrypt hash, THEN calls `signIn('credentials', ...)` to establish the session, and ONLY THEN
+  // navigates to /onboarding — see `registerAndSignIn` (register-client.ts) for the fail-closed
+  // orchestration (a failure at either step reports an honest error and never navigates).
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerPending, setRegisterPending] = useState(false);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -88,6 +101,40 @@ export default function AuthPage() {
     () => organizationName.trim().toLowerCase().includes('primerica'),
     [organizationName],
   );
+
+  const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (registerPending) return; // double-submit guard — a second click mid-flight is a no-op
+    setRegisterError(null);
+    setRegisterPending(true);
+
+    const data = new FormData(event.currentTarget);
+    const name = String(data.get('name') ?? '').trim();
+    const email = String(data.get('email') ?? '').trim();
+    const password = String(data.get('password') ?? '');
+    const solutionNumber = String(data.get('solutionNumber') ?? '').trim();
+
+    const fields: RegisterFields = {
+      name,
+      email,
+      password,
+      orgType: isPrimerica ? 'PRIMERICA' : 'EXTERNAL',
+      solutionNumber,
+    };
+
+    try {
+      const outcome = await registerAndSignIn(fields, (signInEmail, signInPassword) =>
+        signIn('credentials', { email: signInEmail, password: signInPassword, redirect: false })
+      );
+      if (outcome.outcome === 'error') {
+        setRegisterError(t(outcome.catalogKey));
+        return; // NEVER navigate to /onboarding unless the account + session both truly exist
+      }
+      router.push('/onboarding');
+    } finally {
+      setRegisterPending(false);
+    }
+  };
 
   return (
     <main className="form-page">
@@ -152,14 +199,18 @@ export default function AuthPage() {
               </div>
             </form>
           ) : (
-          <form action="/onboarding">
+          <form onSubmit={handleRegister}>
             <div className="field">
               <label htmlFor="name">{t('auth.nameLabel')}</label>
-              <input id="name" name="name" defaultValue="Spaulding Demo" />
+              <input id="name" name="name" autoComplete="name" required />
             </div>
             <div className="field">
               <label htmlFor="email">{t('auth.emailLabel')}</label>
-              <input id="email" name="email" type="email" defaultValue="demo@theharvest.local" />
+              <input id="email" name="email" type="email" autoComplete="email" required />
+            </div>
+            <div className="field">
+              <label htmlFor="password">{t('auth.passwordLabel')}</label>
+              <input id="password" name="password" type="password" autoComplete="new-password" required />
             </div>
             <div className="field">
               <label htmlFor="role">{t('auth.roleLabel')}</label>
@@ -260,9 +311,12 @@ export default function AuthPage() {
               ) : null}
             </div>
 
+            {registerError ? <StatusMessage>{registerError}</StatusMessage> : null}
             <div className="notice">{t('auth.demoDisclosureNotice')}</div>
             <div className="actions">
-              <button className="btn btn-primary" type="submit">{t('auth.continueToOnboarding')}</button>
+              <button className="btn btn-primary" type="submit" disabled={registerPending}>
+                {registerPending ? t('auth.registeringCta') : t('auth.continueToOnboarding')}
+              </button>
               <Link className="btn btn-secondary" href="/today">{t('auth.skipToToday')}</Link>
             </div>
           </form>
