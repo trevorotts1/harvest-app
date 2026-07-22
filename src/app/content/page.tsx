@@ -15,6 +15,7 @@ import styles from './content.module.css';
 import { useLocale, useT } from '@/app/locale-context';
 import { formatDateTime } from '@/lib/i18n/format';
 import { errorDisplay } from '@/lib/i18n/error-display';
+import { contentCategoryLabel, contentStateLabel, contentTypeLabel } from '@/lib/i18n/content-token-display';
 
 type QueueState = 'DRAFTING' | 'COMPLIANCE_CHECK' | 'READY_FOR_REVIEW' | 'SCHEDULED' | 'PUBLISHED' | 'BLOCKED';
 
@@ -284,11 +285,16 @@ export default function ContentQueuePage() {
               <div key={item.id} className={`${styles.item} ${item.state === 'BLOCKED' ? styles.itemBlocked : ''}`}>
                 <div className={styles.itemHeader}>
                   <div className={styles.itemHeaderMeta}>
-                    <span>{item.content_type}</span>
+                    <span>{contentTypeLabel(t, item.content_type)}</span>
                     {item.platform && <span>· {item.platform}</span>}
-                    {item.category && <span>· {item.category.replace(/_/g, ' ')}</span>}
+                    {/* T-57 RG6 (i18n) — was `{item.category.replace(/_/g, ' ')}`: the raw
+                        `ContentCategory` token, merely de-snake-cased, never translated. */}
+                    {item.category && <span>· {contentCategoryLabel(t, item.category)}</span>}
                   </div>
-                  <span className={`${styles.stateChip} ${styles[STATE_CLASS[item.state]]}`}>{item.state.replace(/_/g, ' ')}</span>
+                  {/* T-57 RG6 (i18n) — was `{item.state.replace(/_/g, ' ')}`: the raw
+                      `ContentQueueState` token, merely de-snake-cased, never translated.
+                      `contentStateLabel` reuses this queue's own `filters.*` catalog keys. */}
+                  <span className={`${styles.stateChip} ${styles[STATE_CLASS[item.state]]}`}>{contentStateLabel(t, item.state)}</span>
                 </div>
 
                 {item.headline && <p className={styles.headline}>{item.headline}</p>}

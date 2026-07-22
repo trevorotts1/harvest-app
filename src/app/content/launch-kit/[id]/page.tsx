@@ -11,6 +11,7 @@ import Link from 'next/link';
 import styles from '../../content.module.css';
 import { useT } from '@/app/locale-context';
 import { reasonDisplay } from '@/lib/i18n/reason-display';
+import { launchKitPieceTypeLabel, launchKitVersionLabel, welcomeVariantLabel, contentStateLabel } from '@/lib/i18n/content-token-display';
 
 interface KitData {
   kit: {
@@ -84,8 +85,13 @@ export default function LaunchKitPage({ params }: PageProps) {
           {t('content.launchKit.backToQueueCta')}
         </Link>
         <h1 className={styles.title}>{t('content.launchKit.titlePrefix')} {kit.new_member_first_name}</h1>
+        {/* T-57 RG6 (i18n) — was `{kit.version.replace(/_/g, ' ')} … {kit.welcome_variant.replace(/_/g,
+            ' ').toLowerCase()}`: the raw `LaunchKitVersion`/`WelcomeVariant` tokens, merely
+            de-snake-cased, never translated. `welcomeVariantLabel` reuses `content/page.tsx`'s own
+            `LaunchKitTrigger` <select> catalog keys (single source of truth for the 3 known
+            values). */}
         <p className={styles.subtitle}>
-          {kit.version.replace(/_/g, ' ')} {t('content.launchKit.joinedViaSeparator')} {kit.welcome_variant.replace(/_/g, ' ').toLowerCase()}
+          {launchKitVersionLabel(t, kit.version)} {t('content.launchKit.joinedViaSeparator')} {welcomeVariantLabel(t, kit.welcome_variant)}
         </p>
 
         {kit.photo_url ? (
@@ -108,9 +114,14 @@ export default function LaunchKitPage({ params }: PageProps) {
         <div className={styles.itemList}>
           {items.map((item) => (
             <div key={item.id} className={`${styles.item} ${item.state === 'BLOCKED' ? styles.itemBlocked : ''}`}>
+              {/* T-57 RG6 (i18n) — was `{item.launch_kit_piece_type?.replace(/_/g, ' ')}`: the raw
+                  `LaunchKitPieceType` token, merely de-snake-cased, never translated. The `item.state`
+                  chip (a bare `ContentQueueState` render, same enum `content/page.tsx`'s state chip
+                  uses) is fixed alongside it via the same `contentStateLabel` mapper for consistency
+                  across this every-rep-facing surface. */}
               <div className={styles.itemHeader}>
-                <span>{item.launch_kit_piece_type?.replace(/_/g, ' ')}</span>
-                <span className={styles.stateChip}>{item.state}</span>
+                <span>{launchKitPieceTypeLabel(t, item.launch_kit_piece_type)}</span>
+                <span className={styles.stateChip}>{contentStateLabel(t, item.state)}</span>
               </div>
               {item.headline && <p className={styles.headline}>{item.headline}</p>}
               <p className={styles.itemBody}>{item.body}</p>

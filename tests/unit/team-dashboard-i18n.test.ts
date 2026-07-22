@@ -81,4 +81,20 @@ describe('Team dashboard page — i18n (EN default + genuine ES render, T-R32c)'
   test("TEETH: the forbidden-state heading never regresses to the doctrine-forbidden noun \"leads\"", () => {
     expect(t('en', 'team.dashboard.forbidden.heading')).not.toMatch(/\bleads?\b/i);
   });
+
+  // T-57 RG6 (i18n) — this page's `needsYouNow[].triggerReason` used to render the raw/merely
+  // de-snake-cased-and-lowercased `TriggerReason` token (`RENDERED_I18N_LEAK_BASELINE.json`, now
+  // closed to empty). The fix REUSES `team/bridges/components/PendingBridgeItem.tsx`'s own
+  // `team.bridges.item.reasonLabel.*` catalog keys (a local `REASON_LABEL_KEY` map in
+  // `team/page.tsx`, single source of truth for the copy — see that file's own header note) rather
+  // than duplicating a second translated namespace for the identical `three-way-handoff.service.ts`
+  // machine token. The "needs you now" section itself is behind the unresolved fetch this suite's
+  // fixed loading-state-only scope covers — this asserts the reused keys resolve to real, distinct
+  // EN/ES copy (already unit-proven for PendingBridgeItem in tests/unit/t57-r4-i18n-residual.test.ts).
+  test('the reused team.bridges.item.reasonLabel.* keys (needsYouNow trigger reason) resolve to real, distinct EN/ES copy', () => {
+    expect(t('en', 'team.bridges.item.reasonLabel.buyingSignal')).toBe("They're showing real interest");
+    expect(t('es', 'team.bridges.item.reasonLabel.buyingSignal')).toBe('Está mostrando interés real');
+    expect(t('en', 'team.bridges.item.reasonLabel.fallback')).toBe('Wants to bring you into a conversation');
+    expect(t('es', 'team.bridges.item.reasonLabel.fallback')).toBe('Quiere incluirte en una conversación');
+  });
 });

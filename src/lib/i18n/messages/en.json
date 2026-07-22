@@ -7,7 +7,15 @@
     "save": "Save",
     "back": "Back",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "channel": {
+      "smsHandoff": "Text (your number)",
+      "smsPlatform": "Text (platform number)",
+      "email": "Email",
+      "socialDm": "Social DM",
+      "inApp": "In-app message",
+      "generic": "Message"
+    }
   },
   "nav": {
     "team": "Team",
@@ -857,7 +865,20 @@
       "wholeKitHoldSuffix": ". The entire kit is held until every piece clears.",
       "pieceNeedsRevision": "This piece needs doctrine revision before the kit can proceed.",
       "approveKitCta": "Approve whole kit",
-      "withdrawKitCta": "New member withdrew — move to drafts"
+      "withdrawKitCta": "New member withdrew — move to drafts",
+      "pieceType": {
+        "welcome": "Welcome",
+        "announcement": "Announcement",
+        "day3ValueEmail": "Day-3 value email",
+        "day7EventInvite": "Day-7 event invite",
+        "generic": "Kit piece"
+      },
+      "version": {
+        "v1Standard": "V1 — standard",
+        "v2TestimonialAnchored": "V2 — testimonial-anchored",
+        "v3EventCentric": "V3 — event-centric",
+        "generic": "Version"
+      }
     },
     "queue": {
       "title": "Content Queue",
@@ -875,6 +896,24 @@
         "published": "Published",
         "blocked": "Blocked",
         "followups": "Follow-ups"
+      },
+      "state": {
+        "complianceCheck": "Compliance check",
+        "generic": "Status pending"
+      },
+      "category": {
+        "communitySpotlight": "Community spotlight",
+        "valueFirstEducation": "Value-first education",
+        "movementFraming": "Movement framing",
+        "behindTheHarvest": "Behind the harvest",
+        "eventIntroductionAnnouncement": "Event & introduction announcement",
+        "generic": "Category"
+      },
+      "contentType": {
+        "socialPost": "Social post",
+        "blog": "Blog",
+        "email": "Email",
+        "generic": "Content"
       },
       "selectedSuffix": "selected",
       "bulkApproveCta": "Bulk-approve selected",
@@ -903,7 +942,8 @@
         "welcomeVariant": {
           "personalReferral": "Personal referral",
           "eventAttendee": "Event attendee",
-          "baseMemberIntroduced": "Base-member introduced"
+          "baseMemberIntroduced": "Base-member introduced",
+          "generic": "Welcome"
         },
         "generateCta": "Generate launch kit",
         "generateFailedGeneric": "Could not generate the launch kit.",
@@ -924,6 +964,12 @@
         "toneLabel": "Tone:",
         "personalizationSeparator": "· Personalization:",
         "doctrineVerifiedSuffix": "· doctrine-verified"
+      },
+      "personalizationTier": {
+        "automatic": "Automatic",
+        "aiInferred": "AI-inferred",
+        "repProvided": "Rep-provided",
+        "generic": "Personalization"
       }
     }
   },
@@ -1434,8 +1480,22 @@
       "loadFailed": "We couldn't load this view right now.",
       "badge": "Rep drill-in",
       "milestonesBadge": "Milestones",
+      "milestoneGenericLabel": "Milestone",
       "pipelineStatesBadge": "Pipeline states",
       "pipelineStatesEmpty": "Learning this rep's community — nothing in the pipeline yet.",
+      "pipelineStage": {
+        "identified": "Identified",
+        "introduced": "Introduced",
+        "responded": "Responded",
+        "appointmentProposed": "Appointment proposed",
+        "appointmentConfirmed": "Appointment confirmed",
+        "met": "Met",
+        "closedClient": "Closed — client",
+        "closedTeammate": "Closed — new teammate",
+        "dormant": "Dormant",
+        "doNotContact": "Do not contact",
+        "generic": "In the pipeline"
+      },
       "namesInPlayBadge": "Names in play",
       "namesInPlayEmpty": "No names in play yet — nothing to review."
     },
@@ -1490,6 +1550,18 @@
         "teamCall": "Team call",
         "bigEvent": "Big event"
       },
+      "eventTypeGeneric": "Team event",
+      "status": {
+        "proposed": "Proposed",
+        "confirmed": "Confirmed",
+        "rescheduled": "Rescheduled",
+        "declined": "Declined",
+        "held": "Held",
+        "noShow": "No-show",
+        "cancelled": "Cancelled",
+        "completed": "Completed",
+        "generic": "Status pending"
+      },
       "startsAtLabel": "Starts at",
       "addEventCta": "Add to team calendar (RVP only)",
       "rvpOnlyNotice": "Only the RVP/admin can add to the team calendar.",
@@ -1527,6 +1599,11 @@
       "renewsLabel": "Renews:",
       "enterpriseConsoleBadge": "Enterprise console",
       "seatPoolHeading": "Seat pool",
+      "seatStatus": {
+        "active": "Active",
+        "revoked": "Revoked",
+        "generic": "Status"
+      },
       "noSeatsAssigned": "No enterprise seats assigned yet.",
       "orgAnalyticsHeading": "Org analytics narrative",
       "noNarrativeYet": "No narrative generated yet.",

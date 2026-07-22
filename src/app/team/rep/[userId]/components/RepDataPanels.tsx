@@ -8,6 +8,7 @@
 // rendered a bare section header over an empty grid/list — a narrative-free blank region (SC9).
 
 import { useT } from '@/app/locale-context';
+import { pipelineStageLabel } from '@/lib/i18n/team-token-display';
 
 export interface PipelineStatesPanelProps {
   counts: Record<string, number>;
@@ -26,7 +27,7 @@ export function PipelineStatesPanel({ counts }: PipelineStatesPanelProps) {
           {entries.map(([stage, count]) => (
             <div className="metric" key={stage}>
               <strong>{count}</strong>
-              <span>{stage.toLowerCase().replace(/_/g, ' ')}</span>
+              <span>{pipelineStageLabel(t, stage)}</span>
             </div>
           ))}
         </div>
@@ -55,7 +56,7 @@ export function NamesInPlayPanel({ names }: NamesInPlayPanelProps) {
       ) : (
         <ul>
           {names.map((n) => (
-            <li key={n.contactId}>{n.displayName} — {n.pipelineStage.toLowerCase().replace(/_/g, ' ')}</li>
+            <li key={n.contactId}>{n.displayName} — {pipelineStageLabel(t, n.pipelineStage)}</li>
           ))}
         </ul>
       )}

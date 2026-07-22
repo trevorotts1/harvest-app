@@ -64,4 +64,20 @@ describe('Team Calendar page — i18n (EN default + genuine ES render, T-R32c)',
     expect(t('en', 'team.calendar.proposeClosingCta')).toBe('Propose closing appointment');
     expect(t('es', 'team.calendar.proposeClosingCta')).toBe('Proponer cita de cierre');
   });
+
+  // T-57 RG6 (i18n) — this page's broadcast-event `e.type` and personal-agenda `a.status`/`c.status`
+  // used to render the raw/merely de-snake-cased `BroadcastEvent.type`/`Appointment.status`/
+  // `CoachingSession.status` tokens (`RENDERED_I18N_LEAK_BASELINE.json`, now closed to empty) via
+  // `eventTypeLabel`/`agendaStatusLabel` (`@/lib/i18n/team-token-display.ts`, unit-proven in
+  // tests/unit/i18n-team-token-display.test.ts). The broadcast/agenda lists themselves are behind
+  // the unresolved fetch this suite's fixed `loading`-state-only scope covers — these assert the
+  // new catalog keys those mappers resolve through are real, distinct EN/ES copy.
+  test('the new eventTypeGeneric/status catalog keys those mappers resolve through are real, distinct EN/ES copy', () => {
+    expect(t('en', 'team.calendar.eventTypeGeneric')).toBe('Team event');
+    expect(t('es', 'team.calendar.eventTypeGeneric')).toBe('Evento de equipo');
+    expect(t('en', 'team.calendar.status.confirmed')).toBe('Confirmed');
+    expect(t('es', 'team.calendar.status.confirmed')).toBe('Confirmada');
+    expect(t('en', 'team.calendar.status.noShow')).toBe('No-show');
+    expect(t('es', 'team.calendar.status.noShow')).toBe('No se presentó');
+  });
 });

@@ -91,6 +91,42 @@ describe('ApprovalInboxItem — i18n (EN default + genuine ES render, T-R32)', (
     expect(esText).not.toContain('Drafted');
   });
 
+  // T-57 RG6 (i18n) — the header chip used to render `{current.channel.replaceAll('_', ' ')}` (a
+  // raw `MessageChannel` token, merely de-snake-cased, e.g. "sms handoff") and the `aria-label`
+  // spliced the SAME raw token into `draftToAria`'s `{channel}` interpolation — both closed
+  // `RENDERED_I18N_LEAK_BASELINE.json` entries via `channelLabel` (`@/lib/i18n/channel-display.ts`).
+  test('TEETH — the channel chip is a genuine localized label, never the raw/de-snake-cased MessageChannel token', () => {
+    const item = baseItem({ channel: 'SMS_HANDOFF' });
+    const enText = textOf(renderEn(item));
+    const esText = textOf(renderEs(item));
+    expect(enText).toContain('Text (your number)');
+    expect(esText).toContain('SMS (tu número)');
+    expect(enText).not.toContain('SMS_HANDOFF');
+    expect(enText).not.toContain('sms handoff');
+    expect(esText).not.toContain('sms handoff');
+  });
+
+  test('TEETH — the same fix holds for every known MessageChannel value, and the aria-label carries the localized label too, not the raw token', () => {
+    const channels: [string, string, string][] = [
+      ['SMS_PLATFORM', 'Text (platform number)', 'SMS (número de la plataforma)'],
+      ['EMAIL', 'Email', 'Correo electrónico'],
+      ['SOCIAL_DM', 'Social DM', 'DM social'],
+      ['IN_APP', 'In-app message', 'Mensaje en la app'],
+    ];
+    for (const [channel, enLabel, esLabel] of channels) {
+      const item = baseItem({ channel });
+      const enHtml = renderEn(item);
+      const esHtml = renderEs(item);
+      expect(textOf(enHtml)).toContain(enLabel);
+      expect(textOf(esHtml)).toContain(esLabel);
+      // The aria-label attribute itself (not just the visible chip) carries the localized label.
+      expect(enHtml).toContain(`via ${enLabel}`);
+      expect(esHtml).toContain(`vía ${esLabel}`);
+      expect(enHtml).not.toContain(channel);
+      expect(esHtml).not.toContain(channel);
+    }
+  });
+
   test('queued-offline banner translates and suppresses the action footer in both locales', () => {
     const queuedItem = baseItem({ queuedOffline: true });
     const enHtml = renderEn(queuedItem);

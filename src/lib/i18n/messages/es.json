@@ -7,7 +7,15 @@
     "save": "Guardar",
     "back": "Atrás",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "channel": {
+      "smsHandoff": "SMS (tu número)",
+      "smsPlatform": "SMS (número de la plataforma)",
+      "email": "Correo electrónico",
+      "socialDm": "DM social",
+      "inApp": "Mensaje en la app",
+      "generic": "Mensaje"
+    }
   },
   "nav": {
     "team": "Equipo",
@@ -857,7 +865,20 @@
       "wholeKitHoldSuffix": ". Todo el kit se retiene hasta que cada pieza quede aprobada.",
       "pieceNeedsRevision": "Esta pieza necesita revisión doctrinal antes de que el kit pueda continuar.",
       "approveKitCta": "Aprobar todo el kit",
-      "withdrawKitCta": "El nuevo miembro se retiró — mover a borradores"
+      "withdrawKitCta": "El nuevo miembro se retiró — mover a borradores",
+      "pieceType": {
+        "welcome": "Bienvenida",
+        "announcement": "Anuncio",
+        "day3ValueEmail": "Correo de valor del día 3",
+        "day7EventInvite": "Invitación al evento del día 7",
+        "generic": "Pieza del kit"
+      },
+      "version": {
+        "v1Standard": "V1 — estándar",
+        "v2TestimonialAnchored": "V2 — basada en testimonios",
+        "v3EventCentric": "V3 — centrada en el evento",
+        "generic": "Versión"
+      }
     },
     "queue": {
       "title": "Cola de contenido",
@@ -875,6 +896,24 @@
         "published": "Publicado",
         "blocked": "Bloqueado",
         "followups": "Seguimientos"
+      },
+      "state": {
+        "complianceCheck": "Revisión de cumplimiento",
+        "generic": "Estado pendiente"
+      },
+      "category": {
+        "communitySpotlight": "Historia destacada de la comunidad",
+        "valueFirstEducation": "Educación de valor",
+        "movementFraming": "Enfoque de movimiento",
+        "behindTheHarvest": "Detrás de la cosecha",
+        "eventIntroductionAnnouncement": "Anuncio de evento o presentación",
+        "generic": "Categoría"
+      },
+      "contentType": {
+        "socialPost": "Publicación social",
+        "blog": "Blog",
+        "email": "Correo electrónico",
+        "generic": "Contenido"
       },
       "selectedSuffix": "seleccionados",
       "bulkApproveCta": "Aprobar en lote los seleccionados",
@@ -903,7 +942,8 @@
         "welcomeVariant": {
           "personalReferral": "Referencia personal",
           "eventAttendee": "Asistente a un evento",
-          "baseMemberIntroduced": "Presentado por un miembro base"
+          "baseMemberIntroduced": "Presentado por un miembro base",
+          "generic": "Bienvenida"
         },
         "generateCta": "Generar kit de lanzamiento",
         "generateFailedGeneric": "No se pudo generar el kit de lanzamiento.",
@@ -924,6 +964,12 @@
         "toneLabel": "Tono:",
         "personalizationSeparator": "· Personalización:",
         "doctrineVerifiedSuffix": "· verificado por doctrina"
+      },
+      "personalizationTier": {
+        "automatic": "Automática",
+        "aiInferred": "Inferida por IA",
+        "repProvided": "Proporcionada por el rep",
+        "generic": "Personalización"
       }
     }
   },
@@ -1434,8 +1480,22 @@
       "loadFailed": "No pudimos cargar esta vista en este momento.",
       "badge": "Detalle del rep",
       "milestonesBadge": "Hitos",
+      "milestoneGenericLabel": "Hito",
       "pipelineStatesBadge": "Estados del pipeline",
       "pipelineStatesEmpty": "Conociendo la comunidad de este rep — todavía no hay nada en el pipeline.",
+      "pipelineStage": {
+        "identified": "Identificado",
+        "introduced": "Presentado",
+        "responded": "Respondió",
+        "appointmentProposed": "Cita propuesta",
+        "appointmentConfirmed": "Cita confirmada",
+        "met": "Reunión realizada",
+        "closedClient": "Cerrado — cliente",
+        "closedTeammate": "Cerrado — nuevo compañero de equipo",
+        "dormant": "Inactivo",
+        "doNotContact": "No contactar",
+        "generic": "En el pipeline"
+      },
       "namesInPlayBadge": "Nombres en juego",
       "namesInPlayEmpty": "Todavía no hay nombres en juego — nada que revisar."
     },
@@ -1490,6 +1550,18 @@
         "teamCall": "Llamada de equipo",
         "bigEvent": "Gran evento"
       },
+      "eventTypeGeneric": "Evento de equipo",
+      "status": {
+        "proposed": "Propuesta",
+        "confirmed": "Confirmada",
+        "rescheduled": "Reprogramada",
+        "declined": "Rechazada",
+        "held": "Retenida",
+        "noShow": "No se presentó",
+        "cancelled": "Cancelada",
+        "completed": "Completada",
+        "generic": "Estado pendiente"
+      },
       "startsAtLabel": "Comienza a las",
       "addEventCta": "Agregar al calendario del equipo (solo RVP)",
       "rvpOnlyNotice": "Solo el RVP/administrador puede agregar al calendario del equipo.",
@@ -1527,6 +1599,11 @@
       "renewsLabel": "Se renueva:",
       "enterpriseConsoleBadge": "Consola empresarial",
       "seatPoolHeading": "Grupo de asientos",
+      "seatStatus": {
+        "active": "Activo",
+        "revoked": "Revocado",
+        "generic": "Estado"
+      },
       "noSeatsAssigned": "Aún no hay asientos empresariales asignados.",
       "orgAnalyticsHeading": "Narrativa de análisis de la organización",
       "noNarrativeYet": "Aún no se ha generado una narrativa.",
