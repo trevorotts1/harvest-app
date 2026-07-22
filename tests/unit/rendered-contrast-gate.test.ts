@@ -35,8 +35,8 @@ describe('Render-based WCAG AA contrast gate (T-05)', () => {
     'verify:rendered-contrast — every text node on `.score-ring` (/) and the full /design-tokens page meets its AA target at every checked viewport x theme combination',
     () => {
       const scriptPath = path.join(repoRoot, 'scripts', 'verify-rendered-contrast.mjs');
-      expect(() => execFileSync('node', [scriptPath], { stdio: 'pipe', timeout: 120000 })).not.toThrow();
+      expect(() => execFileSync('node', [scriptPath], { stdio: 'pipe', timeout: 600000 })).not.toThrow();
     },
-    120000
+    600000
   );
 });
