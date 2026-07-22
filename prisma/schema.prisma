@@ -78,12 +78,28 @@ enum OnboardingStatus {
 
 /// Retained from baseline for OnboardingSession.current_step (linear resumption state); §3.2
 /// notes this is superseded in part by WhySession for the Seven Whys transcript itself.
+///
+/// T-R36: widened (additive only — REGISTER/ACCOUNT_TYPE/SEVEN_WHYS/GOAL_CARD/INTENSITY/COMPLETE
+/// are unchanged) to the full 11-step vocabulary `src/types/onboarding.ts`'s own `OnboardingStep`
+/// TS enum already declares and `ROLE_STEP_MAP`/the live completion route already branch on
+/// (e.g. `CONSENT_CAPTURE`, the real last step for every role) — before this widening, a real
+/// persisted session could never durably reach those steps at all, only an in-memory test fixture
+/// could fake having done so. Unlike Role/OrgType/AccessTier/IntensitySetting/OnboardingStatus
+/// (already unified 1:1 with the Prisma enum by T-17/T-19/T-20 QC fixes — see types/onboarding.ts),
+/// this TS enum is still its own separate declaration, not a re-export of this one; the two are
+/// bridged by string-value (not by TS type identity) in
+/// src/services/onboarding/wp01/session-store.ts's `toPersistedStep`/`fromPersistedStep`.
 enum OnboardingStep {
   REGISTER
   ACCOUNT_TYPE
+  ROLE_ORG_CONTEXT
   SEVEN_WHYS
   GOAL_CARD
   INTENSITY
+  SPONSOR_MATCHING
+  FINRA_DISCLOSURE
+  CALENDAR_CONNECTION
+  CONSENT_CAPTURE
   COMPLETE
 }
 
