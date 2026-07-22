@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 
 import { ContactService } from '../../src/services/warm-market/contact.service';
-import { PipelineService } from '../../src/services/warm-market/pipeline.service';
+import { PipelineService, canAutoAdvance } from '../../src/services/warm-market/pipeline.service';
 import { MemoryJoggerService, MemoryJoggerVocabViolationError } from '../../src/services/warm-market/memory-jogger.service';
 import { PipelineStage, RelationshipType } from '../../src/types/warm-market';
 import {
@@ -356,6 +356,85 @@ describe('Warm Market Engine', () => {
         where: { id: 'contact-1' },
         data: { pipeline_stage: PipelineStage.RESPONDED, last_contact_date: contactedAt },
       });
+    });
+  });
+
+  // T-R40 (§7.5 — the previously-unreachable half of the pipeline: recordOutreach/moveContact had
+  // ZERO real callers, so a contact never left IDENTIFIED). `canAutoAdvance` is the pure guard the
+  // real event sites (first-touch confirm, inbound reply, appointment booking) share via
+  // `PipelineService.advanceStage`.
+  describe('canAutoAdvance (pure funnel-order guard)', () => {
+    test('a strictly-forward move is legal', () => {
+      expect(canAutoAdvance(PipelineStage.IDENTIFIED, PipelineStage.INTRODUCED)).toBe(true);
+      expect(canAutoAdvance(PipelineStage.INTRODUCED, PipelineStage.RESPONDED)).toBe(true);
+      expect(canAutoAdvance(PipelineStage.IDENTIFIED, PipelineStage.APPOINTMENT_CONFIRMED)).toBe(true);
+    });
+
+    test('the SAME stage (idempotent re-fire) is never a legal move — no thrash on re-send', () => {
+      expect(canAutoAdvance(PipelineStage.INTRODUCED, PipelineStage.INTRODUCED)).toBe(false);
+    });
+
+    test('a backward move is never legal — a race (e.g. a reply lands before the send confirms) never regresses the contact', () => {
+      expect(canAutoAdvance(PipelineStage.RESPONDED, PipelineStage.INTRODUCED)).toBe(false);
+    });
+
+    test('CLOSED_CLIENT and CLOSED_RECRUIT are alternative terminals, not sequential — neither out-ranks the other', () => {
+      expect(canAutoAdvance(PipelineStage.CLOSED_CLIENT, PipelineStage.CLOSED_RECRUIT)).toBe(false);
+      expect(canAutoAdvance(PipelineStage.CLOSED_RECRUIT, PipelineStage.CLOSED_CLIENT)).toBe(false);
+    });
+
+    test('DORMANT/DO_NOT_CONTACT are absorbing side-states — never auto-advanced out of, by any target', () => {
+      expect(canAutoAdvance(PipelineStage.DORMANT, PipelineStage.RESPONDED)).toBe(false);
+      expect(canAutoAdvance(PipelineStage.DO_NOT_CONTACT, PipelineStage.INTRODUCED)).toBe(false);
+    });
+  });
+
+  describe('PipelineService.advanceStage (T-R40 guarded real-world advance)', () => {
+    let pipelineService: PipelineService;
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      pipelineService = new PipelineService(mockPrisma);
+    });
+
+    test('a legal forward move reuses recordOutreach and stamps last_contact_date', async () => {
+      mockContactFindUnique.mockResolvedValue({ id: 'contact-1', pipeline_stage: PipelineStage.IDENTIFIED, do_not_contact: false });
+      mockContactUpdate.mockResolvedValue({ id: 'contact-1', pipeline_stage: PipelineStage.INTRODUCED, last_contact_date: new Date('2026-07-15T00:00:00Z') });
+
+      const contactedAt = new Date('2026-07-15T00:00:00Z');
+      const result = await pipelineService.advanceStage('contact-1', PipelineStage.INTRODUCED, contactedAt);
+
+      expect(mockContactFindUnique).toHaveBeenCalledWith({ where: { id: 'contact-1' } });
+      expect(mockContactUpdate).toHaveBeenCalledWith({
+        where: { id: 'contact-1' },
+        data: { pipeline_stage: PipelineStage.INTRODUCED, last_contact_date: contactedAt },
+      });
+      expect(result?.pipeline_stage).toBe(PipelineStage.INTRODUCED);
+    });
+
+    test('IDEMPOTENCY: a contact already past the target stage is left unchanged — no update call', async () => {
+      mockContactFindUnique.mockResolvedValue({ id: 'contact-1', pipeline_stage: PipelineStage.RESPONDED, do_not_contact: false });
+
+      const result = await pipelineService.advanceStage('contact-1', PipelineStage.INTRODUCED, new Date());
+
+      expect(mockContactUpdate).not.toHaveBeenCalled();
+      expect(result?.pipeline_stage).toBe(PipelineStage.RESPONDED);
+    });
+
+    test('a DO_NOT_CONTACT contact is never advanced, regardless of target stage', async () => {
+      mockContactFindUnique.mockResolvedValue({ id: 'contact-1', pipeline_stage: PipelineStage.INTRODUCED, do_not_contact: true });
+
+      const result = await pipelineService.advanceStage('contact-1', PipelineStage.RESPONDED, new Date());
+
+      expect(mockContactUpdate).not.toHaveBeenCalled();
+      expect(result?.do_not_contact).toBe(true);
+    });
+
+    test('a nonexistent contact resolves to null, never throws', async () => {
+      mockContactFindUnique.mockResolvedValue(null);
+      const result = await pipelineService.advanceStage('ghost', PipelineStage.INTRODUCED, new Date());
+      expect(result).toBeNull();
+      expect(mockContactUpdate).not.toHaveBeenCalled();
     });
   });
 

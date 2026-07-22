@@ -13,6 +13,8 @@
 // compression point"; §14.6-6). This module never sends anything itself — it only ever proposes a
 // draft into that already-gated pipeline.
 
+import type { PrismaClient } from '@prisma/client';
+
 import { AgentKey, AgentRuntime, type AgentJobResult } from '../agent-runtime';
 import {
   DEFAULT_WORKING_HOURS,
@@ -25,6 +27,8 @@ import {
 } from './availability';
 import { deterministicSlotLockId, isSlotTakenError } from './slot-lock';
 import { decryptRequiredField, getContactEncryptionKey } from '../warm-market/vault/vault-encryption';
+import { PipelineService } from '../warm-market/pipeline.service';
+import { PipelineStage } from '../../types/warm-market';
 import { t } from '@/lib/i18n/catalog';
 import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 
@@ -181,7 +185,12 @@ export interface ProposeClosingAppointmentResult {
 export class BookingService {
   constructor(
     private readonly prisma: BookingPrismaClient,
-    private readonly dispatch: AgentDispatch = defaultDispatch()
+    private readonly dispatch: AgentDispatch = defaultDispatch(),
+    // T-R40: DI seam for tests. Defaults to a REAL `PipelineService` over this SAME prisma client
+    // (cast to the full `PrismaClient` — in production `prisma` already IS the real client, just
+    // narrowly typed for this service's own needs, exactly like FirstTouchComposerService's
+    // identical seam).
+    private readonly pipelineService: PipelineService = new PipelineService(prisma as unknown as PrismaClient)
   ) {}
 
   async proposeClosingAppointment(input: ProposeClosingAppointmentInput): Promise<ProposeClosingAppointmentResult> {
@@ -211,6 +220,10 @@ export class BookingService {
     if (freeWindow && !disconnected) {
       const booked = await this.attemptSlotLockBooking(input, freeWindow, governingTimezone, dossier);
       if (booked) {
+        // T-R40 (§7.5): an immediately-confirmed closing appointment is real outreach progress —
+        // advance the contact straight to APPOINTMENT_CONFIRMED (monotonic-forward guard handles a
+        // contact that was already further along, e.g. re-booking after a decline/reschedule).
+        await this.pipelineService.advanceStage(input.contactId, PipelineStage.APPOINTMENT_CONFIRMED, now);
         const agentDispatch = await this.dispatch({
           agentKey: AgentKey.APPOINTMENT_SETTING,
           userId: input.repId,
@@ -239,6 +252,11 @@ export class BookingService {
         dossier: { ...dossier, calendar_disconnected: disconnected },
       },
     });
+    // T-R40 (§7.5): a proposed-but-not-yet-confirmed closing appointment still advances the
+    // contact — the same monotonic-forward guard means this is a safe no-op if the contact is
+    // already at/past APPOINTMENT_CONFIRMED (e.g. a disconnected-calendar re-propose after an
+    // earlier confirmed booking gets declined).
+    await this.pipelineService.advanceStage(input.contactId, PipelineStage.APPOINTMENT_PROPOSED, now);
 
     const outcome: ProposeClosingAppointmentOutcome = disconnected && freeWindow ? 'proposed' : 'near_miss_proposed';
     const windowsForTask = nearMiss.length > 0 ? nearMiss : freeWindow ? [freeWindow] : [];
@@ -362,6 +380,12 @@ export class BookingService {
       where: { id: appointmentId },
       data: { status: outcome === 'no_show' ? 'NO_SHOW' : 'HELD' },
     });
+    // T-R40 (§7.5): the appointment was actually HELD (met in person) — advance the contact to MET.
+    // A no-show is deliberately NOT a pipeline advance (they didn't meet; the appointment stays a
+    // signal for the Field Trainer's Ratio panel, not a funnel step).
+    if (outcome === 'completed') {
+      await this.pipelineService.advanceStage(appt.contact_id, PipelineStage.MET, new Date());
+    }
     return { ok: true };
   }
 

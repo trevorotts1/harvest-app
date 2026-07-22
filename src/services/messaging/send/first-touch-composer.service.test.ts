@@ -16,6 +16,9 @@ import {
   decryptRequiredField,
   encryptOptionalField,
 } from '../../warm-market/vault/vault-encryption';
+import { PipelineStage } from '../../../types/warm-market';
+import { agentKeyForPipelineStage } from '../../agent-runtime/scheduled-dispatch';
+import { AgentKey } from '../../agent-runtime';
 
 // A daytime instant in the recipient's zone (3 PM EDT) so quiet hours are NOT the thing under test.
 const DAYTIME = new Date('2026-07-15T19:00:00Z');
@@ -50,6 +53,10 @@ function contactRow(overrides: Partial<SendContactRow> = {}): SendContactRow {
     phone_hash: 'phone-hash-1',
     email_hash: null,
     timezone: 'America/New_York',
+    // T-R40: a fresh import default — lets confirmHandoff's pipeline-advance tests exercise the
+    // real IDENTIFIED -> INTRODUCED move without every pre-existing test having to know about it.
+    pipeline_stage: 'IDENTIFIED',
+    do_not_contact: false,
     ...overrides,
   };
 }
@@ -90,6 +97,18 @@ function makePrisma(seed: { drafts?: SendDraftFields[]; contacts?: SendContactRo
         const c = stores.contacts.get(where.id);
         return c && c.user_id === where.user_id ? { ...c } : null;
       },
+      // T-R40: `PipelineService.advanceStage` (constructed over this SAME mock, cast to the full
+      // PrismaClient) reads/writes pipeline_stage/do_not_contact through these two.
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const c = stores.contacts.get(where.id);
+        return c ? { ...c } : null;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const c = stores.contacts.get(where.id);
+        if (!c) throw new Error('contact not found');
+        Object.assign(c, data);
+        return { ...c };
+      },
     },
     messageThread: {
       findFirst: async ({ where }: { where: { user_id: string; contact_id: string; channel: MessageChannel } }) =>
@@ -109,11 +128,18 @@ function makePrisma(seed: { drafts?: SendDraftFields[]; contacts?: SendContactRo
         stores.messages.push(m);
         return m;
       },
-      findFirst: async ({ where }: { where: { id: string; thread: { user_id: string } } }) => {
+      findFirst: async ({
+        where,
+        include,
+      }: {
+        where: { id: string; thread: { user_id: string } };
+        include?: { thread: true };
+      }) => {
         const m = stores.messages.find((x) => x.id === where.id);
         if (!m) return null;
         const t = stores.threads.find((x) => x.id === m.thread_id);
-        return t && t.user_id === where.thread.user_id ? { ...m } : null;
+        if (!t || t.user_id !== where.thread.user_id) return null;
+        return include?.thread ? { ...m, thread: { id: t.id, contact_id: t.contact_id, user_id: t.user_id } } : { ...m };
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const m = stores.messages.find((x) => x.id === where.id)!;
@@ -272,6 +298,75 @@ describe('FirstTouchComposerService.confirmHandoff', () => {
     const res = await service.confirmHandoff('rep-1', messageId, false);
     expect(res).toEqual({ status: 'MARKED_NOT_SENT', messageId });
     expect(stores.messages[0].delivery_status).toBe('NOT_SENT');
+  });
+
+  // T-R40 — this is the crux of the ticket: recordOutreach/moveContact had ZERO reachable callers,
+  // so a first-touch send never actually advanced the contact off IDENTIFIED. This test drives the
+  // REAL prepareHandoff -> confirmHandoff('sent': true) path end-to-end (never calling
+  // recordOutreach/advanceStage directly) and proves the contact really moves.
+  describe('T-R40: "I sent it" advances the real pipeline', () => {
+    test('advances IDENTIFIED -> INTRODUCED and stamps last_contact_date, driven through the real send/confirm path', async () => {
+      const { service, stores, messageId } = await prepared();
+      expect(stores.contacts.get('c-1')!.pipeline_stage).toBe('IDENTIFIED'); // sanity: starts IDENTIFIED
+
+      const confirmedAt = new Date('2026-07-20T12:00:00Z');
+      const res = await service.confirmHandoff('rep-1', messageId, true, confirmedAt);
+
+      expect(res).toEqual({ status: 'CONFIRMED', messageId });
+      const contact = stores.contacts.get('c-1')!;
+      expect(contact.pipeline_stage).toBe(PipelineStage.INTRODUCED);
+      expect(contact.last_contact_date).toEqual(confirmedAt);
+    });
+
+    test('"I didn\'t send it" never advances the pipeline — a message that never sent is not outreach', async () => {
+      const { service, stores, messageId } = await prepared();
+      await service.confirmHandoff('rep-1', messageId, false);
+      expect(stores.contacts.get('c-1')!.pipeline_stage).toBe('IDENTIFIED');
+    });
+
+    test('IDEMPOTENCY: confirming the SAME handoff twice never re-stamps/thrashes the stage', async () => {
+      const { service, stores, messageId } = await prepared();
+      await service.confirmHandoff('rep-1', messageId, true, new Date('2026-07-20T12:00:00Z'));
+      const afterFirst = { ...stores.contacts.get('c-1')! };
+
+      // A double-tap / retried confirmation request for the exact same message.
+      await service.confirmHandoff('rep-1', messageId, true, new Date('2026-07-21T09:00:00Z'));
+      const afterSecond = stores.contacts.get('c-1')!;
+
+      expect(afterSecond.pipeline_stage).toBe(PipelineStage.INTRODUCED);
+      // Re-sent/re-confirmed does NOT re-stamp last_contact_date — the first genuine send is what's
+      // recorded, not every subsequent no-op re-confirmation.
+      expect(afterSecond.last_contact_date).toEqual(afterFirst.last_contact_date);
+    });
+
+    test('a DO_NOT_CONTACT contact is never advanced even if a handoff is (erroneously) confirmed', async () => {
+      const { prisma, stores } = makePrisma({ contacts: [contactRow({ do_not_contact: true })] });
+      const service = new FirstTouchComposerService(prisma, makeGate(), {
+        decryptPhone: () => '+15551234567',
+        encryptBody: (s) => s,
+      });
+      // The compliance gate here is stubbed permissive (opt-out registry ≠ this per-contact flag),
+      // so prepareHandoff still composes — the do_not_contact guard is the pipeline-advance's own.
+      const prep = await service.prepareHandoff('rep-1', 'd-1', DAYTIME);
+      if (prep.status !== 'READY') throw new Error('setup failed');
+      await service.confirmHandoff('rep-1', prep.messageId, true);
+      expect(stores.contacts.get('c-1')!.pipeline_stage).toBe('IDENTIFIED');
+    });
+
+    // Proves the actual starvation this ticket exists to fix: before T-R40, a contact could never
+    // leave IDENTIFIED, so only the PROSPECTING agent ever fired and PRE_SALE_NURTURE (which owns
+    // INTRODUCED/RESPONDED) was permanently starved. Once the real send/confirm path above advances
+    // a contact to INTRODUCED, `scheduled-dispatch.ts`'s own agent-routing table now feeds it.
+    test('an advanced contact now routes to the previously-starved nurture agent (PIPELINE_STAGE_TO_AGENT)', async () => {
+      const { service, stores, messageId } = await prepared();
+      await service.confirmHandoff('rep-1', messageId, true);
+
+      const contact = stores.contacts.get('c-1')!;
+      expect(contact.pipeline_stage).toBe(PipelineStage.INTRODUCED);
+      expect(agentKeyForPipelineStage(contact.pipeline_stage as PipelineStage)).toBe(AgentKey.PRE_SALE_NURTURE);
+      // Whereas the STARTING stage (IDENTIFIED) only ever fed PROSPECTING — never nurture.
+      expect(agentKeyForPipelineStage(PipelineStage.IDENTIFIED)).not.toBe(AgentKey.PRE_SALE_NURTURE);
+    });
   });
 
   test('OWNERSHIP: another rep cannot confirm this handoff', async () => {
