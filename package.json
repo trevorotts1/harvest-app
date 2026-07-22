@@ -1,6 +1,6 @@
 {
   "name": "harvest-app",
-  "version": "2.0.0-build.T57-RG8",
+  "version": "2.0.0-build.T58-eventbus",
   "private": true,
   "scripts": {
     "dev": "next dev",
