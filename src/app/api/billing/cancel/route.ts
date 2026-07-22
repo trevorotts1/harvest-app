@@ -13,13 +13,29 @@ import {
   SubscriptionService,
   type SubscriptionServicePrisma,
 } from '@/services/payment/subscription.service';
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 
 export const dynamic = 'force-dynamic';
+
+/** T-57 RG8 (i18n) — same fail-soft, duck-typed shape this codebase's other units use
+ *  (`today.service.ts`'s `resolveRepLocale` / the milestones-share route's own copy): never
+ *  throws — a locale-lookup hiccup degrades to English, it must never block cancellation. */
+async function resolveRepLocale(userId: string): Promise<Locale> {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { locale: true } });
+    return isLocale(user?.locale) ? user.locale : DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}
 
 /** GET — the no-dark-pattern cancellation flow data for the confirm screen. */
 export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => {
   const service = new SubscriptionService(prisma as unknown as SubscriptionServicePrisma);
-  const state = await service.getBillingState(identity.userId);
+  const [state, locale] = await Promise.all([
+    service.getBillingState(identity.userId),
+    resolveRepLocale(identity.userId),
+  ]);
 
   const flow = buildCancellationFlow({
     // The honest "state of the field" count is informational; 0 when unknown (never blocks cancel).
@@ -27,6 +43,7 @@ export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => 
     // Downgrade path applies from enterprise → individual (§15.4 "downgrade path where applicable").
     downgradeAvailable: state.plan_tier === 'enterprise',
     currentPeriodEndMs: state.current_period_end ? new Date(state.current_period_end).getTime() : null,
+    locale,
   });
   return NextResponse.json({ flow, currentTier: state.plan_tier });
 });

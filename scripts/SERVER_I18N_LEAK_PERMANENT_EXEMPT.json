@@ -1,0 +1,22 @@
+{
+  "_purpose": "T-57 RG8 (terminating unit) documentation, NOT read by any guard script or test. guard-server-i18n-leak.mjs's BASELINE_PATH loader requires a flat JSON array of bare fingerprint strings (see its own header comment) — it cannot carry per-entry rationale, so this sibling file is where that rationale lives. SERVER_I18N_LEAK_BASELINE.json itself is unchanged in shape (still a flat string array) and still contains exactly these 4 fingerprints; this file documents WHY each one is PERMANENT (never rep-facing, never to be 'fixed' or removed as debt-burn-down) rather than ordinary shrink-only debt. Each entry's rationale is ALSO inlined as a source comment at the flagged site itself (the more discoverable location) — this file is the second, baseline-adjacent copy for anyone auditing SERVER_I18N_LEAK_BASELINE.json directly.",
+  "_convergence": "After T-57 RG8, SERVER_I18N_LEAK_BASELINE.json contains ONLY these 4 entries — every other pre-RG8 entry (the 6 rep-facing ones: tree-builder.ts x5, override-math.ts, primerica-overlay.ts, org-gate.ts x2, cancellation.ts, booking.service.ts) was FIXED (localized) and removed from the baseline, not exempted. A future PR must never add a NEW entry here to silence real new debt — this list is a closed, hand-reviewed set of genuinely internal-only sinks confirmed by grep that no `.tsx` anywhere renders `AuditEvent.content_text`/`narrative`.",
+  "permanentExempt": [
+    {
+      "fingerprint": "src/services/compliance/adjudication/sla-escalation.ts::english-in-server-prose::0::content_text: [SLA escalation for queue",
+      "rationale": "Write-only into AuditService.recordAuditEvent's durable, hash-chained COMPLIANCE audit log (domain: 'cfe'). No .tsx anywhere renders AuditEvent.content_text. A compliance-officer/regulator evidentiary record, not rep-facing; must stay in a fixed audit language, never the acting rep's UI locale."
+    },
+    {
+      "fingerprint": "src/services/compliance/audit/sinks.ts::english-in-server-prose::0::narrative: Data-rights event:",
+      "rationale": "Same class as the sla-escalation.ts entry: write-only compliance audit-log narrative (domain: 'data_rights'), never rendered by any .tsx, never localized."
+    },
+    {
+      "fingerprint": "src/services/compliance/audit/sinks.ts::english-in-server-prose::0::narrative: Licensing state transition:",
+      "rationale": "Same class: write-only compliance audit-log narrative (domain: 'licensing'), never rendered by any .tsx, never localized."
+    },
+    {
+      "fingerprint": "src/services/security/incident/incident-audit-sink.ts::english-in-server-prose::0::narrative: (system-detected via SecurityEvent correlation)",
+      "rationale": "Write-only into the same durable audit log (domain: 'account_security') — a security-incident evidentiary record for an operator/regulator (§16.7), never rendered by any .tsx, never rep-facing, never localized."
+    }
+  ]
+}

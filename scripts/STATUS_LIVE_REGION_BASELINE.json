@@ -1,12 +1,3 @@
 [
-  "src/app/community/[contactId]/page.tsx::0::{error}",
-  "src/app/community/components/ObjectionCoachPanel.tsx::0::{loadError}",
-  "src/app/community/page.tsx::0::{error}",
-  "src/app/community/page.tsx::0::{toggleNotice}",
-  "src/app/content/launch-kit/[id]/page.tsx::0::{error ?? t('content.launchKit.notFound')}",
-  "src/app/content/templates/page.tsx::0::{error}",
-  "src/app/dashboard/contact-upload-demo.tsx::0::{result.error}",
-  "src/app/me/data-rights/page.tsx::0::{confirmAction.errorMessage}",
-  "src/app/me/data-rights/page.tsx::0::{exportAction.errorMessage}",
-  "src/app/me/data-rights/page.tsx::0::{requestAction.errorMessage}"
+  "src/app/dashboard/contact-upload-demo.tsx::0::{result.error}"
 ]

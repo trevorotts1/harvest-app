@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import styles from '../conversation.module.css';
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 interface ObjectionBranch {
   key: string;
@@ -86,7 +87,7 @@ export default function ObjectionCoachPanel({ contactId }: ObjectionCoachPanelPr
 
       {loadError && (
         <div className={styles.repActionStatus}>
-          <p>{loadError}</p>
+          <StatusMessage>{loadError}</StatusMessage>
           <button type="button" className={styles.repActionButton} onClick={() => load()}>
             {t('common.retry')}
           </button>

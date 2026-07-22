@@ -12,6 +12,7 @@ import styles from '../../content.module.css';
 import { useT } from '@/app/locale-context';
 import { reasonDisplay } from '@/lib/i18n/reason-display';
 import { launchKitPieceTypeLabel, launchKitVersionLabel, welcomeVariantLabel, contentStateLabel } from '@/lib/i18n/content-token-display';
+import { StatusMessage } from '@/components/StatusMessage';
 
 interface KitData {
   kit: {
@@ -73,7 +74,7 @@ export default function LaunchKitPage({ params }: PageProps) {
   }
 
   if (loading) return <div className={styles.page}><p className={styles.loadingState}>{t('content.launchKit.loading')}</p></div>;
-  if (error || !data) return <div className={styles.page}><p className={styles.errorState}>{error ?? t('content.launchKit.notFound')}</p></div>;
+  if (error || !data) return <div className={styles.page}><StatusMessage className={styles.errorState}>{error ?? t('content.launchKit.notFound')}</StatusMessage></div>;
 
   const { kit, items } = data;
   const anyBlocked = items.some((i) => i.state === 'BLOCKED');

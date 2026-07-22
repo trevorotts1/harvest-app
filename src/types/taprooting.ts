@@ -84,12 +84,20 @@ export interface OrgTreeResult {
 
 export type RoBChipState = 'met' | 'countdown' | 'not_started';
 
+/**
+ * T-57 RG8 (i18n; server-i18n-leak) — `label`/`countLabel` USED to be pre-composed English prose
+ * (the four RoB axioms + their "X of Y" countdown strings) assembled server-side in
+ * `tree-builder.ts`'s `computeRoBChips` and shipped as-is over `/api/taprooting/tree` to be
+ * rendered verbatim — a Spanish rep saw the axioms in English no matter how the client rendered
+ * them (the exact `guard-server-i18n-leak.mjs` class, mirroring `sponsor-cockpit.service.ts`'s
+ * RG7 `roiNote` fix). Fixed the SAME way: this object now carries only the STRUCTURAL data (the
+ * `key`, `state`, `current`, `target` real numbers) — `RulesOfBuildingChips.tsx` (the one
+ * consumer) composes the localized axiom label + countdown string client-side, via the catalog +
+ * `key`/`current`/`target`, doctrine-clean ("teammate", never "recruit").
+ */
 export interface RulesOfBuildingChip {
   key: 'recruit_has_recruit' | 'leg_four_deep' | 'team_four_legs' | 'leader_emerged';
-  label: string;
   state: RoBChipState;
-  /** e.g. "2 of 4 deep", "1 of 4 legs" — the live countdown string computed from real data. */
-  countLabel: string;
   current: number;
   target: number;
 }

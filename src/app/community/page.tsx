@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 import ContactCard, { type RecencyState } from './components/ContactCard';
 import PlotsRow, { type Plot } from './components/PlotsRow';
 import styles from './community.module.css';
@@ -168,13 +169,13 @@ export default function CommunityPage() {
           onSelect={setSelectedPlot}
         />
 
-        {toggleNotice && <p className={styles.needsInfoNote}>{toggleNotice}</p>}
+        {toggleNotice && <StatusMessage className={styles.needsInfoNote}>{toggleNotice}</StatusMessage>}
 
         {loading && <p className={styles.loadingState}>{t('community.loading')}</p>}
 
         {!loading && error && (
           <div className={styles.errorState}>
-            <p>{error}</p>
+            <StatusMessage>{error}</StatusMessage>
             <button type="button" className={styles.retryButton} onClick={() => load()}>
               {t('community.retry')}
             </button>

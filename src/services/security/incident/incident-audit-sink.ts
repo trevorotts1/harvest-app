@@ -23,6 +23,14 @@ import type { IncidentEventSink } from './incident-service';
  * tamper-evident copy — belt-and-suspenders evidentiary durability for a breach record, which is
  * exactly the kind of evidence a regulator or auditor will ask to see reproduced (§16.1
  * "attribution ... immutability").
+ *
+ * T-57 RG8 (i18n; server-i18n-leak) — `narrative` (below) is PERMANENT-EXEMPT
+ * (`SERVER_I18N_LEAK_BASELINE.json`, `narrative: (system-detected via SecurityEvent correlation)`).
+ * It feeds ONLY this durable, hash-chained SECURITY audit log (`domain: 'account_security'`) —
+ * confirmed by grep that no `.tsx` anywhere renders `AuditEvent.content_text`/`narrative`; this is
+ * a write-only security/incident-response evidentiary record for an operator/regulator (§16.7),
+ * never a rep-facing surface. Never localize: a breach/incident record's language must stay fixed
+ * for evidentiary consistency, not follow whichever operator's locale happened to be active.
  */
 export function mapIncidentEventToAuditInput(event: IncidentEventRecord): RecordAuditEventInput {
   const subjectUserId = (event.payload as { userId?: string | null }).userId ?? null;

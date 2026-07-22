@@ -36,6 +36,7 @@ import ComposerHandoffSheet from '../components/ComposerHandoffSheet';
 import { resolveFirstTouchDraftId } from '../components/resolve-first-touch-draft';
 import styles from '../conversation.module.css';
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 interface ConversationContact {
   id: string;
@@ -136,7 +137,7 @@ export default function ContactConversationPage({ params }: PageProps) {
 
         {!loading && !notFound && error && (
           <div className={styles.timelineEmpty}>
-            <p>{error}</p>
+            <StatusMessage>{error}</StatusMessage>
             <button type="button" className={styles.retryButton} onClick={() => load()}>
               {t('common.retry')}
             </button>

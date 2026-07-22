@@ -1,3 +1,15 @@
+// T-57 RG8 (a11y; status-live-region) — this component's `{result.error}` render is the ONE
+// PERMANENT-EXEMPT entry left in `STATUS_LIVE_REGION_BASELINE.json`
+// (`src/app/dashboard/contact-upload-demo.tsx::0::{result.error}`). PERMANENT because this file is
+// a DEAD, UNREACHABLE pre-rebuild demo scaffold: it is not a Next.js `page.tsx` (so it is not a
+// route by itself), the real `/dashboard` route (`src/app/dashboard/page.tsx`) is a pure
+// server-side `redirect('/today')` stub that never imports or renders this component, and a repo
+// grep confirms zero other `.tsx` imports it either — the two other hits for its filename anywhere
+// in `src/` are plain prose comments citing it as a CSS-pattern example, not imports. No rep can
+// ever reach this component, so its missing aria-live region is inert, permanent debt, never a
+// live SC 4.1.3 violation — see `src/app/dashboard/page.tsx`'s own header comment for why the dead
+// route is kept (a regression guard for `middleware.ts`'s matcher) rather than deleted outright.
+
 'use client';
 
 import { ChangeEvent, useMemo, useState } from 'react';

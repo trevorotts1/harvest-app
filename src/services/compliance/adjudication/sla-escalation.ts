@@ -233,6 +233,15 @@ export async function runSlaEscalationSweep(deps: SlaEscalationDeps): Promise<Sl
   }
 }
 
+// T-57 RG8 (i18n; server-i18n-leak) — PERMANENT-EXEMPT (`SERVER_I18N_LEAK_BASELINE.json`,
+// `content_text: [SLA escalation for queue`). This `content_text` fallback (used only when there is
+// no real `draft.body` to audit against) writes into `AuditService.recordAuditEvent`'s durable,
+// hash-chained COMPLIANCE audit log (§5.7) — confirmed by grep that NO `.tsx` anywhere in this
+// codebase ever reads/renders `AuditEvent.content_text` (it is a write-only evidentiary record for
+// a compliance-officer/regulator audit trail, never a rep-facing surface). Never localize: audit
+// records must stay in the language the SYSTEM records events in (auditability/consistency of the
+// evidentiary trail), not the acting rep's UI locale — mirrors `audit/sinks.ts`'s and
+// `incident-audit-sink.ts`'s own PERMANENT-EXEMPT narratives (same class, same rationale).
 async function recordSlaAudit(
   audit: AuditService,
   draft: DraftAuditContext | null,

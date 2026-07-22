@@ -672,7 +672,23 @@
       "chipAriaLabel": "{label}: {state}, {count}",
       "potentialNotPromise": "Potencial — no una promesa",
       "overrideMathAriaLabel": "Matemáticas de anulación para la profundidad {depth}",
-      "closeCta": "Cerrar"
+      "closeCta": "Cerrar",
+      "axiom": {
+        "recruitHasRecruit": "Un compañero de equipo no es un compañero de equipo hasta que tiene un compañero de equipo",
+        "legFourDeep": "Una rama no es una rama hasta que tiene cuatro niveles de profundidad",
+        "teamFourLegs": "Un equipo no es un equipo hasta que tiene cuatro ramas",
+        "leaderEmerged": "Un equipo cobra vida propia cuando surge un líder"
+      },
+      "countLabel": {
+        "of": "{current} de {target}",
+        "ofDeep": "{current} de {target} de profundidad",
+        "ofLegs": "{current} de {target} ramas",
+        "emerged_one": "{current} surgido",
+        "emerged_other": "{current} surgidos"
+      },
+      "overrideMath": {
+        "narrative": "A la profundidad {depth}, el modelo de multiplicación de {legs} de ancho × {deep} de profundidad ilustra una estructura potencial de {potential} miembros de equipo — una ilustración estructural del modelo, no un pronóstico ni una promesa de los resultados de ninguna persona."
+      }
     },
     "phasedTimeline": {
       "ariaLabel": "Cronología de nuevo miembro por fases",
@@ -1273,6 +1289,8 @@
       "organizationAria": "Organización",
       "universalBody": "Estás construyendo de forma independiente. The Harvest adapta todo tu campo a cómo construyes.",
       "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
+      "solutionNumberLabel": "Número de solución",
+      "solutionNumberNotVerifiedCaption": "No verificado — solo comprobamos el formato, no con Primerica.",
       "enterAllDigits": "Ingresa los 7 dígitos.",
       "choices": {
         "primerica": {
@@ -1947,6 +1965,19 @@
         "ritualStep": "un paso del ritual",
         "generic": "una actualización"
       }
+    }
+  },
+  "harvestMethod": {
+    "primericaVelocity": {
+      "urgencyNoteWithRank": "La urgencia de la cola se pondera hacia tu próxima meta de ascenso en {rank}.",
+      "urgencyNoteNoRank": "La urgencia de la cola se ponderará hacia tu próxima meta de ascenso en cuanto tengamos tu rango registrado."
+    }
+  },
+  "booking": {
+    "dossierNote": {
+      "priorEngagement_one": "{count} señal de contacto previo en el historial — abre con calidez, haciendo referencia a la relación, no como un primer acercamiento distante.",
+      "priorEngagement_other": "{count} señales de contacto previo en el historial — abre con calidez, haciendo referencia a la relación, no como un primer acercamiento distante.",
+      "firstTouch": "Primer contacto real con esta persona — mantenlo cálido y sin presión."
     }
   }
 }

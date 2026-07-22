@@ -21,7 +21,7 @@ import {
 } from '@/services/onboarding/wp01/solution-number';
 
 import styles from '../onboarding.module.css';
-import { useT } from '@/app/locale-context';
+import { useT, useLocale } from '@/app/locale-context';
 
 export interface OrgBranchPanelProps {
   orgContext: OrgContext;
@@ -110,6 +110,7 @@ export default function OrgStep({
   confirmed,
 }: OrgStepProps) {
   const t = useT();
+  const { locale } = useLocale();
   // T-R32b — moved from a module-level constant into the component body: the labels/blurbs now
   // route through the catalog (`t()`, a hook-backed lookup), which can only run inside a component.
   const orgChoices: { orgType: OrgType; label: string; blurb: string }[] = [
@@ -143,7 +144,7 @@ export default function OrgStep({
 
       {selectedOrgType ? (
         <OrgBranchPanel
-          orgContext={buildOrgContext(selectedOrgType)}
+          orgContext={buildOrgContext(selectedOrgType, locale)}
           solutionNumber={solutionNumber}
           onSolutionNumberChange={onSolutionNumberChange}
           confirmed={confirmed}

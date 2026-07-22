@@ -83,9 +83,19 @@ export class DurableCFEAuditSink implements CFEAuditSink {
 
 // ── Licensing (T-13) ─────────────────────────────────────────────────────────────────────────
 
-/** Adapts a `LicensingAuditEvent` (§16.5 state-machine transition record) onto
- *  `RecordAuditEventInput`. Licensing transitions are informational evidence, not a CFE risk-band
- *  decision, so `outcome` is always `RECORDED` (never mapped onto PASS/FLAG/BLOCK). */
+/**
+ * Adapts a `LicensingAuditEvent` (§16.5 state-machine transition record) onto
+ * `RecordAuditEventInput`. Licensing transitions are informational evidence, not a CFE risk-band
+ * decision, so `outcome` is always `RECORDED` (never mapped onto PASS/FLAG/BLOCK).
+ *
+ * T-57 RG8 (i18n; server-i18n-leak) — `narrative` is PERMANENT-EXEMPT (`SERVER_I18N_LEAK_BASELINE.
+ * json`, `narrative: Licensing state transition:`). It feeds ONLY `AuditService.recordAuditEvent`'s
+ * durable, hash-chained COMPLIANCE audit log (§5.7) — confirmed by grep that no `.tsx` anywhere
+ * renders `AuditEvent.content_text`/`narrative`; this is a write-only regulator/compliance-officer
+ * evidentiary record, never rep-facing. Never localize: the audit trail's language must stay fixed
+ * (auditability/consistency of the evidentiary record across every event, regardless of which
+ * rep's action produced it), not follow the acting rep's UI locale.
+ */
 export function mapLicensingEventToAuditInput(event: LicensingAuditEvent): RecordAuditEventInput {
   const narrative = `Licensing state transition: ${event.from_state} -> ${event.to_state} (${event.action}) in ${event.jurisdiction}${event.reason ? ` — ${event.reason}` : ''}`;
   return {
@@ -126,9 +136,16 @@ export class DurableLicensingEventSink implements LicensingEventSink {
 
 // ── Data-rights (T-11) ───────────────────────────────────────────────────────────────────────
 
-/** Adapts a `DataRightsAuditEvent` (§16.3 export/deletion/legal-hold lifecycle record) onto
- *  `RecordAuditEventInput`. Like licensing, these are informational evidence (`RECORDED`), not a
- *  CFE decision. */
+/**
+ * Adapts a `DataRightsAuditEvent` (§16.3 export/deletion/legal-hold lifecycle record) onto
+ * `RecordAuditEventInput`. Like licensing, these are informational evidence (`RECORDED`), not a
+ * CFE decision.
+ *
+ * T-57 RG8 (i18n; server-i18n-leak) — `narrative` is PERMANENT-EXEMPT (`SERVER_I18N_LEAK_BASELINE.
+ * json`, `narrative: Data-rights event:`) — same rationale as `mapLicensingEventToAuditInput`
+ * above: write-only into the durable compliance audit log, never rendered to any rep, never
+ * localized (the audit trail's language is fixed, not the acting rep's UI locale).
+ */
 export function mapDataRightsEventToAuditInput(event: DataRightsAuditEvent): RecordAuditEventInput {
   const narrative = `Data-rights event: ${event.type} for user ${event.user_id} (actor ${event.actor_id})`;
   return {

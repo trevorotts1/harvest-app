@@ -1,0 +1,10 @@
+{
+  "_purpose": "T-57 RG8 (terminating unit) documentation, NOT read by any guard script or test. guard-status-live-region.mjs's BASELINE_PATH loader requires a flat JSON array of bare fingerprint strings — it cannot carry per-entry rationale, so this sibling file is where that rationale lives. STATUS_LIVE_REGION_BASELINE.json itself is unchanged in shape and still contains exactly this 1 fingerprint; this file documents WHY it is PERMANENT (never rep-facing, never to be 'fixed' or removed as debt-burn-down) rather than ordinary shrink-only debt. The rationale is ALSO inlined as a source comment at the top of the flagged file itself (the more discoverable location) — this file is the second, baseline-adjacent copy for anyone auditing STATUS_LIVE_REGION_BASELINE.json directly.",
+  "_convergence": "After T-57 RG8, STATUS_LIVE_REGION_BASELINE.json contains ONLY this 1 entry — every other pre-RG8 entry (the 9 rep-facing ones: community/[contactId], community/page x2, ObjectionCoachPanel, content/launch-kit/[id], content/templates, me/data-rights x3) was FIXED (routed through src/components/StatusMessage.tsx) and removed from the baseline, not exempted.",
+  "permanentExempt": [
+    {
+      "fingerprint": "src/app/dashboard/contact-upload-demo.tsx::0::{result.error}",
+      "rationale": "Dead, unreachable pre-rebuild demo scaffold. Not a page.tsx (not a route by itself); the real /dashboard route (src/app/dashboard/page.tsx) is a pure server-side redirect('/today') stub that never imports/renders this component; a repo-wide grep confirms zero other .tsx imports it (the only other filename hits in src/ are prose comments citing it as a CSS-pattern example). No rep can ever reach this component, so its missing aria-live region is inert, permanent debt, never a live SC 4.1.3 violation."
+    }
+  ]
+}

@@ -195,6 +195,15 @@ function nodeHasOwnFourLegTeam(node: OrgTreeNode): boolean {
   return qualifiedChildLegs >= 4;
 }
 
+/**
+ * T-57 RG8 (i18n; server-i18n-leak — see `types/taprooting.ts`'s `RulesOfBuildingChip` doc
+ * comment): this used to also compose `label`/`countLabel` as hardcoded English prose (the four
+ * RoB axioms — "A recruit isn't a recruit until they have a recruit" among them, DOCTRINE-forbidden
+ * "recruit" included) baked in here and shipped verbatim over the wire. Now returns ONLY real
+ * structural data (`key`/`state`/`current`/`target`) — no English (or any language) prose — so
+ * `RulesOfBuildingChips.tsx`, the one consumer, composes the localized axiom + countdown text
+ * client-side via the catalog, doctrine-clean ("teammate").
+ */
 export function computeRoBChips(tree: BuiltOrgTree): RulesOfBuildingChips {
   const totalDirectRecruits = tree.levelOneNodes.length;
   const recruitsWithOwnRecruit = tree.levelOneNodes.filter((n) => n.hasOwnRecruit).length;
@@ -208,33 +217,25 @@ export function computeRoBChips(tree: BuiltOrgTree): RulesOfBuildingChips {
   const chips: RulesOfBuildingChip[] = [
     {
       key: 'recruit_has_recruit',
-      label: "A recruit isn't a recruit until they have a recruit",
       state: totalDirectRecruits === 0 ? 'not_started' : chipState(recruitsWithOwnRecruit, totalDirectRecruits),
-      countLabel: `${recruitsWithOwnRecruit} of ${Math.max(totalDirectRecruits, 1)}`,
       current: recruitsWithOwnRecruit,
       target: Math.max(totalDirectRecruits, 1),
     },
     {
       key: 'leg_four_deep',
-      label: "A leg isn't a leg until it is four deep",
       state: totalDirectRecruits === 0 ? 'not_started' : chipState(bestLegDepth, VISION_DEPTH),
-      countLabel: `${Math.min(bestLegDepth, VISION_DEPTH)} of ${VISION_DEPTH} deep`,
       current: Math.min(bestLegDepth, VISION_DEPTH),
       target: VISION_DEPTH,
     },
     {
       key: 'team_four_legs',
-      label: "A team isn't a team until it has four legs",
       state: qualifiedLegCount === 0 ? 'not_started' : chipState(qualifiedLegCount, TEAM_LEG_COUNT),
-      countLabel: `${qualifiedLegCount} of ${TEAM_LEG_COUNT} legs`,
       current: qualifiedLegCount,
       target: TEAM_LEG_COUNT,
     },
     {
       key: 'leader_emerged',
-      label: 'A team gets a life of its own when a leader emerges',
       state: leaderCount === 0 ? 'not_started' : 'met',
-      countLabel: leaderCount === 0 ? '0 of 1' : `${leaderCount} emerged`,
       current: leaderCount,
       target: 1,
     },

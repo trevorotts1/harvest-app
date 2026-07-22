@@ -22,7 +22,7 @@ import PhasedTimelinePanel from './components/PhasedTimelinePanel';
 import OrgSwitchPanel from './components/OrgSwitchPanel';
 import TimeLapseShare from './components/TimeLapseShare';
 import styles from './grow.module.css';
-import { useT } from '@/app/locale-context';
+import { useT, useLocale } from '@/app/locale-context';
 import { StatusMessage } from '@/components/StatusMessage';
 
 type LoadState =
@@ -32,6 +32,7 @@ type LoadState =
 
 export default function GrowPage() {
   const t = useT();
+  const { locale } = useLocale();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [view, setView] = useState<'canvas' | 'list'>('canvas');
   const [zoom, setZoom] = useState(1);
@@ -63,7 +64,7 @@ export default function GrowPage() {
     load();
   }, [load]);
 
-  const handleOpenMath = async (depth: number): Promise<OverrideMathSheet> => buildOverrideMathSheet(depth);
+  const handleOpenMath = async (depth: number): Promise<OverrideMathSheet> => buildOverrideMathSheet(depth, locale);
 
   const handleMarkAttested = async (phase: 'launch' | 'licensing', itemKey: string): Promise<boolean> => {
     const res = await fetch('/api/taprooting/timeline', {

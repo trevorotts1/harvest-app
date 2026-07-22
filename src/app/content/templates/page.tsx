@@ -9,6 +9,7 @@ import Link from 'next/link';
 import styles from '../content.module.css';
 import TemplateListSection, { type TemplateData } from './components/TemplateListSection';
 import { useT } from '@/app/locale-context';
+import { StatusMessage } from '@/components/StatusMessage';
 
 export default function TemplateLibraryPage() {
   const t = useT();
@@ -45,7 +46,7 @@ export default function TemplateLibraryPage() {
         <p className={styles.subtitle}>{t('content.templates.subtitleTemplate', { count: templates.length })}</p>
 
         {loading && <p className={styles.loadingState}>{t('content.templates.loading')}</p>}
-        {error && <p className={styles.errorState}>{error}</p>}
+        {error && <StatusMessage className={styles.errorState}>{error}</StatusMessage>}
 
         {!loading && !error && (
           <TemplateListSection categories={categories} filter={filter} visible={visible} onSelectFilter={setFilter} />

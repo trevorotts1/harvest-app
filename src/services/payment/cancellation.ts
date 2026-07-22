@@ -8,6 +8,9 @@
 // subscription" (never a euphemism). Cancel is always end-of-period by default (access honored to
 // the paid-through date) — the honest, non-punitive default.
 
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
+
 /** Reactivation window after cancellation, in days (§15.4 "reactivation within the retention window"). */
 export const REACTIVATION_WINDOW_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -25,6 +28,8 @@ export interface CancellationFlowInput {
   /** Paid-through date (epoch ms) — the access-until date on end-of-period cancel. */
   currentPeriodEndMs: number | null;
   nowMs?: number;
+  /** T-57 RG8 (i18n) — the rep's locale for `finalActionLabel`. Defaults to `DEFAULT_LOCALE`. */
+  locale?: Locale;
 }
 
 export interface CancellationFlow {
@@ -34,8 +39,19 @@ export interface CancellationFlow {
   alternatives: RetentionAlternative[];
   /** Step 3 — reason selector is OPTIONAL (never a required gate to cancel). */
   reasonOptional: true;
-  /** Step 4 — the plainly-labeled final action. Never a euphemism (AC-5.8-6). */
-  finalActionLabel: 'Cancel subscription';
+  /**
+   * Step 4 — the plainly-labeled final action. Never a euphemism (AC-5.8-6).
+   *
+   * T-57 RG8 (i18n; server-i18n-leak) — USED to be the hardcoded English literal type
+   * `'Cancel subscription'` (a compile-time "never a euphemism" tripwire) composed with no path to
+   * Spanish. Now resolved via the SAME catalog key the trigger button on `me/subscription/page.tsx`
+   * already uses (`billing.cancelSubscription`, already real ES "Cancelar suscripción") — so the
+   * trigger and the final confirm both show the identical, plainly-labeled, non-euphemistic text
+   * in the rep's own locale. Widened to `string` since the literal-type contract now lives in the
+   * catalog (both `en.json`/`es.json` values ARE audited by `guard-i18n.mjs`'s doctrine copy-lint),
+   * not in the TS type.
+   */
+  finalActionLabel: string;
   /** The access-until date stated before confirm (end-of-period default). */
   accessUntilIso: string | null;
   reactivationWindowDays: number;
@@ -48,12 +64,13 @@ export function buildCancellationFlow(input: CancellationFlowInput): Cancellatio
   const alternatives: RetentionAlternative[] = ['pause'];
   if (input.downgradeAvailable) alternatives.push('downgrade');
   alternatives.push('cancel');
+  const locale = input.locale ?? DEFAULT_LOCALE;
 
   return {
     openConversations: input.openConversations,
     alternatives,
     reasonOptional: true,
-    finalActionLabel: 'Cancel subscription',
+    finalActionLabel: t(locale, 'billing.cancelSubscription'),
     accessUntilIso: input.currentPeriodEndMs !== null ? new Date(input.currentPeriodEndMs).toISOString() : null,
     reactivationWindowDays: REACTIVATION_WINDOW_DAYS,
     requiresSupportContact: false,

@@ -672,7 +672,23 @@
       "chipAriaLabel": "{label}: {state}, {count}",
       "potentialNotPromise": "Potential — not a promise",
       "overrideMathAriaLabel": "Override math for depth {depth}",
-      "closeCta": "Close"
+      "closeCta": "Close",
+      "axiom": {
+        "recruitHasRecruit": "A teammate isn't a teammate until they have a teammate",
+        "legFourDeep": "A leg isn't a leg until it is four deep",
+        "teamFourLegs": "A team isn't a team until it has four legs",
+        "leaderEmerged": "A team gets a life of its own when a leader emerges"
+      },
+      "countLabel": {
+        "of": "{current} of {target}",
+        "ofDeep": "{current} of {target} deep",
+        "ofLegs": "{current} of {target} legs",
+        "emerged_one": "{current} emerged",
+        "emerged_other": "{current} emerged"
+      },
+      "overrideMath": {
+        "narrative": "At depth {depth}, the {legs}-wide × {deep}-deep multiplication model illustrates a potential structure of {potential} team members — a structural illustration of the model, not a forecast or promise of any individual's results."
+      }
     },
     "phasedTimeline": {
       "ariaLabel": "Phased new-member timeline",
@@ -1273,6 +1289,8 @@
       "organizationAria": "Organization",
       "universalBody": "You’re building independently. The Harvest tailors your whole field to how you build.",
       "solutionNumberSavedAria": "Solution number (saved, masked)",
+      "solutionNumberLabel": "Solution number",
+      "solutionNumberNotVerifiedCaption": "Not verified — we check the format only, not with Primerica.",
       "enterAllDigits": "Enter all 7 digits.",
       "choices": {
         "primerica": {
@@ -1947,6 +1965,19 @@
         "ritualStep": "a ritual step",
         "generic": "an update"
       }
+    }
+  },
+  "harvestMethod": {
+    "primericaVelocity": {
+      "urgencyNoteWithRank": "Queue urgency is weighted toward your next promotion target at {rank}.",
+      "urgencyNoteNoRank": "Queue urgency will weight toward your next promotion target once your rank is on file."
+    }
+  },
+  "booking": {
+    "dossierNote": {
+      "priorEngagement_one": "{count} prior engagement signal on file — open warm, reference the relationship, not a cold intro.",
+      "priorEngagement_other": "{count} prior engagement signals on file — open warm, reference the relationship, not a cold intro.",
+      "firstTouch": "First real touch with this contact — keep it warm and low-pressure."
     }
   }
 }

@@ -20,6 +20,9 @@
 
 import { OrgType } from '@prisma/client';
 
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
+
 /** The two branches org selection locks the product into. */
 export type OrgBranch = 'primerica' | 'universal';
 
@@ -192,16 +195,22 @@ export interface OrgContext {
  * step 3: a Primerica user gets the solution-number entry field + the list of Primerica-gated
  * surfaces; a universal user gets NEITHER — the returned object is Primerica-free by construction and
  * passes `assertNoPrimericaLeak`.
+ *
+ * T-57 RG8 (i18n; server-i18n-leak) — `label`/`caption` USED to be hardcoded English composed here
+ * with no path to Spanish. `locale` is now an explicit parameter (defaults to `DEFAULT_LOCALE`, so
+ * every existing test/caller that omits it keeps compiling/behaving exactly as before, in English);
+ * the one real caller, `OrgStep.tsx`'s `<OrgStep>` (a client component with `useLocale()` already
+ * in scope), passes the rep's real locale.
  */
-export function buildOrgContext(orgType: OrgType): OrgContext {
+export function buildOrgContext(orgType: OrgType, locale: Locale = DEFAULT_LOCALE): OrgContext {
   if (isPrimericaBranch(orgType)) {
     return {
       branch: 'primerica',
       orgType,
       solutionNumberField: {
-        label: 'Solution number',
+        label: t(locale, 'onboarding.orgStep.solutionNumberLabel'),
         formatHint: '7 digits',
-        caption: 'Not verified — we check the format only, not with Primerica.',
+        caption: t(locale, 'onboarding.orgStep.solutionNumberNotVerifiedCaption'),
       },
       primericaSurfaces: [
         'harvest_method_primerica_overlay',

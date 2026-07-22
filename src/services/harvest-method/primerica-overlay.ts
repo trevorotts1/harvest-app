@@ -19,6 +19,8 @@
 import { OrgType } from '@prisma/client';
 
 import { gatePrimericaValue, isPrimericaBranch } from '../onboarding/wp01/org-gate';
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/locale';
 
 export interface PrimericaVelocityContext {
   /** §8.4: "rank-tiered velocity (queue urgency accounts for rank + promotion target)." */
@@ -30,13 +32,24 @@ export interface PrimericaVelocityContext {
  * Builds the Primerica-only velocity context for a queue render. Returns `undefined` for a
  * universal (non-Primerica) user — the field is simply absent, never a null Primerica-shaped stub —
  * per `org-gate.ts`'s own `OrgContext.solutionNumberField` pattern (§17.1).
+ *
+ * T-57 RG8 (i18n; server-i18n-leak) — `urgencyNote` USED to be hardcoded English composed here
+ * with no path to Spanish. `locale` is now an explicit parameter (defaults to `DEFAULT_LOCALE`, so
+ * every existing test that omits it keeps compiling/behaving exactly as before, in English); the
+ * one real caller (`PrioritizedQueueService.getQueue`, `./prioritized-queue.service.ts`) threads
+ * the rep's real `User.locale` through from its own callers (the prioritized-queue/action-queue
+ * API routes, which already query `User.rank` in the same round trip).
  */
-export function buildPrimericaVelocityContext(orgType: OrgType, rank: string | null): PrimericaVelocityContext | undefined {
+export function buildPrimericaVelocityContext(
+  orgType: OrgType,
+  rank: string | null,
+  locale: Locale = DEFAULT_LOCALE
+): PrimericaVelocityContext | undefined {
   return gatePrimericaValue(orgType, {
     rank,
     urgencyNote: rank
-      ? `Queue urgency is weighted toward your next promotion target at ${rank}.`
-      : 'Queue urgency will weight toward your next promotion target once your rank is on file.',
+      ? t(locale, 'harvestMethod.primericaVelocity.urgencyNoteWithRank', { rank })
+      : t(locale, 'harvestMethod.primericaVelocity.urgencyNoteNoRank'),
   });
 }
 
