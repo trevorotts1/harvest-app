@@ -311,37 +311,31 @@ export default function SubscriptionPage() {
             <div>
               <p className={styles.tierBody}>{t('billing.cancelIntro')}</p>
               <div className={styles.btnRow}>
-                {/* T-R41 — "pause" is REMOVED from the rendered alternatives here (not just left as
-                    an inert click-through). SubscriptionService/the Subscription/Sponsorship Prisma
-                    models have no pause capability at all — no PAUSED status, no pause method
-                    (confirmed against prisma/schema.prisma's SubscriptionStatus enum and
-                    subscription.service.ts) — so a clickable "Pause" button would be a dark
-                    pattern: offering a retention alternative that cannot actually be honored.
-                    `cancellation.ts`'s `buildCancellationFlow` still returns 'pause' in
-                    `alternatives` (kept — tests/unit/payment-lifecycle.test.ts and the
-                    `billing.manage.pauseOption` catalog key/i18n test both assert on it, and the
-                    ticket says never weaken an existing test), so this filters it out at the ONE
-                    place it would otherwise render as a button. "downgrade" now wires to the SAME
-                    real preview→confirm change flow the plan cards use (below), instead of just
-                    closing the dialog. */}
-                {cancelFlow.alternatives
-                  .filter((alt) => alt !== 'pause')
-                  .map((alt) => (
-                    <button
-                      key={alt}
-                      type="button"
-                      className={alt === 'cancel' ? styles.secondaryBtn : styles.actionBtn}
-                      onClick={
-                        alt === 'cancel'
-                          ? () => void confirmCancel()
-                          : alt === 'downgrade'
-                            ? () => void previewChange('individual', 'monthly', true)
-                            : () => setCancelFlow(null)
-                      }
-                    >
-                      {alt === 'downgrade' ? t('billing.manage.downgradeOption') : cancelFlow.finalActionLabel}
-                    </button>
-                  ))}
+                {/* T-R42 (P2 cleanup, integration-reachability audit) — the "pause" dark-pattern
+                    workaround this block used to need is GONE at the source: SubscriptionService/
+                    the Subscription/Sponsorship Prisma models have no pause capability at all (no
+                    PAUSED status, no pause method), so `cancellation.ts`'s `buildCancellationFlow`
+                    no longer offers a pause entry in `alternatives` in the first place — there is
+                    nothing left for this render site to filter out. Every alternative the data layer
+                    returns is now renderable as-is. "downgrade" wires to the SAME real
+                    preview→confirm change flow the plan cards use (below), instead of just closing
+                    the dialog. */}
+                {cancelFlow.alternatives.map((alt) => (
+                  <button
+                    key={alt}
+                    type="button"
+                    className={alt === 'cancel' ? styles.secondaryBtn : styles.actionBtn}
+                    onClick={
+                      alt === 'cancel'
+                        ? () => void confirmCancel()
+                        : alt === 'downgrade'
+                          ? () => void previewChange('individual', 'monthly', true)
+                          : () => setCancelFlow(null)
+                    }
+                  >
+                    {alt === 'downgrade' ? t('billing.manage.downgradeOption') : cancelFlow.finalActionLabel}
+                  </button>
+                ))}
               </div>
               <p className={styles.meta}>
                 {t('billing.manage.accessUntil', {

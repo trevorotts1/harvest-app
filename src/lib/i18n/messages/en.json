@@ -1165,7 +1165,6 @@
     },
     "manage": {
       "heading": "Manage plan",
-      "pauseOption": "Pause (agents rest, data kept)",
       "downgradeOption": "Downgrade",
       "accessUntil": "If you cancel, you keep full access until {date}, and you can reactivate within {days} days. No need to contact support."
     },

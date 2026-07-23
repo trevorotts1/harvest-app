@@ -42,6 +42,16 @@ function makeSessionRow(overrides: Partial<ShiftSessionRow> = {}): ShiftSessionR
   };
 }
 
+/** T-R42 — a captured `MomentumEvent.create` call, same shape `MissionControlPrismaClient`'s tests
+ *  (e.g. `mission-control-today-service.test.ts`) capture. */
+export interface CapturedMomentumEvent {
+  user_id: string;
+  event_type: string;
+  points: number;
+  law: string;
+  source_ref: string | null;
+}
+
 /** A tiny in-memory fake implementing the exact narrow `ShiftPrismaClient` surface. */
 function makeFakePrisma(opts: {
   sessions?: ShiftSessionRow[];
@@ -50,11 +60,17 @@ function makeFakePrisma(opts: {
   intensity?: string;
   /** T-R13 — contact rows the embedded ApprovalInboxItem's header can hydrate a name from. */
   contacts?: { id: string; first_name: string; last_name: string }[];
-}): ShiftPrismaClient {
+  /** T-R42 — an external sink `momentumEvent.create` pushes into; tests own the array reference so
+   *  they can assert on it directly after driving the service (same convention as
+   *  `gamification-course.test.ts`'s `makeDb()`), without changing this function's return shape for
+   *  every existing call site in this file. */
+  momentumEvents?: CapturedMomentumEvent[];
+}): ShiftPrismaClient & { momentumEvents: CapturedMomentumEvent[] } {
   const sessions = new Map<string, ShiftSessionRow>((opts.sessions ?? []).map((s) => [`${s.user_id}::${s.session_date}`, s]));
   const drafts = new Map<string, DraftMessageQueueRow>((opts.drafts ?? []).map((d) => [d.id, d]));
   const appointments = new Map<string, AppointmentQueueRow>((opts.appointments ?? []).map((a) => [a.id, a]));
   const contacts = new Map((opts.contacts ?? []).map((c) => [c.id, c]));
+  const momentumEvents: CapturedMomentumEvent[] = opts.momentumEvents ?? [];
   let idCounter = 0;
 
   return {
@@ -124,6 +140,20 @@ function makeFakePrisma(opts: {
         return Array.from(contacts.values()).filter((c) => where.id.in.includes(c.id));
       },
     },
+    momentumEvent: {
+      async create({ data }) {
+        const row: CapturedMomentumEvent = {
+          user_id: data.user_id,
+          event_type: data.event_type,
+          points: data.points,
+          law: data.law,
+          source_ref: data.source_ref ?? null,
+        };
+        momentumEvents.push(row);
+        return { id: `evt-${momentumEvents.length}` };
+      },
+    },
+    momentumEvents,
   };
 }
 
@@ -420,5 +450,105 @@ describe('ShiftService — optional reflection', () => {
     const view = await service.close('rep-1');
     expect(view.reflectionText).toBeNull();
     expect(view.phase).toBe('DONE');
+  });
+});
+
+// ─── T-R42 (integration-reachability audit): the Shift ritual's APPROVE/CONFIRM now move the SAME
+// Grove/momentum signal the equivalent Mission-Control Today actions do (`actOnQueueDraft`'s
+// 'approve', `confirmAppointment` — src/services/mission-control/today.service.ts). Before this fix,
+// a rep doing ONLY the primary daily Shift ritual moved nothing on the Grove — these tests drive the
+// real `ShiftService.actionCard` APPROVE/CONFIRM paths (not a mock of the emission) and prove a real
+// MomentumEvent lands, with the exact same event type/points/law Today uses, and that re-running the
+// same action never double-emits beyond what Today itself allows (Today refuses the whole re-run
+// outright via its own approval_state/status invalid_state gate; here the gate is on the emission).
+describe('ShiftService — T-R42: the Shift ritual emits a real MomentumEvent (mirrors Today)', () => {
+  test('APPROVE on a clean PASS draft records draft_approved (+1, grow) — same shape as actOnQueueDraft', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('d1')] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await service.actionCard('rep-1', 'd1', 'APPROVE');
+
+    expect(prisma.momentumEvents).toEqual([
+      { user_id: 'rep-1', event_type: 'draft_approved', points: 1, law: 'grow', source_ref: 'd1' },
+    ]);
+  });
+
+  test('CONFIRM on a PROPOSED appointment records appointment_confirmed (+5, grow) — same shape as confirmAppointment', async () => {
+    const prisma = makeFakePrisma({
+      appointments: [{ id: 'appt-1', rep_id: 'rep-1', contact_id: 'c-1', status: 'PROPOSED', proposed_windows: [], created_at: new Date() }],
+    });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await service.actionCard('rep-1', 'appt-1', 'CONFIRM');
+
+    expect(prisma.momentumEvents).toEqual([
+      { user_id: 'rep-1', event_type: 'appointment_confirmed', points: 5, law: 'grow', source_ref: 'appt-1' },
+    ]);
+  });
+
+  test('SKIP and DECLINE never emit a momentum event (only APPROVE/CONFIRM do, matching Today)', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('d1'), draft('d2')] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await service.actionCard('rep-1', 'd1', 'SKIP');
+    await service.actionCard('rep-1', 'd2', 'DECLINE');
+
+    expect(prisma.momentumEvents).toEqual([]);
+  });
+
+  test('a FLAG/BLOCK draft refused by the fail-closed check emits no momentum event (no mutation happened at all)', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('flagged-1', { cfe_outcome: 'FLAG' })] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await expect(service.actionCard('rep-1', 'flagged-1', 'APPROVE')).rejects.toBeInstanceOf(
+      ShiftApprovalRequiresReviewError
+    );
+    expect(prisma.momentumEvents).toEqual([]);
+  });
+
+  // TEETH: idempotency. Today's own equivalent (`actOnQueueDraft`/`confirmAppointment`) refuses a
+  // re-run on an already-actioned row outright (`invalid_state`), so it NEVER emits a second
+  // MomentumEvent for the same real-world action. The Shift's `actionCard` re-runs its mutation
+  // instead of refusing (unchanged, out of this fix's scope), but the momentum emission itself must
+  // still land exactly once per real action — re-calling the same action a second time must not
+  // double-count momentum beyond what Today already allows (zero further credit).
+  test('TEETH: calling APPROVE twice on the same draft records exactly ONE momentum event, not two', async () => {
+    const prisma = makeFakePrisma({ drafts: [draft('d1')] });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await service.actionCard('rep-1', 'd1', 'APPROVE');
+    await service.actionCard('rep-1', 'd1', 'APPROVE'); // re-run — already APPROVED
+
+    expect(prisma.momentumEvents).toHaveLength(1);
+    expect(prisma.momentumEvents[0]).toEqual({
+      user_id: 'rep-1', event_type: 'draft_approved', points: 1, law: 'grow', source_ref: 'd1',
+    });
+  });
+
+  test('TEETH: calling CONFIRM twice on the same appointment records exactly ONE momentum event, not two', async () => {
+    const prisma = makeFakePrisma({
+      appointments: [{ id: 'appt-1', rep_id: 'rep-1', contact_id: 'c-1', status: 'PROPOSED', proposed_windows: [], created_at: new Date() }],
+    });
+    const service = new ShiftService(prisma);
+    await service.getOrCreateToday('rep-1');
+    await service.begin('rep-1');
+
+    await service.actionCard('rep-1', 'appt-1', 'CONFIRM');
+    await service.actionCard('rep-1', 'appt-1', 'CONFIRM'); // re-run — already CONFIRMED
+
+    expect(prisma.momentumEvents).toHaveLength(1);
+    expect(prisma.momentumEvents[0]).toEqual({
+      user_id: 'rep-1', event_type: 'appointment_confirmed', points: 5, law: 'grow', source_ref: 'appt-1',
+    });
   });
 });
