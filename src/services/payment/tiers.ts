@@ -113,3 +113,32 @@ export function priceCentsFor(planTier: PlanTier, cycle: BillingCycle): number {
   }
   return cents;
 }
+
+/**
+ * §15.5 — the Stripe Price id ENV VAR NAMES (never the id itself — §0.4 "by name") for the
+ * tier/cycle combinations Stripe actually bills through a REAL recurring subscription. `individual`
+ * (monthly/annual) is the ONLY one: enterprise is an annual invoice, not a Stripe subscription
+ * (§15.1 "Annual invoice; custom onboarding"), and free never collects payment at all. This is the
+ * single source of truth both the checkout route (`/api/billing/checkout`, creating the
+ * subscription) and a REAL Stripe subscription's mid-cycle price swap
+ * (`subscription.service.ts`'s `changePlan`, T-R44, updating it) read from — previously the
+ * checkout route alone held this mapping as a private, unexported constant.
+ */
+const STRIPE_PRICE_ENV_BY_PLAN_CYCLE: Readonly<
+  Partial<Record<PlanTier, Readonly<Partial<Record<BillingCycle, string>>>>>
+> = Object.freeze({
+  individual: Object.freeze({
+    monthly: 'STRIPE_PRICE_INDIVIDUAL_MONTHLY',
+    annual: 'STRIPE_PRICE_INDIVIDUAL_ANNUAL',
+  }),
+});
+
+/**
+ * The env var NAME (never the id) carrying the Stripe Price for `planTier`/`cycle`, or `null` if
+ * that combination is never Stripe-billed (free never collects payment; enterprise is an annual
+ * invoice, not a Stripe subscription — §15.1). A `null` return is the signal a caller must fail
+ * closed on rather than guess/invent a price id.
+ */
+export function stripePriceEnvVarFor(planTier: PlanTier, cycle: BillingCycle): string | null {
+  return STRIPE_PRICE_ENV_BY_PLAN_CYCLE[planTier]?.[cycle] ?? null;
+}

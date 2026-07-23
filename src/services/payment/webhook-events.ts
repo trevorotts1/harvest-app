@@ -32,6 +32,21 @@ export interface SubscriptionUpdatedArgs {
   /** Stripe subscription status string (e.g. `active`, `past_due`, `canceled`). */
   stripeStatus: string | null;
   periodEndSeconds: number | null;
+  /**
+   * T-R44 — Stripe's documented `cancel_at_period_end` boolean on the SAME Subscription object
+   * `.updated` already reads `id`/`status`/`current_period_end` off
+   * (https://docs.stripe.com/api/subscriptions/object: "cancel_at_period_end boolean — If the
+   * subscription has been canceled with the `at_period_end` flag set to true, `cancel_at_period_end`
+   * on the subscription will be true."). Scheduling an end-of-period cancel — whether via
+   * `SubscriptionService.cancel`'s new `cancelStripeSubscription` call, or an operator cancelling
+   * directly in the Stripe Dashboard — is itself a subscription UPDATE, so Stripe fires
+   * `customer.subscription.updated` for it with `status` still `active` (the resource is not
+   * actually deleted until the period ends — that terminal moment is `customer.subscription.deleted`,
+   * already handled by `onSubscriptionDeleted`). Without this field, that echo event would read as an
+   * ordinary "still active" update and could reactivate a row an in-app cancel just canceled — see
+   * production-wiring.ts's `onSubscriptionUpdated`.
+   */
+  cancelAtPeriodEnd: boolean | null;
 }
 
 export interface DisputeArgs {
@@ -76,6 +91,11 @@ function str(obj: Record<string, unknown>, key: string): string | null {
 function num(obj: Record<string, unknown>, key: string): number | null {
   const v = obj[key];
   return typeof v === 'number' ? v : null;
+}
+
+function bool(obj: Record<string, unknown>, key: string): boolean | null {
+  const v = obj[key];
+  return typeof v === 'boolean' ? v : null;
 }
 
 export interface DispatchResult {
@@ -125,6 +145,7 @@ export async function dispatchStripeEvent(
         stripeSubscriptionId: str(obj, 'id'),
         stripeStatus: str(obj, 'status'),
         periodEndSeconds: num(obj, 'current_period_end'),
+        cancelAtPeriodEnd: bool(obj, 'cancel_at_period_end'),
       });
       return { handled: true, type: event.type };
 

@@ -328,9 +328,27 @@ export function buildStripeWebhookHandlers(): StripeWebhookHandlers {
       if (next) await db.subscription.update({ where: { id: sub.id }, data: { status: next } });
     },
 
-    async onSubscriptionUpdated({ stripeSubscriptionId, stripeStatus, periodEndSeconds }) {
+    async onSubscriptionUpdated({ stripeSubscriptionId, stripeStatus, periodEndSeconds, cancelAtPeriodEnd }) {
       if (!stripeSubscriptionId || !stripeStatus) return;
-      const mapped = STRIPE_STATUS_MAP[stripeStatus];
+
+      // T-R44: Stripe reports `status: active` with `cancel_at_period_end: true` for a subscription
+      // that has been SCHEDULED to cancel at period end — the resource is not actually deleted until
+      // the period ends (that terminal moment is `customer.subscription.deleted`, handled by
+      // `onSubscriptionDeleted` below). This combination fires as a `customer.subscription.updated`
+      // event for TWO real reasons: (1) `SubscriptionService.cancel`'s own `cancelStripeSubscription`
+      // call for `mode: 'end_of_period'` is itself a subscription update, so Stripe echoes it back —
+      // without this branch, that echo would read as an ordinary "still active" update and REVERSE
+      // the CANCELED status the in-app cancel just persisted, immediately undoing it (a real
+      // regression this fix would otherwise introduce); (2) an operator cancelling directly in the
+      // Stripe Dashboard (bypassing the app) reaches us the SAME way, and should be reflected locally
+      // too rather than staying invisible until the period actually ends. Map this combination to
+      // CANCELED — the SAME status `SubscriptionService.cancel` writes for `end_of_period` — so
+      // whichever side acts first, the outcome is identical and idempotent (never a double-charge/
+      // double-apply, and never a silent reactivation).
+      const mapped =
+        cancelAtPeriodEnd === true && stripeStatus === 'active'
+          ? SubscriptionStatus.CANCELED
+          : STRIPE_STATUS_MAP[stripeStatus];
       if (!mapped) return;
       const sub = await db.subscription.findUnique({
         where: { stripe_subscription_id: stripeSubscriptionId },

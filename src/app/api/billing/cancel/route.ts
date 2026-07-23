@@ -13,6 +13,7 @@ import {
   SubscriptionService,
   type SubscriptionServicePrisma,
 } from '@/services/payment/subscription.service';
+import { StripeConfigError } from '@/services/payment/stripe-client';
 import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,13 @@ export const GET = withOnboardingGate(async (_req, _ctx, _session, identity) => 
   return NextResponse.json({ flow, currentTier: state.plan_tier });
 });
 
-/** POST { mode } — apply cancellation. Returns the access-until + reactivation-window dates stated before confirm. */
+/**
+ * POST { mode } — apply cancellation. For a REAL Stripe subscription, this now ACTUALLY cancels it
+ * at Stripe (`cancel_at_period_end=true` for `end_of_period`; a real `DELETE` for `immediate`)
+ * before persisting CANCELED locally (T-R44) — previously this wrote CANCELED to the DB
+ * unconditionally while Stripe kept auto-renewing/billing the member. Returns the access-until +
+ * reactivation-window dates stated before confirm.
+ */
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   let body: { mode?: string } = {};
   try {
@@ -66,6 +73,16 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     if (error instanceof SubscriptionNotFoundError) {
       return NextResponse.json({ error: 'No subscription to cancel.', code: 'NO_SUBSCRIPTION' }, { status: 404 });
     }
-    throw error;
+    if (error instanceof StripeConfigError) {
+      // FAIL-CLOSED (T-R44): a real Stripe subscription could not be confirmed canceled at Stripe —
+      // the DB was NEVER mutated (subscription.service.ts's cancel calls Stripe before persisting).
+      // Never a fake "canceled: true" while Stripe keeps billing.
+      return NextResponse.json(
+        { error: 'Cancellation is not available in this environment.', code: 'CANCEL_UNAVAILABLE' },
+        { status: 503 }
+      );
+    }
+    // Any other failure (e.g. the real Stripe API call itself failed) — honest 502, no DB write.
+    return NextResponse.json({ error: 'Could not cancel the subscription.', code: 'CANCEL_FAILED' }, { status: 502 });
   }
 });

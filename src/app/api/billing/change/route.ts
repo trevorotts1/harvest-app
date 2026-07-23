@@ -11,6 +11,7 @@ import {
   SubscriptionService,
   type SubscriptionServicePrisma,
 } from '@/services/payment/subscription.service';
+import { StripeConfigError } from '@/services/payment/stripe-client';
 import type { BillingCycle, PlanTier } from '@/types/payment';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,12 @@ export const GET = withOnboardingGate(async (req, _ctx, _session, identity) => {
   }
 });
 
-/** POST /api/billing/change { tier, cycle } — apply the change (records the plan; Stripe executes the charge). */
+/**
+ * POST /api/billing/change { tier, cycle } — apply the change. For a REAL Stripe subscription, this
+ * now ACTUALLY updates the price at Stripe (proration_behavior=create_prorations, §15.4) before
+ * persisting the new plan_tier/cycle (T-R44) — previously this recorded the plan locally only, and
+ * Stripe never heard about the change (never a phantom "Stripe executes the charge").
+ */
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   let body: { tier?: string; cycle?: string } = {};
   try {
@@ -60,6 +66,16 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
     if (error instanceof SubscriptionNotFoundError) {
       return NextResponse.json({ error: 'No subscription to change.', code: 'NO_SUBSCRIPTION' }, { status: 404 });
     }
-    throw error;
+    if (error instanceof StripeConfigError) {
+      // FAIL-CLOSED (T-R44): a real Stripe subscription's price could not be confirmed changed —
+      // the DB was NEVER mutated (subscription.service.ts's changePlan calls Stripe before
+      // persisting). Never a fake success.
+      return NextResponse.json(
+        { error: 'Billing update is not available in this environment.', code: 'BILLING_UPDATE_UNAVAILABLE' },
+        { status: 503 }
+      );
+    }
+    // Any other failure (e.g. the real Stripe API call itself failed) — honest 502, no DB write.
+    return NextResponse.json({ error: 'Could not apply the plan change.', code: 'CHANGE_FAILED' }, { status: 502 });
   }
 });

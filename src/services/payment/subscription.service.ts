@@ -19,7 +19,14 @@ import type {
 import { resolveBillingPhase } from './entitlement';
 import { resolveCancellationOutcome, type CancellationMode } from './cancellation';
 import { computeProration, type ProrationPreview } from './proration';
-import { LOCKED_TIERS, planCollectsPayment, priceCentsFor } from './tiers';
+import { LOCKED_TIERS, planCollectsPayment, priceCentsFor, stripePriceEnvVarFor } from './tiers';
+import {
+  STRIPE_SECRET_KEY_ENV_VAR,
+  StripeConfigError,
+  cancelStripeSubscription,
+  isStripeConfigured,
+  updateStripeSubscription,
+} from './stripe-client';
 
 /** The narrow Prisma slice this service reads/writes — DI-mockable in tests. */
 export interface SubscriptionServicePrisma {
@@ -36,6 +43,7 @@ export interface SubscriptionServicePrisma {
         current_period_end: true;
         org_sponsored: true;
         sponsor_user_id: true;
+        stripe_subscription_id: true;
       };
     }): Promise<{
       id: string;
@@ -46,6 +54,12 @@ export interface SubscriptionServicePrisma {
       current_period_end: Date | null;
       org_sponsored: boolean;
       sponsor_user_id: string | null;
+      /** T-R44 — non-null iff this row is backed by a REAL Stripe subscription (created via
+       *  `checkout.session.completed` — production-wiring.ts `onCheckoutCompleted`). Null for a
+       *  DB-only subscription (free/sponsored, or enterprise's annual-invoice tier — §15.1) that
+       *  never had a Stripe subscription to begin with. `changePlan`/`cancel` branch on this to
+       *  decide whether a real outbound Stripe call is required before persisting. */
+      stripe_subscription_id: string | null;
     } | null>;
     update(args: {
       where: { id: string };
@@ -114,6 +128,7 @@ export class SubscriptionService {
           current_period_end: true,
           org_sponsored: true,
           sponsor_user_id: true,
+          stripe_subscription_id: true,
         },
       }),
       this.prisma.sponsorship.findFirst({
@@ -185,6 +200,7 @@ export class SubscriptionService {
         current_period_end: true,
         org_sponsored: true,
         sponsor_user_id: true,
+        stripe_subscription_id: true,
       },
     });
     if (!sub) throw new SubscriptionNotFoundError(userId);
@@ -201,8 +217,21 @@ export class SubscriptionService {
   }
 
   /**
-   * Record a plan change (§15.4 proration). The actual charge/credit is executed by Stripe; this
-   * updates the plan_tier/cycle on the live subscription. Returns the proration that was previewed.
+   * Record a plan change (§15.4 proration).
+   *
+   * T-R44 (closes a T-59 Final QC gap): a subscription with a real `stripe_subscription_id` (created
+   * via Stripe Checkout — production-wiring.ts `onCheckoutCompleted`) is ACTUALLY billed at Stripe,
+   * so the price swap has to happen THERE first — `updateStripeSubscription` (proration_behavior=
+   * create_prorations, §15.4) — and only once Stripe confirms it do we persist the local plan_tier/
+   * billing_cycle. FAIL CLOSED: if Stripe is unconfigured, has no price for the target tier/cycle, or
+   * the call itself fails, this throws and the `subscription.update` below is NEVER reached — no
+   * silent DB-only lie about a real Stripe subscription (the exact bug this unit closes: previously
+   * this method wrote the DB unconditionally and Stripe never heard about the change at all, so it
+   * kept billing the OLD price while the app showed a proration that never charged).
+   *
+   * A DB-only subscription (no `stripe_subscription_id` — free/sponsored, or enterprise's annual-
+   * invoice tier, §15.1) has nothing to reconcile at Stripe, so it keeps the original DB-only write —
+   * that branch was always correct.
    */
   async changePlan(
     userId: string,
@@ -223,9 +252,39 @@ export class SubscriptionService {
         current_period_end: true,
         org_sponsored: true,
         sponsor_user_id: true,
+        stripe_subscription_id: true,
       },
     });
     if (!sub) throw new SubscriptionNotFoundError(userId);
+
+    if (sub.stripe_subscription_id) {
+      const priceEnvVar = stripePriceEnvVarFor(toPlan, toCycle);
+      if (!priceEnvVar) {
+        // The target tier/cycle is never Stripe-billed (e.g. 'free' or 'enterprise' — only
+        // 'individual' monthly/annual has a locked Stripe price, §15.1). A REAL Stripe subscription
+        // cannot be "updated" onto a tier Stripe has no price for; fail closed rather than silently
+        // leaving Stripe billing the old price while the DB claims a different plan.
+        throw new Error(
+          `changePlan: plan '${toPlan}' cycle '${toCycle}' has no Stripe price configured — cannot ` +
+            `update the real Stripe subscription ${sub.stripe_subscription_id} onto it (fail-closed, T-R44).`
+        );
+      }
+      const priceId = process.env[priceEnvVar];
+      if (!priceId) {
+        // Fail-closed by NAME only (§0.4) — never logs/echoes a key or price id value.
+        throw new StripeConfigError(priceEnvVar);
+      }
+      if (!isStripeConfigured()) {
+        throw new StripeConfigError(STRIPE_SECRET_KEY_ENV_VAR);
+      }
+      // Real outbound call FIRST — only a confirmed Stripe result reaches the DB write below.
+      await updateStripeSubscription({
+        stripeSubscriptionId: sub.stripe_subscription_id,
+        priceId,
+        idempotencyKey: `billing-change:${userId}:${sub.id}:${toPlan}:${toCycle}`,
+      });
+    }
+
     await this.prisma.subscription.update({
       where: { id: sub.id },
       data: { plan_tier: toPlan, billing_cycle: toCycle },
@@ -237,6 +296,23 @@ export class SubscriptionService {
    * Cancel (§15.4 no-dark-pattern). Default `end_of_period` honors the paid-through date; access is
    * kept until then and reactivation is possible within the retention window. Returns the outcome
    * (access-until + reactivate-until dates) for the confirmation screen.
+   *
+   * T-R44: exactly the same real-vs-DB-only branch as `changePlan` above. A real Stripe subscription
+   * is ACTUALLY canceled at Stripe first (`cancelStripeSubscription` — `cancel_at_period_end=true` for
+   * `end_of_period`, so Stripe bills nothing further but the resource stays live until the paid-
+   * through date; a real `DELETE` for `immediate`); only once Stripe confirms does the local `status`
+   * flip to CANCELED. FAIL CLOSED if Stripe is unconfigured or the call fails — previously this wrote
+   * CANCELED to the DB unconditionally while Stripe kept auto-renewing/billing the member, exactly the
+   * gap T-59 Final QC found. A DB-only subscription (no `stripe_subscription_id`) has nothing to
+   * cancel at Stripe, so it keeps the original DB-only write.
+   *
+   * IDEMPOTENT with the `customer.subscription.deleted` webhook (production-wiring.ts
+   * `onSubscriptionDeleted`): an `immediate` cancel here also triggers that terminal event at Stripe,
+   * which writes the SAME status (CANCELED) to the SAME row — applying it twice is a no-op, never a
+   * double-charge/double-apply. For `end_of_period`, Stripe's OWN echo of this very call is a
+   * `customer.subscription.updated` event with `status: active` (the resource isn't deleted yet) —
+   * `onSubscriptionUpdated` now recognizes `cancel_at_period_end: true` on that event and does NOT
+   * let it reactivate the row this method just canceled (see production-wiring.ts).
    */
   async cancel(userId: string, mode: CancellationMode = 'end_of_period', nowMs: number = Date.now()) {
     const sub = await this.prisma.subscription.findFirst({
@@ -251,11 +327,22 @@ export class SubscriptionService {
         current_period_end: true,
         org_sponsored: true,
         sponsor_user_id: true,
+        stripe_subscription_id: true,
       },
     });
     if (!sub) throw new SubscriptionNotFoundError(userId);
 
     const outcome = resolveCancellationOutcome(mode, sub.current_period_end?.getTime() ?? null, nowMs);
+
+    if (sub.stripe_subscription_id) {
+      // Real outbound call FIRST — only a confirmed Stripe result reaches the DB write below.
+      await cancelStripeSubscription({
+        stripeSubscriptionId: sub.stripe_subscription_id,
+        mode,
+        idempotencyKey: `billing-cancel:${userId}:${sub.id}:${mode}`,
+      });
+    }
+
     await this.prisma.subscription.update({
       where: { id: sub.id },
       data: { status: SubscriptionStatus.CANCELED },

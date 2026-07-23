@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import { withOnboardingGate } from '@/lib/auth/onboarding-gate';
 import { markMemberConverted } from '@/services/payment/sponsor-cascade';
 import { buildMemberTransitionStore } from '@/services/payment/production-wiring';
+import { stripePriceEnvVarFor } from '@/services/payment/tiers';
 import {
   StripeConfigError,
   createCheckoutSession,
@@ -22,12 +23,6 @@ import {
 } from '@/services/payment/stripe-client';
 
 export const dynamic = 'force-dynamic';
-
-/** Env var (by NAME, §0.4) carrying the Stripe Price id for the locked individual monthly/annual plan. */
-const PRICE_ENV_BY_CYCLE: Record<'monthly' | 'annual', string> = {
-  monthly: 'STRIPE_PRICE_INDIVIDUAL_MONTHLY',
-  annual: 'STRIPE_PRICE_INDIVIDUAL_ANNUAL',
-};
 
 export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => {
   let body: { tier?: string; cycle?: string; convert?: boolean } = {};
@@ -54,9 +49,10 @@ export const POST = withOnboardingGate(async (req, _ctx, _session, identity) => 
   }
 
   // Fail-closed early if Stripe is not configured — do not mutate sponsorship state for a checkout
-  // that cannot complete.
-  const priceEnvVar = PRICE_ENV_BY_CYCLE[cycle];
-  const priceId = process.env[priceEnvVar];
+  // that cannot complete. `stripePriceEnvVarFor` (tiers.ts) is the single source of truth this route
+  // shares with `subscription.service.ts`'s `changePlan` (T-R44) — 'individual' always has an entry.
+  const priceEnvVar = stripePriceEnvVarFor('individual', cycle);
+  const priceId = priceEnvVar ? process.env[priceEnvVar] : undefined;
   if (!isStripeConfigured() || !priceId) {
     return NextResponse.json(
       { error: 'Checkout is not configured in this environment.', code: 'CHECKOUT_UNAVAILABLE' },
