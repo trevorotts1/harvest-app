@@ -27,8 +27,11 @@ import { MessageChannel } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+import { prisma } from '@/lib/prisma';
 import { hmacForMatch } from '@/services/compliance/encryption/encryption';
 import { INBOUND_WEBHOOK_SECRET_ENV_VAR, OptOutRegistryService } from '@/services/compliance/opt-out/opt-out-registry';
+import { PipelineService } from '@/services/warm-market/pipeline.service';
+import { PipelineStage } from '@/types/warm-market';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,6 +91,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Lazy: constructed per-request, not at module scope (build-safety convention).
   const service = new OptOutRegistryService();
   const optedOut = await service.recordInboundMessage(phoneHash, MessageChannel.SMS_PLATFORM, messageBody);
+
+  // T-R40 (§7.5): a normal (non-STOP) inbound reply is the REPLY-INGESTION event this ticket wires
+  // — advance every contact this identifier matches to RESPONDED. `OptOutRegistry` is keyed by
+  // `identifier_hash` GLOBALLY/cross-rep (see opt-out-registry.ts's own doc comment — "the same
+  // aunt appears in three cousins' warm markets"), and this webhook carries no per-rep/per-number
+  // disambiguation (`to`) yet either — so, exactly like the opt-out fan-out it sits beside, this
+  // advances every rep's copy of the contact sharing this phone_hash, never just one. A STOP
+  // (`optedOut === true`) is NOT treated as a reply — recordInboundMessage already routed it to the
+  // opt-out registry above; advancing pipeline_stage on an opt-out would conflate "asked to be left
+  // alone" with "responded," which `PipelineService.advanceStage`'s own do_not_contact/DORMANT
+  // guard is deliberately never asked to arbitrate here.
+  if (!optedOut) {
+    const pipelineService = new PipelineService(prisma);
+    const matches = await prisma.contact.findMany({ where: { phone_hash: phoneHash } });
+    await Promise.all(matches.map((c) => pipelineService.advanceStage(c.id, PipelineStage.RESPONDED, new Date())));
+  }
 
   return NextResponse.json({ optedOut });
 }

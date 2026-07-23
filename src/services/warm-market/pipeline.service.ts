@@ -24,6 +24,47 @@ const AGENT_QUEUE_EXCLUDED_STAGES: PipelineStage[] = [
   PipelineStage.DO_NOT_CONTACT,
 ];
 
+// T-R40 (§7.5 real-world pipeline advancement): the funnel-order rank used by `canAutoAdvance`
+// below. Deliberately narrower than `PIPELINE_STAGE_ORDER` (types/warm-market.ts) — that array's
+// tail (DORMANT, DO_NOT_CONTACT) exists only to give the Community board a display column for
+// every stage, not to assert they are "further along" than CLOSED_CLIENT/CLOSED_RECRUIT. Both
+// closed stages share rank 6: they are alternative terminal outcomes of the SAME funnel, not
+// sequential steps relative to each other. DORMANT/DO_NOT_CONTACT are absent on purpose — they are
+// absorbing side-states this auto-advance path must never enter OR leave (see `canAutoAdvance`).
+const PIPELINE_FUNNEL_RANK: Partial<Record<PipelineStage, number>> = {
+  [PipelineStage.IDENTIFIED]: 0,
+  [PipelineStage.INTRODUCED]: 1,
+  [PipelineStage.RESPONDED]: 2,
+  [PipelineStage.APPOINTMENT_PROPOSED]: 3,
+  [PipelineStage.APPOINTMENT_CONFIRMED]: 4,
+  [PipelineStage.MET]: 5,
+  [PipelineStage.CLOSED_CLIENT]: 6,
+  [PipelineStage.CLOSED_RECRUIT]: 6,
+};
+
+/**
+ * T-R40: the shared guard every real-world event site (first-touch handoff confirm, inbound
+ * reply, appointment booked/confirmed/met) funnels through before calling `recordOutreach` —
+ * `moveContact`/`recordOutreach` themselves stay raw/unguarded (existing callers, existing tests),
+ * so this is where "don't force illegal jumps" actually lives.
+ *
+ * `true` iff `target` is STRICTLY ahead of `current` in the funnel order above. This makes the
+ * auto-advance:
+ *   - Idempotent / never-regressing: re-firing the SAME event (a duplicate webhook, a re-sent
+ *     handoff) targets the SAME stage it already reached — not strictly ahead — so it is a no-op,
+ *     never a re-write, and a contact who raced ahead (e.g. replied before the rep's "I sent it"
+ *     landed) is never pulled backward to an earlier stage.
+ *   - Fail-closed for the two side-states: `current` outside this rank table (DORMANT,
+ *     DO_NOT_CONTACT, or any unrecognized value) always returns `false` — an opted-out or dormant
+ *     contact is never auto-advanced back into the active funnel by a send/reply/appointment event.
+ */
+export function canAutoAdvance(current: PipelineStage, target: PipelineStage): boolean {
+  const currentRank = PIPELINE_FUNNEL_RANK[current];
+  const targetRank = PIPELINE_FUNNEL_RANK[target];
+  if (currentRank === undefined || targetRank === undefined) return false;
+  return targetRank > currentRank;
+}
+
 export const AGENT_QUEUE_DEFAULT_LIMIT = 50;
 export const AGENT_QUEUE_MAX_LIMIT = 200;
 
@@ -154,6 +195,23 @@ export class PipelineService {
         last_contact_date: input.contactedAt ?? new Date(),
       },
     });
+  }
+
+  /**
+   * T-R40 (§7.5 "Contact pipeline to agents" — the previously-unreachable half): the guarded
+   * real-world advance every actual event site (first-touch handoff confirm, inbound reply,
+   * appointment booked/confirmed/met) calls. Reads the contact's CURRENT stage, applies
+   * `canAutoAdvance`'s forward-only/fail-closed guard, and — only when the move is legal — reuses
+   * `recordOutreach` (never reinvents the write). A contact not found resolves to `null`; a
+   * `do_not_contact` contact or an illegal/non-forward target resolves to the contact UNCHANGED
+   * (a safe no-op, not an error) — the caller never needs its own try/catch to stay idempotent.
+   */
+  async advanceStage(contactId: string, toStage: PipelineStage, contactedAt?: Date): Promise<Contact | null> {
+    const contact = await this.prisma.contact.findUnique({ where: { id: contactId } });
+    if (!contact) return null;
+    if (contact.do_not_contact) return contact;
+    if (!canAutoAdvance(contact.pipeline_stage as PipelineStage, toStage)) return contact;
+    return this.recordOutreach({ contactId, toStage, contactedAt });
   }
 
   private toAgentQueueContact(c: Contact): AgentQueueContact {

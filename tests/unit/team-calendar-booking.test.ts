@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 
 import { BookingService, type BookingPrismaClient, type AppointmentRow, type CoachingSessionRow, type AgentDispatch } from '../../src/services/team-calendar/booking.service';
 import { AgentKey } from '../../src/services/agent-runtime';
+import { PipelineStage } from '../../src/types/warm-market';
 
 /** A small, generic `where`-clause matcher covering the shapes booking.service.ts actually issues
  *  (`OR`, `{in:[]}`, `{not:null}`, `{gte:}/{lte:}`) — so the mock behaves like real Prisma filtering
@@ -35,14 +36,34 @@ function matchesWhere(row: Record<string, unknown>, where: Record<string, unknow
   return true;
 }
 
+interface MockContactRow {
+  id: string;
+  user_id: string;
+  first_name: string;
+  timezone: string | null;
+  interactions?: { id: string }[];
+  // T-R40: read/written by `PipelineService.advanceStage` (constructed by BookingService over
+  // this SAME mock, cast to the full PrismaClient). Optional + defaulted below so every
+  // pre-existing seed fixture (which never set these) stays valid.
+  pipeline_stage?: string;
+  do_not_contact?: boolean;
+  last_contact_date?: Date | null;
+}
+
 function makeMockPrisma(seed: {
   busyBlocks?: { user_id: string; starts_at: Date; ends_at: Date }[];
   links?: { user_id: string; provider: string; status: string }[];
-  contact?: { id: string; user_id: string; first_name: string; timezone: string | null; interactions?: { id: string }[] };
+  contact?: MockContactRow;
 } = {}) {
   const appointments = new Map<string, AppointmentRow>();
   const slotLocks = new Set<string>();
   const coachingSessions = new Map<string, CoachingSessionRow>();
+  // T-R40: a defensive CLONE, never the caller's own seed object — several existing tests pass
+  // the SAME shared `CONTACT_ET` const across many `makeMockPrisma()` calls; mutating it in place
+  // via `contact.update` would leak pipeline_stage across unrelated test cases.
+  const contactState: MockContactRow | null = seed.contact
+    ? { pipeline_stage: 'IDENTIFIED', do_not_contact: false, ...seed.contact }
+    : null;
 
   const prisma: BookingPrismaClient = {
     appointment: {
@@ -119,12 +140,17 @@ function makeMockPrisma(seed: {
     },
     contact: {
       async findUnique() {
-        return seed.contact ?? null;
+        return contactState ? { ...contactState } : null;
       },
-    },
+      async update({ where, data }: { where: { id: string }; data: Record<string, unknown> }) {
+        if (!contactState || contactState.id !== where.id) throw new Error('contact not found');
+        Object.assign(contactState, data);
+        return { ...contactState };
+      },
+    } as unknown as BookingPrismaClient['contact'],
   };
 
-  return { prisma, appointments, coachingSessions, slotLocks };
+  return { prisma, appointments, coachingSessions, slotLocks, contactState };
 }
 
 const CONNECTED_LINKS = [
@@ -256,6 +282,81 @@ describe('WP09 BookingService', () => {
     const outcome = await service.markAppointmentOutcome(first.appointmentId, 'no_show');
     expect(outcome.ok).toBe(true);
     expect(appointments.get(first.appointmentId)?.status).toBe('NO_SHOW');
+  });
+
+  // T-R40 (§7.5): booking.service.ts never touched Contact.pipeline_stage/last_contact_date before
+  // this ticket — an appointment could be booked, confirmed, and held forever while the contact
+  // stayed wherever it started. These tests drive the REAL propose/decline/outcome methods (never
+  // PipelineService.advanceStage directly) and assert the contact actually moves.
+  describe('T-R40 — pipeline advancement wiring', () => {
+    it('an immediately-booked closing appointment advances the contact straight to APPOINTMENT_CONFIRMED + stamps last_contact_date', async () => {
+      const { prisma, contactState } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET });
+      const service = new BookingService(prisma, fakeDispatch);
+      const now = new Date('2025-06-09T13:00:00Z');
+
+      const result = await service.proposeClosingAppointment({ repId: 'rep-1', trainerId: 'trainer-1', contactId: 'contact-1', organizationId: 'org-1', now });
+
+      expect(result.outcome).toBe('booked');
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.APPOINTMENT_CONFIRMED);
+      expect(contactState?.last_contact_date).toEqual(now);
+    });
+
+    it('a near-miss/proposed (not yet confirmed) closing appointment advances the contact to APPOINTMENT_PROPOSED', async () => {
+      const now = new Date('2025-06-09T13:00:00Z');
+      const busyBlocks = [
+        { user_id: 'rep-1', starts_at: now, ends_at: new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000) },
+      ];
+      const { prisma, contactState } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET, busyBlocks });
+      const service = new BookingService(prisma, fakeDispatch);
+
+      const result = await service.proposeClosingAppointment({ repId: 'rep-1', trainerId: 'trainer-1', contactId: 'contact-1', organizationId: 'org-1', now });
+
+      expect(result.outcome).toBe('near_miss_proposed');
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.APPOINTMENT_PROPOSED);
+    });
+
+    it('a HELD (completed) appointment outcome advances the contact to MET; a NO_SHOW does not advance it', async () => {
+      const { prisma, contactState } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET });
+      const service = new BookingService(prisma, fakeDispatch);
+      const first = await service.proposeClosingAppointment({ repId: 'rep-1', trainerId: 'trainer-1', contactId: 'contact-1', organizationId: 'org-1', now: new Date('2025-06-09T13:00:00Z') });
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.APPOINTMENT_CONFIRMED); // sanity
+
+      const outcome = await service.markAppointmentOutcome(first.appointmentId, 'completed');
+      expect(outcome.ok).toBe(true);
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.MET);
+    });
+
+    it('a NO_SHOW outcome never advances the pipeline — they did not actually meet', async () => {
+      const { prisma, contactState } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET });
+      const service = new BookingService(prisma, fakeDispatch);
+      const first = await service.proposeClosingAppointment({ repId: 'rep-1', trainerId: 'trainer-1', contactId: 'contact-1', organizationId: 'org-1', now: new Date('2025-06-09T13:00:00Z') });
+
+      await service.markAppointmentOutcome(first.appointmentId, 'no_show');
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.APPOINTMENT_CONFIRMED); // unchanged, not MET
+    });
+
+    it('IDEMPOTENCY: a trainer decline + reschedule of an already-CONFIRMED appointment never regresses the contact back to APPOINTMENT_PROPOSED', async () => {
+      const { prisma, contactState } = makeMockPrisma({ links: CONNECTED_LINKS, contact: CONTACT_ET });
+      const service = new BookingService(prisma, fakeDispatch);
+      const first = await service.proposeClosingAppointment({ repId: 'rep-1', trainerId: 'trainer-1', contactId: 'contact-1', organizationId: 'org-1', now: new Date('2025-06-09T13:00:00Z') });
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.APPOINTMENT_CONFIRMED); // sanity: already confirmed
+
+      await service.declineAndReschedule(first.appointmentId);
+
+      // The rescheduled fallback re-proposes (status PROPOSED) — but the contact had already
+      // reached APPOINTMENT_CONFIRMED, so the monotonic-forward guard must not pull it backward.
+      expect(contactState?.pipeline_stage).toBe(PipelineStage.APPOINTMENT_CONFIRMED);
+    });
+
+    it('a DO_NOT_CONTACT contact is never advanced by a booking event', async () => {
+      const doNotContactContact = { ...CONTACT_ET, do_not_contact: true };
+      const { prisma, contactState } = makeMockPrisma({ links: CONNECTED_LINKS, contact: doNotContactContact });
+      const service = new BookingService(prisma, fakeDispatch);
+
+      await service.proposeClosingAppointment({ repId: 'rep-1', trainerId: 'trainer-1', contactId: 'contact-1', organizationId: 'org-1', now: new Date('2025-06-09T13:00:00Z') });
+
+      expect(contactState?.pipeline_stage).toBe('IDENTIFIED');
+    });
   });
 
   it('schedule-flooding protection declines over-booking coaching sessions and suggests field-active time (§14.6-7, uiux AC-5.9-5)', async () => {

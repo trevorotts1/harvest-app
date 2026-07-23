@@ -20,9 +20,11 @@
 // `sent_from = rep_number`, `delivery_status = HANDED_OFF`, `handoff_confirmed = false` until the
 // rep confirms — never a fabricated "delivered".
 
-import { MessageChannel, MessageSource } from '@prisma/client';
+import { MessageChannel, MessageSource, type PrismaClient } from '@prisma/client';
 
 import { SendComplianceGate } from '../../compliance/send-gate/send-compliance-gate';
+import { PipelineService } from '../../warm-market/pipeline.service';
+import { PipelineStage } from '../../../types/warm-market';
 import { resolveDraftClearance, type SendHoldReason } from './send-decision';
 import {
   clearSendHold,
@@ -91,14 +93,23 @@ function buildSmsUri(e164: string, body: string): string {
 export class FirstTouchComposerService {
   private readonly decryptPhone: PhoneDecryptor;
   private readonly encryptBody: BodyEncryptor;
+  private readonly pipelineService: PipelineService;
 
   constructor(
     private prisma: SendPrismaClient,
     private sendGate: SendComplianceGate = new SendComplianceGate(),
-    opts: { decryptPhone?: PhoneDecryptor; encryptBody?: BodyEncryptor } = {}
+    opts: {
+      decryptPhone?: PhoneDecryptor;
+      encryptBody?: BodyEncryptor;
+      /** T-R40: DI seam for tests. Defaults to a REAL `PipelineService` over this SAME prisma
+       *  client (cast to the full `PrismaClient` — in production `prisma` already IS the real
+       *  client, just narrowly typed for this service's own needs). */
+      pipelineService?: PipelineService;
+    } = {}
   ) {
     this.decryptPhone = opts.decryptPhone ?? defaultPhoneDecryptor;
     this.encryptBody = opts.encryptBody ?? defaultBodyEncryptor;
+    this.pipelineService = opts.pipelineService ?? new PipelineService(prisma as unknown as PrismaClient);
   }
 
   /**
@@ -184,18 +195,33 @@ export class FirstTouchComposerService {
   }
 
   /**
-   * The one-tap "Did it send?" confirmation (uiux §4.4). `sent === true` → `handoff_confirmed`;
-   * `sent === false` → mark not-sent (the item returns to the queue, no shame copy). Ownership is
-   * enforced through the message's thread (`thread.user_id === userId`).
+   * The one-tap "Did it send?" confirmation (uiux §4.4). `sent === true` → `handoff_confirmed`,
+   * AND (T-R40) this is the honest FIRST-TOUCH SEND SUCCESS point — the rep has just confirmed the
+   * message genuinely went out from their own number, so the contact advances IDENTIFIED→
+   * INTRODUCED (via `PipelineService.advanceStage`, which reuses `recordOutreach` and stamps
+   * `last_contact_date`). Deliberately NOT wired at `prepareHandoff` — until the rep taps "I sent
+   * it," nothing is actually confirmed sent (this file's own honesty rule), so advancing the
+   * pipeline there would be a false positive. `sent === false` → mark not-sent (the item returns
+   * to the queue, no shame copy, no pipeline advance). Ownership is enforced through the message's
+   * thread (`thread.user_id === userId`).
    */
-  async confirmHandoff(userId: string, messageId: string, sent: boolean): Promise<ConfirmHandoffResult> {
+  async confirmHandoff(
+    userId: string,
+    messageId: string,
+    sent: boolean,
+    now: Date = new Date()
+  ): Promise<ConfirmHandoffResult> {
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, thread: { user_id: userId } },
+      include: { thread: true },
     });
     if (!message) return { status: 'NOT_FOUND' };
 
     if (sent) {
       await this.prisma.message.update({ where: { id: messageId }, data: { handoff_confirmed: true } });
+      if (message.thread) {
+        await this.pipelineService.advanceStage(message.thread.contact_id, PipelineStage.INTRODUCED, now);
+      }
       return { status: 'CONFIRMED', messageId };
     }
     await this.prisma.message.update({

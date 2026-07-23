@@ -34,6 +34,12 @@ export interface SendContactRow {
    *  at the email dispatch boundary. Optional so the SMS paths' fixtures (which never read it) and
    *  pre-T-39 mocks still satisfy this shape. */
   email?: string | null;
+  /** T-R40: optional so every pre-existing fixture/mock (which never read pipeline state) stays
+   *  structurally valid. Present on the row `PipelineService.advanceStage` reads via
+   *  `contact.findUnique` on this same client. */
+  pipeline_stage?: string;
+  do_not_contact?: boolean;
+  last_contact_date?: Date | null;
 }
 
 export interface MessageRow {
@@ -69,6 +75,12 @@ export interface SendPrismaClient {
         email?: true;
       };
     }): Promise<SendContactRow | null>;
+    // T-R40: pipeline-advancement read/write. `PipelineService` calls these two on this SAME
+    // (narrowly-typed) client — cast to the full `PrismaClient` at the call site — so a real
+    // Contact row's `pipeline_stage`/`do_not_contact` are read and written through the real Prisma
+    // methods in production, and through a test double's own `findUnique`/`update` in tests.
+    findUnique?(args: { where: { id: string } }): Promise<Record<string, unknown> | null>;
+    update?(args: { where: { id: string }; data: Record<string, unknown> }): Promise<Record<string, unknown>>;
   };
   /** T-39 (T-R19 fold-in): OPTIONAL — the append-only AuditEntry delegate `linkCfeAuditForSend` uses
    *  to persist the durable compliance-evidence record `Message.cfe_audit_id` points at. Absent in
@@ -86,7 +98,10 @@ export interface SendPrismaClient {
     create(args: { data: Record<string, unknown> }): Promise<MessageRow>;
     findFirst(args: {
       where: { id: string; thread: { user_id: string } };
-    }): Promise<(MessageRow & { thread_id: string }) | null>;
+      // T-R40: optionally join the thread so a caller (confirmHandoff) can resolve which Contact
+      // this message belongs to without a second round trip.
+      include?: { thread: true };
+    }): Promise<(MessageRow & { thread_id: string; thread?: { id: string; contact_id: string; user_id: string } }) | null>;
     update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<MessageRow>;
   };
 }
