@@ -15,15 +15,26 @@
 //     `${t}.${payload}`, constant-time compare, replay-tolerance window). This is exactly what the
 //     SDK's `webhooks.constructEvent` does; doing it by hand keeps the dependency footprint at zero
 //     and keeps every key read lazy.
-//   • Outbound Stripe API calls (checkout session create) go through `fetch` to the Stripe REST API
-//     with the secret key read lazily; if the key is absent the call throws (fail-closed).
+//   • Outbound Stripe API calls (checkout session create, subscription price-swap/cancel, charge
+//     retrieve) go through `fetch` to the Stripe REST API with the secret key read lazily; if the
+//     key is absent the call throws (fail-closed).
 //
-// DEVIATION (stated per the build brief): with no live Stripe creds in this environment, the
-// charge path (createCheckoutSession) and the webhook-verify path both FAIL CLOSED. The idempotency,
-// tier-provisioning, lapse-cascade, and event-map logic are all exercised by the unit suite with
-// mocks (payment-*.test.ts) — the fail-closed behavior itself is asserted too.
+// T-R44 (closes a T-59 Final QC WP10 gap): `createCheckoutSession` opens a REAL recurring Stripe
+// subscription, but until this unit nothing ever called Stripe again to CHANGE or END it —
+// `SubscriptionService.changePlan`/`.cancel` wrote the Prisma row only, so a live subscription and
+// the local DB/UI diverged once real creds existed. `updateStripeSubscription` (price swap +
+// proration) and `cancelStripeSubscription` (end-of-period or immediate) below are the missing
+// outbound calls, in the exact lazy/fail-closed/raw-fetch style as every function already here.
+//
+// DEVIATION (stated per the build brief): with no live Stripe creds in this environment, every
+// outbound call in this file (checkout, subscription update/cancel, charge retrieve) and the
+// webhook-verify path all FAIL CLOSED. The idempotency, tier-provisioning, lapse-cascade, and
+// event-map logic are all exercised by the unit suite with mocks (payment-*.test.ts /
+// subscription-service-stripe-lifecycle.test.ts) — the fail-closed behavior itself is asserted too.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+
+import type { CancellationMode } from './cancellation';
 
 export const STRIPE_SECRET_KEY_ENV_VAR = 'STRIPE_SECRET_KEY';
 export const STRIPE_WEBHOOK_SECRET_ENV_VAR = 'STRIPE_WEBHOOK_SECRET';
@@ -277,4 +288,191 @@ export async function retrieveStripeCharge(input: RetrieveChargeInput): Promise<
   }
   // `customer` is a bare id string (unexpanded) or null; anything else → treat as no customer.
   return { id: json.id, customer: typeof json.customer === 'string' ? json.customer : null };
+}
+
+// ─── T-R44 — subscription-lifecycle mutation (mid-cycle price swap + cancel) ─────────────────────
+//
+// GAP CLOSED (T-59 Final QC): `createCheckoutSession` above opens a REAL recurring Stripe
+// subscription (`mode: subscription`) — but until this unit, NOTHING in the repo ever called Stripe
+// again to change or end that subscription. `SubscriptionService.changePlan`/`.cancel`
+// (subscription.service.ts) wrote the Prisma row only, so a live Stripe subscription and the local
+// DB/UI diverged the moment real creds exist: a plan change showed a proration that never charged,
+// and a cancel showed CANCELED while Stripe kept auto-renewing/billing. These two functions are the
+// missing outbound calls, in the exact lazy/fail-closed/raw-fetch style as every other function in
+// this file — no `stripe` SDK, no stub, no fabricated response.
+
+/** The shape both mutation calls below return — the subset of Stripe's documented Subscription
+ *  object (https://docs.stripe.com/api/subscriptions/object) callers need to know the outcome. */
+export interface StripeSubscriptionResult {
+  id: string;
+  /** e.g. `active`, `canceled`, `past_due` — the Subscription object's `status` field. */
+  status: string;
+  /** Stripe's `cancel_at_period_end` — true once a `mode: 'end_of_period'` cancel has been scheduled. */
+  cancelAtPeriodEnd: boolean;
+  /** `current_period_end`, epoch SECONDS (Stripe's native unit), or null if absent on the response. */
+  currentPeriodEndSeconds: number | null;
+}
+
+function parseStripeSubscriptionResult(json: {
+  id?: string;
+  status?: string;
+  cancel_at_period_end?: unknown;
+  current_period_end?: unknown;
+}): StripeSubscriptionResult {
+  if (!json.id || !json.status) {
+    throw new Error('Stripe subscription response missing id/status.');
+  }
+  return {
+    id: json.id,
+    status: json.status,
+    cancelAtPeriodEnd: json.cancel_at_period_end === true,
+    currentPeriodEndSeconds: typeof json.current_period_end === 'number' ? json.current_period_end : null,
+  };
+}
+
+export interface UpdateStripeSubscriptionInput {
+  /** The live Stripe Subscription id (`Subscription.stripe_subscription_id`). */
+  stripeSubscriptionId: string;
+  /** The TARGET Stripe Price id (resolved by the caller from the locked tier/cycle config —
+   *  `tiers.ts`'s `stripePriceEnvVarFor`; never invented here). */
+  priceId: string;
+  /** An idempotency key so a retried change cannot double-apply/double-invoice (§15.5, same
+   *  convention as `createCheckoutSession`'s `idempotencyKey`). */
+  idempotencyKey: string;
+  env?: Record<string, string | undefined>;
+  /** Injectable fetch (tests). Defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Change the price on a REAL Stripe subscription (§15.4 "proration on mid-cycle tier changes") —
+ * `POST /v1/subscriptions/{id}`. LAZY + FAIL-CLOSED, identical to `createCheckoutSession`: reads
+ * `STRIPE_SECRET_KEY` by NAME at call time and throws `StripeConfigError` if absent; a non-2xx
+ * response throws (the caller must NOT persist a local plan change it cannot confirm actually
+ * happened at Stripe — subscription.service.ts's `changePlan`).
+ *
+ * TWO calls, not one, and that is deliberate, not an invented shape:
+ *   1. `GET /v1/subscriptions/{id}` — Stripe's documented Subscription object
+ *      (https://docs.stripe.com/api/subscriptions/object) exposes its price(s) only as a nested
+ *      `items` LIST of SubscriptionItem objects, each with its OWN `id` (an `si_...` string —
+ *      https://docs.stripe.com/api/subscription_items/object). A price swap on the EXISTING line
+ *      must reference that item's `id`; Stripe's own update docs
+ *      (https://docs.stripe.com/api/subscriptions/update, `items[]` param) are explicit that
+ *      `items[n][price]` with NO `items[n][id]` ADDS a second line rather than replacing the first —
+ *      so the item id is retrieved first rather than guessed or stored redundantly.
+ *   2. `POST /v1/subscriptions/{id}` — `items[0][id]=<the retrieved item id>`,
+ *      `items[0][price]=<priceId>`, and `proration_behavior=create_prorations` (§15.4; also Stripe's
+ *      own documented default for this endpoint — set explicitly here so it can never silently drift
+ *      to `none`/`always_invoice`). Stripe computes and invoices the actual proration; the app's own
+ *      `computeProration` (proration.ts) remains only the PREVIEW shown before confirm.
+ */
+export async function updateStripeSubscription(
+  input: UpdateStripeSubscriptionInput
+): Promise<StripeSubscriptionResult> {
+  const { stripeSubscriptionId, priceId, idempotencyKey, env = process.env } = input;
+  const secret = readStripeSecret(STRIPE_SECRET_KEY_ENV_VAR, env);
+  const doFetch = input.fetchImpl ?? fetch;
+  const subUrl = `${STRIPE_API_BASE}/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`;
+
+  const getRes = await doFetch(subUrl, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  if (!getRes.ok) {
+    const detail = await getRes.text().catch(() => '');
+    throw new Error(`Stripe subscription retrieve failed (${getRes.status}): ${detail.slice(0, 500)}`);
+  }
+  const subJson = (await getRes.json()) as { id?: string; items?: { data?: Array<{ id?: string }> } };
+  const itemId = subJson.items?.data?.[0]?.id;
+  if (!subJson.id || !itemId) {
+    throw new Error('Stripe subscription response missing id or a subscription item id to swap.');
+  }
+
+  const body = new URLSearchParams();
+  body.set('items[0][id]', itemId);
+  body.set('items[0][price]', priceId);
+  body.set('proration_behavior', 'create_prorations');
+
+  const res = await doFetch(subUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secret}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: body.toString(),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Stripe subscription update failed (${res.status}): ${detail.slice(0, 500)}`);
+  }
+  return parseStripeSubscriptionResult(
+    (await res.json()) as { id?: string; status?: string; cancel_at_period_end?: unknown; current_period_end?: unknown }
+  );
+}
+
+export interface CancelStripeSubscriptionInput {
+  /** The live Stripe Subscription id (`Subscription.stripe_subscription_id`). */
+  stripeSubscriptionId: string;
+  /**
+   * `end_of_period` (the §15.4 default — "access kept until the paid-through date, no dark
+   *  pattern") → `POST /v1/subscriptions/{id}` with `cancel_at_period_end=true`. The subscription
+   *  stays `active` at Stripe and keeps billing NOTHING further (no new invoice is generated once
+   *  this flag is set) until the current period actually ends, at which point Stripe cancels it for
+   *  real and fires `customer.subscription.deleted` (already handled — production-wiring.ts
+   *  `onSubscriptionDeleted`).
+   * `immediate` → `DELETE /v1/subscriptions/{id}` (Stripe's documented immediate-cancel endpoint,
+   *  https://docs.stripe.com/api/subscriptions/cancel) — ends the subscription and its billing right
+   *  now.
+   */
+  mode: CancellationMode;
+  /** Idempotency key so a retried cancel cannot double-apply (§15.5 convention). */
+  idempotencyKey: string;
+  env?: Record<string, string | undefined>;
+  /** Injectable fetch (tests). Defaults to global fetch. */
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Cancel a REAL Stripe subscription (§15.4 "active → canceled (end-of-period or immediate)").
+ * LAZY + FAIL-CLOSED, identical to `createCheckoutSession`/`updateStripeSubscription`: reads
+ * `STRIPE_SECRET_KEY` by NAME at call time and throws `StripeConfigError` if absent; a non-2xx
+ * response throws — the caller must NOT persist a local CANCELED it cannot confirm actually stopped
+ * billing at Stripe (subscription.service.ts's `cancel`).
+ */
+export async function cancelStripeSubscription(
+  input: CancelStripeSubscriptionInput
+): Promise<StripeSubscriptionResult> {
+  const { stripeSubscriptionId, mode, idempotencyKey, env = process.env } = input;
+  const secret = readStripeSecret(STRIPE_SECRET_KEY_ENV_VAR, env);
+  const doFetch = input.fetchImpl ?? fetch;
+  const subUrl = `${STRIPE_API_BASE}/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`;
+
+  let res: Response;
+  if (mode === 'immediate') {
+    res = await doFetch(subUrl, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${secret}`, 'Idempotency-Key': idempotencyKey },
+    });
+  } else {
+    const body = new URLSearchParams();
+    body.set('cancel_at_period_end', 'true');
+    res = await doFetch(subUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: body.toString(),
+    });
+  }
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Stripe subscription cancel failed (${res.status}): ${detail.slice(0, 500)}`);
+  }
+  return parseStripeSubscriptionResult(
+    (await res.json()) as { id?: string; status?: string; cancel_at_period_end?: unknown; current_period_end?: unknown }
+  );
 }
