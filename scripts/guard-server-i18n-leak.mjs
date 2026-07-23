@@ -37,18 +37,26 @@
  * tighten this scanner's heuristic instead).
  *
  * T-R47 HARDENING (Shift screen ratio-explainer/motivational-line leak, uiux §5.3) — Final QC found a
- * rep-facing leak this guard's ORIGINAL sink-name allowlist missed entirely: `learning-state/
- * ratios.ts`'s `RatioCardView.explainer` (property name `explainer`, not in the old allowlist at all)
- * and `shift.service.ts`'s `briefingLines`/`motivationalLine` (a `*Line`/`*Lines` camelCase suffix,
- * also absent). Both are now real sink names (see `REP_FACING_EXACT`/`CAMEL_LINE_SUFFIX_RE` below);
- * both leak sites are FIXED (threaded `locale` + real `t()` calls), not baselined — the baseline
- * stays the frozen snapshot of debt this fix did NOT touch. Widening the net incidentally surfaced
- * two genuinely pre-existing, out-of-lane hits this same run (`agent-runtime/prompt-assembly.ts`'s
- * `orgLine`/`anchorLine` — Claude PROMPT-construction text, never rendered to any rep/contact on any
- * screen, so out of this guard's actual "a Spanish rep sees English" concern, same character as the
- * 4 pre-existing audit/compliance `narrative` entries already grandfathered below); these two are
- * added to the baseline for burn-down, exactly like the original 4 were seeded at this guard's
- * introduction — NOT new code this build unit wrote.
+ * rep-facing leak this guard's ORIGINAL heuristic missed on TWO independent axes, both now closed:
+ *   (i) SINK NAME — `learning-state/ratios.ts`'s `RatioCardView.explainer` (property name `explainer`,
+ *       not in the old allowlist at all) and `shift.service.ts`'s `briefingLines`/`motivationalLine`
+ *       (a `*Line`/`*Lines` camelCase suffix, also absent). Both are now real sink names (see
+ *       `REP_FACING_EXACT`/`CAMEL_LINE_SUFFIX_RE` below).
+ *   (ii) VALUE SHAPE — the ACTUAL original `briefingLines` bug was ARRAY-WRAPPED
+ *       (`briefingLines: isEmpty ? ['English'] : [\`\${n} English\`]`), and `collectLiteralTexts`
+ *       used to descend parens/??/||/ternary/+-concat but NOT `[...]` array elements — so even once
+ *       `briefingLines` was a recognized sink name, the English one AST layer deeper inside the array
+ *       went unseen. `collectLiteralTexts` now recurses into `ArrayLiteralExpression` elements too
+ *       (see its own header). Axis (i) alone was NOT sufficient; both were required to catch the real
+ *       shape, and a dedicated array-wrapped teeth test now proves it (guard-server-i18n-leak-script).
+ * All three real leak sites (explainer, motivationalLine, briefingLines) are FIXED (threaded `locale`
+ * + real `t()` calls), not baselined — the baseline stays the frozen snapshot of debt this fix did NOT
+ * touch. Widening the net (both axes) surfaced NO new real rep-rendered leak anywhere in the tree; it
+ * did surface two genuinely pre-existing, out-of-lane hits (`agent-runtime/prompt-assembly.ts`'s
+ * `orgLine`/`anchorLine` — Claude PROMPT-construction text, grep-verified never rendered to any rep/
+ * contact on any screen, same character as the 4 pre-existing audit/compliance `narrative` entries
+ * already grandfathered below); those two are added to the baseline for burn-down, exactly like the
+ * original 4 were seeded at this guard's introduction — NOT new code this build unit wrote.
  *
  * Each entry is `relPath::kind::occurrenceIndex::snippet` (content-based, not line-based). Exits
  * 0 / 1. Wired into `postbuild` as `npm run guard:server-i18n-leak`.
@@ -162,14 +170,23 @@ function staticTemplateSegments(node) {
 }
 
 /** Every static string/template text reachable from a value expression, unwrapped through the
- *  wrappers a composed-prose value routinely uses: parens, `??`/`||` fallback, ternary, and `+`
- *  string concatenation (`\`${n} recruit(s) activated \` + SAFE_HARBOR_LINE` → both segments). */
+ *  wrappers a composed-prose value routinely uses: parens, `??`/`||` fallback, ternary, `+`
+ *  string concatenation (`\`${n} recruit(s) activated \` + SAFE_HARBOR_LINE` → both segments), and
+ *  T-R47 QC-fix — ARRAY LITERAL elements. The array case is not incidental: `shift.service.ts`'s
+ *  ORIGINAL `briefingLines: isEmpty ? ['Nothing needs you today…'] : [\`\${count} item ready…\`]`
+ *  leak (the exact bug this unit fixed) is an array-wrapped `*Lines` sink — the recursion already
+ *  descended the ternary branches, but each branch is an `[...]` whose English string sat one AST
+ *  layer deeper than anything the old walker reached, so the guard's `*Line`/`*Lines` sink-name
+ *  hardening alone would NOT have caught the real shape without this. Recurse into every element via
+ *  the same unwrap logic so an array of prose (`['English', \`\${x} more English\`]`) is fully seen. */
 function collectLiteralTexts(node, out) {
   const e = unwrapParens(node);
   if (ts.isStringLiteral(e)) {
     out.push(e.text);
   } else if (ts.isTemplateExpression(e) || ts.isNoSubstitutionTemplateLiteral(e)) {
     out.push(...staticTemplateSegments(e));
+  } else if (ts.isArrayLiteralExpression(e)) {
+    for (const element of e.elements) collectLiteralTexts(element, out);
   } else if (ts.isConditionalExpression(e)) {
     collectLiteralTexts(e.whenTrue, out);
     collectLiteralTexts(e.whenFalse, out);
