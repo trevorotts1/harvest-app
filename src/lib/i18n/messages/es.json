@@ -791,7 +791,32 @@
       "streakBadge_other": "Racha de {count} días",
       "shortModeBadge": "10 minutos enfocados",
       "graceDayBanner": "La vida pasó. Tu racha está segura — se usó un día de gracia.",
-      "beginCta": "Comenzar"
+      "beginCta": "Comenzar",
+      "briefingEmpty": "Nada necesita de ti hoy — tu campo está trabajando.",
+      "briefingCount_one": "{count} elemento listo para tu revisión.",
+      "briefingCount_other": "{count} elementos listos para tu revisión.",
+      "motivationalLine": "La atención pequeña y constante se acumula. Preséntate — eso es todo el trabajo de hoy."
+    },
+    "ratios": {
+      "trainerBaselineExplainer": "La Proporción de tu Entrenador de Campo mide la tasa de cierre de tu entrenador una vez que realiza la cita: cuántas se convierten en un cliente o en un nuevo compañero de equipo. Los nuevos representantes comienzan con la referencia de la comunidad (5 citas por 1 cierre) hasta que se hayan realizado suficientes citas propias.",
+      "agentRecord": {
+        "template": "Tu propio historial: {introPart} -> {respondedPart} -> {apptPart} -> {showsPart}. Así de efectivos son tus agentes de IA para tu comunidad.",
+        "introPart_one": "{count} introducción",
+        "introPart_other": "{count} introducciones",
+        "respondedPart_one": "{count} respondió",
+        "respondedPart_other": "{count} respondieron",
+        "apptPart_one": "{count} cita agendada",
+        "apptPart_other": "{count} citas agendadas",
+        "showsPart_one": "{count} asistencia confirmada",
+        "showsPart_other": "{count} asistencias confirmadas"
+      },
+      "trainerRecord": {
+        "template": "El historial de tu entrenador: {closes} de {runPart} {outcomePart}.",
+        "runPart_one": "{count} cita realizada",
+        "runPart_other": "{count} citas realizadas",
+        "outcomePart_one": "se convirtió en cliente o en un nuevo compañero de equipo",
+        "outcomePart_other": "se convirtieron en cliente o en un nuevo compañero de equipo"
+      }
     },
     "closePhase": {
       "beatPlanSuffix": "— superaste tu propio plan.",

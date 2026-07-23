@@ -1,4 +1,6 @@
 [
+  "src/services/agent-runtime/prompt-assembly.ts::english-in-server-prose::0::anchorLine: Rep anchor (motivational framing only):",
+  "src/services/agent-runtime/prompt-assembly.ts::english-in-server-prose::0::orgLine: Rep organization:",
   "src/services/compliance/adjudication/sla-escalation.ts::english-in-server-prose::0::content_text: [SLA escalation for queue",
   "src/services/compliance/audit/sinks.ts::english-in-server-prose::0::narrative: Data-rights event:",
   "src/services/compliance/audit/sinks.ts::english-in-server-prose::0::narrative: Licensing state transition:",

@@ -36,6 +36,20 @@
  * delete the entry; never add one to silence new code (fix the source, or, if it's a false positive,
  * tighten this scanner's heuristic instead).
  *
+ * T-R47 HARDENING (Shift screen ratio-explainer/motivational-line leak, uiux §5.3) — Final QC found a
+ * rep-facing leak this guard's ORIGINAL sink-name allowlist missed entirely: `learning-state/
+ * ratios.ts`'s `RatioCardView.explainer` (property name `explainer`, not in the old allowlist at all)
+ * and `shift.service.ts`'s `briefingLines`/`motivationalLine` (a `*Line`/`*Lines` camelCase suffix,
+ * also absent). Both are now real sink names (see `REP_FACING_EXACT`/`CAMEL_LINE_SUFFIX_RE` below);
+ * both leak sites are FIXED (threaded `locale` + real `t()` calls), not baselined — the baseline
+ * stays the frozen snapshot of debt this fix did NOT touch. Widening the net incidentally surfaced
+ * two genuinely pre-existing, out-of-lane hits this same run (`agent-runtime/prompt-assembly.ts`'s
+ * `orgLine`/`anchorLine` — Claude PROMPT-construction text, never rendered to any rep/contact on any
+ * screen, so out of this guard's actual "a Spanish rep sees English" concern, same character as the
+ * 4 pre-existing audit/compliance `narrative` entries already grandfathered below); these two are
+ * added to the baseline for burn-down, exactly like the original 4 were seeded at this guard's
+ * introduction — NOT new code this build unit wrote.
+ *
  * Each entry is `relPath::kind::occurrenceIndex::snippet` (content-based, not line-based). Exits
  * 0 / 1. Wired into `postbuild` as `npm run guard:server-i18n-leak`.
  */
@@ -60,7 +74,24 @@ const REPORT_ROOT = process.env.GUARD_SERVER_I18N_LEAK_SRC_ROOT ? path.join(SRC_
 /** A rep-facing display-prose sink NAME (object-property key, variable name). A multi-word English
  *  literal assigned to one of these, with no locale/t() in scope, is the leak. Tuned to display prose
  *  — NOT ids/tokens/enums/counts (`memberName`, `activationStatus`, `userId`) and NOT request/email
- *  `body` blobs (deliberately excluded — variable content, high FP). */
+ *  `body` blobs (deliberately excluded — variable content, high FP).
+ *
+ *  T-R47 HARDENING — added `explainer` (exact) and the `*Line`/`*Lines` CAMELCASE suffix (see
+ *  `CAMEL_LINE_SUFFIX_RE` below), closing the blind spot `learning-state/ratios.ts`'s
+ *  `RatioCardView.explainer` and `shift.service.ts`'s `briefingLines`/`motivationalLine` slipped
+ *  through: this guard's ONE heuristic (a display-named sink + a wordy English literal + no
+ *  locale/t() in the enclosing function) already covered that exact shape — the sink-NAME allowlist
+ *  was just missing those two spellings. `explainer` is an EXACT name (Today's own
+ *  `RatioTriple.explainer`, `mission-control/zones/ratios.ts`, ALREADY threads `locale` — it was
+ *  never flagged even before this hardening, because `functionHasLocaleOrT` already exempts it; only
+ *  the Shift's un-fixed sibling was ever at risk). `*Line`/`*Lines` is a SUFFIX, deliberately
+ *  case-SENSITIVE on the ORIGINAL (pre-lowercase) identifier and requiring a lowercase-letter-or-digit
+ *  immediately before the capital `L` — i.e. a genuine camelCase word boundary
+ *  (`motivationalLine`, `briefingLines`) — so it does NOT match a single dictionary word that merely
+ *  ends in the substring "line" with no internal capital (`baseline`, `outline`, `deadline`,
+ *  `guideline`, `headline` — the last is already its own EXACT entry above, case-insensitively, for
+ *  exactly this reason: `nameIsRepFacing` lowercases for the exact/suffix-regex checks but tests
+ *  `CAMEL_LINE_SUFFIX_RE` against the untouched original spelling). */
 const REP_FACING_EXACT = new Set([
   'roinote',
   'note',
@@ -77,11 +108,13 @@ const REP_FACING_EXACT = new Set([
   'prose',
   'sentence',
   'utterance',
+  'explainer',
 ]);
-const REP_FACING_SUFFIX_RE = /(?:note|message|label|text|copy|narrative|blurb|headline|caption|disclaimer)$/i;
+const REP_FACING_SUFFIX_RE = /(?:note|message|label|text|copy|narrative|blurb|headline|caption|disclaimer|explainer)$/i;
+const CAMEL_LINE_SUFFIX_RE = /[a-z0-9](?:Line|Lines)$/;
 function nameIsRepFacing(name) {
   const lower = name.toLowerCase();
-  return REP_FACING_EXACT.has(lower) || REP_FACING_SUFFIX_RE.test(lower);
+  return REP_FACING_EXACT.has(lower) || REP_FACING_SUFFIX_RE.test(lower) || CAMEL_LINE_SUFFIX_RE.test(name);
 }
 
 function findSourceFiles(dir) {

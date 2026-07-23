@@ -24,6 +24,34 @@ import {
   type PipelineStageLike,
 } from './ratios';
 import type { LearningStateView } from '@/types/learning-state';
+// T-R47 (rep-facing i18n leak fix) — locale resolution, same duck-typed `db.user.findUnique`
+// convention `today.service.ts`'s own `resolveRepLocale` established (see that file's header for
+// the full rationale): in production `prisma` is the real Prisma client, which really does have
+// `.user.findUnique` even though `LearningStatePrismaClient` (this file's own narrow DI surface,
+// same "each service owns its own narrow interface" convention as every sibling *PrismaClient type
+// in this codebase) declares no `user` accessor — widening that interface is out of this fix's
+// lane. Any `db` lacking `.user` (every existing test's in-memory fake) safely falls through to
+// `DEFAULT_LOCALE`. Never throws — a locale-lookup hiccup degrades to English, it must never fail
+// the ratio computation.
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
+
+type LocaleCapableDb = {
+  user?: {
+    findUnique?: (args: { where: { id: string }; select: { locale: true } }) => Promise<{ locale: string | null } | null>;
+  };
+};
+
+async function resolveRepLocale(db: LearningStatePrismaClient, userId: string, explicitLocale?: Locale): Promise<Locale> {
+  if (explicitLocale) return explicitLocale;
+  const maybeUser = (db as unknown as LocaleCapableDb).user;
+  if (typeof maybeUser?.findUnique !== 'function') return DEFAULT_LOCALE;
+  try {
+    const user = await maybeUser.findUnique({ where: { id: userId }, select: { locale: true } });
+    return isLocale(user?.locale) ? user.locale : DEFAULT_LOCALE;
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}
 
 export interface LearningStateContactRow {
   id: string;
@@ -80,8 +108,14 @@ export class LearningStateService {
    * view (baseline-gated, always explained, never a naked number — see ratios.ts). Ownership is
    * enforced entirely by scoping every query to `userId`, which callers must obtain from a verified
    * session identity (never a client-supplied header) — see the /api/learning-state route.
+   *
+   * T-R47 — `explicitLocale` is optional: every existing caller (the real `/api/learning-state`
+   * route, every existing test) omits it and gets the rep's real `User.locale` resolved via the
+   * duck-typed lookup above (English unless a real locale says otherwise), IDENTICAL to
+   * `today.service.ts`'s own `buildMissionControlToday` resolution.
    */
-  async recomputeAndGetView(userId: string): Promise<LearningStateView> {
+  async recomputeAndGetView(userId: string, explicitLocale?: Locale): Promise<LearningStateView> {
+    const locale = await resolveRepLocale(this.prisma, userId, explicitLocale);
     const contacts = await this.prisma.contact.findMany({
       where: { user_id: userId },
       select: { id: true, pipeline_stage: true },
@@ -130,8 +164,8 @@ export class LearningStateService {
     });
 
     return {
-      agentRatio: buildAgentRatioCardView(agentTally),
-      fieldTrainerRatio: buildFieldTrainerRatioCardView(trainerTally),
+      agentRatio: buildAgentRatioCardView(agentTally, locale),
+      fieldTrainerRatio: buildFieldTrainerRatioCardView(trainerTally, locale),
       computedAt: persisted.computed_at.toISOString(),
     };
   }

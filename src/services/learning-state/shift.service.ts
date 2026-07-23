@@ -42,6 +42,19 @@ import type {
   ShiftQueueCard,
   ShiftStateView,
 } from '@/types/learning-state';
+// T-R47 (rep-facing i18n leak fix; master-spec §17.5, uiux §6.2/§5.3) — `toView()` below used to
+// hardcode the Open-phase `briefingLines`/`motivationalLine` as bare English literals, with no
+// `locale` threaded and no `t()` call — the exact leak `guard-server-i18n-leak.mjs` targets (its
+// sink-name allowlist had no `*Line` suffix before this fix — see that script's header). Resolves
+// the rep's real `User.locale` the SAME duck-typed way `today.service.ts`'s own `resolveRepLocale`
+// does: `this.prisma.user.findUnique({ where: { id } })` is already called (no `select`) by
+// `isGraceDayAvailable` below and, in production, is the real Prisma client — which really does
+// return every column, including `locale`, even though `ShiftPrismaClient.user.findUnique`'s
+// declared return type (`{ intensity_setting: string } | null`) only names `intensity_setting`.
+// Every existing test's in-memory fake user row lacks `.locale` and safely falls through to
+// `DEFAULT_LOCALE` — no regression for any pre-existing caller/test.
+import { t } from '@/lib/i18n/catalog';
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n/locale';
 
 const SHORT_MODE_CAP = 3;
 const GRACE_DAYS_PER_WEEK = 1;
@@ -294,6 +307,18 @@ export class ShiftService {
     return mode === 'SHORT' ? all.slice(0, SHORT_MODE_CAP) : all;
   }
 
+  /** T-R47 — see this file's import-header note. Never throws — a locale-lookup hiccup degrades to
+   * English, it must never fail the Shift's own render. */
+  private async resolveLocale(userId: string): Promise<Locale> {
+    try {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      const rawLocale = (user as unknown as { locale?: string | null } | null)?.locale;
+      return isLocale(rawLocale) ? rawLocale : DEFAULT_LOCALE;
+    } catch {
+      return DEFAULT_LOCALE;
+    }
+  }
+
   private computeElapsedSeconds(row: ShiftSessionRow): number {
     if (row.phase === 'WORK' && row.last_resumed_at) {
       const live = Math.floor((this.now().getTime() - row.last_resumed_at.getTime()) / 1000);
@@ -310,6 +335,7 @@ export class ShiftService {
 
     const graceDayAvailable = await this.isGraceDayAvailable(row.user_id, row.session_date);
     const graceDayOffer = await this.computeGraceDayOffer(row.user_id, row.session_date, row.phase, graceDayAvailable);
+    const locale = await this.resolveLocale(row.user_id);
 
     return {
       phase: row.phase as ShiftPhase,
@@ -324,9 +350,9 @@ export class ShiftService {
       graceDayOffer,
       reflectionText: row.reflection_text,
       briefingLines: isEmpty
-        ? ['Nothing needs you today — your field is working.']
-        : [`${stack.length} item${stack.length === 1 ? '' : 's'} ready for your review.`],
-      motivationalLine: 'Small, steady attention compounds. Show up — that is the whole job today.',
+        ? [t(locale, 'shift.openPhase.briefingEmpty')]
+        : [t(locale, 'shift.openPhase.briefingCount', { count: stack.length })],
+      motivationalLine: t(locale, 'shift.openPhase.motivationalLine'),
       recap:
         row.phase === 'CLOSE' || row.phase === 'DONE'
           ? { approvals: row.recap_approvals, confirmations: row.recap_confirmations, logs: row.recap_logs }

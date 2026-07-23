@@ -125,6 +125,77 @@ describe('scripts/guard-server-i18n-leak.mjs', () => {
     expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
   });
 
+  // T-R47 — the Shift screen leak (RatioCardView.explainer / shift.service.ts's
+  // briefingLines/motivationalLine) this guard's sink-name allowlist MISSED before this hardening
+  // (it had no `explainer` entry and no `*Line`/`*Lines` suffix at all). These prove the hardened
+  // allowlist now catches that exact shape, and that threading `locale`/`t()` reverts it to green —
+  // the SAME mutation-proof shape the `roiNote` tests above already establish for this script.
+  test('TEETH: an `explainer` composed in a function with no locale/t() FAILS (the RatioCardView.explainer shape)', () => {
+    const s = makeScratchSrc();
+    dir = s.dir;
+    write(
+      s.srcRoot,
+      'ratios.ts',
+      `export function build(n: number) {\n  return { explainer: \`Your own record: \${n} introductions. This is how effective your agents are.\` };\n}\n`
+    );
+    writeBaseline(s.baselinePath, []);
+    const r = runGuard(s.srcRoot, s.baselinePath);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/english-in-server-prose/);
+    expect(r.stderr).toMatch(/explainer/);
+  });
+
+  test('MUTATION PROOF: threading a `locale` param reverts the `explainer` FAIL to a PASS', () => {
+    const s = makeScratchSrc();
+    dir = s.dir;
+    write(
+      s.srcRoot,
+      'ratios.ts',
+      `import type { Locale } from '@/lib/i18n/locale';\nexport function build(locale: Locale, n: number) {\n  return { explainer: renderExplainer(locale, n) };\n}\nfunction renderExplainer(_l: Locale, n: number) {\n  return \`\${n} introductions\`;\n}\n`
+    );
+    writeBaseline(s.baselinePath, []);
+    expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+  });
+
+  test('TEETH: a `motivationalLine`/`briefingLines` composed in a function with no locale/t() FAILS (the shift.service.ts shape)', () => {
+    const s = makeScratchSrc();
+    dir = s.dir;
+    write(
+      s.srcRoot,
+      'shift.service.ts',
+      `export function build(isEmpty: boolean, count: number) {\n  const motivationalLine = 'Small, steady attention compounds. Show up today.';\n  const briefingLines = isEmpty ? ['Nothing needs you today — your field is working.'] : [\`\${count} items ready for your review.\`];\n  return { motivationalLine, briefingLines };\n}\n`
+    );
+    writeBaseline(s.baselinePath, []);
+    const r = runGuard(s.srcRoot, s.baselinePath);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/english-in-server-prose/);
+    expect(r.stderr).toMatch(/motivationalLine/);
+  });
+
+  test('MUTATION PROOF: calling t() reverts the `motivationalLine` FAIL to a PASS', () => {
+    const s = makeScratchSrc();
+    dir = s.dir;
+    write(
+      s.srcRoot,
+      'shift.service.ts',
+      `declare function t(k: string, v?: object): string;\nexport function build(locale: string, count: number) {\n  const motivationalLine = t('shift.openPhase.motivationalLine');\n  const briefingLines = [t('shift.openPhase.briefingCount', { count })];\n  return { motivationalLine, briefingLines };\n}\n`
+    );
+    writeBaseline(s.baselinePath, []);
+    expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+  });
+
+  test('a plain single-word compound ending in "line" with no internal camelCase boundary (`baseline`) is NOT flagged — the false-positive `CAMEL_LINE_SUFFIX_RE` is scoped to avoid', () => {
+    const s = makeScratchSrc();
+    dir = s.dir;
+    write(
+      s.srcRoot,
+      'thresholds.ts',
+      `export function build() {\n  const baseline = 'Community baseline default fallback text here';\n  return { baseline };\n}\n`
+    );
+    writeBaseline(s.baselinePath, []);
+    expect(runGuard(s.srcRoot, s.baselinePath).status).toBe(0);
+  });
+
   test('a violation present in the baseline is grandfathered (WARN-EXEMPT) and does not fail the build', () => {
     const s = makeScratchSrc();
     dir = s.dir;
