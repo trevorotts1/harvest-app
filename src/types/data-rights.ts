@@ -138,6 +138,20 @@ export interface RetainedRecordRef {
   reason: string; // e.g. "FINRA 2210/3110 — 7yr communications retention (§16.2, §16.3)"
 }
 
+// T-R45 (§18.2 "the tree re-parents to their upline with notification"): what processDeletion did
+// to the deleted rep's DIRECT downline (see data-rights.ts's processDeletion for the full logic).
+// `reparented_user_ids` is empty when the deleted rep simply had no downline — the no-op case.
+export interface ReparentedDownlineSummary {
+  /** The deleted rep's OWN `upline_id` at the moment of deletion (their sponsor) — every entry in
+   *  `reparented_user_ids` now points here. `null` covers the top-of-tree edge: the deleted rep had
+   *  no upline of their own, so their downline is promoted to top-level (`upline_id: null`) rather
+   *  than left on the anonymized ghost node. */
+  new_upline_id: string | null;
+  /** ids of every direct-downline user moved to `new_upline_id`. Grandchildren are NOT listed here
+   *  (and are untouched) — only the direct children's `upline_id` changes. */
+  reparented_user_ids: string[];
+}
+
 export interface DeletionCertificate {
   user_id: string;
   deletion_id: string;
@@ -164,6 +178,8 @@ export interface DeletionCertificate {
    *  per-contact hashes forward so that cascade can be wired without re-deriving them. */
   cascade_hashes: Array<{ contact_id: string; phone_hash: string | null; email_hash: string | null }>;
   certificate_url: string;
+  /** Present only when status === 'COMPLETED' (a HELD deletion never reaches the re-parent step). */
+  reparented_downline?: ReparentedDownlineSummary;
 }
 
 export interface UserDataDeletionRecord {

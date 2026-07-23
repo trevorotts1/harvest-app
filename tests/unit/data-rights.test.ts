@@ -50,9 +50,20 @@ function makeMockPrisma(seed: {
   licensingRecords?: Row[];
   agentRuns?: Row[];
   milestones?: Row[];
+  // T-R45 (§18.2): additional `User` rows beyond the primary `seed.user` — direct downline
+  // (`upline_id: seed.user.id`), a sponsor (`seed.user.upline_id` points at one of these), etc.
+  // Seeded into the SAME `users` map `seed.user` lives in, so `user.findMany`/`updateMany`
+  // (the re-parent queries) and `user.findUnique` all read/write one consistent store.
+  otherUsers?: Row[];
+  // T-R45 (§18.2): pre-existing NotificationLog rows, e.g. to test the idempotent
+  // already-notified case.
+  notificationLogs?: Row[];
 }) {
   const users = new Map<string, Row>();
   if (seed.user) users.set(seed.user.id as string, { ...seed.user });
+  if (seed.otherUsers) {
+    for (const u of seed.otherUsers) users.set(u.id as string, { ...u });
+  }
 
   let contacts: Row[] = seed.contacts ? seed.contacts.map((c) => ({ ...c })) : [];
   const auditEntries: Row[] = seed.auditEntries ? seed.auditEntries.map((a) => ({ ...a })) : [];
@@ -84,12 +95,73 @@ function makeMockPrisma(seed: {
   let licensingRecords: Row[] = seed.licensingRecords ? seed.licensingRecords.map((l) => ({ ...l })) : [];
   let agentRuns: Row[] = seed.agentRuns ? seed.agentRuns.map((r) => ({ ...r })) : [];
   let milestones: Row[] = seed.milestones ? seed.milestones.map((m) => ({ ...m })) : [];
+  // T-R45 (§18.2): NotificationLog mock state — append-only, mirrors the real model's shape
+  // (`@@unique([user_id, type, dedupe_key])`).
+  const notificationLogs: Row[] = seed.notificationLogs ? seed.notificationLogs.map((n) => ({ ...n })) : [];
 
   const userUpdate = jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
     const existing = users.get(where.id) ?? {};
     const updated = { ...existing, ...data };
     users.set(where.id, updated);
     return updated;
+  });
+
+  // T-R45 (§18.2): the direct-downline lookup `where: { upline_id: <deleted user id> }` — the SAME
+  // query shape `resolveDownlineRepIds` uses in production (see data-rights.ts's processDeletion
+  // doc comment).
+  const userFindMany = jest.fn(async ({ where }: { where: { upline_id?: string } }) =>
+    Array.from(users.values()).filter((u) => u.upline_id === where.upline_id)
+  );
+
+  // T-R45 (§18.2): the bulk re-parent write.
+  const userUpdateMany = jest.fn(
+    async ({ where, data }: { where: { upline_id?: string }; data: Row }) => {
+      let count = 0;
+      for (const [id, u] of users.entries()) {
+        if (u.upline_id === where.upline_id) {
+          users.set(id, { ...u, ...data });
+          count++;
+        }
+      }
+      return { count };
+    }
+  );
+
+  // T-R45 (§18.2): NotificationLog delegate — idempotent per (user_id, type, dedupe_key), mirroring
+  // the real model's compound unique constraint.
+  const notificationLogFindUnique = jest.fn(
+    async ({
+      where,
+    }: {
+      where: { user_id_type_dedupe_key: { user_id: string; type: string; dedupe_key: string } };
+    }) => {
+      const key = where.user_id_type_dedupe_key;
+      return (
+        notificationLogs.find(
+          (n) => n.user_id === key.user_id && n.type === key.type && n.dedupe_key === key.dedupe_key
+        ) ?? null
+      );
+    }
+  );
+
+  const notificationLogCreate = jest.fn(async ({ data }: { data: Row }) => {
+    const row: Row = { id: `notif-${notificationLogs.length + 1}`, created_at: new Date(), ...data };
+    notificationLogs.push(row);
+    return row;
+  });
+
+  // T-R45 (§18.2): an interactive-transaction mock — invokes the callback with THIS SAME mock
+  // object (not a separate proxy), so every `tx.X` call inside `processDeletion`'s transaction is
+  // the identical jest.fn the tests already assert against via `prisma.X`. Real Prisma's
+  // `$transaction(fn)` gives `fn` a scoped client; this mock is deliberately simpler (no real
+  // rollback-on-throw semantics) since the unit under test is exercised as sequenced business
+  // logic, not database transaction mechanics — those are Prisma's own, already-shipped guarantee.
+  const transactionMock = jest.fn(async (fn: (tx: MockDataRightsPrisma) => Promise<unknown>): Promise<unknown> => {
+    // `as unknown as` (not a plain reference) deliberately breaks a circular type-inference error
+    // TS otherwise reports here: `prisma` (declared further below, and itself embedding
+    // `$transaction: transactionMock`) would need this callback's inferred type resolved to infer
+    // ITS OWN type, which is exactly what this callback's inference is trying to resolve.
+    return fn(prisma as unknown as MockDataRightsPrisma);
   });
 
   const contactUpdateMany = jest.fn(async ({ where, data }: { where: { user_id: string }; data: Row }) => {
@@ -267,9 +339,18 @@ function makeMockPrisma(seed: {
   // `auditEntry.delete`/`deleteMany` exist on the mock purely so proof test (b) can assert they are
   // never called, even though the real DataRightsPrismaClient contract has no such methods).
   const prisma = {
+    // T-R45 (§18.2): the mock's own interactive-transaction shim — see `transactionMock`'s doc
+    // comment above.
+    $transaction: transactionMock,
     user: {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => users.get(where.id) ?? null),
       update: userUpdate,
+      findMany: userFindMany,
+      updateMany: userUpdateMany,
+    },
+    notificationLog: {
+      findUnique: notificationLogFindUnique,
+      create: notificationLogCreate,
     },
     contact: {
       findMany: jest.fn(async ({ where }: { where: { user_id: string } }) =>
@@ -325,6 +406,8 @@ function makeMockPrisma(seed: {
       getLicensingRecords: () => licensingRecords,
       getAgentRuns: () => agentRuns,
       getMilestones: () => milestones,
+      getUsers: () => Array.from(users.values()),
+      getNotificationLogs: () => notificationLogs,
     },
     auditEntry: {
       findMany: jest.fn(async ({ where }: { where: { user_id: string; regulation?: unknown } }) =>
@@ -377,6 +460,8 @@ type MockDataRightsPrisma = DataRightsPrismaClient & {
     getLicensingRecords: () => Row[];
     getAgentRuns: () => Row[];
     getMilestones: () => Row[];
+    getUsers: () => Row[];
+    getNotificationLogs: () => Row[];
   };
   auditEntry: DataRightsPrismaClient['auditEntry'] & {
     delete: jest.Mock;
@@ -815,6 +900,212 @@ describe('T-11 Data Rights — deletion (proofs a, b, c)', () => {
     const record = await service.requestDeletion({ user_id: 'user-1', requested_by: 'user-1' });
     expect(record.status).toBe('PENDING');
     expect(auditSink.ofType('deletion.requested')).toHaveLength(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// T-R45 (master-spec §18.2 "the tree re-parents to their upline with notification"): T-59 Final QC
+// found that a rep WITH A DOWNLINE who deletes their account gets anonymized (T-11's existing
+// behavior, unregressed below) but their direct downline was left pointing at the anonymized ghost
+// row forever — `resolveDownlineRepIds` in ../adjudication/cfe-adjudication.service.ts (and every
+// other downline query in this codebase) resolves via exactly one `where: { upline_id: ... }` hop,
+// so the deleted rep's OWN upline permanently lost visibility into that whole sub-tree. Each test
+// below seeds a real multi-level tree (sponsor -> deleted rep -> direct downline -> grandchildren)
+// and asserts against `prisma.__state.getUsers()`/`getNotificationLogs()` — the mock's actual
+// persisted state — not merely that a jest.fn was called with the "right" arguments.
+// ─────────────────────────────────────────────────────────────────────────
+describe('T-R45 Data Rights — downline re-parent + notify on deletion (§18.2)', () => {
+  let legalHoldRepo: InMemoryLegalHoldRepository;
+  let auditSink: InMemoryDataRightsAuditSink;
+  let legalHold: LegalHoldService;
+
+  beforeEach(() => {
+    legalHoldRepo = new InMemoryLegalHoldRepository();
+    auditSink = new InMemoryDataRightsAuditSink();
+    legalHold = new LegalHoldService(legalHoldRepo, auditSink);
+  });
+
+  // Tree: SPONSOR -> user-1 (deleted) -> { CHILD_A, CHILD_B } -> GRANDCHILD (under CHILD_A only).
+  const SPONSOR: Row = { id: 'sponsor-1', email: 'sponsor@example.com', name: 'Sponsor Rep', upline_id: null };
+  const DELETED_USER_WITH_UPLINE: Row = { ...BASE_USER, upline_id: 'sponsor-1' };
+  const CHILD_A: Row = { id: 'child-a', email: 'child.a@example.com', name: 'Child A', upline_id: 'user-1' };
+  const CHILD_B: Row = { id: 'child-b', email: 'child.b@example.com', name: 'Child B', upline_id: 'user-1' };
+  const GRANDCHILD: Row = {
+    id: 'grandchild-1',
+    email: 'grandchild@example.com',
+    name: 'Grandchild',
+    upline_id: 'child-a',
+  };
+
+  test('(a) direct downline is re-parented to the deleted rep\'s OWN upline (assert new upline_id); grandchildren are untouched; the deleted user is still anonymized; the FINRA carve-out stays intact', async () => {
+    const finraAuditEntries: Row[] = [
+      { id: 'ae-1', user_id: 'user-1', regulation: 'FINRA', content_hash: 'hash-1', created_at: new Date() },
+    ];
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      auditEntries: finraAuditEntries,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B, GRANDCHILD],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(certificate.status).toBe('COMPLETED');
+
+    // §18.2 re-parent — assert new upline_id.
+    expect(certificate.reparented_downline?.new_upline_id).toBe('sponsor-1');
+    expect([...(certificate.reparented_downline?.reparented_user_ids ?? [])].sort()).toEqual([
+      'child-a',
+      'child-b',
+    ]);
+    const users = prisma.__state.getUsers();
+    expect(users.find((u) => u.id === 'child-a')?.upline_id).toBe('sponsor-1');
+    expect(users.find((u) => u.id === 'child-b')?.upline_id).toBe('sponsor-1');
+    // Grandchild is untouched — still points at its own direct parent (child-a), never rewritten.
+    expect(users.find((u) => u.id === 'grandchild-1')?.upline_id).toBe('child-a');
+
+    // The deleted user is STILL anonymized — the §18.2 fix does not regress T-11's PII scrub.
+    const deletedRow = users.find((u) => u.id === 'user-1');
+    expect(deletedRow?.email).toMatch(/^deleted-user-1@/);
+    expect(deletedRow?.name).toBe('Deleted User');
+    expect(certificate.deleted_fields).toContain('User.email');
+
+    // The FINRA carve-out stays intact alongside the re-parent — read, never written.
+    expect(certificate.retained_records).toHaveLength(1);
+    expect(certificate.retained_records[0].ref).toBe('AuditEntry:ae-1');
+    expect(prisma.auditEntry.delete).not.toHaveBeenCalled();
+    expect(prisma.auditEntry.deleteMany).not.toHaveBeenCalled();
+  });
+
+  test('(b) the new upline AND each re-parented rep are notified, via the real NotificationLog mechanism', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B, GRANDCHILD],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    await service.processDeletion('del-1', 'user-1');
+
+    const logs = prisma.__state.getNotificationLogs();
+    expect(logs).toHaveLength(3); // sponsor + child-a + child-b — never grandchild
+
+    const sponsorNotice = logs.find((n) => n.user_id === 'sponsor-1');
+    const childANotice = logs.find((n) => n.user_id === 'child-a');
+    const childBNotice = logs.find((n) => n.user_id === 'child-b');
+    const grandchildNotice = logs.find((n) => n.user_id === 'grandchild-1');
+
+    for (const notice of [sponsorNotice, childANotice, childBNotice]) {
+      expect(notice).toBeDefined();
+      expect(notice?.type).toBe('ACTION_ALERT');
+      expect(notice?.unmutable).toBe(true);
+      expect(notice?.deep_link).toBe('/grow');
+    }
+    // Grandchild's own sponsor never changed (child-a is untouched) — no notice for them.
+    expect(grandchildNotice).toBeUndefined();
+  });
+
+  test('(c) top-of-tree deletion (deleted rep has no upline): direct downline is promoted to top-level, never left on the ghost node — re-parented reps are still notified', async () => {
+    const topUser: Row = { ...BASE_USER, upline_id: null };
+    const prisma = makeMockPrisma({
+      user: topUser,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [CHILD_A, CHILD_B, GRANDCHILD],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(certificate.reparented_downline?.new_upline_id).toBeNull();
+    const users = prisma.__state.getUsers();
+    expect(users.find((u) => u.id === 'child-a')?.upline_id).toBeNull();
+    expect(users.find((u) => u.id === 'child-b')?.upline_id).toBeNull();
+    // Grandchild still untouched.
+    expect(users.find((u) => u.id === 'grandchild-1')?.upline_id).toBe('child-a');
+
+    // Re-parented reps are still notified (their sponsor changed, to none) — but there is no new
+    // upline to notify, so exactly 2 notices, not 3.
+    const logs = prisma.__state.getNotificationLogs();
+    expect(logs).toHaveLength(2);
+    expect(logs.find((n) => n.user_id === 'child-a')).toBeDefined();
+    expect(logs.find((n) => n.user_id === 'child-b')).toBeDefined();
+  });
+
+  test('(d) re-running processDeletion for the same deletion_id is idempotent: no double re-parent, no duplicate notifications', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B, GRANDCHILD],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    await service.processDeletion('del-1', 'user-1');
+    expect(prisma.__state.getNotificationLogs()).toHaveLength(3);
+
+    // Re-run against the SAME deletion_id (e.g. a retried/duplicated request) — must be a safe
+    // no-op, not a second re-parent pass or duplicate notifications.
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(certificate.reparented_downline?.reparented_user_ids).toEqual([]); // nobody left pointing at user-1
+    const users = prisma.__state.getUsers();
+    expect(users.find((u) => u.id === 'child-a')?.upline_id).toBe('sponsor-1');
+    expect(users.find((u) => u.id === 'child-b')?.upline_id).toBe('sponsor-1');
+    expect(prisma.__state.getNotificationLogs()).toHaveLength(3); // unchanged — no duplicates
+  });
+
+  test('(e) a rep with NO downline deletes: unchanged behavior — no re-parent call, no notifications, existing anonymization proof still holds (no regression)', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE, // has an upline (sponsor-1) but NO downline of its own
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(certificate.status).toBe('COMPLETED');
+    expect(certificate.reparented_downline).toEqual({ new_upline_id: 'sponsor-1', reparented_user_ids: [] });
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(prisma.notificationLog.create).not.toHaveBeenCalled();
+    expect(prisma.notificationLog.findUnique).not.toHaveBeenCalled();
+
+    // Existing (a)-style anonymization proof is unaffected by this fix.
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
+    const userUpdateData = (prisma.user.update as jest.Mock).mock.calls[0][0].data;
+    expect(userUpdateData.email).toMatch(/^deleted-user-1@/);
+    expect(userUpdateData.name).toBe('Deleted User');
+  });
+
+  test('(f) legal hold blocks the re-parent too — nothing under §18.2 runs while HELD', async () => {
+    await legalHold.placeHold({
+      user_id: 'user-1',
+      reason: 'FINRA regulatory inquiry — active litigation hold',
+      placed_by: 'admin-1',
+      placed_by_role: 'ADMIN',
+    });
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B],
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { record, certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(record.status).toBe('HELD');
+    expect(certificate.reparented_downline).toBeUndefined();
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(prisma.notificationLog.create).not.toHaveBeenCalled();
+    expect(prisma.__state.getUsers().find((u) => u.id === 'child-a')?.upline_id).toBe('user-1');
+    expect(prisma.__state.getUsers().find((u) => u.id === 'child-b')?.upline_id).toBe('user-1');
   });
 });
 
