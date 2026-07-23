@@ -1165,7 +1165,6 @@
     },
     "manage": {
       "heading": "Administrar plan",
-      "pauseOption": "Pausar (los agentes descansan, los datos se conservan)",
       "downgradeOption": "Bajar de plan",
       "accessUntil": "Si cancelas, mantienes acceso completo hasta el {date}, y puedes reactivar dentro de {days} días. No necesitas contactar a soporte."
     },

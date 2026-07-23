@@ -1,6 +1,9 @@
 // WP10 (T-47) — billing lifecycle state machine + graceful-suspension contract + proration +
 // no-dark-pattern cancellation (§15.4; qc-checklist WP10 checkpoints 6 & 11 / uiux AC-5.8-6/7).
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { SubscriptionStatus } from '@prisma/client';
 
 import { nextSubscriptionStatus, suspensionAgentEffect } from '@/services/payment/billing-lifecycle';
@@ -81,15 +84,51 @@ describe('cancellation flow — NO DARK PATTERNS (AC-5.8-6)', () => {
   const NOW = 1_000_000_000_000;
   test('alternatives are equal-weight; final label is plain; no support contact required', () => {
     const flow = buildCancellationFlow({ openConversations: 3, downgradeAvailable: true, currentPeriodEndMs: NOW + 10 * DAY });
-    expect(flow.alternatives).toEqual(['pause', 'downgrade', 'cancel']);
+    expect(flow.alternatives).toEqual(['downgrade', 'cancel']);
     expect(flow.finalActionLabel).toBe('Cancel subscription');
     expect(flow.requiresSupportContact).toBe(false);
     expect(flow.reactivationWindowDays).toBe(REACTIVATION_WINDOW_DAYS);
     expect(flow.accessUntilIso).toBe(new Date(NOW + 10 * DAY).toISOString());
   });
-  test('no downgrade path when not applicable → pause + cancel only', () => {
+  test('no downgrade path when not applicable → cancel only', () => {
     const flow = buildCancellationFlow({ openConversations: 0, downgradeAvailable: false, currentPeriodEndMs: null });
-    expect(flow.alternatives).toEqual(['pause', 'cancel']);
+    expect(flow.alternatives).toEqual(['cancel']);
+  });
+
+  // T-R42 (P2 cleanup, integration-reachability audit): 'pause' is NO LONGER an offered alternative,
+  // in ANY configuration — no pause capability exists anywhere in this codebase (no `PAUSED` in
+  // `SubscriptionStatus`, no pause method on `SubscriptionService`), so offering it would be the
+  // exact dark pattern this describe block's own header guards against (a retention alternative
+  // that cannot actually be honored). This REPLACES the old assertions (above) that 'pause' WAS
+  // present — the correct new intent is that it is absent, not merely untested.
+  test('T-R42: "pause" is never offered — not with downgrade available, not without', () => {
+    const withDowngrade = buildCancellationFlow({ openConversations: 3, downgradeAvailable: true, currentPeriodEndMs: NOW + 10 * DAY });
+    const withoutDowngrade = buildCancellationFlow({ openConversations: 0, downgradeAvailable: false, currentPeriodEndMs: null });
+    expect(withDowngrade.alternatives).not.toContain('pause');
+    expect(withoutDowngrade.alternatives).not.toContain('pause');
+  });
+
+  // T-R42 — render-level teeth (repo precedent: tests/unit/composer-handoff-wiring.test.ts's
+  // source-scan proof for a page that fetches its own data in `useEffect`, which never runs in this
+  // repo's node/no-jsdom test render). `me/subscription/page.tsx` is exactly that shape, so a
+  // structural scan of its real source is the deterministic way to prove the cancel dialog can never
+  // render a pause affordance: (a) the old `.filter((alt) => alt !== 'pause')` dark-pattern
+  // workaround is gone (nothing left to filter), and (b) the button list is rendered directly off
+  // `cancelFlow.alternatives` with no other, separate hardcoded "pause"/"Pause" button anywhere in
+  // the file — combined with `buildCancellationFlow` (the ONLY source of that array, confirmed by
+  // grep — no other consumer of its `alternatives` renders anything) never including 'pause' (proven
+  // above), the rendered dialog genuinely cannot show a pause affordance.
+  test('T-R42: the cancel dialog\'s real source has no pause affordance left to render', () => {
+    const src = readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'me', 'subscription', 'page.tsx'), 'utf8');
+
+    // The old workaround filter is gone — the data layer itself no longer offers 'pause'.
+    expect(src).not.toMatch(/filter\(\(alt\) => alt !== 'pause'\)/);
+    // No stray hardcoded pause button/label/catalog-key reference anywhere in the file.
+    expect(src).not.toMatch(/'pause'/);
+    expect(src).not.toMatch(/pauseOption/);
+    expect(src.toLowerCase()).not.toMatch(/>\s*pause\b/);
+    // The button list still renders directly off the real flow data (not some other hardcoded list).
+    expect(src).toMatch(/cancelFlow\.alternatives\.map\(/);
   });
   test('end-of-period cancel HONORS the paid-through date; immediate ends now', () => {
     const end = NOW + 12 * DAY;

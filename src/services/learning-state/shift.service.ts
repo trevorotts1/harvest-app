@@ -126,6 +126,14 @@ export interface ShiftPrismaClient {
       select: { id: true; first_name: true; last_name: true };
     }): Promise<ShiftContactRow[]>;
   };
+  /** T-R42 — same narrow `MomentumEvent`-write surface `MissionControlPrismaClient`
+   * (src/services/mission-control/prisma-types.ts) declares, duplicated here rather than imported
+   * for the same "each service owns its own narrow DI surface" reason as `ShiftContactRow` above. */
+  momentumEvent: {
+    create(args: {
+      data: { user_id: string; event_type: string; points: number; law: string; source_ref?: string | null };
+    }): Promise<{ id: string }>;
+  };
 }
 
 export class ShiftOwnershipError extends Error {
@@ -187,6 +195,26 @@ function isoWeekStart(dateString: string): string {
 function parseSkipCounts(raw: unknown): Record<string, number> {
   if (raw && typeof raw === 'object') return raw as Record<string, number>;
   return {};
+}
+
+/** T-R42 (integration-reachability audit) — the primary daily loop (the 2-hour Shift) used to move
+ * NOTHING on the Grove/momentum: `today.service.ts`'s equivalent Mission-Control actions
+ * (`actOnQueueDraft`'s 'approve', `confirmAppointment`) both call the identically-shaped
+ * `recordMomentumEvent` (see that file's own copy of this exact function + header comment), but
+ * `ShiftService.actionCard`'s APPROVE/CONFIRM branches never did. This is that SAME emission,
+ * duplicated (not imported — `ShiftPrismaClient` is its own narrow DI surface, same convention as
+ * every other narrow *PrismaClient interface in this codebase) so the Shift ritual is genuinely
+ * responsive to the rep's real actions today, exactly like Today already is — same event types,
+ * same points, same law, never invented semantics. */
+async function recordMomentumEvent(
+  prisma: ShiftPrismaClient,
+  userId: string,
+  eventType: string,
+  points: number,
+  law: 'grow' | 'engage' | 'wealth',
+  sourceRef?: string
+): Promise<void> {
+  await prisma.momentumEvent.create({ data: { user_id: userId, event_type: eventType, points, law, source_ref: sourceRef ?? null } });
 }
 
 export class ShiftService {
@@ -400,11 +428,24 @@ export class ShiftService {
           // before stack_position/recap counters advance, so the card stays in place for the rep
           // to actually deal with (decline, or leave it for the real Approval Inbox).
           if (draft.cfe_outcome !== 'PASS') throw new ShiftApprovalRequiresReviewError();
+          // T-R42 — idempotency guard for the momentum emission below: mirrors the pre-mutation
+          // state check `today.service.ts`'s `actOnQueueDraft` uses to refuse a re-run outright
+          // (`approval_state !== 'PENDING' && !== 'HELD'` -> invalid_state, no second event). This
+          // file's action endpoint doesn't refuse the re-run itself (out of this fix's scope — see
+          // module header), but the MomentumEvent it now emits is captured from the state BEFORE
+          // this mutation, so a second APPROVE on an already-APPROVED card never double-counts
+          // momentum beyond what Today already allows (Today: zero further credit; here: same).
+          const wasActionable = draft.approval_state === 'PENDING' || draft.approval_state === 'HELD';
           await this.prisma.draftMessage.update({
             where: { id: cardId },
             data: { approval_state: 'APPROVED', approved_by: userId, approved_at: this.now() },
           });
           recapApprovals += 1;
+          if (wasActionable) {
+            // §12.1 "introduction sent +1-3" — conservative low end; SAME event type/points/law as
+            // `today.service.ts`'s `actOnQueueDraft` 'approve' path.
+            await recordMomentumEvent(this.prisma, userId, 'draft_approved', 1, 'grow', cardId);
+          }
         } else if (action === 'DECLINE') {
           await this.prisma.draftMessage.update({ where: { id: cardId }, data: { approval_state: 'DECLINED' } });
         }
@@ -413,8 +454,16 @@ export class ShiftService {
         if (appt) {
           if (appt.rep_id !== userId) throw new ShiftOwnershipError();
           if (action === 'CONFIRM') {
+            // T-R42 — same idempotency shape as the APPROVE branch above: captured BEFORE the
+            // mutation, mirroring `confirmAppointment`'s `status !== 'PROPOSED'` invalid_state gate.
+            const wasActionable = appt.status === 'PROPOSED';
             await this.prisma.appointment.update({ where: { id: cardId }, data: { status: 'CONFIRMED' } });
             recapConfirmations += 1;
+            if (wasActionable) {
+              // §12.1 "appointment set +5-8" — conservative low end; SAME event type/points/law as
+              // `today.service.ts`'s `confirmAppointment`.
+              await recordMomentumEvent(this.prisma, userId, 'appointment_confirmed', 5, 'grow', cardId);
+            }
           }
         } else if (action === 'LOG') {
           recapLogs += 1;
