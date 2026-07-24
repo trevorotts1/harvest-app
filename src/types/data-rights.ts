@@ -152,6 +152,27 @@ export interface ReparentedDownlineSummary {
   reparented_user_ids: string[];
 }
 
+// T-R48 (§18.2 WP08 follow-up): what processDeletion did to the deleted rep's WP08 VISUAL org-tree
+// (`OrgTreeEdge`) edges — see data-rights.ts's processDeletion for the full logic. Deliberately a
+// SEPARATE summary from `ReparentedDownlineSummary` above, not a reuse of its shape: WP08's edges
+// are a separately-owned structure that can in principle diverge from `User.upline_id` (that
+// divergence — a deleted rep still showing as a "Deleted U." ghost node on `/grow` after T-R45's
+// logical re-parent — is exactly the residual this fix closes), so `repointed_edge_count` counts
+// EDGES, not user ids, and may differ from `reparented_downline.reparented_user_ids.length`.
+export interface OrgTreeReconcileSummary {
+  /** Same target as `ReparentedDownlineSummary.new_upline_id` — the deleted rep's own upline. */
+  new_upline_id: string | null;
+  /** Count of the deleted rep's own direct-child `OrgTreeEdge` rows re-pointed (ordinary case) or
+   *  removed outright (top-of-tree promotion — `sponsor_id` is non-nullable, so WP08 represents "no
+   *  sponsor" as the absence of a row, not a null column; see the code comment at the point of the
+   *  fix). Zero means this rep had no WP08 downline edges at all — the no-op case. */
+  repointed_edge_count: number;
+  /** Whether the deleted rep's own inbound edge (their "Deleted U." ghost-node slot) existed and was
+   *  removed. `false` covers both "already reconciled by a prior run" (idempotent re-run) and "this
+   *  rep never had one" (e.g. seeded without ever going through an invite/match acceptance). */
+  inbound_edge_removed: boolean;
+}
+
 export interface DeletionCertificate {
   user_id: string;
   deletion_id: string;
@@ -180,6 +201,9 @@ export interface DeletionCertificate {
   certificate_url: string;
   /** Present only when status === 'COMPLETED' (a HELD deletion never reaches the re-parent step). */
   reparented_downline?: ReparentedDownlineSummary;
+  /** Present only when status === 'COMPLETED' (a HELD deletion never reaches the WP08 reconcile
+   *  step either — see the legal-hold block point in processDeletion). */
+  orgtree_reconciled?: OrgTreeReconcileSummary;
 }
 
 export interface UserDataDeletionRecord {
