@@ -98,7 +98,18 @@
   /* ------------------------------------------------------------------
      1.2.3 Elevation-independent brand gradients
      ------------------------------------------------------------------ */
-  --gradient-mark: linear-gradient(135deg, var(--leaf-600), var(--harvest-500));
+  /* T-R46 WCAG AA fix (T-59 QC auth-gated probe): the amber stop was --harvest-500 (#c8852c) — per
+     this file's own ramp-comment above, --harvest-500 is "NEVER TEXT-ON-LIGHT... fills and large
+     numerals only", yet AppShell's `.brandMark`/community's `.avatar` both paint plain `white`/
+     `--on-action` initials directly on top of this gradient. White-on-#c8852c measures ~3.89:1 —
+     an AA fail (16px/800 doesn't qualify as "large text"). --harvest-700 (the same text-safe step
+     `--color-harvest-text`/`--harvest-dark` already use elsewhere) keeps the two-tone green→amber
+     identity but measures ~7.3:1 for white text — and since a straight 2-stop CSS gradient
+     interpolates each RGB channel linearly (so relative luminance moves monotonically between the
+     two stops' own luminances), both endpoints individually clearing AA guarantees every point
+     along the gradient does too — no viewport/line-wrap-dependent dip like the `.score-ring`
+     defect this same file's header warns about. */
+  --gradient-mark: linear-gradient(135deg, var(--leaf-600), var(--harvest-700));
   --gradient-ring: linear-gradient(160deg, var(--leaf-900), #264e39 55%, var(--harvest-500));
   --gradient-reveal: linear-gradient(180deg, var(--grove-950), #264e39, var(--harvest-500));
 

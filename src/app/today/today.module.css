@@ -207,9 +207,17 @@
   background: var(--color-growth);
   display: inline-block;
 }
+/* T-R46 WCAG AA fix (T-59 QC auth-gated probe): the first `--text-secondary` line inside this
+   panel (right below the `border-top`) rendered-measured at 4.13:1 light / 4.25:1 dark — its
+   composited backdrop sampled as `--line`/`--grove-line` (the border color itself) rather than
+   this panel's intended surface, just under the 4.5:1 AA floor. Same "opaque backing surface"
+   fix this file's `.score-ring`-class precedent (globals.css) already established for exactly
+   this failure class: an explicit, opaque fill on the panel itself guarantees every line inside
+   it composites against the real surface color, never the 1px border pixel next to it. */
 .receiptsPanel {
   border-top: 1px solid var(--line);
   padding-top: var(--space-2);
+  background: var(--surface-1-solid-fallback);
 }
 .receiptsTitle {
   font-weight: 700;
@@ -484,6 +492,19 @@
 .attendanceMarked {
   color: var(--text-secondary);
   font-size: var(--type-caption-size);
+}
+
+/* T-R46 WCAG AA fix (T-59 QC auth-gated probe): WP07Panel.tsx's Learn/Grow/Momentum nav cards
+   reuse the LEGACY globals.css `.card` class (`background: rgba(255,250,240,0.82)`, a scaffold
+   rule never given a dark-theme counterpart — see that file's own header comment). In dark theme
+   this translucent cream composites to a near-white backdrop (~rgb(214,213,204)) while the h3's
+   inherited `--text-primary` is ALSO near-white in dark theme (ink-inverse) — 1.28:1, an AA fail.
+   Rather than touch the shared global `.card` (also used by the public, non-auth-gated marketing
+   page), scope an opaque, theme-correct override to just this zone via its existing `data-zone`
+   attribute — in light theme `--surface-1-solid-fallback` (the soil-50 surface) is pixel-identical
+   to the translucent composite it replaces, so this is a visual no-op there. */
+.zoneCard[data-zone='wp07-nav'] :global(.card) {
+  background: var(--surface-1-solid-fallback);
 }
 
 /* ---- Primary CTA (§5.2) ---- */

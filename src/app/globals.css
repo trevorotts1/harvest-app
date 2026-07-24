@@ -140,7 +140,11 @@ button, input, select, textarea { font: inherit; }
 .brand-mark {
   width: 42px; height: 42px; border-radius: 14px;
   display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--leaf), var(--harvest));
+  /* T-R46 WCAG AA fix (T-59 QC auth-gated probe, /team): was `var(--harvest)` (--harvest-500) —
+     white text on that amber stop measured ~4.14:1, an AA fail. `--harvest-dark` is the SAME
+     already-existing legacy alias (line ~41 above, --harvest-700) tokens.css's own `--gradient-mark`
+     now uses for the identical AppShell brand mark — same fix, same reasoning, no new token. */
+  background: linear-gradient(135deg, var(--leaf), var(--harvest-dark));
   color: white; box-shadow: 0 14px 35px rgba(47, 107, 79, 0.25);
 }
 .nav-links { display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 0.95rem; }

@@ -296,8 +296,18 @@
   outline: 2px solid var(--color-action);
   outline-offset: 2px;
 }
+/* T-R46 WCAG AA fix (T-59 QC auth-gated probe): disabled only overrode `color`, leaving
+   `.btnPrimary`'s `background: var(--color-action)` (green) underneath — `--text-disabled` on that
+   green fill measured 3.01:1 light / 2.33:1 dark. `--text-disabled` itself is only ever
+   AA-verified against a neutral surface (it's the WCAG-exempt "inactive control" token), so
+   pairing it with `--text-secondary` + `--surface-2` instead — the SAME resting look every other
+   disabled-primary-button in this codebase already uses (content.module.css `.primaryButton`,
+   ComposerHandoffSheet.module.css `.primaryBtn`) — both meets AA (5.67:1 / 5.46:1) and stays
+   visually "off" (muted text, neutral fill) rather than looking like a live green CTA. */
 .btn:disabled {
-  color: var(--text-disabled);
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  border-color: var(--line);
   cursor: not-allowed;
 }
 

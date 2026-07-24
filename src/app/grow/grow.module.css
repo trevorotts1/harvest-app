@@ -132,6 +132,20 @@
   fill: var(--color-growth);
   stroke: var(--color-growth);
 }
+/* T-R46 WCAG AA fix (T-59 QC auth-gated probe): `.nodeLabel`'s `fill: var(--text-primary)` assumes
+   it sits on the page canvas, but this label paints DIRECTLY on top of the node's own tinted
+   circle. `--color-growth` is theme-flipping (leaf-600, a dark-ish green, in light theme; leaf-300,
+   a LIGHT sage green, in dark theme) — the OPPOSITE polarity of what `--text-primary` needs, so
+   the "You" root node measured 1.25:1 light / 1.03:1 dark (near-black-on-dark-green, then
+   near-white-on-light-green). `--color-growth` is defined identically to `--color-action` in both
+   themes (tokens.css), so `--on-action` — already AA-verified against `--color-action`
+   (6.29:1 light / 8.53:1 dark) — is exactly the right label color here. Scoped via the adjacent-
+   sibling combinator (the label `<text>` always immediately follows its node's tinted `<circle>`
+   in OrchardCanvas.tsx) so only green-node labels are affected; yellow/red nodes' labels already
+   sit on canvas-family fills and are unaffected. */
+.nodeGreen + .nodeLabel {
+  fill: var(--on-action);
+}
 .nodeYellow {
   fill: var(--color-caution-bg);
   stroke: var(--color-caution-text);
@@ -250,7 +264,12 @@
 .blockedBanner {
   border-radius: var(--radius-panel);
   background: var(--color-blocked-fill);
-  color: #ffffff;
+  /* T-R46 WCAG AA fix (T-59 QC auth-gated probe): was a hardcoded `#ffffff` — fine against light
+     theme's `--color-blocked-fill` (clay-500, a dark red-brown, 6.71:1) but `--color-blocked-fill`
+     flips to clay-300 (a LIGHT pink) in dark theme, where white text measured only 2.27:1.
+     `--on-blocked` is the semantic token built for exactly this pairing (already one of
+     verify-contrast.mjs's 27 AA-verified pairs, both themes) — white in light, dark ink in dark. */
+  color: var(--on-blocked);
   padding: var(--space-3) var(--space-4);
   font-weight: 700;
 }
