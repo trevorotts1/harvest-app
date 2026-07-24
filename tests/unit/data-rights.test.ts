@@ -1,8 +1,17 @@
+import { OrgType, Role } from '@prisma/client';
 import {
   DataRightsService,
   DSAR_FIELD_DECRYPTION_UNAVAILABLE,
   type DataRightsPrismaClient,
 } from '../../src/services/compliance/data-rights/data-rights';
+// T-R48 (§18.2 WP08 follow-up): drives the REAL `/grow` tree-read path
+// (fetchReachableEdges/recomputeAndPersistOrgTree, via getOrgTreeView) against the SAME
+// post-reconcile `OrgTreeEdge` state `processDeletion` left behind — proof the ghost node is
+// actually gone from a real read, not merely that the right jest.fn was called.
+import {
+  getOrgTreeView,
+  type TaprootingPrismaClient,
+} from '../../src/services/taprooting/taprooting.service';
 import { LegalHoldService, InMemoryLegalHoldRepository } from '../../src/services/compliance/data-rights/legal-hold';
 import { InMemoryDataRightsAuditSink } from '../../src/services/compliance/data-rights/audit-emit';
 import { RetentionService } from '../../src/services/compliance/data-rights/retention';
@@ -58,6 +67,11 @@ function makeMockPrisma(seed: {
   // T-R45 (§18.2): pre-existing NotificationLog rows, e.g. to test the idempotent
   // already-notified case.
   notificationLogs?: Row[];
+  // T-R48 (§18.2 WP08 follow-up): the deleted rep's WP08 visual-tree edges — a SEPARATE seed from
+  // `otherUsers`'s logical `upline_id` tree (they can diverge; that divergence is exactly what this
+  // fix closes). Each row mirrors the real `OrgTreeEdge` schema shape (sponsor_id/recruit_id/
+  // edge_type/is_recruit_confirmed/leg_depth/is_leg/has_own_recruit/health_index).
+  orgTreeEdges?: Row[];
 }) {
   const users = new Map<string, Row>();
   if (seed.user) users.set(seed.user.id as string, { ...seed.user });
@@ -98,6 +112,8 @@ function makeMockPrisma(seed: {
   // T-R45 (§18.2): NotificationLog mock state — append-only, mirrors the real model's shape
   // (`@@unique([user_id, type, dedupe_key])`).
   const notificationLogs: Row[] = seed.notificationLogs ? seed.notificationLogs.map((n) => ({ ...n })) : [];
+  // T-R48 (§18.2 WP08 follow-up): OrgTreeEdge mock state.
+  let orgTreeEdges: Row[] = seed.orgTreeEdges ? seed.orgTreeEdges.map((e) => ({ ...e })) : [];
 
   const userUpdate = jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
     const existing = users.get(where.id) ?? {};
@@ -149,6 +165,67 @@ function makeMockPrisma(seed: {
     notificationLogs.push(row);
     return row;
   });
+
+  // T-R48 (§18.2 WP08 follow-up): a small generic `where` matcher covering every shape
+  // `processDeletion`'s reconcile step (and `recomputeAndPersistOrgTree`'s own `fetchReachableEdges`
+  // BFS, reached via the `TaprootingPrismaClient` bridge) actually issues against `orgTreeEdge`:
+  // plain equality (`{ sponsor_id: 'user-1' }`) and an `{ in: [...] }` membership filter (the BFS
+  // frontier query, optionally combined with `is_recruit_confirmed: true`).
+  function matchesOrgTreeEdgeWhere(edge: Row, where: Record<string, unknown>): boolean {
+    return Object.entries(where).every(([key, condition]) => {
+      if (condition && typeof condition === 'object' && 'in' in (condition as Record<string, unknown>)) {
+        const list = (condition as { in: unknown[] }).in;
+        return list.includes(edge[key]);
+      }
+      return edge[key] === condition;
+    });
+  }
+
+  const orgTreeEdgeFindMany = jest.fn(async ({ where }: { where: Record<string, unknown> }) =>
+    orgTreeEdges.filter((e) => matchesOrgTreeEdgeWhere(e, where))
+  );
+
+  const orgTreeEdgeUpdateMany = jest.fn(
+    async ({ where, data }: { where: Record<string, unknown>; data: Row }) => {
+      let count = 0;
+      orgTreeEdges = orgTreeEdges.map((e) => {
+        if (matchesOrgTreeEdgeWhere(e, where)) {
+          count++;
+          return { ...e, ...data };
+        }
+        return e;
+      });
+      return { count };
+    }
+  );
+
+  const orgTreeEdgeDeleteMany = jest.fn(async ({ where }: { where: Record<string, unknown> }) => {
+    const before = orgTreeEdges.length;
+    orgTreeEdges = orgTreeEdges.filter((e) => !matchesOrgTreeEdgeWhere(e, where));
+    return { count: before - orgTreeEdges.length };
+  });
+
+  // Only ever reached through `recomputeAndPersistOrgTree` via the `TaprootingPrismaClient` bridge
+  // (data-rights.ts never calls `orgTreeEdge.update` directly) — still a REAL, stateful mock (not a
+  // stub) so the annotation-recompute tests can read back actual persisted `leg_depth`/`is_leg`/
+  // `has_own_recruit` values, not merely that an update call happened.
+  const orgTreeEdgeUpdate = jest.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
+    let updated: Row = {};
+    orgTreeEdges = orgTreeEdges.map((e) => {
+      if (e.id === where.id) {
+        updated = { ...e, ...data };
+        return updated;
+      }
+      return e;
+    });
+    return updated;
+  });
+
+  // Only ever reached through the `TaprootingPrismaClient` bridge (`recomputeAndPersistOrgTree`
+  // reads MomentumEvent rows to compute each node's health score) — no test below seeds momentum
+  // events, so this always resolves empty and every node gets `emptyNodeHealth()`, which is fine:
+  // health_index is not what these tests are proving.
+  const momentumEventFindMany = jest.fn(async () => [] as Row[]);
 
   // T-R45 (§18.2): an interactive-transaction mock — invokes the callback with THIS SAME mock
   // object (not a separate proxy), so every `tx.X` call inside `processDeletion`'s transaction is
@@ -392,6 +469,16 @@ function makeMockPrisma(seed: {
     milestone: {
       updateMany: milestoneUpdateMany,
     },
+    // T-R48 (§18.2 WP08 follow-up).
+    orgTreeEdge: {
+      findMany: orgTreeEdgeFindMany,
+      updateMany: orgTreeEdgeUpdateMany,
+      deleteMany: orgTreeEdgeDeleteMany,
+      update: orgTreeEdgeUpdate,
+    },
+    momentumEvent: {
+      findMany: momentumEventFindMany,
+    },
     // Exposed purely for test assertions ("teeth") — reads back the mock's persisted state after
     // a call, proving a mutation was actually applied rather than merely that a jest.fn was
     // invoked with the "right" arguments. Not part of the real DataRightsPrismaClient contract.
@@ -408,6 +495,7 @@ function makeMockPrisma(seed: {
       getMilestones: () => milestones,
       getUsers: () => Array.from(users.values()),
       getNotificationLogs: () => notificationLogs,
+      getOrgTreeEdges: () => orgTreeEdges,
     },
     auditEntry: {
       findMany: jest.fn(async ({ where }: { where: { user_id: string; regulation?: unknown } }) =>
@@ -462,6 +550,7 @@ type MockDataRightsPrisma = DataRightsPrismaClient & {
     getMilestones: () => Row[];
     getUsers: () => Row[];
     getNotificationLogs: () => Row[];
+    getOrgTreeEdges: () => Row[];
   };
   auditEntry: DataRightsPrismaClient['auditEntry'] & {
     delete: jest.Mock;
@@ -1106,6 +1195,320 @@ describe('T-R45 Data Rights — downline re-parent + notify on deletion (§18.2)
     expect(prisma.notificationLog.create).not.toHaveBeenCalled();
     expect(prisma.__state.getUsers().find((u) => u.id === 'child-a')?.upline_id).toBe('user-1');
     expect(prisma.__state.getUsers().find((u) => u.id === 'child-b')?.upline_id).toBe('user-1');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// T-R48 (§18.2 WP08 follow-up — T-59 Final QC "the visual tree still shows a deleted rep as a
+// 'Deleted U.' ghost node with their downline nested under it, even after T-R45's logical
+// re-parent"): T-R45 fixed `User.upline_id` (the RBAC/compliance downline resolution) but
+// deliberately left `OrgTreeEdge` (WP08's own `/grow` visual-tree structure) untouched — a
+// SEPARATELY OWNED table that does not automatically follow `upline_id`. These tests seed the SAME
+// multi-level tree shape as the T-R45 suite above (sponsor -> deleted rep -> {child-a, child-b} ->
+// grandchild under child-a only), but as REAL `OrgTreeEdge` rows (sponsor_id/recruit_id/
+// is_recruit_confirmed/leg_depth/is_leg/has_own_recruit), and assert against
+// `prisma.__state.getOrgTreeEdges()` — the mock's actual persisted state — never a hand-set
+// fixture standing in for what the WP08 recompute path would produce.
+// ─────────────────────────────────────────────────────────────────────────
+describe('T-R48 Data Rights — WP08 visual org-tree (OrgTreeEdge) reconcile on deletion (§18.2 follow-up)', () => {
+  let legalHoldRepo: InMemoryLegalHoldRepository;
+  let auditSink: InMemoryDataRightsAuditSink;
+  let legalHold: LegalHoldService;
+
+  beforeEach(() => {
+    legalHoldRepo = new InMemoryLegalHoldRepository();
+    auditSink = new InMemoryDataRightsAuditSink();
+    legalHold = new LegalHoldService(legalHoldRepo, auditSink);
+  });
+
+  // Tree: SPONSOR -> user-1 (deleted) -> { CHILD_A, CHILD_B } -> GRANDCHILD (under CHILD_A only) —
+  // the SAME shape as the T-R45 suite's own fixture above, reused by name so a reader can compare
+  // the two suites' assertions directly.
+  const SPONSOR: Row = { id: 'sponsor-1', email: 'sponsor@example.com', name: 'Sponsor Rep', upline_id: null };
+  const DELETED_USER_WITH_UPLINE: Row = { ...BASE_USER, upline_id: 'sponsor-1' };
+  const CHILD_A: Row = { id: 'child-a', email: 'child.a@example.com', name: 'Child A', upline_id: 'user-1' };
+  const CHILD_B: Row = { id: 'child-b', email: 'child.b@example.com', name: 'Child B', upline_id: 'user-1' };
+  const GRANDCHILD: Row = {
+    id: 'grandchild-1',
+    email: 'grandchild@example.com',
+    name: 'Grandchild',
+    upline_id: 'child-a',
+  };
+
+  // Deliberately stale `leg_depth` values (2/2/3, one generation deeper than correct) — real WP08
+  // rows only get refreshed on the next recompute-on-read, so seeding STALE annotations (rather than
+  // already-correct ones) is what gives the recompute assertions below actual teeth: if
+  // `processDeletion` stopped calling `recomputeAndPersistOrgTree`, these values would stay stale and
+  // the test would fail, not pass by coincidence.
+  const BASE_ORG_TREE_EDGES: Row[] = [
+    {
+      id: 'edge-sponsor-user1',
+      sponsor_id: 'sponsor-1',
+      recruit_id: 'user-1',
+      edge_type: 'upline_sponsor',
+      is_recruit_confirmed: true,
+      leg_depth: 1,
+      is_leg: false,
+      has_own_recruit: true,
+      health_index: null,
+    },
+    {
+      id: 'edge-user1-childa',
+      sponsor_id: 'user-1',
+      recruit_id: 'child-a',
+      edge_type: 'upline_sponsor',
+      is_recruit_confirmed: true,
+      leg_depth: 2,
+      is_leg: false,
+      has_own_recruit: true,
+      health_index: null,
+    },
+    {
+      id: 'edge-user1-childb',
+      sponsor_id: 'user-1',
+      recruit_id: 'child-b',
+      edge_type: 'upline_sponsor',
+      is_recruit_confirmed: true,
+      leg_depth: 2,
+      is_leg: false,
+      has_own_recruit: false,
+      health_index: null,
+    },
+    {
+      id: 'edge-childa-grandchild',
+      sponsor_id: 'child-a',
+      recruit_id: 'grandchild-1',
+      edge_type: 'upline_sponsor',
+      is_recruit_confirmed: true,
+      leg_depth: 3,
+      is_leg: false,
+      has_own_recruit: false,
+      health_index: null,
+    },
+  ];
+
+  test('(a) direct-child OrgTreeEdge rows are re-pointed to the SAME newUplineId the logical re-parent computed; grandchild edge is untouched; annotations are recomputed (never hand-set); T-R45\'s own re-parent + notifications still fire alongside', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B, GRANDCHILD],
+      orgTreeEdges: BASE_ORG_TREE_EDGES,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    // §18.2 re-parent — assert sponsor_id.
+    const edges = prisma.__state.getOrgTreeEdges();
+    expect(edges.find((e) => e.recruit_id === 'user-1')).toBeUndefined(); // ghost node's own inbound edge is gone
+    const childAEdge = edges.find((e) => e.recruit_id === 'child-a');
+    const childBEdge = edges.find((e) => e.recruit_id === 'child-b');
+    expect(childAEdge?.sponsor_id).toBe('sponsor-1');
+    expect(childBEdge?.sponsor_id).toBe('sponsor-1');
+
+    expect(certificate.orgtree_reconciled).toEqual({
+      new_upline_id: 'sponsor-1',
+      repointed_edge_count: 2,
+      inbound_edge_removed: true,
+    });
+
+    // Grandchild edge untouched — still sponsored by child-a, never rewritten.
+    const grandchildEdge = edges.find((e) => e.recruit_id === 'grandchild-1');
+    expect(grandchildEdge?.sponsor_id).toBe('child-a');
+
+    // Annotations recomputed relative to the NEW root (sponsor-1) via the real WP08 recompute path
+    // — child-a/child-b are now level 1 (leg_depth 1, one generation shallower than the stale
+    // seeded value of 2), grandchild is now level 2 (was stale at 3). Neither leg qualifies
+    // (depth < 4), so is_leg is consistently false throughout.
+    expect(childAEdge?.leg_depth).toBe(1);
+    expect(childBEdge?.leg_depth).toBe(1);
+    expect(grandchildEdge?.leg_depth).toBe(2);
+    expect(childAEdge?.is_leg).toBe(false);
+    expect(childBEdge?.is_leg).toBe(false);
+    expect(grandchildEdge?.is_leg).toBe(false);
+    // has_own_recruit recomputed too: child-a still sponsors grandchild-1, child-b sponsors no one.
+    expect(childAEdge?.has_own_recruit).toBe(true);
+    expect(childBEdge?.has_own_recruit).toBe(false);
+
+    // T-R45's own logical re-parent + notifications are unaffected by this fix running alongside it.
+    const users = prisma.__state.getUsers();
+    expect(users.find((u) => u.id === 'child-a')?.upline_id).toBe('sponsor-1');
+    expect(users.find((u) => u.id === 'child-b')?.upline_id).toBe('sponsor-1');
+    expect(certificate.reparented_downline?.new_upline_id).toBe('sponsor-1');
+    const logs = prisma.__state.getNotificationLogs();
+    expect(logs.length).toBeGreaterThan(0);
+  });
+
+  test('(b) the REAL /grow tree-read path (getOrgTreeView -> fetchReachableEdges/recomputeAndPersistOrgTree) no longer surfaces the deleted rep as a ghost parent node — sponsor-1 now sees child-a/child-b directly, with grandchild-1 nested under child-a', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B, GRANDCHILD],
+      orgTreeEdges: BASE_ORG_TREE_EDGES,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+    await service.processDeletion('del-1', 'user-1');
+
+    // Drive the REAL WP08 tree-read path against the SAME (post-reconcile) state processDeletion
+    // left behind — never a hand-set fixture standing in for what the recompute would produce.
+    const users = prisma.__state.getUsers();
+    const taprootingDb: TaprootingPrismaClient = {
+      user: {
+        findUnique: async ({ where }) => {
+          const u = users.find((x) => x.id === where.id);
+          return u
+            ? { id: u.id as string, name: u.name as string, rank: (u.rank as string | undefined) ?? null, org_type: OrgType.PRIMERICA }
+            : null;
+        },
+        findMany: async ({ where }) =>
+          users
+            .filter((u) => where.id.in.includes(u.id as string))
+            .map((u) => ({ id: u.id as string, name: u.name as string, rank: (u.rank as string | undefined) ?? null })),
+      },
+      orgTreeEdge: {
+        findMany: async ({ where }) =>
+          prisma.__state
+            .getOrgTreeEdges()
+            .filter(
+              (e) =>
+                where.sponsor_id.in.includes(e.sponsor_id as string) && e.is_recruit_confirmed === true
+            )
+            .map((e) => ({ id: e.id as string, sponsor_id: e.sponsor_id as string, recruit_id: e.recruit_id as string })),
+        update: async () => ({}),
+      },
+      momentumEvent: { findMany: async () => [] },
+    };
+
+    const outcome = await getOrgTreeView('sponsor-1', Role.REP, undefined, taprootingDb);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const nodeIds = outcome.result.nodes.map((n) => n.id);
+    expect(nodeIds).not.toContain('user-1'); // no more ghost parent node
+    expect([...nodeIds].sort()).toEqual(['child-a', 'child-b']);
+    const childA = outcome.result.nodes.find((n) => n.id === 'child-a')!;
+    expect(childA.children.map((c) => c.id)).toEqual(['grandchild-1']);
+    expect(outcome.result.totals.realNodeCount).toBe(3); // child-a, child-b, grandchild-1 — never user-1
+  });
+
+  test('(c) top-of-tree deletion: OrgTreeEdge direct-child edges are REMOVED outright (sponsor_id is non-nullable — there is no "null sponsor" row), promoting each child to its own root; annotations recomputed per promoted child', async () => {
+    const topUser: Row = { ...BASE_USER, upline_id: null };
+    // A top-of-tree rep never had an inbound WP08 edge either (no create path in this codebase ever
+    // writes a root's own inbound edge) — mirrors the real invariant, not merely convenient seeding.
+    const topOrgTreeEdges: Row[] = BASE_ORG_TREE_EDGES.filter((e) => e.recruit_id !== 'user-1');
+    const prisma = makeMockPrisma({
+      user: topUser,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [CHILD_A, CHILD_B, GRANDCHILD],
+      orgTreeEdges: topOrgTreeEdges,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(certificate.orgtree_reconciled).toEqual({
+      new_upline_id: null,
+      repointed_edge_count: 2,
+      inbound_edge_removed: false, // there was never one to remove
+    });
+
+    const edges = prisma.__state.getOrgTreeEdges();
+    // child-a/child-b's OWN inbound edges are gone entirely — promoted to root, never left dangling
+    // with a sponsor_id pointing at the deleted (anonymized) user.
+    expect(edges.find((e) => e.recruit_id === 'child-a')).toBeUndefined();
+    expect(edges.find((e) => e.recruit_id === 'child-b')).toBeUndefined();
+
+    // Grandchild's edge is recomputed with child-a as ITS OWN new root: sponsor_id untouched, but
+    // leg_depth shifts from the stale seeded value (3) to 1 (child-a's direct recruit).
+    const grandchildEdge = edges.find((e) => e.recruit_id === 'grandchild-1');
+    expect(grandchildEdge?.sponsor_id).toBe('child-a');
+    expect(grandchildEdge?.leg_depth).toBe(1);
+
+    // T-R45's own logical re-parent still promotes to top-level alongside this.
+    const users = prisma.__state.getUsers();
+    expect(users.find((u) => u.id === 'child-a')?.upline_id).toBeNull();
+    expect(users.find((u) => u.id === 'child-b')?.upline_id).toBeNull();
+  });
+
+  test('(d) re-running processDeletion for the same deletion_id is idempotent for OrgTreeEdge too: the second run is a clean no-op (zero re-points, zero row-count drift, no error)', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B, GRANDCHILD],
+      orgTreeEdges: BASE_ORG_TREE_EDGES,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    await service.processDeletion('del-1', 'user-1');
+    const afterFirst = prisma.__state.getOrgTreeEdges();
+    expect(afterFirst.find((e) => e.recruit_id === 'child-a')?.sponsor_id).toBe('sponsor-1');
+    const countAfterFirst = afterFirst.length;
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    // Second run finds ZERO edges still pointing at user-1 (already moved on the first run) — a
+    // clean no-op, not a second re-parent pass.
+    expect(certificate.orgtree_reconciled).toEqual({
+      new_upline_id: 'sponsor-1',
+      repointed_edge_count: 0,
+      inbound_edge_removed: false,
+    });
+    const afterSecond = prisma.__state.getOrgTreeEdges();
+    expect(afterSecond.find((e) => e.recruit_id === 'child-a')?.sponsor_id).toBe('sponsor-1'); // unchanged
+    expect(afterSecond.length).toBe(countAfterFirst); // no duplicate/extra/missing rows
+  });
+
+  test('(e) a rep with NO WP08 downline edges at all (but a real logical downline is irrelevant here — this rep has neither): org-tree reconcile is a clean no-op, no updateMany/deleteMany calls', async () => {
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE, // has an upline (sponsor-1) but no downline of its own
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR],
+      orgTreeEdges: [], // no WP08 edges at all for this rep — not even an inbound one
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(certificate.orgtree_reconciled).toEqual({
+      new_upline_id: 'sponsor-1',
+      repointed_edge_count: 0,
+      inbound_edge_removed: false,
+    });
+    expect(prisma.orgTreeEdge.updateMany).not.toHaveBeenCalled();
+    expect(prisma.orgTreeEdge.deleteMany).not.toHaveBeenCalled();
+  });
+
+  test('(f) legal hold blocks the WP08 reconcile too — nothing under this fix runs while HELD', async () => {
+    await legalHold.placeHold({
+      user_id: 'user-1',
+      reason: 'FINRA regulatory inquiry — active litigation hold',
+      placed_by: 'admin-1',
+      placed_by_role: 'ADMIN',
+    });
+    const prisma = makeMockPrisma({
+      user: DELETED_USER_WITH_UPLINE,
+      contacts: BASE_CONTACTS,
+      deletion: PENDING_DELETION,
+      otherUsers: [SPONSOR, CHILD_A, CHILD_B],
+      orgTreeEdges: BASE_ORG_TREE_EDGES,
+    });
+    const service = new DataRightsService(prisma, legalHold, auditSink);
+
+    const { record, certificate } = await service.processDeletion('del-1', 'user-1');
+
+    expect(record.status).toBe('HELD');
+    expect(certificate.orgtree_reconciled).toBeUndefined();
+    expect(prisma.orgTreeEdge.updateMany).not.toHaveBeenCalled();
+    expect(prisma.orgTreeEdge.deleteMany).not.toHaveBeenCalled();
+    // The WP08 edges are entirely untouched while HELD.
+    const edges = prisma.__state.getOrgTreeEdges();
+    expect(edges.find((e) => e.recruit_id === 'user-1')).toBeDefined();
+    expect(edges.find((e) => e.recruit_id === 'child-a')?.sponsor_id).toBe('user-1');
   });
 });
 

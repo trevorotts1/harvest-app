@@ -26,6 +26,18 @@ import {
 import { decrypt } from '../encryption/encryption';
 import { getSolutionNumberEncryptionKey } from '../../onboarding/wp01/solution-number';
 import { getWhySessionEncryptionKey } from '../../onboarding/wp01/seven-whys/persistence';
+// T-R48 (§18.2 WP08 follow-up): the ONE new cross-unit import this fix adds — deliberately just
+// the canonical recompute function, not any of taprooting's other business logic (RBAC, org-gating,
+// ghost lattice, RoB chips), matching this file's own zero-cross-unit-business-logic convention
+// (see the class doc comment above) as closely as a real cross-WP integration allows. This is the
+// ONLY WP08-owned write path for the `leg_depth`/`is_leg`/`has_own_recruit`/`health_index` columns
+// (its own doc comment: "the schema's own 'maintained by the application layer, not generated
+// columns' contract") — hand-setting them here instead would risk corrupting WP08's own invariants,
+// which is exactly why T-R45 originally left `OrgTreeEdge` untouched (see the scope note below).
+import {
+  recomputeAndPersistOrgTree,
+  type TaprootingPrismaClient,
+} from '../../taprooting/taprooting.service';
 
 /**
  * Data Rights service for T-11 (master-spec §16.3).
@@ -210,6 +222,42 @@ export interface DataRightsPrismaClient {
     }): Promise<UserDataExportRow>;
     findUnique(args: { where: { id: string } }): Promise<UserDataExportRow | null>;
   };
+  // T-R48 (§18.2 WP08 follow-up): the visual org-tree this fix re-points, mirroring the SAME
+  // `newUplineId` target the logical `User.upline_id` re-parent above computes. A narrow
+  // read/re-point/remove surface only — the ANNOTATION columns (`leg_depth`/`is_leg`/
+  // `has_own_recruit`/`health_index`) are never written directly through this shape; they only ever
+  // flow through `recomputeAndPersistOrgTree` (imported above), via the `tx as unknown as
+  // TaprootingPrismaClient` bridge at the point of the fix — the same "bridge through unknown
+  // between two independently-narrow Prisma delegate shapes" pattern taprooting.service.ts's own
+  // `getOrgTreeView` default parameter already uses for the real `PrismaClient`.
+  orgTreeEdge: {
+    findMany(args: { where: Record<string, unknown> }): Promise<OrgTreeEdgeRow[]>;
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
+    deleteMany(args: { where: Record<string, unknown> }): Promise<{ count: number }>;
+    // Not called directly by this file — only reached through `recomputeAndPersistOrgTree` via the
+    // `TaprootingPrismaClient` bridge (see the code comment at the point of the fix). Listed here so
+    // this interface documents the FULL narrow surface `processDeletion`'s transaction actually
+    // needs from `orgTreeEdge`, not just the calls this file makes directly.
+    update(args: {
+      where: { id: string };
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
+  };
+  // T-R48: only ever reached via the `TaprootingPrismaClient` bridge inside
+  // `recomputeAndPersistOrgTree` itself — never called directly from this file.
+  momentumEvent: {
+    findMany(args: { where: Record<string, unknown> }): Promise<Record<string, unknown>[]>;
+  };
+}
+
+interface OrgTreeEdgeRow {
+  id: string;
+  sponsor_id: string;
+  recruit_id: string;
+  [key: string]: unknown;
 }
 
 interface UserRow {
@@ -624,16 +672,43 @@ export class DataRightsService {
     //
     // Scope note (disclosed, not silent): `User.upline_id` is the tree this fix re-parents — it is
     // the one RBAC/compliance downline resolution actually reads (confirmed above). Two OTHER,
-    // separately-owned structural tables also reference a sponsor/upline and are DELIBERATELY left
-    // untouched here: `OrgTreeEdge` (WP08's own visual-tree/leg-depth/ghost-lattice annotations,
-    // sponsor_id/recruit_id — src/services/taprooting/*) and `Sponsorship` (WP10's billing
-    // sponsor-lapse-cascade state machine, sponsor_user_id/member_user_id — self-contained
-    // ACTIVE/GRACE/EXPIRED transitions in src/services/payment/sponsor-cascade.ts). Re-pointing
-    // either mechanically from here, without going through their own domain logic (leg-depth
-    // recompute; SponsorshipState transitions), risks corrupting invariants those units own and
-    // that master-spec §18.2 says nothing about. Flagged as a residual for whichever unit owns a
-    // future cross-WP pass on those two tables, exactly like this file's other documented
-    // deviations above.
+    // separately-owned structural tables also reference a sponsor/upline:
+    //   - `OrgTreeEdge` (WP08's own visual-tree/leg-depth/ghost-lattice annotations, sponsor_id/
+    //     recruit_id — src/services/taprooting/*). T-R45 deliberately left this untouched — a
+    //     mechanical hand-re-point here would have risked corrupting WP08's own leg-depth/ghost-
+    //     lattice invariants. T-R48 (§18.2 follow-up) closes that residual BELOW, in this SAME
+    //     transaction: the deleted rep's downline edges are re-pointed to the identical
+    //     `newUplineId` this re-parent just computed, and the deleted rep's own inbound edge is
+    //     removed — but only ever through WP08's OWN canonical recompute path
+    //     (`recomputeAndPersistOrgTree`, taprooting.service.ts), never by hand-setting
+    //     leg_depth/is_leg/has_own_recruit/health_index directly. See the dedicated comment further
+    //     below, at the point of the fix, for the full reasoning (including the top-of-tree edge
+    //     case and why the recompute is scoped to descendants only, never propagated upward).
+    //   - `Sponsorship` (WP10's billing sponsor-lapse-cascade state machine, sponsor_user_id/
+    //     member_user_id — self-contained ACTIVE/GRACE/EXPIRED transitions in
+    //     src/services/payment/sponsor-cascade.ts) is STILL deliberately left untouched by T-R48 —
+    //     confirmed genuinely inert on re-investigation, not merely un-investigated:
+    //       • No payout/override engine dereferences `sponsor_user_id` — override-math.ts computes
+    //         only an illustrative team-size figure (`3^depth`), never a dollar amount, and never
+    //         reads `Sponsorship` at all (its own doc comment: "this codebase has no honest
+    //         comp-plan/commission model to source").
+    //       • entitlement.ts (the paywall gate) keys every check off the MEMBER's own id; it never
+    //         reads `sponsor_user_id`.
+    //       • sponsor-cockpit.service.ts is scoped to `sponsor_user_id = <the authenticated caller's
+    //         own id>` (never traversed FROM someone else's id, per the route layer's own doc
+    //         comment) — a deleted rep's cockpit is simply unreachable post-deletion (no session can
+    //         authenticate as them), not silently wrong.
+    //       • The one real effect of leaving `sponsor_user_id` pointed at the now-anonymized
+    //         "Deleted User" row is exactly the self-healing case sponsor-cascade.ts's own module
+    //         doc already names: that sponsor's subscription is no longer being paid, so the next
+    //         daily lapse-cron sweep (`runSponsorLapseCascade`) finds it lapsed and moves every
+    //         sponsored member into the standard 30-day protected `MEMBER_GRACE` window — the SAME
+    //         cascade that already runs for any live sponsor whose card simply fails, not a new or
+    //         different code path triggered by deletion.
+    //     Re-pointing `sponsor_user_id` here would therefore be cosmetic, not a correctness fix, and
+    //     doing it without going through WP10's own `SponsorshipState` transitions would repeat the
+    //     exact hand-mutation risk this file's own convention (above) already avoids for OrgTreeEdge.
+    //     Flagged as confirmed-inert for whichever future unit revisits it.
     const txResult = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: user_id } });
       if (!user) {
@@ -679,6 +754,90 @@ export class DataRightsService {
           await recordActionAlertOnce(tx, newUplineId, `reparent-received:${deletion_id}`);
         }
       }
+
+      // ── T-R48 (§18.2 WP08 follow-up): reconciles the deleted rep's WP08 visual-tree
+      // (`OrgTreeEdge`) edges to the SAME `newUplineId` the logical re-parent above just computed,
+      // so `/grow` stops showing the deleted rep as a "Deleted U." ghost node with their downline
+      // nested under it (the residual the scope-note comment above flags T-R45 as having left
+      // open). Queried INDEPENDENTLY off `OrgTreeEdge` itself — deliberately never derived from
+      // `directDownline`/`reparentedUserIds` above — because the whole point of this fix is that
+      // WP08's visual tree is a SEPARATELY OWNED structure that can diverge from `User.upline_id`;
+      // reusing the logical tree's result here would silently miss exactly that divergence. Runs
+      // unconditionally (not nested inside the `if (directDownline.length > 0)` block above), for
+      // the same reason: a rep could have WP08 edges with no matching logical downline, or vice
+      // versa.
+      const orgTreeDownlineEdges = await tx.orgTreeEdge.findMany({ where: { sponsor_id: user_id } });
+      const orgTreeInboundEdge = await tx.orgTreeEdge.findMany({ where: { recruit_id: user_id } });
+
+      if (orgTreeDownlineEdges.length > 0) {
+        if (newUplineId) {
+          // Mirrors the `User.upline_id` rewrite above — same target, same "grandchildren ride
+          // along untouched" property: only the deleted rep's OWN direct-child edges
+          // (`sponsor_id === user_id`) are touched here; each child's own downline edges
+          // (`sponsor_id === <child id>`) are never queried, so they simply move with their parent
+          // to the new position without being individually rewritten.
+          await tx.orgTreeEdge.updateMany({
+            where: { sponsor_id: user_id },
+            data: { sponsor_id: newUplineId },
+          });
+        } else {
+          // Top-of-tree (mirrors the `User.upline_id` "promote to root" edge case above):
+          // `OrgTreeEdge.sponsor_id` is a required, non-nullable column (prisma/schema.prisma) —
+          // there is no "null sponsor" row that represents a root the way `User.upline_id: null`
+          // does. WP08's OWN existing convention for "no sponsor" is simply the ABSENCE of an
+          // inbound edge — a genuine top-of-tree rep today has no `OrgTreeEdge` row with themselves
+          // as `recruit_id` (confirmed by org-switch.service.ts's own `count` query, which already
+          // treats "no row" as the no-sponsor state, and by the fact no create path in this codebase
+          // ever writes a root's own inbound edge). Promoting the deleted rep's direct children to
+          // root is therefore expressed by REMOVING their inbound edge outright, not rewriting it to
+          // a `sponsor_id` that can't exist — the exact same "root = absent row" contract the
+          // deleted rep themselves was already in.
+          await tx.orgTreeEdge.deleteMany({ where: { sponsor_id: user_id } });
+        }
+      }
+
+      if (orgTreeInboundEdge.length > 0) {
+        // The deleted rep's own inbound edge — the "Deleted U." ghost node's slot in the tree.
+        // Removed unconditionally (independent of the branch above): the rep no longer exists, so
+        // no edge should still point at them either way. `deleteMany` (not a keyed `delete`) so a
+        // not-yet-reconciled rep and an already-reconciled rep (idempotent re-run — zero matching
+        // rows) are both handled by the exact same call, with no separate existence branch needed.
+        await tx.orgTreeEdge.deleteMany({ where: { recruit_id: user_id } });
+      }
+
+      // Recompute the WP08-owned annotation columns (`leg_depth`/`is_leg`/`has_own_recruit`/
+      // `health_index`) — NEVER hand-set here (§13.1/§13.4's "maintained by the application layer,
+      // not generated columns" contract; see `recomputeAndPersistOrgTree`'s own doc comment).
+      // Scoped to exactly the descendant subtree(s) whose sponsor/root just changed, mirroring this
+      // codebase's own existing "recompute on next read, not eagerly propagated upward on write"
+      // contract: sponsor-invite.service.ts's `acceptInvite`/`matchOrWaitlist` create a brand-new
+      // edge with its annotations at schema defaults and never eagerly recompute either —
+      // `getOrgTreeView` is what refreshes them, the next time anyone views a tree that reaches
+      // them. A rep several levels further up whose OWN `has_own_recruit`/`is_leg` depends on this
+      // subtree gets a correct value the next time THEY view their own tree — the same freshness
+      // guarantee every other tree mutation in this codebase already relies on, not a new gap
+      // introduced here.
+      if (orgTreeDownlineEdges.length > 0) {
+        const taprootingTx = tx as unknown as TaprootingPrismaClient;
+        if (newUplineId) {
+          await recomputeAndPersistOrgTree(taprootingTx, newUplineId);
+        } else {
+          // No single common root exists post-promotion (each direct child is now an independent
+          // root) — recompute once per promoted child, exactly mirroring what would happen the next
+          // time THAT child's own `/grow` page loads
+          // (`getOrgTreeView(childId, ..., undefined, ...)`).
+          const promotedRootIds = Array.from(new Set(orgTreeDownlineEdges.map((e) => e.recruit_id)));
+          for (const rootId of promotedRootIds) {
+            await recomputeAndPersistOrgTree(taprootingTx, rootId);
+          }
+        }
+      }
+
+      const orgTreeReconcile = {
+        new_upline_id: newUplineId,
+        repointed_edge_count: orgTreeDownlineEdges.length,
+        inbound_edge_removed: orgTreeInboundEdge.length > 0,
+      };
 
       // Ordinary PII: deleted/anonymized on User. password_hash/image added by the QC-2 full sweep
       // (§16.3) — no credential or profile-photo material should survive a COMPLETED deletion
@@ -964,8 +1123,11 @@ export class DataRightsService {
       //     no free-text PII (stripe ids, amounts, last4 only — "no PANs ever touch this table" per
       //     PaymentMethod's own comment); ordinary accounting/tax-record retention, same bucket as a
       //     paid invoice from any SaaS vendor.
-      //   • OrgTreeEdge, Sponsorship — separately-owned structural/tree-adjacent tables; see the
-      //     "scope note" above the transaction for why this fix does not re-point them.
+      //   • Sponsorship — separately-owned WP10 billing structure; confirmed genuinely inert and
+      //     left untouched — see the "scope note" above the transaction for the full reasoning.
+      //     (`OrgTreeEdge` moved OUT of this retained-untouched bucket as of T-R48 — it is now
+      //     re-pointed/recomputed above, in the SAME transaction, so it is Category (A) as of this
+      //     fix, not Category (B).)
       // Everything else in prisma/schema.prisma is Category (C) — non-PII, global/system, or pure
       // status/metadata tied to user_id with no identifying free-text content (so anonymizing the
       // owning User row already removes the only PII a reader could tie it back to): Organization,
@@ -1011,6 +1173,7 @@ export class DataRightsService {
         certificateUrl,
         newUplineId,
         reparentedUserIds,
+        orgTreeReconcile,
       };
     });
 
@@ -1038,6 +1201,11 @@ export class DataRightsService {
         new_upline_id: txResult.newUplineId,
         reparented_user_ids: txResult.reparentedUserIds,
       },
+      // T-R48 (§18.2 WP08 follow-up): what happened to the deleted rep's WP08 visual-tree
+      // (`OrgTreeEdge`) edges — `repointed_edge_count: 0` simply means this rep had no WP08
+      // downline edges at all (the no-op case), independent of whether the logical downline above
+      // was also empty.
+      orgtree_reconciled: txResult.orgTreeReconcile,
     };
 
     return { record: toDeletionRecord(txResult.updatedRow), certificate };
