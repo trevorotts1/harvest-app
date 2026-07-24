@@ -791,7 +791,32 @@
       "streakBadge_other": "{count}-day streak",
       "shortModeBadge": "10 focused minutes",
       "graceDayBanner": "Life happened. Your streak is safe — one grace day used.",
-      "beginCta": "Begin"
+      "beginCta": "Begin",
+      "briefingEmpty": "Nothing needs you today — your field is working.",
+      "briefingCount_one": "{count} item ready for your review.",
+      "briefingCount_other": "{count} items ready for your review.",
+      "motivationalLine": "Small, steady attention compounds. Show up — that is the whole job today."
+    },
+    "ratios": {
+      "trainerBaselineExplainer": "Your Field Trainer's Ratio measures your trainer's close rate once they run the appointment: how many become a client or a new teammate. New reps start on the community baseline (5 appointments to 1 close) until enough of your own appointments have run.",
+      "agentRecord": {
+        "template": "Your own record: {introPart} -> {respondedPart} -> {apptPart} -> {showsPart}. This is how effective your AI agents are for your community.",
+        "introPart_one": "{count} introduction",
+        "introPart_other": "{count} introductions",
+        "respondedPart_one": "{count} responded",
+        "respondedPart_other": "{count} responded",
+        "apptPart_one": "{count} appointment set",
+        "apptPart_other": "{count} appointments set",
+        "showsPart_one": "{count} confirmed show",
+        "showsPart_other": "{count} confirmed shows"
+      },
+      "trainerRecord": {
+        "template": "Your trainer's own record: {closes} out of {runPart} {outcomePart}.",
+        "runPart_one": "{count} appointment run",
+        "runPart_other": "{count} appointments run",
+        "outcomePart_one": "became a client or a new teammate",
+        "outcomePart_other": "became a client or a new teammate"
+      }
     },
     "closePhase": {
       "beatPlanSuffix": "— you beat your own plan.",
