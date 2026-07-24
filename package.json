@@ -20,6 +20,7 @@
     "guard:rendered-i18n-leak": "node scripts/guard-rendered-i18n-leak.mjs",
     "guard:server-i18n-leak": "node scripts/guard-server-i18n-leak.mjs",
     "verify:rendered-contrast": "node scripts/verify-rendered-contrast.mjs",
+    "verify:rendered-contrast:auth": "node scripts/verify-rendered-contrast-auth.mjs",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "db:generate": "prisma generate",
