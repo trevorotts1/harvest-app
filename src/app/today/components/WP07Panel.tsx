@@ -74,7 +74,14 @@ export default function WP07Panel({ milestones }: { milestones: ZoneResult<Miles
           <span className="badge">{t('today.wp07Panel.first48Badge')}</span>
           <p style={{ marginTop: 8 }}>{t(PHASE_COPY_KEY[first48.phase ?? 'ON_TIME'])}</p>
           <div className="grid-3" style={{ marginTop: 12 }}>
-            {first48.goals.length === 0 && <p style={{ color: 'var(--muted)' }}>{t('today.wp07Panel.first48Empty')}</p>}
+            {/* T-R46 WCAG AA fix (T-59 QC auth-gated probe): was `var(--muted)` — the legacy
+                globals.css scaffold alias, pinned to a THEME-INVARIANT ramp value (--soil-550,
+                5.1:1 on a light canvas) that never flips for dark theme (see that file's own
+                header comment). This zone's own `.zoneCard` background DOES flip to a dark
+                surface, so the fixed muted gray measured only 2.51:1 there in dark theme.
+                `--text-secondary` is the theme-aware equivalent (resolves to the same --soil-550
+                in light, --muted-inverse in dark) and meets AA against both. */}
+            {first48.goals.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>{t('today.wp07Panel.first48Empty')}</p>}
             {first48.goals.map((goal) => (
               <div key={goal.contactId} className="card feature">
                 <strong>{goal.displayName}</strong>
@@ -92,7 +99,7 @@ export default function WP07Panel({ milestones }: { milestones: ZoneResult<Miles
                   </button>
                 )}
                 {noDraftFor === goal.contactId && (
-                  <p style={{ color: 'var(--muted)', marginTop: 8 }}>{t('first48.noDraftReady')}</p>
+                  <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>{t('first48.noDraftReady')}</p>
                 )}
               </div>
             ))}
