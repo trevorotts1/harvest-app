@@ -220,6 +220,12 @@
   --gutter-mobile: 16px;
   --gutter-desktop: 24px;
 
+  /* T-R50: single source of truth for the fixed bottom tab bar's height (< 860px only —
+     AppShell.module.css's `.nav` becomes a left rail at ≥860px). Consumed by
+     AppShell.module.css (`.nav` height, `.content` padding-bottom) AND
+     today.module.css (`.primaryCta`'s sticky rest offset, so it clears the bar). */
+  --nav-height-mobile: 64px;
+
   --radius-card: 24px;    /* seed: --radius */
   --radius-panel: 18px;
   --radius-control: 12px;

@@ -18,7 +18,7 @@
 .content {
   min-height: 100vh;
   /* clear the fixed bottom tab bar so it never covers page content */
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--nav-height-mobile) + env(safe-area-inset-bottom, 0px));
 }
 
 .nav {
@@ -29,7 +29,7 @@
   z-index: 100;
   display: flex;
   align-items: stretch;
-  height: calc(64px + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--nav-height-mobile) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--surface-1-solid-fallback);
   border-top: 1px solid var(--line);
