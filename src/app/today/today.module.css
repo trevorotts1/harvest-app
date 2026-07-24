@@ -508,9 +508,20 @@
 }
 
 /* ---- Primary CTA (§5.2) ---- */
+/* T-R50 (GA-blocking mobile UX defect — T-59 auth-gated contrast harness + Opus adjudication):
+   below the 860px breakpoint AppShell.module.css's fixed bottom tab bar (`.nav`, height
+   `--nav-height-mobile` + safe-area, z-index:100) sits ABOVE this sticky CTA's old
+   `bottom: var(--space-4)` (~16px) rest offset, so the bar painted over ~89% of the CTA at
+   essentially every scroll position (`.content`'s padding-bottom protects normal-flow content,
+   but sticky content opts out of flow, so it got none of that protection). Fix is to clear the
+   bar itself — NOT raise z-index (that would just invert the problem and occlude the nav) — by
+   pushing `bottom` out past the bar's real height (the shared `--nav-height-mobile` token,
+   single-sourced with AppShell.module.css's own `.nav` height / `.content` padding-bottom) plus
+   the existing --space-4 gap and the safe-area inset, so the CTA floats fully above the tab bar
+   with daylight between them at rest. */
 .primaryCta {
   position: sticky;
-  bottom: var(--space-4);
+  bottom: calc(var(--nav-height-mobile) + var(--space-4) + env(safe-area-inset-bottom, 0px));
   justify-self: center;
   min-height: var(--touch-target-min);
   border-radius: var(--radius-pill);
@@ -522,6 +533,16 @@
   font-size: var(--type-body-lg-size);
   cursor: pointer;
   box-shadow: var(--elevation-2);
+}
+/* ≥860px (uiux §2.2 canonical nav/layout breakpoint, same one this file's own `.grid`/`.groveHero`
+   rules already key off — MINOR-C6/C7 above): AppShell's bottom tab bar becomes an icon-only LEFT
+   rail (`.nav { position: sticky; top: 0; ... }`, AppShell.module.css) — nothing is fixed to the
+   bottom of the viewport there, so the CTA has nothing to clear. Revert to the plain --space-4
+   rest offset rather than leaving a large, unexplained gap under the CTA on desktop/tablet. */
+@media (min-width: 860px) {
+  .primaryCta {
+    bottom: var(--space-4);
+  }
 }
 .primaryCta:focus-visible {
   outline: 2px solid var(--color-action);
