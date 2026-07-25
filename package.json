@@ -26,7 +26,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval:agnes-compliance": "node scripts/eval-agnes-compliance.mjs"
   },
   "dependencies": {
     "@capacitor-community/contacts": "8.0.0",
