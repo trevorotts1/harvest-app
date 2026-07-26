@@ -9,8 +9,13 @@ export {
   ClaudeClassifierError,
 } from './claude';
 export type { ClaudeClassifierClient, ClassifierRequest, HaikuClientOptions } from './claude';
+// T-R51 (OBSERVE variant, operator-authorized §0.3 scoped exception): the Agnes classifier client
+// — see `./agnes/agnes-client.ts` and `CFEEngineDeps.classifierClient`'s doc comment in `engine.ts`.
+export { AgnesClassifierClient, MissingAgnesCredentialError, AgnesClassifierError } from './agnes';
+export type { AgnesClientOptions } from './agnes';
 export { buildClassifiers, BaseHaikuClassifier } from './classifiers';
 export { VocabularyClassifier, FORBIDDEN_TERMS, FORBIDDEN_TERMS_ES, FORBIDDEN_TERMS_ALL } from './vocabulary';
+export type { VocabularyViolation, VocabularyScan, ForbiddenTermRule } from './vocabulary';
 export {
   evaluateClassifierRules,
   strictestBand,
@@ -18,6 +23,8 @@ export {
   REVIEW_ESCALATION_FLOOR,
 } from './config/classifier-rules';
 export { CLASSIFIER_CONFIG } from './config/classifier-config';
+// T-R51: §0.5 doctrine-vocabulary OBSERVE-mode config resolution.
+export { getVocabularyMode } from './config/vocabulary-mode';
 export { NoopCFEAuditSink, InMemoryCFEAuditSink } from './audit/audit-sink';
 export type { CFEAuditSink } from './audit/audit-sink';
 

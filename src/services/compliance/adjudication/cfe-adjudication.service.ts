@@ -25,13 +25,14 @@
 import { Role } from '@prisma/client';
 
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
-import type { Channel, ClassifierResult } from '@/types/compliance';
+import type { Channel, ClassifierResult, VocabularyMode } from '@/types/compliance';
 import { CFE_RULE_VERSION } from '@/types/compliance';
 import {
   AuditService,
   PrismaAuditRepository,
   type AuditEntryPrismaDelegate,
 } from '@/services/compliance/audit/audit-service';
+import { getVocabularyMode } from '@/services/compliance/config/vocabulary-mode';
 
 import { AdjudicationAdvisor } from './adjudication-advisor';
 import { coerceClassifierResults } from './escalation-triggers';
@@ -127,6 +128,35 @@ export interface QueueItem {
   slaDeadlineAt: string | null;
   createdAt: string;
   contact: { firstName: string; lastName: string } | null;
+}
+
+// T-R51 (OBSERVE variant) — §0.5 doctrine-vocabulary observability, surfaced read-only on the same
+// compliance-review page uplines already use for FLAG adjudication (see the module doc's own
+// "STRICT ORG-SCOPING" note — this reuses that exact scope, never wider). Deliberately minimal:
+// term + count + last-seen + which rep + which band, NOT the raw message body — this is a
+// frequency/refinement tool for the operator, not a second copy of the adjudication queue.
+export interface VocabularyTermStat {
+  forbidden: string;
+  count: number;
+  lastSeenAt: string;
+}
+
+export interface VocabularyObservabilityEvent {
+  auditEntryId: string;
+  repId: string;
+  band: string;
+  matchedTerms: string[];
+  occurredAt: string;
+}
+
+export interface VocabularyObservability {
+  /** The `CFE_VOCABULARY_MODE` this read reflects. The vocabulary block itself is identical in
+   *  both modes — 'block' mode simply has nothing to show here (no violation ever gets its
+   *  observability fields populated in that mode; see `engine.ts`'s `buildVerdict`). */
+  mode: VocabularyMode;
+  totalCatches: number;
+  byTerm: VocabularyTermStat[];
+  recentEvents: VocabularyObservabilityEvent[];
 }
 
 export type AdjudicateResult =
@@ -250,6 +280,79 @@ export class CfeAdjudicationService {
       });
     }
     return items;
+  }
+
+  /**
+   * T-R51 (OBSERVE variant) — §0.5 doctrine-vocabulary observability for the upline's downline
+   * (SAME org-scoping as `listUplineQueue`, deliberately reused via `resolveDownlineRepIds`: an
+   * upline sees their direct downline's catches, RVP/ADMIN see their whole org — never wider).
+   *
+   * Reads through the EXISTING durable audit mechanism (`AuditService.query`, T-10) — no new
+   * table, no new query path into Postgres. Every CFE decision for these reps is already there;
+   * this filters, in-memory, for the ones carrying a T-R51 `vocabulary_violations` record (which
+   * `engine.ts` only ever attaches when `CFE_VOCABULARY_MODE==='observe'`, the default) and
+   * aggregates by term. Additive and read-only: this method never touches a block/release
+   * decision — those are long since final by the time an AuditEntry exists.
+   *
+   * KNOWN MVP SCALING LIMIT (deferred, see T-R51 build report): this scans every audit row for the
+   * scoped reps and filters client-side, matching this file's own `listUplineQueue` convention. On
+   * a very large audit table a dedicated indexed query (or a materialized per-term counter) would
+   * be needed instead; acceptable for the operator's stated "MVP to dogfood" scope.
+   */
+  async listVocabularyObservability(upline: UplineActor): Promise<VocabularyObservability> {
+    const mode = getVocabularyMode();
+    const repIds = await this.resolveDownlineRepIds(upline);
+    if (repIds.length === 0) {
+      return { mode, totalCatches: 0, byTerm: [], recentEvents: [] };
+    }
+
+    const rows = await this.audit.query({ user_ids: repIds });
+    // Newest first — term aggregation is order-independent, but this makes "first time we see a
+    // term while scanning" equal to "most recently seen," and caps `recentEvents` to the newest.
+    const sorted = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+    const termCounts = new Map<string, { count: number; lastSeenAt: string }>();
+    const recentEvents: VocabularyObservabilityEvent[] = [];
+    let totalCatches = 0;
+
+    for (const row of sorted) {
+      const data = (row.classifier_data ?? {}) as Record<string, unknown>;
+      const rawViolations = Array.isArray(data.vocabulary_violations) ? data.vocabulary_violations : [];
+      const matchedTerms = rawViolations
+        .map((entry) =>
+          entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>).forbidden === 'string'
+            ? ((entry as Record<string, unknown>).forbidden as string)
+            : null
+        )
+        .filter((t): t is string => !!t);
+      if (matchedTerms.length === 0) continue;
+
+      totalCatches += 1;
+      for (const term of matchedTerms) {
+        const existing = termCounts.get(term);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          termCounts.set(term, { count: 1, lastSeenAt: row.created_at });
+        }
+      }
+
+      if (recentEvents.length < 50) {
+        recentEvents.push({
+          auditEntryId: row.id,
+          repId: row.user_id,
+          band: typeof data.band === 'string' ? data.band : 'blocked',
+          matchedTerms,
+          occurredAt: row.created_at,
+        });
+      }
+    }
+
+    const byTerm: VocabularyTermStat[] = Array.from(termCounts.entries())
+      .map(([forbidden, v]) => ({ forbidden, count: v.count, lastSeenAt: v.lastSeenAt }))
+      .sort((a, b) => b.count - a.count);
+
+    return { mode, totalCatches, byTerm, recentEvents };
   }
 
   /** Idempotent per-draft: creates the queue row (+ entry AuditEntry + ADVISORY recommendation) the

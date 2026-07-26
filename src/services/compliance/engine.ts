@@ -17,30 +17,36 @@ import {
   CFE_TIMEOUT_MS,
   CFE_RULE_CONFIG_VERSION,
   PRE_GENERATION_CONSTRAINTS,
+  VocabularyMode,
 } from '../../types/compliance';
 import { contentHash } from './encryption/encryption';
 import {
   ClaudeClassifierClient,
-  HaikuClassifierClient,
   MissingClaudeCredentialError,
   ClassifierTimeoutError,
   ClaudeClassifierError,
 } from './claude';
+import { AgnesClassifierClient, MissingAgnesCredentialError, AgnesClassifierError } from './agnes';
 import { BaseHaikuClassifier, buildClassifiers } from './classifiers';
-import { VocabularyClassifier } from './vocabulary';
+import { VocabularyClassifier, VocabularyViolation } from './vocabulary';
 import {
   evaluateClassifierRules,
   strictestBand,
   REVIEW_ESCALATION_FLOOR,
 } from './config/classifier-rules';
+import { getVocabularyMode } from './config/vocabulary-mode';
 import { CFEAuditSink, NoopCFEAuditSink } from './audit/audit-sink';
 
 export interface CFEEngineDeps {
   /**
-   * Classifier client for the five §5.3 Haiku classifiers. DEFAULTS to the real
-   * `HaikuClassifierClient` (§4.4) — so a production engine with no
-   * ANTHROPIC_API_KEY fails CLOSED. Tests inject a deterministic / throwing /
-   * timing-out client to prove fail-closed without a live key.
+   * Classifier client for the five §5.3 semantic classifiers. T-R51 (OBSERVE variant, operator-
+   * authorized §0.3 scoped exception): DEFAULTS to `AgnesClassifierClient` (Sapiens AI
+   * `agnes-2.0-flash`) — evaluated 100% against the CFE's own ground-truth battery on all five
+   * categories (see `eval/agnes-compliance-harness`). A production engine with no
+   * `AGNES_AI_API_KEY` fails CLOSED, exactly like the prior Haiku default did with no
+   * `ANTHROPIC_API_KEY`. `HaikuClassifierClient` remains fully available and unchanged — pass it
+   * explicitly here for any caller that wants the Claude classifier path instead. Tests inject a
+   * deterministic / throwing / timing-out client to prove fail-closed without a live key.
    */
   classifierClient?: ClaudeClassifierClient;
   /** Pre-built classifiers (overrides `classifierClient`). */
@@ -49,6 +55,10 @@ export interface CFEEngineDeps {
   /** Per-classifier timeout; a slow classifier holds the item (§5.2/§5.4). */
   timeoutMs?: number;
   vocabulary?: VocabularyClassifier;
+  /** T-R51: §0.5 doctrine-vocabulary OBSERVE-mode override (test seam). Defaults to
+   *  `getVocabularyMode()` (env `CFE_VOCABULARY_MODE`, default `'observe'`). Vocabulary ALWAYS
+   *  blocks in both modes — this only controls whether the catch is also recorded/surfaced. */
+  vocabularyMode?: VocabularyMode;
 }
 
 const HTTP_BY_BAND: Record<CFEBand, number> = { clear: 200, review: 202, blocked: 403 };
@@ -70,27 +80,38 @@ const HELD_HTTP_STATUS = 503;
  *
  * Position (§5.1): a SYNCHRONOUS gate between generation and any approval queue
  * or send path. Pipeline: stage-1 deterministic vocabulary lint → stage-2 five
- * Haiku 4.5 classifiers → stage-3 risk banding → §5.3 rule escalation.
+ * semantic classifiers (Agnes `agnes-2.0-flash` by default as of T-R51; Haiku
+ * 4.5 remains available via DI) → stage-3 risk banding → §5.3 rule escalation.
  *
  * FAIL-CLOSED (§5.2, the single most important behavior): if the engine cannot
  * obtain a confident clear result — a classifier throws, times out, the key is
  * missing, any exception occurs, or the CFE is marked unavailable — it HOLDS the
  * item (`held: true`, never `released`). There is exactly one release path:
  * `band === 'clear' && !held`. No error path yields an approved/clear verdict.
+ *
+ * T-R51 (OBSERVE variant): the §0.5 doctrine-vocabulary lint (stage 1) is UNCHANGED — it still
+ * unconditionally forces `band: 'blocked'` on any match, in EVERY `vocabularyMode`. The mode only
+ * governs whether that catch is additionally recorded on the audit event for the compliance-review
+ * surface (see `buildVerdict` below) — see `types/compliance.ts`'s `VocabularyMode` doc.
  */
 export class ComplianceFilterEngine {
   private readonly classifiers: BaseHaikuClassifier[];
   private readonly auditSink: CFEAuditSink;
   private readonly timeoutMs: number;
   private readonly vocabulary: VocabularyClassifier;
+  private readonly vocabularyMode: VocabularyMode;
   private available = true;
 
   constructor(deps: CFEEngineDeps = {}) {
-    const client = deps.classifierClient ?? new HaikuClassifierClient();
+    // T-R51 (operator-authorized, §0.3-scoped exception): default classifier client is now
+    // Agnes (`agnes-2.0-flash`), not Haiku — see this class's/`CFEEngineDeps.classifierClient`'s
+    // doc comments. `HaikuClassifierClient` is unchanged and stays available via DI.
+    const client = deps.classifierClient ?? new AgnesClassifierClient();
     this.classifiers = deps.classifiers ?? buildClassifiers(client);
     this.auditSink = deps.auditSink ?? new NoopCFEAuditSink();
     this.timeoutMs = deps.timeoutMs ?? CFE_TIMEOUT_MS;
     this.vocabulary = deps.vocabulary ?? new VocabularyClassifier();
+    this.vocabularyMode = deps.vocabularyMode ?? getVocabularyMode();
   }
 
   // ---------------------------------------------------------------------------
@@ -124,6 +145,8 @@ export class ComplianceFilterEngine {
 
       // §0.5/§5.3: forbidden doctrine vocabulary must be rewritten before the
       // item can proceed → block (not releasable, not human-approvable as-is).
+      // T-R51 OBSERVE: this block decision is IDENTICAL in both `vocabularyMode` values — the mode
+      // is consulted only below, in `buildVerdict`, to decide whether the catch is ALSO recorded.
       if (!vocab.clean) {
         band = 'blocked';
         rules.reasons.push(
@@ -154,6 +177,7 @@ export class ComplianceFilterEngine {
         released,
         reason,
         disclaimers: rules.disclaimers,
+        vocabViolations: vocab.clean ? [] : vocab.violations,
       });
     } catch (err) {
       // FAIL-CLOSED: any failure in the classifier pass holds the item.
@@ -279,8 +303,13 @@ export class ComplianceFilterEngine {
 
   private reasonFromError(err: unknown): HeldReason {
     if (err instanceof MissingClaudeCredentialError) return 'missing_credentials';
+    // T-R51: Agnes's own credential/classifier errors fail closed exactly like Haiku's —
+    // deliberately mapped onto the SAME `HeldReason` values (no new held-reason vocabulary), so
+    // every existing consumer that branches on `HeldReason` keeps working unchanged.
+    if (err instanceof MissingAgnesCredentialError) return 'missing_credentials';
     if (err instanceof ClassifierTimeoutError) return 'classifier_timeout';
     if (err instanceof ClaudeClassifierError) return 'classifier_error';
+    if (err instanceof AgnesClassifierError) return 'classifier_error';
     return 'engine_exception';
   }
 
@@ -294,6 +323,7 @@ export class ComplianceFilterEngine {
       released: false,
       reason: `held_for_review:${heldReason}`,
       disclaimers: [],
+      vocabViolations: [],
     });
   }
 
@@ -309,9 +339,24 @@ export class ComplianceFilterEngine {
       released: boolean;
       reason: string;
       disclaimers: string[];
+      vocabViolations: VocabularyViolation[];
     }
   ): CFEVerdict {
     const triggered = v.results.filter((r) => r.confidence > 0).map((r) => r.classifier);
+    // T-R51 OBSERVE: additive-only observability. The block decision above is already final by
+    // the time this runs — nothing here can change `band`/`held`/`released`. In 'block' mode (the
+    // pre-T-R51 default) these two fields stay `undefined`, so a 'block'-mode audit event is
+    // byte-identical to what this engine has always emitted; 'observe' mode (the new default)
+    // additionally attaches WHICH term(s) matched, for the compliance-review surface to aggregate.
+    const recordObservability = v.vocabViolations.length > 0 && this.vocabularyMode === 'observe';
+    const vocabularyViolations = recordObservability
+      ? v.vocabViolations.map((viol) => ({ forbidden: viol.forbidden, match: viol.match }))
+      : undefined;
+    // Gated identically to `vocabularyViolations` above (both-or-neither) so a 'block'-mode audit
+    // event carries NEITHER field — genuinely byte-identical to pre-T-R51 behavior, not merely
+    // "no violations list but a stray mode tag."
+    const vocabularyModeForEvent = recordObservability ? this.vocabularyMode : undefined;
+
     const auditEvent: CFEAuditEvent = {
       content_id: input.userContext.content_id ?? null,
       content_text: input.content,
@@ -331,6 +376,8 @@ export class ComplianceFilterEngine {
       regulation: input.userContext.regulations ?? [],
       rule_version: CFE_RULE_CONFIG_VERSION,
       timestamp: new Date().toISOString(),
+      vocabulary_violations: vocabularyViolations,
+      vocabulary_mode: vocabularyModeForEvent,
     };
 
     // Emit exactly one audit event per decision (§5.6, AC §5.8-4).

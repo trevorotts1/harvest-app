@@ -1773,7 +1773,19 @@
       "approveForSendCta": "Aprobar para enviar",
       "adjudicateFailedGeneric": "No se pudo resolver este elemento.",
       "networkErrorGeneric": "Error de red — intenta de nuevo.",
-      "contactFallback": "un contacto"
+      "contactFallback": "un contacto",
+      "vocabulary": {
+        "heading": "Vigilancia de vocabulario",
+        "modeObserveBadge": "Modo de observación",
+        "modeBlockBadge": "Modo de bloqueo",
+        "intro": "Estos términos siempre se bloquean antes de enviarse — esto solo muestra cuáles está encontrando tu equipo, para poder refinar la lista más adelante.",
+        "empty": "Ningún término de vocabulario se ha activado para tu equipo todavía.",
+        "termHeader": "Término",
+        "countHeader": "Veces bloqueado",
+        "lastSeenHeader": "Última vez visto",
+        "totalCatches": "{count} mensaje(s) bloqueado(s) contenían un término de vocabulario",
+        "loadError": "No se pudo cargar la vigilancia de vocabulario."
+      }
     }
   },
   "composer": {

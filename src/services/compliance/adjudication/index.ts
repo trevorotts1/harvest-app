@@ -17,6 +17,9 @@ export type {
   AdjudicationDraftRow,
   ReviewQueueRow,
   AdjudicationContactRow,
+  VocabularyTermStat,
+  VocabularyObservabilityEvent,
+  VocabularyObservability,
 } from './cfe-adjudication.service';
 
 export { AdjudicationAdvisor, parseRecommendation, ADJUDICATION_ADVISOR_AGENT_KEY } from './adjudication-advisor';

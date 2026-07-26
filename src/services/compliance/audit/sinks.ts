@@ -54,6 +54,14 @@ export function mapCfeEventToAuditInput(event: CFEAuditEvent): RecordAuditEventI
       classifiers_triggered: event.classifiers_triggered,
       safe_harbor_injected: event.safe_harbor_injected,
       safe_harbor_disclaimers: event.safe_harbor_disclaimers,
+      // T-R51 OBSERVE mode: additive-only. Present (non-empty) only when the engine's
+      // `vocabularyMode==='observe'` (default) AND a §0.5 doctrine-vocabulary term matched — see
+      // `engine.ts`'s `buildVerdict` for where this is populated. This is the durable record the
+      // compliance-review "vocabulary observability" surface aggregates by term; it never feeds
+      // back into any block/release decision — that decision is already final by the time a
+      // `CFEAuditEvent` exists at all.
+      vocabulary_violations: event.vocabulary_violations ?? [],
+      vocabulary_mode: event.vocabulary_mode ?? null,
     },
     regulation: deriveRegulationTag(event.regulation),
     rule_version: event.rule_version,

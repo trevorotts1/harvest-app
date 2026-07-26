@@ -264,6 +264,51 @@ export const ANTHROPIC_API_KEY_ENV_VAR = 'ANTHROPIC_API_KEY';
 export const CFE_RULE_CONFIG_VERSION = '1.0.0';
 
 /**
+ * T-R51 (OBSERVE variant) — Sapiens AI's `agnes-2.0-flash`, wired as the CFE's five §5.3
+ * SEMANTIC classifier client, per an explicit, operator-confirmed decision after Agnes was
+ * evaluated against the CFE's own ground-truth battery (100% on INCOME_CLAIM/TESTIMONIAL/
+ * OPPORTUNITY/INSURANCE/REFERRAL — see `eval/agnes-compliance-harness`'s
+ * `scripts/eval-agnes-compliance.mjs`, the harness this wiring's endpoint/model/call-shape
+ * mirrors).
+ *
+ * SCOPE OF THE §0.3 "Claude-only" EXCEPTION (read before touching anything else): this is a
+ * NARROW, explicitly-authorized carve-out for ONE path only — the CFE's five semantic
+ * classifiers (`AgnesClassifierClient`, `src/services/compliance/agnes/`). It does NOT apply to:
+ *   - the agent GENERATION/runtime path (`src/services/agent-runtime/**`, `AnthropicRuntimeClient`,
+ *     `CLAUDE_MODEL_IDS` / `runtime-model-map.ts`) — every draft a rep or agent sends is still
+ *     composed ONLY by Claude, unconditionally;
+ *   - the §0.5 doctrine vocabulary lint (`vocabulary.ts`) — that stage is, and remains, a local
+ *     deterministic regex classifier with no model call of any kind, Claude or otherwise;
+ *   - the upline ADVISORY recommendation (`AdjudicationAdvisor`) — still Claude-only (Sonnet 5 /
+ *     Opus 4.8), per its own module doc.
+ * `HAIKU_MODEL_ID`/`HaikuClassifierClient` are UNCHANGED and remain fully available (injectable
+ * via `CFEEngineDeps.classifierClient`) for any caller that wants to keep the Claude classifier
+ * path instead of the new default.
+ */
+export const AGNES_MODEL_ID = 'agnes-2.0-flash';
+export const AGNES_ENDPOINT = 'https://apihub.agnes-ai.com/v1/chat/completions';
+/** Secret is referenced by NAME only, never by value (§0.4) — mirrors `ANTHROPIC_API_KEY_ENV_VAR`.
+ *  NOTE: deliberately `AGNES_AI_API_KEY`, distinct from the eval harness's `AGNES_API_KEY` — the
+ *  production build spec named this env var explicitly; the two are NOT interchangeable (see the
+ *  T-R51 build report for this discrepancy). */
+export const AGNES_API_KEY_ENV_VAR = 'AGNES_AI_API_KEY';
+
+/**
+ * §0.5 doctrine-vocabulary OBSERVE mode (T-R51). The vocabulary hard-block itself is UNCHANGED in
+ * both values — a forbidden-term match ALWAYS forces `band: 'blocked'` (see `engine.ts`). The mode
+ * only controls whether that catch is ALSO recorded (structured, durable) + surfaced in the
+ * upline/compliance review view, so the operator can see which terms fire and how often:
+ *   - 'block'   — legacy behavior: block only, no observability record attached to the audit event.
+ *   - 'observe' — block AND attach a structured `vocabulary_violations` record to the audit event
+ *                 (§5.6/§5.7), which the compliance-review surface aggregates by term. DEFAULT.
+ * 'advisory' (non-blocking) is deliberately NOT a value here yet — reserved for a possible future
+ * change; this build keeps the vocabulary layer blocking in both modes, per explicit operator
+ * decision (see T-R51 build report).
+ */
+export type VocabularyMode = 'block' | 'observe';
+export const CFE_VOCABULARY_MODE_ENV_VAR = 'CFE_VOCABULARY_MODE';
+
+/**
  * §5.4 banding expressed as the gate's outward vocabulary.
  *   clear   = 0–10  (Pass)  — the ONLY band that may release.
  *   review  = 11–70 (Flag)  — Sonnet 5 adjudication / Approval Inbox.
@@ -317,6 +362,17 @@ export interface CFEAuditEvent {
   reviewer_id?: string;
   reviewer_action?: string;
   timestamp: string;
+  /**
+   * T-R51 OBSERVE mode: which §0.5 doctrine-vocabulary term(s) matched, if any. ADDITIVE ONLY —
+   * present (non-empty) only when `CFE_VOCABULARY_MODE==='observe'` (the default) AND a vocabulary
+   * violation actually fired; `undefined`/absent in 'block' mode or when there was no violation.
+   * Never influences `band`/`held`/`released` — the block decision is computed before this field
+   * is ever populated (see `engine.ts` `evaluateContent`).
+   */
+  vocabulary_violations?: { forbidden: string; match: string }[];
+  /** The mode this decision was evaluated under, when a vocabulary violation fired. Absent when no
+   *  violation occurred (mode is then irrelevant to this event). */
+  vocabulary_mode?: VocabularyMode;
 }
 
 /**

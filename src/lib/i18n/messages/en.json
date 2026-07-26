@@ -1773,7 +1773,19 @@
       "approveForSendCta": "Approve for send",
       "adjudicateFailedGeneric": "This item could not be adjudicated.",
       "networkErrorGeneric": "Network error — try again.",
-      "contactFallback": "a contact"
+      "contactFallback": "a contact",
+      "vocabulary": {
+        "heading": "Vocabulary watch",
+        "modeObserveBadge": "Observe mode",
+        "modeBlockBadge": "Block mode",
+        "intro": "These terms are always blocked before sending — this just shows which ones your team is hitting, so the list can be refined later.",
+        "empty": "No vocabulary terms have fired for your team yet.",
+        "termHeader": "Term",
+        "countHeader": "Times blocked",
+        "lastSeenHeader": "Last seen",
+        "totalCatches": "{count} blocked message(s) hit a vocabulary term",
+        "loadError": "Couldn't load vocabulary watch."
+      }
     }
   },
   "composer": {
