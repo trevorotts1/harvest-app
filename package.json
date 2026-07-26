@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "postbuild": "npm run verify:middleware && npm run verify:api-auth && npm run verify:contrast && npm run guard:no-opacity-on-text && npm run guard:migration-drift && npm run guard:i18n && npm run guard:no-literals-in-components && npm run guard:touch-target && npm run guard:status-live-region && npm run guard:rendered-i18n-leak && npm run guard:server-i18n-leak",
     "verify:middleware": "node scripts/verify-middleware.mjs",
     "verify:api-auth": "node scripts/verify-api-auth.mjs",
