@@ -38,11 +38,31 @@ type LoadState =
   | { kind: 'forbidden' }
   | { kind: 'failed' };
 
+// T-R51 (OBSERVE variant) — read-only §0.5 doctrine-vocabulary catch frequency. The vocabulary
+// hard-block is unchanged (still fires regardless of mode); this panel exists purely so the
+// operator can see WHICH terms fire and how often, to refine the list later.
+interface VocabularyTermStat {
+  forbidden: string;
+  count: number;
+  lastSeenAt: string;
+}
+interface VocabularyObservability {
+  mode: 'block' | 'observe';
+  totalCatches: number;
+  byTerm: VocabularyTermStat[];
+  recentEvents: unknown[];
+}
+type VocabLoadState =
+  | { kind: 'loading' }
+  | { kind: 'ready'; data: VocabularyObservability }
+  | { kind: 'failed' };
+
 export default function ComplianceReviewPage() {
   const t = useT();
   const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [vocabState, setVocabState] = useState<VocabLoadState>({ kind: 'loading' });
 
   const load = useCallback(async () => {
     setState({ kind: 'loading' });
@@ -57,9 +77,24 @@ export default function ComplianceReviewPage() {
     }
   }, []);
 
+  // T-R51: best-effort, additive — a failure/403 here never blocks or alters the FLAG queue above
+  // (fetched independently); the panel simply doesn't render (see JSX below).
+  const loadVocabularyObservability = useCallback(async () => {
+    setVocabState({ kind: 'loading' });
+    try {
+      const res = await fetch('/api/compliance-review/vocabulary-observability');
+      if (!res.ok) return setVocabState({ kind: 'failed' });
+      const body = (await res.json()) as VocabularyObservability;
+      setVocabState({ kind: 'ready', data: body });
+    } catch {
+      setVocabState({ kind: 'failed' });
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadVocabularyObservability();
+  }, [load, loadVocabularyObservability]);
 
   const adjudicate = useCallback(
     async (queueId: string, action: 'APPROVE' | 'REJECT', feedback?: string) => {
@@ -113,12 +148,58 @@ export default function ComplianceReviewPage() {
     );
   }
 
+  // T-R51 (OBSERVE variant) — the vocabulary-watch panel. Additive/read-only: renders only when it
+  // loaded successfully AND there's something to show; a 403/network failure here silently omits
+  // the panel rather than blocking or altering the FLAG queue above (fetched independently).
+  const vocabularyPanel =
+    vocabState.kind === 'ready' && vocabState.data.byTerm.length > 0 ? (
+      <section className="card panel">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>{t('team.complianceReview.vocabulary.heading')}</h2>
+          <span className="badge">
+            {t(
+              vocabState.data.mode === 'observe'
+                ? 'team.complianceReview.vocabulary.modeObserveBadge'
+                : 'team.complianceReview.vocabulary.modeBlockBadge'
+            )}
+          </span>
+        </div>
+        <p style={{ color: 'var(--muted)' }}>{t('team.complianceReview.vocabulary.intro')}</p>
+        <p style={{ color: 'var(--muted)' }}>
+          {t('team.complianceReview.vocabulary.totalCatches', { count: vocabState.data.totalCatches })}
+        </p>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '4px 8px' }}>{t('team.complianceReview.vocabulary.termHeader')}</th>
+                <th style={{ textAlign: 'right', padding: '4px 8px' }}>{t('team.complianceReview.vocabulary.countHeader')}</th>
+                <th style={{ textAlign: 'right', padding: '4px 8px' }}>{t('team.complianceReview.vocabulary.lastSeenHeader')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vocabState.data.byTerm.map((row) => (
+                <tr key={row.forbidden}>
+                  <td style={{ padding: '4px 8px' }}>{row.forbidden}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right' }}>{row.count}</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right' }}>{new Date(row.lastSeenAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    ) : null;
+
   if (state.items.length === 0) {
     return (
-      <div className="card panel">
-        <span className="badge">{t('team.complianceReview.badge')}</span>
-        <h2 style={{ marginTop: 8 }}>{t('team.complianceReview.emptyHeading')}</h2>
-        <p>{t('team.complianceReview.emptyBody')}</p>
+      <div className="stack">
+        <div className="card panel">
+          <span className="badge">{t('team.complianceReview.badge')}</span>
+          <h2 style={{ marginTop: 8 }}>{t('team.complianceReview.emptyHeading')}</h2>
+          <p>{t('team.complianceReview.emptyBody')}</p>
+        </div>
+        {vocabularyPanel}
       </div>
     );
   }
@@ -132,6 +213,8 @@ export default function ComplianceReviewPage() {
           {t('team.complianceReview.readyBody')}
         </p>
       </section>
+
+      {vocabularyPanel}
 
       {state.items.map((item) => {
         const name = item.contact ? `${item.contact.firstName} ${item.contact.lastName}` : t('team.complianceReview.contactFallback');

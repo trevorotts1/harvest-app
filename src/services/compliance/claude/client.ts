@@ -1,15 +1,27 @@
 import { Classifier, ClassifierVerdict } from '../../../types/compliance';
 
 /**
- * Claude client abstraction for the five §5.3 classifiers.
+ * Classifier-client abstraction for the five §5.3 semantic classifiers.
  *
- * Claude-only (§0.3): the ONLY implementations of this interface route to a
- * Claude model (Haiku 4.5 in production, §4.4) or to a deterministic local
- * heuristic for dev/test. There is no non-Claude implementation and no
- * outside-provider fallback anywhere in the classifier path.
+ * Claude-only (§0.3), narrowly scoped as of T-R51: this interface's implementations were
+ * originally Claude-only (`HaikuClassifierClient`) or a deterministic local heuristic for
+ * dev/test. T-R51 adds ONE explicit, operator-authorized exception —
+ * `AgnesClassifierClient` (`../agnes/agnes-client.ts`, Sapiens AI `agnes-2.0-flash`), now the
+ * engine's DEFAULT for this interface, after Agnes was evaluated at 100% against the CFE's own
+ * ground-truth battery on all five categories (`eval/agnes-compliance-harness`). This exception is
+ * SCOPED TO THIS INTERFACE ONLY:
+ *   - the agent generation/runtime path (`src/services/agent-runtime/**`) remains Claude-only,
+ *     unconditionally, untouched by this change;
+ *   - the §0.5 doctrine-vocabulary lint (`../vocabulary.ts`) has no model call at all, Claude or
+ *     otherwise, and is unaffected;
+ *   - `HaikuClassifierClient` is unchanged and still fully supported — inject it explicitly via
+ *     `CFEEngineDeps.classifierClient` for any caller that wants the Claude classifier path.
+ * There is still no fallback BETWEEN providers on error — whichever client is configured either
+ * returns a verdict or throws; a throw always holds the item closed (§5.2), never triggers a
+ * silent retry against a different provider.
  *
  * The interface is dependency-injected into the engine so the fail-closed
- * behavior can be proven without a live ANTHROPIC_API_KEY (inject a throwing /
+ * behavior can be proven without a live credential (inject a throwing /
  * timing-out / deterministic client).
  */
 export interface ClassifierRequest {
