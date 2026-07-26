@@ -77,3 +77,14 @@ export {
   type EmailDecryptor,
   type BodyEncryptor,
 } from './send-support';
+
+// T-R23 (§10.8 gap closure) — the inbound-webhook counterpart to the outbound Twilio clients above:
+// verifies `X-Twilio-Signature` on an inbound-SMS-reply webhook request. See ../../../app/api/
+// messaging/inbound/route.ts (the one caller) and twilio-signature.ts's own doc comment.
+export {
+  verifyTwilioRequestSignature,
+  TWILIO_SIGNATURE_HEADER,
+  TwilioSignatureConfigError,
+  TwilioSignatureError,
+  type VerifyTwilioSignatureOptions,
+} from './twilio-signature';
