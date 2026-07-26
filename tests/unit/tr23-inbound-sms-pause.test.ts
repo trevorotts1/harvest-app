@@ -34,9 +34,13 @@ interface MockSequenceRow {
 let contacts: MockContactRow[] = [];
 let sequences: MockSequenceRow[] = [];
 
-const mockContactFindMany = jest.fn(async ({ where }: { where: { phone_hash: string } }) =>
-  contacts.filter((c) => c.phone_hash === where.phone_hash).map((c) => ({ ...c }))
-);
+const mockContactFindMany = jest.fn(async ({ where }: { where: { phone_hash: string | { in: string[] } } }) => {
+  // The route now looks up by `phone_hash IN {candidate hashes}` (T-R23 QC fix #1); still tolerate a
+  // bare-string clause so this mock stays faithful to Prisma's accepted shapes.
+  const clause = where.phone_hash;
+  const hashes = typeof clause === 'string' ? [clause] : clause.in;
+  return contacts.filter((c) => c.phone_hash != null && hashes.includes(c.phone_hash)).map((c) => ({ ...c }));
+});
 const mockSequenceFindMany = jest.fn(
   async ({ where }: { where: { contact_id: string; state: string } }) =>
     sequences
@@ -69,11 +73,15 @@ jest.mock('@/services/messaging/send/production-wiring', () => ({
 // eslint-disable-next-line import/first
 import { TWILIO_AUTH_TOKEN_ENV_VAR } from '@/services/deliverability/twilio-client';
 import { hmacForMatch } from '@/services/compliance/encryption/encryption';
-import { toE164 } from '@/services/messaging/send';
 import { POST as inboundPOST } from '@/app/api/messaging/inbound/route';
 
 const TWILIO_TOKEN = 'tr23-test-twilio-auth-token';
-const ROUTE_URL = 'http://localhost/api/messaging/inbound';
+// T-R23 QC fix #3: the route reconstructs the signed URL from the CONFIGURED public origin
+// (NEXTAUTH_URL) + the request path — not req.url. So the signature must be computed over
+// `${PUBLIC_ORIGIN}${ROUTE_PATH}`, and the test seeds NEXTAUTH_URL to PUBLIC_ORIGIN (beforeEach).
+const PUBLIC_ORIGIN = 'http://localhost';
+const ROUTE_PATH = '/api/messaging/inbound';
+const ROUTE_URL = `${PUBLIC_ORIGIN}${ROUTE_PATH}`;
 
 /** Twilio's own documented request-signing algorithm, reimplemented independently here (not by
  *  calling the route's own verify function) so this suite genuinely proves spec-conformance rather
@@ -97,14 +105,20 @@ function inboundRequest(params: Record<string, string>, signature?: string | nul
 }
 
 function phoneHashFor(phone: string): string {
-  return hmacForMatch(toE164(phone));
+  // The VAULT's REAL stored-hash convention (src/services/warm-market/vault/vault.service.ts
+  // `upsertRow`: `hmacForMatch(phone.replace(/\D/g,''))`) — digits only, NO leading '+', no country-
+  // code logic. Seeding fixtures with the route's own (pre-fix) `hmacForMatch(toE164(...))` is exactly
+  // the false-green that let the phone_hash-mismatch bug pass QC; this now matches production.
+  return hmacForMatch(phone.replace(/\D/g, ''));
 }
 
 describe('POST /api/messaging/inbound — T-R23: real Twilio-signed inbound-SMS webhook -> SequenceService.pauseOnReply', () => {
   const ORIGINAL_TOKEN = process.env[TWILIO_AUTH_TOKEN_ENV_VAR];
+  const ORIGINAL_ORIGIN = process.env.NEXTAUTH_URL;
 
   beforeEach(() => {
     process.env[TWILIO_AUTH_TOKEN_ENV_VAR] = TWILIO_TOKEN;
+    process.env.NEXTAUTH_URL = PUBLIC_ORIGIN; // T-R23 QC fix #3 — the configured public origin.
     contacts = [];
     sequences = [];
     mockRecordInboundMessage.mockReset().mockResolvedValue(false);
@@ -126,6 +140,8 @@ describe('POST /api/messaging/inbound — T-R23: real Twilio-signed inbound-SMS 
   afterEach(() => {
     if (ORIGINAL_TOKEN === undefined) delete process.env[TWILIO_AUTH_TOKEN_ENV_VAR];
     else process.env[TWILIO_AUTH_TOKEN_ENV_VAR] = ORIGINAL_TOKEN;
+    if (ORIGINAL_ORIGIN === undefined) delete process.env.NEXTAUTH_URL;
+    else process.env.NEXTAUTH_URL = ORIGINAL_ORIGIN;
   });
 
   test('FAILS CLOSED when TWILIO_AUTH_TOKEN is unconfigured — 401, nothing touched (config error, not a pass)', async () => {
@@ -135,6 +151,21 @@ describe('POST /api/messaging/inbound — T-R23: real Twilio-signed inbound-SMS 
     sequences = [{ id: 'seq-1', contact_id: 'c-1', state: 'ACTIVE' }];
 
     const req = inboundRequest({ From: phone, To: '+15550000001', Body: 'hi', MessageSid: 'SM1' });
+    const res = await inboundPOST(req);
+
+    expect(res.status).toBe(401);
+    expect(mockRecordInboundMessage).not.toHaveBeenCalled();
+    expect(mockPauseOnReply).not.toHaveBeenCalled();
+    expect(mockContactFindMany).not.toHaveBeenCalled();
+  });
+
+  test('FAILS CLOSED when NEXTAUTH_URL (public origin) is unconfigured — 401, nothing processed (QC fix #3)', async () => {
+    delete process.env.NEXTAUTH_URL;
+    const phone = '+15551110010';
+    contacts = [{ id: 'c-1', user_id: 'rep-1', phone_hash: phoneHashFor(phone) }];
+    sequences = [{ id: 'seq-1', contact_id: 'c-1', state: 'ACTIVE' }];
+
+    const req = inboundRequest({ From: phone, To: '+15550000001', Body: 'hi', MessageSid: 'SM11' });
     const res = await inboundPOST(req);
 
     expect(res.status).toBe(401);
@@ -210,6 +241,25 @@ describe('POST /api/messaging/inbound — T-R23: real Twilio-signed inbound-SMS 
       MessageChannel.SMS_PLATFORM,
       'Sounds great, tell me more!'
     );
+    expect(mockPauseOnReply).toHaveBeenCalledTimes(1);
+    expect(mockPauseOnReply).toHaveBeenCalledWith('rep-1', 'seq-1');
+  });
+
+  test('REGRESSION (write/read convention, QC fix #1): a contact stored by the VAULT as a 10-digit hash IS matched by an 11-digit E.164 Twilio From', async () => {
+    // The rep imported "(555) 777-8888" — the vault stored `hmacForMatch("5557778888")` (10 digits,
+    // no country code, no '+'). Twilio delivers the reply as the 11-digit E.164 "+15557778888".
+    // Pre-fix, the route hashed `hmacForMatch(toE164("+15557778888")) = hmacForMatch("+15557778888")`,
+    // which never equals the stored 10-digit hash → the contact was never found, pauseOnReply never
+    // fired, and (worse) a STOP would have been recorded under a hash the outbound gate never checks.
+    // This test seeds the REAL vault hash and asserts the fixed route's candidate-hash lookup matches.
+    const vaultStoredHash = hmacForMatch('(555) 777-8888'.replace(/\D/g, '')); // === hmacForMatch('5557778888')
+    contacts = [{ id: 'c-1', user_id: 'rep-1', phone_hash: vaultStoredHash }];
+    sequences = [{ id: 'seq-1', contact_id: 'c-1', state: 'ACTIVE' }];
+
+    const req = inboundRequest({ From: '+15557778888', To: '+15550000001', Body: 'yes, tell me more', MessageSid: 'SM-REG' });
+    const res = await inboundPOST(req);
+
+    expect(res.status).toBe(200);
     expect(mockPauseOnReply).toHaveBeenCalledTimes(1);
     expect(mockPauseOnReply).toHaveBeenCalledWith('rep-1', 'seq-1');
   });
