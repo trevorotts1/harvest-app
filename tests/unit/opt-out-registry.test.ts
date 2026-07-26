@@ -137,8 +137,31 @@ describe('isStopKeyword (§10.4/§10.9-4 inbound STOP-keyword capture seam)', ()
     }
   );
 
-  test.each(['please stop texting me', 'stop sending me this', 'hello', '', 'stopped by the store'])(
-    'does NOT treat %p as an opt-out keyword (exact-match only — avoids false-positive silencing)',
+  // T-R54 (TCPA consumer-protection fix — this doc comment always claimed punctuation-
+  // insensitivity, e.g. "STOP." or "Stop!!", but the implementation never actually stripped
+  // surrounding punctuation before comparing, so a real consumer texting "STOP." was silently NOT
+  // unsubscribed. Now live-reachable via the inbound webhook (T-R23). These cases assert the fix:
+  // leading/trailing punctuation and whitespace are stripped before the exact-keyword comparison.
+  test.each(['STOP.', 'Stop!!', '  stop  ', 'unsubscribe.', '...STOP', 'Cancel?'])(
+    'recognizes %p as an opt-out keyword despite surrounding punctuation (TCPA fix, T-R54)',
+    (text) => {
+      expect(isStopKeyword(text)).toBe(true);
+    }
+  );
+
+  test.each([
+    'please stop texting me',
+    'stop sending me this',
+    'hello',
+    '',
+    'stopped by the store',
+    // T-R54: the punctuation-strip is bounded to the string's EDGES only — it must never turn this
+    // into a substring/contains match. Neither of these contains "stop" as a standalone token, and
+    // both must remain non-matches after the fix, exactly as before it.
+    'stopwatch',
+    "please don't stop the messages",
+  ])(
+    'does NOT treat %p as an opt-out keyword (whole-message-equality only — avoids false-positive silencing, T-R54 regression guard)',
     (text) => {
       expect(isStopKeyword(text)).toBe(false);
     }

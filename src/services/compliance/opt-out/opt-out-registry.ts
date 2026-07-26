@@ -209,15 +209,24 @@ export class OptOutRegistryService {
  * regardless of surrounding punctuation, e.g. "STOP." or "Stop!!"). §10.4 / §10.9-4.
  *
  * Deliberately conservative: matches only the message body reduced to its bare word content
- * (letters only, case-folded) — "STOP SENDING ME THIS" or "please stop" are NOT treated as opt-out
+ * (case-folded, with any LEADING/TRAILING punctuation stripped — "STOP.", "Stop!!", and "  stop  "
+ * all normalize to "stop") — "STOP SENDING ME THIS" or "please stop" are NOT treated as opt-out
  * keywords by this exact-match check (a false positive here would wrongly silence a legitimate
  * conversation), matching the same one-exact-keyword convention Twilio's own Advanced Opt-Out
- * feature uses. A rep-side "wrong person"/"minor"/manual mark (this service's other reasons)
- * remains the correct path for anything short of an exact keyword.
+ * feature uses. Stripping is bounded to the string's edges only — internal characters are left
+ * alone — so this stays a whole-message equality check, never a substring/contains match:
+ * "stopwatch" and "stopped by the store" still do NOT match (no false positive from "stop" merely
+ * appearing inside a longer word). A rep-side "wrong person"/"minor"/manual mark (this service's
+ * other reasons) remains the correct path for anything short of an exact keyword.
  */
 const STOP_KEYWORDS = new Set(['stop', 'stopall', 'unsubscribe', 'cancel', 'end', 'quit']);
 
+/** Matches a run of leading or trailing characters that are neither letters nor digits — used to
+ *  strip surrounding punctuation (".", "!", quotes, etc.) before keyword comparison, without
+ *  touching any punctuation in the interior of the message. */
+const SURROUNDING_PUNCTUATION = /^[^a-z0-9]+|[^a-z0-9]+$/g;
+
 export function isStopKeyword(messageBody: string): boolean {
-  const normalized = messageBody.trim().toLowerCase();
+  const normalized = messageBody.trim().toLowerCase().replace(SURROUNDING_PUNCTUATION, '');
   return STOP_KEYWORDS.has(normalized);
 }
