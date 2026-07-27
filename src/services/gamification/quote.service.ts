@@ -10,7 +10,7 @@
 
 import { ClaudeModelTier } from '../agent-runtime/runtime-model-map';
 import type { AgentModelClient } from '../agent-runtime/claude/runtime-client';
-import { AnthropicRuntimeClient } from '../agent-runtime/claude/anthropic-runtime-client';
+import { AgnesRuntimeClient } from '../agent-runtime/agnes/agnes-runtime-client';
 import { ComplianceFilterEngine } from '../compliance/engine';
 import type { CFEInput } from '@/types/compliance';
 import { gateRepFacingContent, type CFEContentEvaluator } from './cfe-gate';
@@ -97,7 +97,7 @@ export interface DeliverQuoteOptions {
  *  surface renders the honest "agents resting" copy, never a fabricated quote (§18.6). */
 export async function deliverQuote(opts: DeliverQuoteOptions, deps: QuoteDeliveryDeps = {}): Promise<QuoteDeliveryResult> {
   const cfe = deps.cfe ?? new ComplianceFilterEngine();
-  const modelClient = deps.modelClient ?? new AnthropicRuntimeClient();
+  const modelClient = deps.modelClient ?? new AgnesRuntimeClient();
   const now = opts.now ?? new Date();
 
   const general = staticQuotesForOrg(false).filter((q) => q.tags.includes(opts.timeSlot)).length

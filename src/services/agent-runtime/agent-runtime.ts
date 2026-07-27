@@ -35,9 +35,9 @@ import { getContactEncryptionKey } from '@/services/warm-market/vault/vault-encr
 
 import {
   AgentModelClient,
-  AnthropicRuntimeClient,
   MissingClaudeCredentialError,
 } from './claude';
+import { AgnesRuntimeClient } from './agnes';
 import { AGENT_HANDLERS } from './agent-handlers';
 import { assemblePrompt } from './prompt-assembly';
 import {
@@ -153,7 +153,7 @@ export class AgentRuntime {
   readonly memoryJoggerClient: MemoryJoggerCategoryClient;
 
   constructor(deps: AgentRuntimeDeps = {}) {
-    this.modelClient = deps.modelClient ?? new AnthropicRuntimeClient();
+    this.modelClient = deps.modelClient ?? new AgnesRuntimeClient();
     this.cfe = deps.cfe ?? new ComplianceFilterEngine();
     this.store = deps.store ?? new PrismaAgentRuntimeStore();
     this.runGate = deps.runGate ?? new AllowAllRunGate();

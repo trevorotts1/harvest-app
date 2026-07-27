@@ -7,7 +7,7 @@
 // already established.
 
 import { prisma } from '@/lib/prisma';
-import { AnthropicRuntimeClient } from '@/services/agent-runtime/claude';
+import { AgnesRuntimeClient } from '@/services/agent-runtime/agnes';
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 
 import { ContentItemService, type ContentItemPrismaClient } from './content-item.service';
@@ -29,7 +29,7 @@ export function buildContentBriefService(db: AnyPrisma = prisma): ContentBriefSe
 
 export function buildContentBatchService(db: AnyPrisma = prisma): ContentBatchService {
   return new ContentBatchService(buildContentBriefService(db), buildContentItemService(db), {
-    modelClient: new AnthropicRuntimeClient(),
+    modelClient: new AgnesRuntimeClient(),
   });
 }
 
@@ -38,7 +38,7 @@ export function buildLaunchKitService(db: AnyPrisma = prisma): LaunchKitService 
     db as unknown as LaunchKitPrismaClient,
     buildContentBriefService(db),
     buildContentItemService(db),
-    { modelClient: new AnthropicRuntimeClient() }
+    { modelClient: new AgnesRuntimeClient() }
   );
 }
 

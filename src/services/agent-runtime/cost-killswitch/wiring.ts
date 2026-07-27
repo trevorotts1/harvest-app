@@ -5,7 +5,7 @@
 // dispatch.ts / inngest-functions.ts. The production call site (inngest-functions.ts) calls this
 // and passes the result straight through to `dispatchAgentJob(data, deps)`.
 
-import { AnthropicRuntimeClient } from '../claude';
+import { AgnesRuntimeClient } from '../agnes';
 import { PrismaAgentRuntimeStore } from '../store';
 import type { AgentRuntimeDeps } from '../agent-runtime';
 
@@ -26,7 +26,7 @@ export function buildProductionAgentRuntimeDeps(userId: string): AgentRuntimeDep
   const runGate = new BudgetKillSwitchRunGate({ store: budgetStore });
   const costModel = new TierPricingCostModel();
 
-  const modelClient = new DegradingModelClient(new AnthropicRuntimeClient(), {
+  const modelClient = new DegradingModelClient(new AgnesRuntimeClient(), {
     costPressureCheck: () => isUnderCostPressure(budgetStore, userId),
   });
   const store = new DegradationAnnotatingStore(new PrismaAgentRuntimeStore(), modelClient);
