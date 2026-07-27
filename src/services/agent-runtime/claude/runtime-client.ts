@@ -1,16 +1,18 @@
-// WP04 (T-30) — the agent runtime's Claude model-client boundary.
+// WP04 (T-30) — the agent runtime's model-client boundary.
 //
-// Mirrors the DI-mockable Claude-client pattern already used by the CFE (src/services/compliance/
+// Mirrors the DI-mockable client pattern already used by the CFE (src/services/compliance/
 // claude/*), WP01 Seven Whys, and WP02 segmentation/jogger: ONE interface the runtime depends on,
-// ONE real production implementation (AnthropicRuntimeClient) that calls the Anthropic Messages API
-// and fails CLOSED with no key, and test/dev fakes injected in place of it. This file CONSUMES the
-// compliance module's already-exported `MissingClaudeCredentialError` (read-only reuse) so there is
-// exactly one definition of "what a missing-key failure looks like" across the whole app.
+// and injectable production/test implementations. `AnthropicRuntimeClient` (this file) is RETAINED
+// but is NO LONGER the default (see below); it consumes the compliance module's already-exported
+// `MissingClaudeCredentialError` (read-only reuse) so there is exactly one definition of "what a
+// missing-key failure looks like" across the whole app.
 //
-// Claude-only (§0.3, ABSOLUTE): the only production implementation targets the Anthropic API on a
-// tier from `CLAUDE_MODEL_IDS`. There is no non-Claude implementation and no outside-provider
-// fallback anywhere in this boundary. A missing key throws — it never degrades to a non-Claude
-// provider and never returns a fabricated/stubbed completion on the live path.
+// §0.3 AMENDED (operator directive 2026-07-27): the prior Claude-only doctrine is retired. The
+// DEFAULT production AI provider is now Agnes (`AgnesRuntimeClient`, src/services/agent-runtime/
+// agnes/, model `agnes-2.0-flash`, key AGNES_AI_API_KEY). This Anthropic implementation is kept as
+// an unused alternate for revertability. The FAIL-CLOSED property is provider-independent and
+// UNCHANGED: a missing key throws — it never degrades to another provider and never returns a
+// fabricated/stubbed completion on the live path.
 
 import { MissingClaudeCredentialError } from '@/services/compliance/claude';
 import { ClaudeModelTier } from '../runtime-model-map';

@@ -1,18 +1,22 @@
 // T-09 (master-spec §5.5 AC-2 "Sonnet-5 FLAG adjudication + compliant-rewrite" and AC-7 "Opus
-// novel-pattern / classifier-conflict escalation"). The Claude-only ADVISORY layer for a flagged
-// item.
+// novel-pattern / classifier-conflict escalation"). The AI ADVISORY layer (provider: Agnes,
+// §0.3 amended 2026-07-27) for a flagged item.
 //
 // ABSOLUTE INVARIANTS (violating any is a gate failure):
-//   • CLAUDE-ONLY (§0.3). The only model path is the agent-runtime's `AgentModelClient`
-//     (`AnthropicRuntimeClient` by default — Claude-only, fails CLOSED with no key). There is no
-//     non-Claude provider and no fabricated/stubbed completion anywhere here.
+//   • SINGLE-PROVIDER AI (§0.3, AMENDED by operator directive 2026-07-27: the AI provider is now
+//     Agnes, model `agnes-2.0-flash`, key AGNES_AI_API_KEY — the prior Claude-only doctrine is
+//     retired at the operator's explicit direction). The only model path is the agent-runtime's
+//     `AgentModelClient` (`AgnesRuntimeClient` by default — fails CLOSED with no key). There is no
+//     off-provider fallback and no fabricated/stubbed completion anywhere here. Provider identity is
+//     doctrine; the FAIL-CLOSED property below is provider-independent and unchanged.
 //   • ADVISORY, NEVER AUTO-CLEARING (§5.5). `recommend()` returns a recommendation OR `null`. It
 //     never approves, never clears, never mutates a draft's CFE band or approval state — the human
 //     adjudicator (upline) still decides. A `null` return simply means "no recommendation is
 //     available"; the item stays exactly as fail-closed as it was.
-//   • FAIL-SAFE on a missing key (§0.3 rule 3 / §4.6). No ANTHROPIC key → the Claude call throws
-//     `MissingClaudeCredentialError`, which is caught here and turned into `null` (recommendation
-//     ABSENT). It is NEVER turned into an auto-approval and NEVER falls back off-Claude.
+//   • FAIL-SAFE on a missing key (§0.3 rule 3 / §4.6). No AGNES_AI_API_KEY → the model call throws
+//     `MissingClaudeCredentialError` (legacy class name; provider-agnostic), which is caught here and
+//     turned into `null` (recommendation ABSENT). It is NEVER turned into an auto-approval and NEVER
+//     falls back to another provider.
 //   • COST KILL-SWITCH / RESERVATION respected (§4.5). Every advisory Claude call is admitted through
 //     the same T-31 `RunGate` the agent runtime uses; a denial (kill-switch tripped / budget
 //     exhausted) skips the call and returns `null`. Any reservation the gate places is released on
@@ -56,7 +60,7 @@ export interface AdjudicationRecommendation {
 }
 
 export interface AdjudicationAdvisorDeps {
-  /** Claude model client. Default = `AnthropicRuntimeClient` (Claude-only, fails CLOSED with no
+  /** AI model client. Default = `AgnesRuntimeClient` (Agnes agnes-2.0-flash, fails CLOSED with no
    *  key). Constructed LAZILY (no key read at construction) — build-safe. */
   modelClient?: AgentModelClient;
   /** The CFE used to re-gate a suggested rewrite (a rewrite is content). Default = a fresh engine
@@ -118,7 +122,7 @@ export class AdjudicationAdvisor {
   /**
    * Produce the ADVISORY recommendation for a flagged item, or `null` when none is available
    * (missing key, kill-switch/budget denial, a model/parse error). NEVER throws, NEVER approves,
-   * NEVER falls back off-Claude.
+   * NEVER falls back to another provider.
    */
   async recommend(req: AdjudicationRequest): Promise<AdjudicationRecommendation | null> {
     const trigger = detectEscalationTrigger(req.classifierResults);
@@ -141,7 +145,7 @@ export class AdjudicationAdvisor {
 
     try {
       const raw = await this.modelClient.generate({
-        tier, // a Claude tier from CLAUDE_MODEL_IDS — Claude-only (§0.3)
+        tier, // model tier (ClaudeModelTier enum name retained; routes to Agnes per §0.3 amended 2026-07-27)
         systemPrompt: SYSTEM_PROMPT,
         userPrompt: this.buildUserPrompt(req),
       });
@@ -159,7 +163,7 @@ export class AdjudicationAdvisor {
       };
     } catch (err) {
       // FAIL-SAFE (§0.3 rule 3 / §4.6): a missing key, a transient model error, a timeout, a bad
-      // body — all resolve to "no recommendation", NEVER an auto-approval and NEVER off-Claude.
+      // body — all resolve to "no recommendation", NEVER an auto-approval and NEVER off-provider.
       void (err instanceof MissingClaudeCredentialError);
       return null;
     } finally {
