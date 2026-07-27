@@ -33,6 +33,10 @@ export type {
   SonnetConversationClientOptions,
 } from './claude-client';
 
+// T-R55b — Agnes (`agnes-2.0-flash`) sibling, the operator-directed DEFAULT for this workload.
+export { AgnesConversationClient } from './agnes-client';
+export type { AgnesConversationClientOptions } from './agnes-client';
+
 export { LocalSevenWhysConversationClient } from './local-conversation-client';
 
 export { estimateDepthSignal, aggregateResonance } from './resonance';

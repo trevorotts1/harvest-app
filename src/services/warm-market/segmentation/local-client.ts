@@ -2,7 +2,7 @@
 //
 // Mirrors `LocalDeterministicClassifierClient` (src/services/compliance/claude/local-classifier-
 // client.ts, T-08) and `LocalSevenWhysConversationClient` (WP01): NOT the production path —
-// production wires `HaikuSegmentationClient` (§4.4). It exists so relationship-type inference and
+// production wires `AgnesSegmentationClient` (§4.4, T-R55b). It exists so relationship-type inference and
 // the segment-score pipeline can be exercised in tests and local dev without a live key. It never
 // contacts any provider at all.
 
@@ -38,7 +38,7 @@ const HINT_PATTERNS: Array<{ type: RelationshipType; pattern: RegExp }> = [
 
 /**
  * Deterministic, offline implementation of `SegmentationClient` (§7.2). Used by tests and local dev
- * in place of `HaikuSegmentationClient` — no `ANTHROPIC_API_KEY` required.
+ * in place of `AgnesSegmentationClient` (T-R55b) — no live API key required.
  */
 export class LocalDeterministicSegmentationClient implements SegmentationClient {
   async inferRelationshipType(req: SegmentationRequest): Promise<SegmentationResult> {

@@ -6,9 +6,9 @@ import type { ClaudeClassifierClient, ClassifierRequest } from '@/services/compl
 import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { ClassifierVerdict } from '@/types/compliance';
 
-import { HaikuMemoryJoggerCategoryClient } from '@/services/warm-market/memory-jogger';
+import { AgnesMemoryJoggerCategoryClient } from '@/services/warm-market/memory-jogger';
 import {
-  HaikuSegmentationClient,
+  AgnesSegmentationClient,
   LocalDeterministicSegmentationClient,
 } from '@/services/warm-market/segmentation';
 
@@ -230,21 +230,24 @@ describe('CFE on the synchronous path (§2.3/§5)', () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-// PROOF (c) — Haiku seg/jogger clients INJECTED (runtime uses Haiku 4.5, not the local heuristic)
+// PROOF (c) — Agnes seg/jogger clients INJECTED (runtime uses Agnes, not the local heuristic)
+// T-R55b (operator directive 2026-07-27): the former Haiku (Anthropic) defaults for these two seams
+// are superseded by their Agnes siblings; `HaikuSegmentationClient`/`HaikuMemoryJoggerCategoryClient`
+// are retained, unused, for revertability (see tests/unit/warm-market.test.ts for their own coverage).
 // ══════════════════════════════════════════════════════════════════════════════════════════════
-describe('Haiku injection for segmentation/jogger (HARD REQ §7.2/§4.4)', () => {
+describe('Agnes injection for segmentation/jogger (HARD REQ §7.2/§4.4, T-R55b)', () => {
   // TEETH (structural): if the injection is dropped, these default to the LOCAL heuristic clients and
   // the instanceof checks fail.
-  test('the runtime holds the HAIKU clients (not the local heuristic)', () => {
+  test('the runtime holds the AGNES clients (not the local heuristic, not the retained Haiku clients)', () => {
     const runtime = new AgentRuntime();
-    expect(runtime.segmentationClient).toBeInstanceOf(HaikuSegmentationClient);
-    expect(runtime.memoryJoggerClient).toBeInstanceOf(HaikuMemoryJoggerCategoryClient);
+    expect(runtime.segmentationClient).toBeInstanceOf(AgnesSegmentationClient);
+    expect(runtime.memoryJoggerClient).toBeInstanceOf(AgnesMemoryJoggerCategoryClient);
   });
 
-  // TEETH (functional): the injected segmentation client is the Haiku one → it FAILS CLOSED with no
+  // TEETH (functional): the injected segmentation client is the Agnes one → it FAILS CLOSED with no
   // key. The LOCAL heuristic needs no key and would RESOLVE — so if the injection were dropped, this
   // "expect rejects" would fail.
-  test('the injected segmentation client fails closed with no key (proves Haiku, not local)', async () => {
+  test('the injected segmentation client fails closed with no key (proves Agnes, not local)', async () => {
     const runtime = new AgentRuntime();
     await expect(
       runtime.segmentationClient.inferRelationshipType({
@@ -254,7 +257,7 @@ describe('Haiku injection for segmentation/jogger (HARD REQ §7.2/§4.4)', () =>
     ).rejects.toBeInstanceOf(MissingClaudeCredentialError);
   });
 
-  test('the injected Memory Jogger client fails closed with no key (proves Haiku, not local)', async () => {
+  test('the injected Memory Jogger client fails closed with no key (proves Agnes, not local)', async () => {
     const runtime = new AgentRuntime({ encryptionKeyProvider: () => 'dummy-key-not-read-on-this-path' });
     const jogger = runtime.buildMemoryJoggerService({});
     await expect(jogger.selectNextCategoryPrompt([])).rejects.toBeInstanceOf(MissingClaudeCredentialError);

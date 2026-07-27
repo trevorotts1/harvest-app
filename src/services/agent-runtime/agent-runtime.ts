@@ -11,9 +11,16 @@
 //   • persists the AgentRun (Activity Ledger + cost roll-up seams) and, for contact-bound drafts, a
 //     DraftMessage carrying its CFE band/outcome (the Approval Inbox seam).
 //
-// It wires the WP02 SegmentationService / MemoryJoggerService with the HAIKU clients INJECTED (HARD
-// REQ) — those services otherwise default to a LOCAL heuristic, which would silently run regex
-// instead of Haiku 4.5 (§7.2/§4.4).
+// It wires the WP02 SegmentationService / MemoryJoggerService with the AGNES classifier clients
+// INJECTED (HARD REQ) — those services otherwise default to a LOCAL heuristic, which would silently
+// run regex instead of a real model call (§7.2/§4.4).
+//
+// T-R55b (operator directive 2026-07-27, see harvest-changelog.md's T-R55 entry): the former Haiku
+// (Anthropic) classifier clients for these two seams are superseded by their Agnes
+// (`agnes-2.0-flash`) siblings as the DEFAULT — `HaikuSegmentationClient` /
+// `HaikuMemoryJoggerCategoryClient` are RETAINED, unused, for revertability. The FAIL-CLOSED property
+// is provider-independent and UNCHANGED: a missing key throws — never a non-Claude/non-Agnes
+// fallback and never a silent stub.
 
 import type { Role } from '@prisma/client';
 
@@ -22,12 +29,12 @@ import type { CFEVerdict, Channel } from '@/types/compliance';
 
 import {
   MemoryJoggerCategoryClient,
-  HaikuMemoryJoggerCategoryClient,
+  AgnesMemoryJoggerCategoryClient,
 } from '@/services/warm-market/memory-jogger';
 import { MemoryJoggerService } from '@/services/warm-market/memory-jogger.service';
 import {
   SegmentationClient,
-  HaikuSegmentationClient,
+  AgnesSegmentationClient,
   SegmentationService,
   type SegmentationPrismaClient,
 } from '@/services/warm-market/segmentation';
@@ -128,7 +135,7 @@ export interface AgentRuntimeDeps {
   runGate?: RunGate;
   /** T-31 cost seam. Default = a coarse estimate; T-31 supplies real tier pricing. */
   costModel?: CostModel;
-  // ── HARD REQ (T-23 advisory): the Haiku seg/jogger clients, INJECTED (not the local heuristic) ──
+  // ── HARD REQ (T-23 advisory): the Agnes seg/jogger clients, INJECTED (not the local heuristic) ──
   segmentationClient?: SegmentationClient;
   memoryJoggerClient?: MemoryJoggerCategoryClient;
   /** Prisma delegate the injected SegmentationService reads through (DI-mockable). */
@@ -148,7 +155,7 @@ export class AgentRuntime {
   private readonly encryptionKeyProvider: () => string;
   private readonly clock: () => Date;
 
-  /** Exposed so tests can assert the runtime holds the HAIKU clients, not the local heuristic (HARD REQ). */
+  /** Exposed so tests can assert the runtime holds the AGNES clients, not the local heuristic (HARD REQ). */
   readonly segmentationClient: SegmentationClient;
   readonly memoryJoggerClient: MemoryJoggerCategoryClient;
 
@@ -158,29 +165,29 @@ export class AgentRuntime {
     this.store = deps.store ?? new PrismaAgentRuntimeStore();
     this.runGate = deps.runGate ?? new AllowAllRunGate();
     this.costModel = deps.costModel ?? new EstimatingCostModel();
-    // Construction takes no key (both Haiku clients read the key lazily at call time) — build-safe.
-    this.segmentationClient = deps.segmentationClient ?? new HaikuSegmentationClient();
-    this.memoryJoggerClient = deps.memoryJoggerClient ?? new HaikuMemoryJoggerCategoryClient();
+    // Construction takes no key (both Agnes clients read the key lazily at call time) — build-safe.
+    this.segmentationClient = deps.segmentationClient ?? new AgnesSegmentationClient();
+    this.memoryJoggerClient = deps.memoryJoggerClient ?? new AgnesMemoryJoggerCategoryClient();
     this.segmentationPrisma = deps.segmentationPrisma;
     this.encryptionKeyProvider = deps.encryptionKeyProvider ?? getContactEncryptionKey;
     this.clock = deps.clock ?? (() => new Date());
   }
 
-  // ── Injected-service factories (prove the Haiku wiring; §7.2/§4.4 HARD REQ) ────────────────────
-  /** Builds the WP02 SegmentationService with the INJECTED Haiku client (never the local heuristic). */
+  // ── Injected-service factories (prove the Agnes wiring; §7.2/§4.4 HARD REQ) ────────────────────
+  /** Builds the WP02 SegmentationService with the INJECTED Agnes client (never the local heuristic). */
   buildSegmentationService(): SegmentationService {
     return new SegmentationService(
       this.segmentationPrisma,
-      this.segmentationClient, // ← HaikuSegmentationClient by default (HARD REQ)
+      this.segmentationClient, // ← AgnesSegmentationClient by default (HARD REQ, T-R55b)
       this.encryptionKeyProvider()
     );
   }
 
-  /** Builds the WP02 MemoryJoggerService with the INJECTED Haiku category client. */
+  /** Builds the WP02 MemoryJoggerService with the INJECTED Agnes category client. */
   buildMemoryJoggerService(prismaOverride?: unknown): MemoryJoggerService {
     return new MemoryJoggerService(
       prismaOverride as never,
-      this.memoryJoggerClient, // ← HaikuMemoryJoggerCategoryClient by default (HARD REQ)
+      this.memoryJoggerClient, // ← AgnesMemoryJoggerCategoryClient by default (HARD REQ, T-R55b)
       this.encryptionKeyProvider()
     );
   }

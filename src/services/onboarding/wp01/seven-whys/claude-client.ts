@@ -9,10 +9,13 @@
 // Anthropic endpoint/version/env-var-name are" and "what a missing-key failure looks like" across the
 // whole app, rather than a second drifting copy.
 //
-// Claude-only (§0.3): the ONLY implementations of `SevenWhysConversationClient` target Sonnet 5
-// (§4.4 "Seven Whys conversational coaching") or a deterministic local heuristic for dev/test. A
-// missing credential throws — it never falls back to a non-Claude provider and never silently
-// degrades to a different model tier for this quality/doctrine-sensitive workload.
+// §0.3 AMENDED (T-R55b, operator directive 2026-07-27, see harvest-changelog.md's T-R55 entry): the
+// former "Claude-only" doctrine for this workload is retired. The DEFAULT production implementation
+// of `SevenWhysConversationClient` is now `AgnesConversationClient` (./agnes-client.ts,
+// `agnes-2.0-flash`); `SonnetConversationClient` (this file) is RETAINED, UNUSED, as an alternate for
+// revertability. The FAIL-CLOSED property is provider-independent and UNCHANGED: a missing
+// credential throws — it never falls back to a different provider and never silently degrades to a
+// different model tier for this quality/doctrine-sensitive workload.
 
 import {
   ANTHROPIC_API_KEY_ENV_VAR,
@@ -109,11 +112,11 @@ conversion, recruit (as extraction), cold outreach, target audience, follower. N
 or rating.`;
 
 /**
- * Production conversation client (§4.4): the real Sonnet 5 call path.
- *
- * Claude-only (§0.3): targets ONLY `claude-sonnet-5`. If the API key is unset it throws
- * `MissingClaudeCredentialError` synchronously (no network, no fallback) — there is deliberately no
- * code path here that returns a fabricated question/acknowledgment on error.
+ * The Sonnet 5 call path (§4.4). RETAINED, UNUSED (T-R55b): `AgnesConversationClient`
+ * (./agnes-client.ts) is the operator-directed DEFAULT for this workload; this class is kept only for
+ * revertability and its own unit tests. Targets ONLY `claude-sonnet-5`. If the API key is unset it
+ * throws `MissingClaudeCredentialError` synchronously (no network, no fallback) — there is
+ * deliberately no code path here that returns a fabricated question/acknowledgment on error.
  */
 export class SonnetConversationClient implements SevenWhysConversationClient {
   private readonly apiKeyEnvVar: string;

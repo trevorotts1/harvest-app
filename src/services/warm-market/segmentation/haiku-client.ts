@@ -8,9 +8,14 @@
 // Anthropic endpoint/version/env-var-name are" and "what a missing-key failure looks like" across
 // the app, rather than a third drifting copy.
 //
-// Claude-only (§0.3): targets ONLY `claude-haiku-4-5-20251001`. If the API key is unset it throws
-// `MissingClaudeCredentialError` synchronously (no network, no fallback) — there is deliberately no
-// code path here that returns a fabricated relationship type on error.
+// §0.3 AMENDED (T-R55b, operator directive 2026-07-27, see harvest-changelog.md's T-R55 entry): the
+// former "Claude-only" doctrine for this workload is retired. The DEFAULT production implementation
+// of `SegmentationClient` is now `AgnesSegmentationClient` (./agnes-client.ts, `agnes-2.0-flash`);
+// this class is RETAINED, UNUSED, as an alternate for revertability. Targets ONLY
+// `claude-haiku-4-5-20251001`. If the API key is unset it throws `MissingClaudeCredentialError`
+// synchronously (no network, no fallback) — there is deliberately no code path here that returns a
+// fabricated relationship type on error. The FAIL-CLOSED property is provider-independent and
+// UNCHANGED.
 
 import {
   ANTHROPIC_API_KEY_ENV_VAR,
@@ -68,7 +73,9 @@ Never use the words prospect, lead, pitch, sales call, guaranteed income, funnel
 this is a relationship classification for a personal contact list, not a sales judgment.`;
 
 /**
- * Production segmentation client (§4.4): the real Haiku 4.5 call path.
+ * The Haiku 4.5 call path (§4.4). RETAINED, UNUSED (T-R55b): `AgnesSegmentationClient`
+ * (./agnes-client.ts) is the operator-directed DEFAULT for this workload; this class is kept only
+ * for revertability and its own unit tests.
  */
 export class HaikuSegmentationClient implements SegmentationClient {
   private readonly apiKeyEnvVar: string;

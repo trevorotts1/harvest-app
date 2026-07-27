@@ -18,4 +18,8 @@ export {
 } from './category-client';
 export type { HaikuMemoryJoggerCategoryClientOptions } from './category-client';
 
+// T-R55b — Agnes (`agnes-2.0-flash`) sibling, the operator-directed DEFAULT for this workload.
+export { AgnesMemoryJoggerCategoryClient } from './agnes-category-client';
+export type { AgnesMemoryJoggerCategoryClientOptions } from './agnes-category-client';
+
 export { LocalDeterministicMemoryJoggerCategoryClient } from './local-category-client';

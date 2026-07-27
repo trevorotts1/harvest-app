@@ -1,8 +1,12 @@
 // T-57 R3c-1 (MAJOR-M3, master-spec §7.4 Memory Jogger). Before this fix, `MemoryJoggerService`
 // (T-23) had ZERO HTTP surface anywhere in `src/app/api` — this proves the new route is real,
-// session-gated, and wires the REAL Haiku-backed category client (never the local heuristic
+// session-gated, and wires the REAL classifier-backed category client (never the local heuristic
 // fallback the service otherwise defaults to). Mirrors the exact module-boundary-mocking
 // convention established in tests/unit/agent-queue-route.test.ts.
+//
+// T-R55b: the route now wires `AgnesMemoryJoggerCategoryClient` (agnes-2.0-flash, operator-directed
+// default) rather than the retained-but-unused `HaikuMemoryJoggerCategoryClient` — the mock below
+// targets the class the route actually imports.
 
 import { OnboardingStatus, Role } from '@prisma/client';
 import { NextRequest } from 'next/server';
@@ -21,7 +25,7 @@ jest.mock('@/services/warm-market/memory-jogger', () => {
   const actual = jest.requireActual('@/services/warm-market/memory-jogger');
   return {
     ...actual,
-    HaikuMemoryJoggerCategoryClient: jest.fn().mockImplementation(() => ({
+    AgnesMemoryJoggerCategoryClient: jest.fn().mockImplementation(() => ({
       selectNextCategory: mockSelectNextCategory,
     })),
   };
@@ -118,7 +122,7 @@ describe('GET /api/contacts/memory-jogger — the §6.10-1 gate + §7.4 trigger 
     expect(body.prompt).toEqual({ category: 'GATHERINGS', promptText: 'Who was at your last cookout?' });
   });
 
-  test('low contact count triggers WITHOUT onDemand, and calls the REAL Haiku category client (never the local heuristic)', async () => {
+  test('low contact count triggers WITHOUT onDemand, and calls the REAL Agnes category client (never the local heuristic)', async () => {
     mockedSession.mockResolvedValue(fakeSession());
     seedOnboarding(OnboardingStatus.GATED_COMPLETE);
     mockedContactCount.mockResolvedValue(3);
@@ -131,11 +135,11 @@ describe('GET /api/contacts/memory-jogger — the §6.10-1 gate + §7.4 trigger 
     expect(mockSelectNextCategory).toHaveBeenCalledTimes(1);
   });
 
-  test('FAIL-CLOSED, not fail-crash: a missing Claude credential -> 200 with prompt:null + unavailable reason, never a 500', async () => {
+  test('FAIL-CLOSED, not fail-crash: a missing credential -> 200 with prompt:null + unavailable reason, never a 500', async () => {
     mockedSession.mockResolvedValue(fakeSession());
     seedOnboarding(OnboardingStatus.GATED_COMPLETE);
     mockedContactCount.mockResolvedValue(3);
-    mockSelectNextCategory.mockRejectedValue(new MissingClaudeCredentialError('ANTHROPIC_API_KEY'));
+    mockSelectNextCategory.mockRejectedValue(new MissingClaudeCredentialError('AGNES_AI_API_KEY'));
     const res = await GET(getRequest(), {});
     expect(res.status).toBe(200);
     const body = await res.json();

@@ -1,8 +1,8 @@
 // WP01 §6.4 — deterministic, offline Seven Whys conversation client (no API key required).
 //
 // Mirrors `LocalDeterministicClassifierClient` (src/services/compliance/claude/local-classifier-
-// client.ts, T-08): this is NOT the production path — production wires `SonnetConversationClient`
-// (§4.4). It exists so the engine's turn-by-turn, laddering, and completion-gate logic can be
+// client.ts, T-08): this is NOT the production path — production wires `AgnesConversationClient`
+// (§4.4, T-R55b). It exists so the engine's turn-by-turn, laddering, and completion-gate logic can be
 // exercised in tests and local dev without a live key. It never contacts any provider.
 
 import { estimateDepthSignal } from './resonance';
@@ -67,7 +67,7 @@ function ladderingAcknowledgment(priorAnswer: string): string {
 
 /**
  * Deterministic, offline implementation of `SevenWhysConversationClient` (§6.4). Used by tests and
- * local dev in place of `SonnetConversationClient` — no ANTHROPIC_API_KEY required.
+ * local dev in place of `AgnesConversationClient` (T-R55b) — no live API key required.
  */
 export class LocalSevenWhysConversationClient implements SevenWhysConversationClient {
   async converse(req: SevenWhysConverseRequest): Promise<SevenWhysConverseResult> {
