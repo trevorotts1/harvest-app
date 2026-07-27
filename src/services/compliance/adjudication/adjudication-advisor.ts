@@ -28,9 +28,9 @@ import { ComplianceFilterEngine } from '@/services/compliance/engine';
 import type { Channel, ClassifierResult } from '@/types/compliance';
 import {
   AgentModelClient,
-  AnthropicRuntimeClient,
   MissingClaudeCredentialError,
 } from '@/services/agent-runtime/claude';
+import { AgnesRuntimeClient } from '@/services/agent-runtime/agnes';
 import { ClaudeModelTier } from '@/services/agent-runtime/runtime-model-map';
 import { AllowAllRunGate, type RunGate } from '@/services/agent-runtime/seams';
 
@@ -110,7 +110,7 @@ export class AdjudicationAdvisor {
 
   constructor(deps: AdjudicationAdvisorDeps = {}) {
     // Lazy defaults — none of these read a key at construction (build-safety rule).
-    this.modelClient = deps.modelClient ?? new AnthropicRuntimeClient();
+    this.modelClient = deps.modelClient ?? new AgnesRuntimeClient();
     this.cfe = deps.cfe ?? new ComplianceFilterEngine();
     this.runGate = deps.runGate ?? new AllowAllRunGate();
   }

@@ -16,7 +16,7 @@
 
 import { ClaudeModelTier } from '../agent-runtime/runtime-model-map';
 import type { AgentModelClient } from '../agent-runtime/claude/runtime-client';
-import { AnthropicRuntimeClient } from '../agent-runtime/claude/anthropic-runtime-client';
+import { AgnesRuntimeClient } from '../agent-runtime/agnes/agnes-runtime-client';
 import { COURSE_MODULES } from './course-catalog';
 import { OBJECTION_TREE } from '../messaging/objection/objection-tree';
 
@@ -81,7 +81,7 @@ export async function askHarvest(question: string, deps: AskHarvestDeps = {}): P
     return { status: 'refused', label: 'coaching', answer: OUT_OF_SCOPE_REFUSAL, reason: 'out_of_scope' };
   }
 
-  const modelClient = deps.modelClient ?? new AnthropicRuntimeClient();
+  const modelClient = deps.modelClient ?? new AgnesRuntimeClient();
   try {
     const result = await modelClient.generate({
       tier: ClaudeModelTier.SONNET_5,

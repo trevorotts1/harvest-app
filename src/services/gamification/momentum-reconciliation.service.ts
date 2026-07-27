@@ -20,7 +20,7 @@
 
 import { ClaudeModelTier } from '../agent-runtime/runtime-model-map';
 import type { AgentModelClient } from '../agent-runtime/claude/runtime-client';
-import { AnthropicRuntimeClient } from '../agent-runtime/claude/anthropic-runtime-client';
+import { AgnesRuntimeClient } from '../agent-runtime/agnes/agnes-runtime-client';
 
 interface ReconciliationDb {
   contact: { count(args: { where: Record<string, unknown> }): Promise<number> };
@@ -94,7 +94,7 @@ export interface ReconciliationDeps {
  *  fresh "latest" snapshot; `computeMomentumCriteria`'s latest-mode reader always uses the most
  *  recent one). */
 export async function reconcileMomentumForUser(db: ReconciliationDb, userId: string, deps: ReconciliationDeps = {}): Promise<void> {
-  const modelClient = deps.modelClient ?? new AnthropicRuntimeClient();
+  const modelClient = deps.modelClient ?? new AgnesRuntimeClient();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const [wealthEvents, baseRetention, collectiveBenefit, belief] = await Promise.all([
     db.momentumEvent.findMany({ where: { user_id: userId, created_at: { gte: sevenDaysAgo } } }),

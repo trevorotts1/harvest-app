@@ -21,7 +21,8 @@
 // marks it `connected` without a real, later-supplied federation integration (Phase 2).
 
 import { ClaudeModelTier } from '../agent-runtime';
-import { AnthropicRuntimeClient, MissingClaudeCredentialError } from '../agent-runtime/claude';
+import { AgentModelClient, MissingClaudeCredentialError } from '../agent-runtime/claude';
+import { AgnesRuntimeClient } from '../agent-runtime/agnes';
 import { ComplianceFilterEngine } from '../compliance/engine';
 
 export interface EnterpriseSeatRow {
@@ -64,7 +65,7 @@ export interface EnterpriseConsolePrismaClient {
 export class EnterpriseConsoleService {
   constructor(
     private readonly prisma: EnterpriseConsolePrismaClient,
-    private readonly modelClient: AnthropicRuntimeClient = new AnthropicRuntimeClient(),
+    private readonly modelClient: AgentModelClient = new AgnesRuntimeClient(),
     private readonly cfe: ComplianceFilterEngine = new ComplianceFilterEngine()
   ) {}
 

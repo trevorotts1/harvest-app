@@ -14,7 +14,7 @@
 
 import { ClaudeModelTier } from '../agent-runtime/runtime-model-map';
 import type { AgentModelClient } from '../agent-runtime/claude/runtime-client';
-import { AnthropicRuntimeClient } from '../agent-runtime/claude/anthropic-runtime-client';
+import { AgnesRuntimeClient } from '../agent-runtime/agnes/agnes-runtime-client';
 import { ComplianceFilterEngine } from '../compliance/engine';
 import type { CFEInput } from '@/types/compliance';
 import { gateRepFacingContent, type CFEContentEvaluator } from './cfe-gate';
@@ -78,7 +78,7 @@ function buildSystemPrompt(opts: DraftReferralOptions): string {
  *  the rep as a usable script. */
 export async function draftReferralScript(opts: DraftReferralOptions, deps: ReferralDeps = {}): Promise<DraftReferralResult> {
   const cfe = deps.cfe ?? new ComplianceFilterEngine();
-  const modelClient = deps.modelClient ?? new AnthropicRuntimeClient();
+  const modelClient = deps.modelClient ?? new AgnesRuntimeClient();
 
   let draftText: string;
   try {
