@@ -33,9 +33,11 @@ export interface SegmentationResult {
 }
 
 /**
- * The engine's dependency-injected boundary. One real call path (Haiku 4.5,
- * `HaikuSegmentationClient`) + one deterministic local path (`LocalDeterministicSegmentationClient`)
- * implement this — see ./haiku-client.ts and ./local-client.ts.
+ * The engine's dependency-injected boundary. `AgnesSegmentationClient` (./agnes-client.ts,
+ * `agnes-2.0-flash`) is the operator-directed DEFAULT (T-R55b); `HaikuSegmentationClient`
+ * (./haiku-client.ts, Anthropic) is RETAINED, UNUSED, for revertability; a deterministic local path
+ * (`LocalDeterministicSegmentationClient`, ./local-client.ts) rounds out the DI boundary for
+ * tests/dev.
  */
 export interface SegmentationClient {
   inferRelationshipType(req: SegmentationRequest): Promise<SegmentationResult>;

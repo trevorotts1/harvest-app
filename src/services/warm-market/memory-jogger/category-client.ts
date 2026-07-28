@@ -4,8 +4,12 @@
 // src/services/compliance/claude/* (T-08): an interface, a real Haiku 4.5 production
 // implementation, and a deterministic local implementation for tests/dev.
 //
-// Claude-only (§0.3): the ONLY implementations of `MemoryJoggerCategoryClient` target Haiku 4.5 or
-// a deterministic local heuristic. A missing credential throws — never a non-Claude fallback.
+// §0.3 AMENDED (T-R55b, operator directive 2026-07-27, see harvest-changelog.md's T-R55 entry): the
+// former "Claude-only" doctrine for this workload is retired. The DEFAULT production implementation
+// of `MemoryJoggerCategoryClient` is now `AgnesMemoryJoggerCategoryClient` (./agnes-category-client.ts,
+// `agnes-2.0-flash`); this class (Haiku 4.5) is RETAINED, UNUSED, as an alternate for revertability. A
+// missing credential throws — never a fallback to a different provider. The FAIL-CLOSED property is
+// provider-independent and UNCHANGED.
 
 import {
   ANTHROPIC_API_KEY_ENV_VAR,
@@ -76,7 +80,9 @@ Never use the words prospect, lead, pitch, sales call, funnel, conversion, recru
 verb), cold outreach, target audience, or follower — this is a warm, personal recall exercise, not a
 sales process.`;
 
-/** Production category-selection client (§4.4): the real Haiku 4.5 call path. */
+/** The Haiku 4.5 call path (§4.4). RETAINED, UNUSED (T-R55b): `AgnesMemoryJoggerCategoryClient`
+ *  (./agnes-category-client.ts) is the operator-directed DEFAULT for this workload; this class is
+ *  kept only for revertability and its own unit tests. */
 export class HaikuMemoryJoggerCategoryClient implements MemoryJoggerCategoryClient {
   private readonly apiKeyEnvVar: string;
   private readonly timeoutMs: number;

@@ -6,6 +6,10 @@ export { SegmentationError, SegmentationTimeoutError, RELATIONSHIP_TYPE_JSON_SCH
 export { HaikuSegmentationClient, MissingClaudeCredentialError } from './haiku-client';
 export type { HaikuSegmentationClientOptions } from './haiku-client';
 
+// T-R55b — Agnes (`agnes-2.0-flash`) sibling, the operator-directed DEFAULT for this workload.
+export { AgnesSegmentationClient } from './agnes-client';
+export type { AgnesSegmentationClientOptions } from './agnes-client';
+
 export { LocalDeterministicSegmentationClient } from './local-client';
 
 export {

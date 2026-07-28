@@ -22,8 +22,8 @@ export interface AgentJobInput {
   contact?: ContactContext;
   task?: string;
   /**
-   * If set, the Prospecting / Warm-Market handlers run the Haiku 4.5 segmentation step over this
-   * contact (via the injected HaikuSegmentationClient) before drafting. Left unset, the run skips
+   * If set, the Prospecting / Warm-Market handlers run the segmentation step over this contact (via
+   * the injected AgnesSegmentationClient, T-R55b) before drafting. Left unset, the run skips
    * straight to drafting with the context already provided.
    */
   segmentContactId?: string;

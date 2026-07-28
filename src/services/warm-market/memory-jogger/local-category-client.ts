@@ -1,7 +1,7 @@
 // T-23 (§7.4) — deterministic, offline category-selection client (no API key required).
 //
 // Mirrors ../segmentation/local-client.ts (T-23) and LocalDeterministicClassifierClient (T-08): NOT
-// the production path — production wires `HaikuMemoryJoggerCategoryClient` (§4.4). Round-robins
+// the production path — production wires `AgnesMemoryJoggerCategoryClient` (§4.4, T-R55b). Round-robins
 // through every category that hasn't been shown recently before repeating, so the swipeable flow
 // still varies without a live key.
 

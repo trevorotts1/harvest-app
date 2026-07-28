@@ -11,7 +11,7 @@ import { AgentHandler, AgentHandlerContext, AgentOutput } from './types';
 import { AgentKey } from './runtime-model-map';
 
 async function draftContactOutbound(ctx: AgentHandlerContext, role: string, task: string): Promise<AgentOutput> {
-  // Optional Haiku 4.5 segmentation/prioritize step (§4.4) via the INJECTED HaikuSegmentationClient.
+  // Optional segmentation/prioritize step (§4.4) via the INJECTED AgnesSegmentationClient (T-R55b).
   let relationshipNote = '';
   if (ctx.input.segmentContactId) {
     const seg = await ctx.segment(ctx.input.segmentContactId);
