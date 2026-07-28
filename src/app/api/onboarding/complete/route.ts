@@ -268,17 +268,44 @@ export const POST = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSess
     //     (prisma/schema.prisma) — the same value under two names, not an invented mapping. For a
     //     role WITHOUT that step (UPLINE/RVP/ADMIN — T-R38), the documented `LOW`
     //     operator-reviewable default computed above — never a fabricated rep-style value.
-    const { InngestOnboardingEventSink } = await import(
-      '@/services/payment/inngest/payment-inngest-functions'
-    );
-    await emitOnboardingCompleted(new InngestOnboardingEventSink(), {
-      user_id: userId,
-      role: user.role,
-      access_tier: accessTier,
-      organization: [user.org_type],
-      anchor_statement: goalCard?.anchorStatement ?? '',
-      intensity_setting: intensitySetting,
-    });
+    // T-R58 fix (OPERATOR-BLOCKING): `INNGEST_EVENT_KEY` is not yet configured in this environment
+    // (a currently-unprovisioned downstream WP10 dependency, tracked separately) — the Inngest SDK
+    // itself throws unconditionally from `inngest.send()` whenever it detects "cloud" mode (which is
+    // how it reads Vercel's own `VERCEL_ENV=production`) with no event key present
+    // (node_modules/inngest/components/Inngest.js: `if (this.mode.isCloud && !this.eventKeySet())
+    // throw ...`) — a PERMANENT condition no caller retry can ever clear. Before this fix, that throw
+    // propagated straight to this route's outer catch and surfaced as an opaque 500 on EVERY
+    // completion attempt in production, gating the entire onboarding funnel shut on an unrelated
+    // infra dependency (confirmed live: `vercel env ls production` shows no `INNGEST_EVENT_KEY`/
+    // `INNGEST_SIGNING_KEY`, and `vercel logs` shows exactly this shape of 500 on
+    // `POST /api/onboarding/complete`, with zero prior console output because nothing here or in the
+    // old bare `catch {}` ever logged the exception).
+    //
+    // This check is deliberately narrow: it only skips the ATTEMPT when the key is provably absent.
+    // Once an operator sets a real `INNGEST_EVENT_KEY`, this branch is never taken again and the
+    // pre-existing fail-closed behavior for a genuine TRANSIENT publish fault (Inngest outage,
+    // network blip — see tests/unit/onboarding-complete-publish-e2e.test.ts §5, left unchanged by
+    // this fix) is fully restored with no further code change required.
+    if (process.env.INNGEST_EVENT_KEY) {
+      const { InngestOnboardingEventSink } = await import(
+        '@/services/payment/inngest/payment-inngest-functions'
+      );
+      await emitOnboardingCompleted(new InngestOnboardingEventSink(), {
+        user_id: userId,
+        role: user.role,
+        access_tier: accessTier,
+        organization: [user.org_type],
+        anchor_statement: goalCard?.anchorStatement ?? '',
+        intensity_setting: intensitySetting,
+      });
+    } else {
+      console.error(
+        '[onboarding/complete] INNGEST_EVENT_KEY is not configured in this environment — skipping ' +
+          `the "user.onboarding_completed" publish for user ${userId}. WP10 provisioning will not ` +
+          'fire automatically for this user until an operator sets INNGEST_EVENT_KEY; completion ' +
+          'itself proceeds so the user is never blocked from reaching /today by this unrelated gap.'
+      );
+    }
 
     // T-R36: mark completion for REAL, ATOMICALLY (a single `$transaction` — either both writes
     // land or neither does). This closes the actual production gap the whole ticket exists for:
@@ -312,7 +339,13 @@ export const POST = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSess
       accessTier,
       commitmentScore,
     });
-  } catch {
+  } catch (err) {
+    // T-R58 fix: log the real exception before returning the opaque 500 — the pre-fix bare `catch
+    // {}` here left every unexpected completion failure with ZERO diagnostic trail (confirmed via
+    // `vercel logs`: two real production 500s on this route with an entirely empty log message),
+    // which is what made this defect unusually hard to diagnose live. Never leak `err` to the
+    // client response itself — only to server-side logs.
+    console.error('[onboarding/complete] unexpected error completing onboarding:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

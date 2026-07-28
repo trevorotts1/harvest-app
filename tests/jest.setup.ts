@@ -40,3 +40,14 @@ process.env.CONTACT_ENCRYPTION_KEY =
 // the same way as the keys above — not a real secret, grants no access to anything.
 process.env.SOLUTION_NUMBER_ENCRYPTION_KEY =
   process.env.SOLUTION_NUMBER_ENCRYPTION_KEY || 'yiEB0yjInIIcLS+qzNWbx01yi0WSt0h1YVWtIIsbzDQ=';
+
+// Test-only dummy value (T-R58) — NOT a real secret, grants no access to anything. `POST
+// /api/onboarding/complete` (src/app/api/onboarding/complete/route.ts) only attempts the
+// `user.onboarding_completed` publish when `process.env.INNGEST_EVENT_KEY` is present (the T-R58
+// fix for the live production defect where a genuinely-unconfigured key made every completion
+// 500); every existing publish-path test in this suite was written assuming the publish always
+// happens (they mock `InngestOnboardingEventSink` itself, never the real `inngest` package), so
+// this dummy keeps that pre-existing assumption true by default. Tests that specifically exercise
+// the "key genuinely absent" fix (tests/unit/onboarding-complete-publish-e2e.test.ts) delete this
+// var for the duration of just that one test.
+process.env.INNGEST_EVENT_KEY = process.env.INNGEST_EVENT_KEY || 'test-only-dummy-inngest-event-key';

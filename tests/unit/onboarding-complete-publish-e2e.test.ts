@@ -431,4 +431,58 @@ describe('T-R35 — completion route actually publishes user.onboarding_complete
       expect(sentEvents).toHaveLength(1); // exactly one real publish across both attempts
     });
   });
+
+  // (6) T-R58 fix — OPERATOR-BLOCKING LIVE DEFECT: unlike §5's TRANSIENT fault (which correctly
+  // fails closed — a retry can succeed once the fault clears), a genuinely UNCONFIGURED
+  // `INNGEST_EVENT_KEY` (the live production state at the time of this fix — confirmed via
+  // `vercel env ls production`) is a PERMANENT condition: no number of retries would ever let
+  // `inngest.send()` stop throwing. Before this fix, that permanent throw took the exact same
+  // fail-closed path as §5 and blocked EVERY user from ever completing onboarding. This proves the
+  // fix: with the key genuinely absent, the route still completes for real (200, `completed: true`,
+  // the session persisted `completed: true`, and the user's own row flipped to `GATED_COMPLETE`) —
+  // and, distinctly from §5, never even attempts the publish (`sentEvents` stays empty and
+  // `publishOverride` — armed to throw, same as §5 — is proven never invoked).
+  describe('(6) T-R58 — a permanently-unconfigured event bus (no INNGEST_EVENT_KEY) must not block completion', () => {
+    const originalEventKey = process.env.INNGEST_EVENT_KEY;
+
+    afterEach(() => {
+      process.env.INNGEST_EVENT_KEY = originalEventKey;
+    });
+
+    test('completes for real (200, GATED_COMPLETE) and never attempts the publish when INNGEST_EVENT_KEY is unset', async () => {
+      delete process.env.INNGEST_EVENT_KEY;
+      // Armed exactly like §5's transient-fault case — if the route attempted the publish at all,
+      // this would throw and the test would see the OLD (pre-fix) 500 behavior. Proves the fix
+      // works by never reaching this at all, not by this override happening to be lenient.
+      publishOverride = () => {
+        throw new Error('simulated: publish must never even be attempted with no event key configured');
+      };
+
+      seedSession('user-nokey-1');
+      const { response, body } = await complete('user-nokey-1');
+
+      expect(response.status).toBe(200);
+      expect(body.completed).toBe(true);
+      expect(sentEvents).toHaveLength(0); // publish was never attempted, let alone recorded
+
+      const session = persistedSession('user-nokey-1');
+      expect(session?.completed).toBe(true);
+      expect(fakeOnboardingUsers.get('user-nokey-1')?.onboarding_status).toBe(OnboardingStatus.GATED_COMPLETE);
+    });
+
+    test('once INNGEST_EVENT_KEY is set again, the pre-existing fail-closed behavior for a real publish fault is unchanged', async () => {
+      process.env.INNGEST_EVENT_KEY = 'test-only-dummy-inngest-event-key';
+      publishOverride = () => {
+        throw new Error('simulated transient Inngest fault');
+      };
+
+      seedSession('user-nokey-2');
+      const { response, body } = await complete('user-nokey-2');
+
+      expect(response.status).toBe(500);
+      expect(body.error).toBe('Internal server error');
+      const session = persistedSession('user-nokey-2');
+      expect(session?.completed).toBe(false);
+    });
+  });
 });
