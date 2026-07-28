@@ -267,6 +267,14 @@ model User {
   sessions             Session[]
   created_at           DateTime            @default(now()) @db.Timestamptz(6)
   updated_at           DateTime            @updatedAt @db.Timestamptz(6)
+  // T-R56 (admin console — user_profile.manage): a SAFE, reversible account-hold — never a
+  // destructive delete. Additive, defaulted `false` so every existing row is unaffected.
+  // Enforced at sign-in: `src/lib/auth/options.ts`'s `authorize()` denies a suspended account
+  // (checked AFTER the password compare, so it never becomes a timing side-channel) — a
+  // suspend/reactivate toggle with no sign-in enforcement would be cosmetic, not a real hold.
+  is_suspended         Boolean             @default(false)
+  suspended_at         DateTime?           @db.Timestamptz(6)
+  suspended_reason     String?
 
   @@index([upline_id])
   @@index([organization_id])

@@ -37,6 +37,12 @@ export const GATED_DOWNSTREAM_PAGE_PREFIXES: readonly string[] = [
   // T-41 (WP06 §11.5 Unified Content Queue + §11.4 Launch Kit review) — the same hard onboarding
   // gate every other downstream surface gets. Kept in sync with src/middleware.ts's matcher.
   '/content',
+  // T-R56 (admin console) — the ADMIN-only back-office console. Gated identically to every other
+  // downstream surface (an authenticated-but-not-onboarded ADMIN still resumes onboarding first);
+  // the REAL role gate is server-side (`withRole([Role.ADMIN])`/`withCapability` on every
+  // /api/admin/** route + the layout's own session-role check) — this only controls the
+  // onboarding-completeness redirect, same as every other prefix in this list.
+  '/admin',
 ];
 
 export function isGatedDownstreamPage(pathname: string): boolean {

@@ -178,6 +178,29 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        // T-R56 (admin console — user_profile.manage): a suspended account's credentials may be
+        // perfectly valid — this is checked AFTER the bcrypt compare above (same cost as a normal
+        // sign-in attempt) specifically so blocking a suspended account never becomes a timing
+        // side-channel distinguishing "suspended" from "wrong password"/"no such user" (mirrors
+        // this function's existing non-enumeration discipline). Suspension is a reversible admin
+        // hold (never a delete), so the account can sign in again the moment it's reactivated.
+        if (user.is_suspended) {
+          await emitSecurityEvent({
+            userId: user.id,
+            type: 'account_suspended',
+            ipHash,
+            deviceFingerprintHash: fingerprintHash,
+            severity: 'WARNING',
+          });
+          await getLoginHistoryStore().record(user.id, {
+            deviceFingerprintHash: fingerprintHash,
+            ipHash,
+            at: Date.now(),
+            outcome: 'failure',
+          });
+          return null;
+        }
+
         // Credentials valid past this point — clear the failure counters (a legitimate sign-in
         // resets progressive backoff) and score the login for credential-stuffing / takeover
         // anomaly signals (§16.4 "anomaly scoring on login (new device/geo/velocity...)").

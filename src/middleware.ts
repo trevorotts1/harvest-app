@@ -96,5 +96,9 @@ export const config = {
     '/ritual/:path*',
     // T-41 (WP06) — kept in sync with GATED_DOWNSTREAM_PAGE_PREFIXES (onboarding-gate-edge.ts).
     '/content/:path*',
+    // T-R56 (admin console) — kept in sync with GATED_DOWNSTREAM_PAGE_PREFIXES
+    // (onboarding-gate-edge.ts). Role enforcement (ADMIN-only) happens server-side per route/
+    // layout, not here — this middleware only ever checks authentication + onboarding-completeness.
+    '/admin/:path*',
   ],
 };

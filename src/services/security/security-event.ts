@@ -31,7 +31,11 @@ export type SecurityEventType =
   | 'rate_limited'
   | 'suspected_takeover'
   | 'breach_incident'
-  | 'privilege_escalation_denied';
+  | 'privilege_escalation_denied'
+  // T-R56 (admin console — user_profile.manage): a sign-in attempt against an admin-suspended
+  // account, blocked at the same point (post-password-verification) as every other authorize()
+  // failure — see src/lib/auth/options.ts.
+  | 'account_suspended';
 
 export type SecurityEventSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
 
