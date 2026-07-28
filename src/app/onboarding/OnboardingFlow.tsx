@@ -215,9 +215,10 @@ export default function OnboardingFlow({
   // than inline arithmetic (the pre-T-24 code here computed `contactCount * 5200` etc., which was
   // neither the spec's universal formula nor org-gated for Primerica — both fixed by routing through
   // `computeHiddenEarnings`). `hasValidSolutionNumber` mirrors the same live format check `OrgStep`
-  // already renders (§6.3: 7-digit, format-checked) — the Primerica branch only calibrates once a
-  // confirmed, format-valid number is on file; a Primerica user who hasn't entered one yet still
-  // gets the universal formula (§8.4's own "replacing... when a valid solution number is present").
+  // already renders (§6.3: alphanumeric, format-checked — relaxed from a fixed-7-digit-only rule per
+  // T-R57/operator directive 2026-07-28) — the Primerica branch only calibrates once a confirmed,
+  // format-valid number is on file; a Primerica user who hasn't entered one yet still gets the
+  // universal formula (§8.4's own "replacing... when a valid solution number is present").
   const hiddenEarnings: HiddenEarningsResult = useMemo(
     () =>
       computeHiddenEarnings({

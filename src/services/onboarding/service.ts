@@ -12,9 +12,12 @@ import {
 } from '../../types/onboarding';
 // T-17 QC fix: `validateSolutionNumberFormat` used to check against this file's OWN
 // `SOLUTION_NUMBER_PATTERN` (`/^\d{6,8}$/`, 6-8 digits) — a second, weaker, mismatched source of truth
-// alongside the authoritative §6.3 7-digit rule below. Delegating directly to the wp01 module's own
-// format check means there is exactly one place a solution number's format is decided; no route
-// reachable through `OnboardingService` can accept a 6-digit or 8-digit value ever again.
+// alongside the authoritative §6.3 rule below. Delegating directly to the wp01 module's own format
+// check means there is exactly one place a solution number's format is decided; no route reachable
+// through `OnboardingService` can diverge from it. T-R57 (operator directive 2026-07-28): that
+// authoritative rule was itself relaxed from a FABRICATED fixed-7-digit-only format (no basis in how
+// Primerica actually issues solution IDs, and a real dead-end hit during a live operator demo) to
+// any alphanumeric combination (letters, digits, hyphens; 1-64 characters).
 import { checkSolutionNumberFormat } from './wp01/solution-number';
 // T-19 QC CRITICAL fix: `determineAccessTier` below used to assign tier BY COMMITMENT SCORE — a
 // second, spec-violating source of truth alongside the authoritative §6.7 rule in
@@ -63,7 +66,7 @@ export class OnboardingService {
   validateSolutionNumberFormat(solutionNumber: string | null | undefined): ValidationResult {
     const { formatValid } = checkSolutionNumberFormat(solutionNumber);
     if (!formatValid) {
-      return { valid: false, error: 'Solution number must be 7 digits (§6.3)' };
+      return { valid: false, error: 'Enter your solution number (§6.3)' };
     }
     return { valid: true };
   }

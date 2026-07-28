@@ -119,17 +119,25 @@ describe('OnboardingService', () => {
   describe('Organization gate', () => {
     // T-17 QC fix: this test used to assert `'123456'` (6 digits) is VALID, encoding the legacy
     // `SOLUTION_NUMBER_PATTERN = /^\d{6,8}$/` (6-8 digits) that `validateSolutionNumberFormat` used to
-    // check against — a weaker, mismatched rule alongside the authoritative §6.3 7-digit format
-    // (`SOLUTION_NUMBER_FORMAT = /^\d{7}$/` in `wp01/solution-number.ts`). A legacy test asserting a
-    // spec violation is corrected here (not preserved) now that `validateSolutionNumberFormat`
-    // delegates to the authoritative 7-digit check: 6-digit and 8-digit are now REJECTED, and only the
-    // spec-correct 7-digit format is accepted.
-    test('should validate Primerica solution number format (§6.3: 7 digits, not 6-8)', () => {
-      expect(service.validateSolutionNumberFormat('1234567').valid).toBe(true); // 7 digits: valid
-      expect(service.validateSolutionNumberFormat('123456').valid).toBe(false); // 6 digits: REJECTED
-      expect(service.validateSolutionNumberFormat('12345678').valid).toBe(false); // 8 digits: REJECTED
-      expect(service.validateSolutionNumberFormat('12345').valid).toBe(false);
-      expect(service.validateSolutionNumberFormat('ABCDEF').valid).toBe(false);
+    // check against — a weaker, mismatched rule alongside the then-authoritative §6.3 7-digit format.
+    //
+    // T-R57 (operator directive 2026-07-28): that fixed-7-digit-only rule was ITSELF later found to
+    // be FABRICATED — it had no basis in how Primerica actually issues solution IDs and dead-ended a
+    // real registrant during a live operator demo. The authoritative rule is now relaxed to any
+    // alphanumeric combination (letters, digits, hyphens; 1-64 characters); this test is corrected
+    // again (not preserved) to assert the current, spec-correct behavior: '123456', '12345678', and
+    // 'ABCDEF' — all previously REJECTED — are now ACCEPTED. Only empty/whitespace/symbols/overlong
+    // values are rejected.
+    test('should validate Primerica solution number format (§6.3: alphanumeric, 1-64 chars — relaxed from the fixed-7-digit rule)', () => {
+      expect(service.validateSolutionNumberFormat('1234567').valid).toBe(true); // digits: valid
+      expect(service.validateSolutionNumberFormat('123456').valid).toBe(true); // 6 chars: now ACCEPTED
+      expect(service.validateSolutionNumberFormat('12345678').valid).toBe(true); // 8 chars: now ACCEPTED
+      expect(service.validateSolutionNumberFormat('12345').valid).toBe(true); // 5 chars: now ACCEPTED
+      expect(service.validateSolutionNumberFormat('ABCDEF').valid).toBe(true); // letters-only: now ACCEPTED
+      expect(service.validateSolutionNumberFormat('SOL-2024').valid).toBe(true); // hyphen: valid
+      expect(service.validateSolutionNumberFormat('').valid).toBe(false); // empty: still REJECTED
+      expect(service.validateSolutionNumberFormat('   ').valid).toBe(false); // whitespace-only: still REJECTED
+      expect(service.validateSolutionNumberFormat('ABC#123').valid).toBe(false); // symbol: still REJECTED
     });
 
     test('isPrimericaUser returns correct values', () => {
@@ -225,57 +233,77 @@ describe('OnboardingService', () => {
   // T-17 QC fix: closes the dual-source-of-truth defect — a live route (`/api/onboarding/step`)
   // reaches `OnboardingService.validateStep`/`validateSolutionNumberFormat` and used to accept a
   // 6-digit or 8-digit "solution number" via the legacy `SOLUTION_NUMBER_PATTERN`. These tests exercise
-  // the EXACT functions that route delegates to (§17.1/§6.3), proving no path reachable through
-  // `OnboardingService` accepts anything but the spec 7-digit format.
-  describe('legacy route path — validateStep (what /api/onboarding/step/route.ts calls) now rejects 6/8-digit solution numbers (T-17)', () => {
+  // the EXACT functions that route delegates to (§17.1/§6.3).
+  //
+  // T-R57 (operator directive 2026-07-28): the then-authoritative fixed-7-digit rule these tests used
+  // to enforce was itself found to be FABRICATED and dead-ended a real registrant's live demo. It is
+  // now any alphanumeric combination (letters, digits, hyphens; 1-64 characters), so these tests are
+  // corrected (not preserved) to prove no path reachable through `OnboardingService` diverges from
+  // that relaxed rule: a 6-char or 8-char alphanumeric value is now ACCEPTED, and only genuinely
+  // malformed (empty/whitespace/symbol) values are REJECTED.
+  describe('legacy route path — validateStep (what /api/onboarding/step/route.ts calls) now accepts any alphanumeric solution number (T-R57, relaxed from the fixed-7-digit rule)', () => {
     const baseSession = {
       role: Role.REP,
       org_type: OrgType.PRIMERICA,
       current_step: OnboardingStep.ROLE_ORG_CONTEXT,
     } as unknown as OnboardingSession;
 
-    test('6-digit solution number is REJECTED at the ROLE_ORG_CONTEXT step', () => {
+    test('a 6-character alphanumeric solution number is ACCEPTED at the ROLE_ORG_CONTEXT step (previously rejected under the fixed-7-digit rule)', () => {
       const result = service.validateStep(baseSession, OnboardingStep.ROLE_ORG_CONTEXT, {
         solution_number: '123456',
       });
-      expect(result.valid).toBe(false);
+      expect(result.valid).toBe(true);
     });
 
-    test('8-digit solution number is REJECTED at the ROLE_ORG_CONTEXT step', () => {
+    test('an 8-character alphanumeric solution number is ACCEPTED at the ROLE_ORG_CONTEXT step (previously rejected under the fixed-7-digit rule)', () => {
       const result = service.validateStep(baseSession, OnboardingStep.ROLE_ORG_CONTEXT, {
         solution_number: '12345678',
       });
-      expect(result.valid).toBe(false);
+      expect(result.valid).toBe(true);
     });
 
-    test('the spec-correct 7-digit solution number is ACCEPTED at the ROLE_ORG_CONTEXT step', () => {
+    test('a plain 7-character solution number is still ACCEPTED at the ROLE_ORG_CONTEXT step', () => {
       const result = service.validateStep(baseSession, OnboardingStep.ROLE_ORG_CONTEXT, {
         solution_number: '1234567',
       });
       expect(result.valid).toBe(true);
     });
 
+    test('an EMPTY solution number is still REJECTED at the ROLE_ORG_CONTEXT step (fail-closed, not vacuously permissive)', () => {
+      const result = service.validateStep(baseSession, OnboardingStep.ROLE_ORG_CONTEXT, {
+        solution_number: '',
+      });
+      expect(result.valid).toBe(false);
+    });
+
     // canProgressTo is the other legacy-support entry point (accepts camelCase `solutionNumber`); it
-    // must reject 6/8-digit too, since it delegates to the same validateSolutionNumberFormat.
-    test('canProgressTo also rejects a 6-digit / 8-digit solutionNumber and accepts 7-digit', () => {
+    // must accept the same relaxed alphanumeric shapes, since it delegates to the same
+    // validateSolutionNumberFormat, and must still reject empty.
+    test('canProgressTo also accepts a 6-character / 8-character alphanumeric solutionNumber and a plain 7-character one, but still rejects empty', () => {
       expect(
         service.canProgressTo(OnboardingStep.ROLE_ORG_CONTEXT, {
           orgType: OrgType.PRIMERICA,
           solutionNumber: '123456',
         }).valid
-      ).toBe(false);
+      ).toBe(true);
       expect(
         service.canProgressTo(OnboardingStep.ROLE_ORG_CONTEXT, {
           orgType: OrgType.PRIMERICA,
           solutionNumber: '12345678',
         }).valid
-      ).toBe(false);
+      ).toBe(true);
       expect(
         service.canProgressTo(OnboardingStep.ROLE_ORG_CONTEXT, {
           orgType: OrgType.PRIMERICA,
           solutionNumber: '1234567',
         }).valid
       ).toBe(true);
+      expect(
+        service.canProgressTo(OnboardingStep.ROLE_ORG_CONTEXT, {
+          orgType: OrgType.PRIMERICA,
+          solutionNumber: '',
+        }).valid
+      ).toBe(false);
     });
   });
 

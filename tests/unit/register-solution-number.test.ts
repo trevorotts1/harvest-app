@@ -47,7 +47,7 @@ beforeEach(() => {
   }));
 });
 
-describe('POST /api/auth/register — solution number is 7-digit-checked AND encrypted at rest (T-20, §6.3/§6.10-4/§3.2)', () => {
+describe('POST /api/auth/register — solution number is alphanumeric-format-checked AND encrypted at rest (T-20, §6.3/§6.10-4/§3.2; format relaxed T-R57 operator directive 2026-07-28)', () => {
   test('a Primerica registrant with a valid 7-digit number: stored value is ENCRYPTED, never the plaintext digits', async () => {
     const res = await post({
       email: 'p@example.com',
@@ -86,19 +86,43 @@ describe('POST /api/auth/register — solution number is 7-digit-checked AND enc
     expect(JSON.stringify(body)).not.toContain(RAW_SOLUTION_NUMBER);
   });
 
-  test.each(['123456', '12345678', 'ABCDEFG', ''])(
-    'a mis-formatted / missing solution number (%p) is REJECTED with 400 (7-digit format check, not presence-only)',
+  // T-R57 (operator directive 2026-07-28): '123456', '12345678', and 'ABCDEFG' are now VALID
+  // alphanumeric identifiers (they used to be REJECTED under the fabricated fixed-7-digit-only
+  // rule that dead-ended a real registrant's live demo). Only genuinely malformed values — empty,
+  // whitespace-only, a disallowed symbol, or over the 64-char max — are still rejected.
+  // beforeEach resets/re-stubs the mocked `prisma.user.findUnique` to resolve `null` for every
+  // call regardless of email, so a fixed email across test.each iterations is safe here — each
+  // iteration is its own isolated `test()` with freshly-reset mocks.
+  test.each(['', '   ', 'ABC#123', 'A'.repeat(65)])(
+    'a mis-formatted / missing solution number (%p) is REJECTED with 400 (alphanumeric format check, not presence-only)',
     async (bad) => {
       const res = await post({
-        email: `bad-${bad || 'empty'}@example.com`,
+        email: 'bad-format@example.com',
         password: 'A-Strong-Passw0rd!',
         name: 'Pat Rep',
         orgType: 'PRIMERICA',
         solutionNumber: bad,
       });
       expect(res.status).toBe(400);
-      expect((await res.json()).error).toMatch(/7 digits/i);
+      expect((await res.json()).error).toMatch(/solution number/i);
       expect(createMock).not.toHaveBeenCalled();
+    }
+  );
+
+  // SANITY (T-R57): proves the operator-reported bug is actually fixed at the route level — an
+  // alphanumeric value the OLD /^\d{7}$/ rule rejected now registers successfully (201), never a 400.
+  test.each(['ABC1234', 'SOL-2024', 'A1'])(
+    'a Primerica registrant with an alphanumeric (non-7-digit) solution number (%p) is ACCEPTED — proves the fixed-7-digit dead-end bug is fixed',
+    async (good) => {
+      const res = await post({
+        email: 'good-format@example.com',
+        password: 'A-Strong-Passw0rd!',
+        name: 'Pat Rep',
+        orgType: 'PRIMERICA',
+        solutionNumber: good,
+      });
+      expect(res.status).toBe(201);
+      expect(createMock).toHaveBeenCalledTimes(1);
     }
   );
 

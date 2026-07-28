@@ -271,16 +271,36 @@ describe('REP track — REP_SCREEN_STEP_PLAN payloads run through the REAL /step
     expect(body.currentStep).toBe('SEVEN_WHYS');
   });
 
-  test('MAPPING-DRIFT CANARY: a malformed solution number (built the same way, but a bad digit count) is REJECTED by the real gate — proving this is a real, live-enforced check, not a vacuous pass', async () => {
+  // T-R57 (operator directive 2026-07-28): the format gate this canary exercises was relaxed from a
+  // fixed-7-digit-only rule to any alphanumeric combination — '123' (a short digit string) is now a
+  // VALID solution number under that rule, so it can no longer serve as the "malformed" input here.
+  // Use a genuinely malformed value instead (a disallowed symbol) so this canary still proves the
+  // real gate is live-enforced, not a vacuous pass.
+  test('MAPPING-DRIFT CANARY: a malformed solution number (built the same way, but not a valid alphanumeric identifier) is REJECTED by the real gate — proving this is a real, live-enforced check, not a vacuous pass', async () => {
     const userId = 'rep-primerica-bad-1';
     actAs(userId, Role.REP);
     seedUser(userId, Role.REP, OrgType.PRIMERICA);
     await postStep(OnboardingStep.REGISTER, {});
     await postStep(OnboardingStep.ACCOUNT_TYPE, {});
 
-    const payload = buildRoleOrgContextPayload(OrgType.PRIMERICA, '123'); // too short
+    const payload = buildRoleOrgContextPayload(OrgType.PRIMERICA, '!!!'); // not alphanumeric
     const { response } = await postStep(OnboardingStep.ROLE_ORG_CONTEXT, payload);
     expect(response.status).toBe(400);
+  });
+
+  // SANITY (T-R57): the mapping's other half — an alphanumeric value the OLD fixed-7-digit rule
+  // would have rejected (not 7 digits, contains letters) now clears the REAL gate end-to-end.
+  test('SANITY: an alphanumeric (non-7-digit) solution number is ACCEPTED by the real gate — proves the fixed-7-digit dead-end bug is fixed end-to-end', async () => {
+    const userId = 'rep-primerica-good-alnum-1';
+    actAs(userId, Role.REP);
+    seedUser(userId, Role.REP, OrgType.PRIMERICA);
+    await postStep(OnboardingStep.REGISTER, {});
+    await postStep(OnboardingStep.ACCOUNT_TYPE, {});
+
+    const payload = buildRoleOrgContextPayload(OrgType.PRIMERICA, 'SOL-2024');
+    const { response, body } = await postStep(OnboardingStep.ROLE_ORG_CONTEXT, payload);
+    expect(response.status).toBe(200);
+    expect(body.currentStep).toBe('SEVEN_WHYS');
   });
 });
 

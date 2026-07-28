@@ -196,7 +196,7 @@
     "createAccountCta": "Create account",
     "registerEmailTaken": "That email is already registered. Try signing in instead.",
     "registerWeakPassword": "That password appears in known data breaches. Please choose a different one.",
-    "registerSolutionNumberInvalid": "Solution number must be 7 digits.",
+    "registerSolutionNumberInvalid": "Enter a valid solution number.",
     "registerMissingFields": "Name, email, and password are required.",
     "registerGenericError": "Something went wrong creating your account. Please try again.",
     "registerSignInFailed": "Your account was created, but we couldn't sign you in automatically. Please sign in below.",
@@ -1377,7 +1377,7 @@
       "solutionNumberSavedAria": "Solution number (saved, masked)",
       "solutionNumberLabel": "Solution number",
       "solutionNumberNotVerifiedCaption": "Not verified — we check the format only, not with Primerica.",
-      "enterAllDigits": "Enter all 7 digits.",
+      "enterAllDigits": "Enter your solution number (letters, numbers, and hyphens).",
       "choices": {
         "primerica": {
           "label": "Primerica",

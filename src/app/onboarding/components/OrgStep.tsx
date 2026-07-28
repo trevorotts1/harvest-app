@@ -72,10 +72,15 @@ export function OrgBranchPanel({
           <input
             id="solution-number"
             className={styles.input}
-            inputMode="numeric"
-            maxLength={7}
+            inputMode="text"
+            maxLength={64}
             value={solutionNumber}
-            onChange={(e) => onSolutionNumberChange?.(e.target.value.replace(/\D/g, ''))}
+            // T-R57 (operator directive 2026-07-28): this used to strip every non-digit character
+            // as the user typed (`.replace(/\D/g, '')`), which made it IMPOSSIBLE to enter a letter
+            // or hyphen at all — a client-side enforcement of the same fabricated fixed-7-digit rule
+            // that dead-ended real registrants during a live demo. Now strips only characters
+            // outside the real alphanumeric+hyphen format (`SOLUTION_NUMBER_FORMAT`'s charset).
+            onChange={(e) => onSolutionNumberChange?.(e.target.value.replace(/[^A-Za-z0-9-]/g, ''))}
             aria-describedby="solution-number-caption"
             placeholder={field.formatHint}
           />

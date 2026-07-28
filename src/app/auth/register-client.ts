@@ -100,7 +100,7 @@ export function registerErrorCatalogKey(result: RegisterFailure): string {
   if (result.status === 409) return 'auth.registerEmailTaken';
   const error = result.error?.toLowerCase() ?? '';
   if (result.status === 400 && error.includes('breach')) return 'auth.registerWeakPassword';
-  if (result.status === 400 && error.includes('digit')) return 'auth.registerSolutionNumberInvalid';
+  if (result.status === 400 && error.includes('solution')) return 'auth.registerSolutionNumberInvalid';
   if (result.status === 400 && error.includes('required')) return 'auth.registerMissingFields';
   return 'auth.registerGenericError';
 }

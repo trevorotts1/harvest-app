@@ -181,7 +181,8 @@ export interface OrgContext {
   /** Present ONLY for a Primerica user: the (user-declared, not-verified) solution-number field. */
   solutionNumberField?: {
     label: string;
-    /** Human-readable format hint (§6.3: 7-digit). */
+    /** Human-readable format hint (§6.3: alphanumeric — letters, digits, hyphens). T-R57 (operator
+     *  directive 2026-07-28): relaxed from a fixed-7-digit-only hint. */
     formatHint: string;
     /** The "not verified" caption (§6.10-4) shown after entry. */
     caption: string;
@@ -209,7 +210,7 @@ export function buildOrgContext(orgType: OrgType, locale: Locale = DEFAULT_LOCAL
       orgType,
       solutionNumberField: {
         label: t(locale, 'onboarding.orgStep.solutionNumberLabel'),
-        formatHint: '7 digits',
+        formatHint: 'Letters, numbers, and hyphens',
         caption: t(locale, 'onboarding.orgStep.solutionNumberNotVerifiedCaption'),
       },
       primericaSurfaces: [
