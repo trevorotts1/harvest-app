@@ -1,6 +1,6 @@
 {
   "name": "harvest-app",
-  "version": "2.0.0-build.T-R57",
+  "version": "2.0.0-build.T-R58",
   "private": true,
   "scripts": {
     "dev": "next dev",
