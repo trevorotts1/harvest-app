@@ -363,11 +363,12 @@ describe('T-R38 (2) — Primerica dense-track solution_number reuse (server-side
   test('an explicit payload solution_number ALWAYS wins over the persisted fallback — never silently overridden', async () => {
     const userId = 'dense-primerica-explicit-wins-1';
     actAs(userId, Role.UPLINE);
-    // Persisted value, if it were ever read, would legitimately FAIL the format gate (it is not
-    // 7 digits) — proving that if the route reached 200 here, it did so via the EXPLICIT payload
-    // value, never the persisted one.
+    // Persisted value, if it were ever read, would legitimately FAIL the format gate (it is not a
+    // valid alphanumeric identifier — a disallowed symbol, per the T-R57-relaxed rule) — proving
+    // that if the route reached 200 here, it did so via the EXPLICIT payload value, never the
+    // persisted one.
     seedUser(userId, Role.UPLINE, OrgType.PRIMERICA, {
-      solution_number: encryptSolutionNumberForStorage('123'),
+      solution_number: encryptSolutionNumberForStorage('!!!'),
     });
 
     await postStep('REGISTER', {});

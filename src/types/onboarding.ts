@@ -139,16 +139,19 @@ export const MAX_INVITE_RESENDS = 3;
 
 /**
  * @deprecated T-17 QC fix: this used to be its OWN weaker pattern (`/^\d{6,8}$/`, 6-8 digits) — a
- * second, mismatched source of truth alongside the authoritative §6.3 7-digit rule in
- * `src/services/onboarding/wp01/solution-number.ts` (`SOLUTION_NUMBER_FORMAT = /^\d{7}$/`). A route
- * validating against THIS pattern would accept a 6-digit or 8-digit "solution number" that the
- * authoritative wp01 rule rejects. Corrected here to the same 7-digit format so no path reachable via
- * this constant can diverge from the spec; `OnboardingService.validateSolutionNumberFormat` no longer
- * reads this constant at all — it delegates directly to the wp01 module. Kept only in case an external
- * caller still imports it; new code should import `SOLUTION_NUMBER_FORMAT` from
- * `services/onboarding/wp01/solution-number` directly.
+ * second, mismatched source of truth alongside the authoritative §6.3 rule in
+ * `src/services/onboarding/wp01/solution-number.ts`. Corrected here to mirror that same rule so no
+ * path reachable via this constant can diverge from the spec; `OnboardingService.validateSolution
+ * NumberFormat` no longer reads this constant at all — it delegates directly to the wp01 module.
+ * Kept only in case an external caller still imports it; new code should import
+ * `SOLUTION_NUMBER_FORMAT` from `services/onboarding/wp01/solution-number` directly.
+ *
+ * T-R57 (operator directive 2026-07-28): the authoritative rule (and this mirror) was relaxed from
+ * a FABRICATED fixed-7-digit-only format to any alphanumeric identifier (letters, digits, hyphens;
+ * 1-64 characters) — the fixed-7-digit rule had no basis in how Primerica actually issues solution
+ * IDs and dead-ended real registrants during a live operator demo.
  */
-export const SOLUTION_NUMBER_PATTERN = /^\d{7}$/;
+export const SOLUTION_NUMBER_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
 
 /** Ordered list of all steps (legacy linear flow for backward compat) */
 export const STEP_ORDER: OnboardingStep[] = [

@@ -95,7 +95,7 @@ describe('registerErrorCatalogKey — maps failures to on-vocabulary catalog key
   test.each<[RegisterFailure, string]>([
     [{ ok: false, status: 409, error: 'Email already registered' }, 'auth.registerEmailTaken'],
     [{ ok: false, status: 400, error: 'That password appears in known data breaches. Please choose a different one.' }, 'auth.registerWeakPassword'],
-    [{ ok: false, status: 400, error: 'Solution number must be 7 digits.' }, 'auth.registerSolutionNumberInvalid'],
+    [{ ok: false, status: 400, error: 'Enter your solution number.' }, 'auth.registerSolutionNumberInvalid'],
     [{ ok: false, status: 400, error: 'email, password, and name are required' }, 'auth.registerMissingFields'],
     [{ ok: false, status: 500, error: 'Internal server error' }, 'auth.registerGenericError'],
     [{ ok: false, status: null }, 'auth.registerGenericError'],

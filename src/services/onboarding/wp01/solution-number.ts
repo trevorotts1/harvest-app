@@ -3,8 +3,13 @@
 // The solution number is a USER-DECLARED Primerica identifier captured during onboarding (§6.3
 // Flow A step 3). This module does exactly three things, and deliberately nothing more:
 //
-//   1. FORMAT-CHECK ONLY (§6.3: "7-digit format-checked, explicitly not verified"). We validate the
-//      shape (`\d{7}`). We make NO claim of having verified it with Primerica — there is no such
+//   1. FORMAT-CHECK ONLY — a user-declared alphanumeric identifier, format-checked but explicitly
+//      not verified. We validate the shape (`[A-Za-z0-9-]{1,64}`, i.e. letters, digits, and hyphens,
+//      1-64 characters after trimming). This was previously a FABRICATED fixed-7-digit-only rule
+//      (`\d{7}`) that had no basis in how Primerica actually issues solution IDs (they are
+//      alphanumeric, not a fixed 7 digits) and dead-ended real registrants during a live operator
+//      demo; relaxed to accept any alphanumeric combination per operator directive 2026-07-28
+//      (T-R57). We make NO claim of having verified it with Primerica — there is no such
 //      integration, and pretending otherwise would be a false assurance. Every check result carries
 //      `verified: false` (a literal type — it can never be `true` from this module) and the
 //      NOT-VERIFIED caption the UI must show after entry (§6.10-4, uiux §5.1).
@@ -31,8 +36,13 @@ import {
 
 import { isPrimericaBranch } from './org-gate';
 
-/** §6.3: 7-digit, user-declared. Format only — no checksum/verification is claimed. */
-export const SOLUTION_NUMBER_FORMAT = /^\d{7}$/;
+/**
+ * §6.3: a user-declared alphanumeric identifier (letters, digits, hyphens; 1-64 characters).
+ * Format only — no checksum/verification is claimed. Relaxed from the old fixed-7-digit-only rule
+ * (`/^\d{7}$/`) per operator directive 2026-07-28 (T-R57): that rule was fabricated — Primerica
+ * solution IDs are alphanumeric, not a fixed 7 digits — and it dead-ended real registrants.
+ */
+export const SOLUTION_NUMBER_FORMAT = /^[A-Za-z0-9-]{1,64}$/;
 
 /** The caption shown after entry (§6.10-4, uiux §5.1) — we never claim a verification we cannot do. */
 export const SOLUTION_NUMBER_NOT_VERIFIED_CAPTION =
@@ -56,10 +66,12 @@ export interface SolutionNumberCheck {
 
 /**
  * Format-check a candidate solution number. Returns validity + the not-verified caption ONLY — never
- * the input value. Callers must not log the input; this function does not.
+ * the input value. Callers must not log the input; this function does not. The input is trimmed
+ * before testing (so incidental leading/trailing whitespace from a copy-paste doesn't reject an
+ * otherwise-valid alphanumeric identifier) — the trimmed form is never returned or logged either.
  */
 export function checkSolutionNumberFormat(input: string | null | undefined): SolutionNumberCheck {
-  const formatValid = typeof input === 'string' && SOLUTION_NUMBER_FORMAT.test(input);
+  const formatValid = typeof input === 'string' && SOLUTION_NUMBER_FORMAT.test(input.trim());
   return {
     formatValid,
     verified: false,

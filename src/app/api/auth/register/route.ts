@@ -13,12 +13,16 @@ import { assignAccessTierFromSignals } from '@/services/onboarding/wp01/access-t
 // T-20 §6.3 / §6.10-4 / §3.2 — the authoritative solution-number handling. The pre-T-20 route
 // stored `solution_number` in PLAINTEXT after only a presence check (`!solutionNumber`), which the
 // T-17 QC flagged as a solution-number-security CRITICAL failure: the number is user-declared PII
-// that §3.2 requires "encrypted, Primerica only" and §6.10-4 requires be 7-digit format-checked and
-// never persisted or logged in the clear. Both authoritative functions now run here:
-//   • `checkSolutionNumberForOrg` — org-gated 7-digit format check (a non-Primerica submission is
-//     refused fail-closed; a 6/8-digit value is rejected, closing the old presence-only hole).
+// that §3.2 requires "encrypted, Primerica only" and §6.10-4 requires be format-checked and never
+// persisted or logged in the clear. Both authoritative functions now run here:
+//   • `checkSolutionNumberForOrg` — org-gated alphanumeric format check (a non-Primerica submission
+//     is refused fail-closed; an empty/whitespace-only or non-alphanumeric value is rejected,
+//     closing the old presence-only hole). T-R57 (operator directive 2026-07-28): the format rule
+//     was relaxed from a FABRICATED fixed-7-digit-only check (which dead-ended real registrants
+//     during a live demo — Primerica solution IDs are alphanumeric, not a fixed 7 digits) to any
+//     alphanumeric combination (letters, digits, hyphens; 1-64 characters).
 //   • `encryptSolutionNumberForStorage` — encrypts with the server-side at-rest key and returns the
-//     JSON envelope actually written to the column; the raw digits never touch persistence or logs.
+//     JSON envelope actually written to the column; the raw value never touches persistence or logs.
 import {
   checkSolutionNumberForOrg,
   encryptSolutionNumberForStorage,
@@ -69,19 +73,25 @@ export async function POST(request: NextRequest) {
 
     const resolvedOrgType: OrgType = orgType === 'PRIMERICA' ? OrgType.PRIMERICA : OrgType.EXTERNAL;
 
-    // Primerica org gate (§6.3 / §6.10-4): the solution number is user-declared, 7-digit,
+    // Primerica org gate (§6.3 / §6.10-4): the solution number is user-declared, alphanumeric,
     // format-checked (NOT verified against Primerica — there is no such integration), and required
     // for a Primerica registrant. Delegated to the org-gated `checkSolutionNumberForOrg` so there is
     // exactly one place a solution number's format is decided (T-17). A missing OR mis-formatted
-    // value is rejected here — the old presence-only `!solutionNumber` check let a 6/8-digit or
-    // otherwise malformed value through. `refused` (out-of-branch) can't occur here since we only
-    // check when the org IS Primerica. The raw value is never echoed back in the error.
+    // value is rejected here — the old presence-only `!solutionNumber` check let anything through
+    // regardless of shape. `refused` (out-of-branch) can't occur here since we only check when the
+    // org IS Primerica. The raw value is never echoed back in the error.
+    //
+    // T-R57 (operator directive 2026-07-28): the format rule itself was relaxed from a FABRICATED
+    // fixed-7-digit-only check to any alphanumeric combination (letters, digits, hyphens; 1-64
+    // characters) — the old rule had no basis in how Primerica actually issues solution IDs and
+    // dead-ended real registrants during a live operator demo. The field is still REQUIRED for a
+    // Primerica registrant; only the format has been relaxed.
     let encryptedSolutionNumber: string | null = null;
     if (resolvedOrgType === OrgType.PRIMERICA) {
       const check = checkSolutionNumberForOrg(resolvedOrgType, solutionNumber);
       if (!check.formatValid) {
         return NextResponse.json(
-          { error: 'Solution number must be 7 digits.' },
+          { error: 'Enter your solution number.' },
           { status: 400 }
         );
       }

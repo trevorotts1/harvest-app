@@ -196,7 +196,7 @@
     "createAccountCta": "Crear cuenta",
     "registerEmailTaken": "Ese correo electrónico ya está registrado. Intenta iniciar sesión en su lugar.",
     "registerWeakPassword": "Esa contraseña aparece en filtraciones de datos conocidas. Elige una diferente.",
-    "registerSolutionNumberInvalid": "El número de solución debe tener 7 dígitos.",
+    "registerSolutionNumberInvalid": "Ingresa un número de solución válido.",
     "registerMissingFields": "Se requieren nombre, correo electrónico y contraseña.",
     "registerGenericError": "Ocurrió un error al crear tu cuenta. Inténtalo de nuevo.",
     "registerSignInFailed": "Tu cuenta se creó, pero no pudimos iniciar tu sesión automáticamente. Inicia sesión abajo.",
@@ -1377,7 +1377,7 @@
       "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
       "solutionNumberLabel": "Número de solución",
       "solutionNumberNotVerifiedCaption": "No verificado — solo comprobamos el formato, no con Primerica.",
-      "enterAllDigits": "Ingresa los 7 dígitos.",
+      "enterAllDigits": "Ingresa tu número de solución (letras, números y guiones).",
       "choices": {
         "primerica": {
           "label": "Primerica",
