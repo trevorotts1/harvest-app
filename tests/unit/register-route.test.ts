@@ -48,7 +48,9 @@ beforeEach(() => {
     id: 'new-user-1',
     email: data.email,
     name: data.name,
-    role: 'REP',
+    // R-07: the mock User row mirrors the route's write — it echoes back the persisted role,
+    // which is now the resolved registration role (schema-default REP only when none is chosen).
+    role: (data.role as string) ?? 'REP',
     org_type: data.org_type,
     access_tier: data.access_tier,
   }));
@@ -110,15 +112,44 @@ describe('POST /api/auth/register — real account creation (T-R39)', () => {
   });
 
   test('a registrant with no orgType defaults to EXTERNAL and REP role (schema default), never a self-elevated role', async () => {
-    const res = await post({ email: 'plain@example.com', password: RAW_PASSWORD, name: 'Plain Rep', role: 'RVP' });
+    const res = await post({ email: 'plain@example.com', password: RAW_PASSWORD, name: 'Plain Rep' });
     expect(res.status).toBe(201);
     const data = createMock.mock.calls[0][0].data as Record<string, unknown>;
     expect(data.org_type).toBe('EXTERNAL');
-    // The route reads no `role` field at all — a client-supplied `role: 'RVP'` is silently ignored,
-    // never persisted (role is schema-default REP; self-service elevation does not exist anywhere
-    // in this codebase — see register-client.ts's header comment).
-    expect(data.role).toBeUndefined();
+    expect(data.role).toBe('REP');
     const body = await res.json();
     expect(body.user.role).toBe('REP');
+  });
+
+  test('persists the submitted role: an RVP registrant is created as RVP, not schema-default REP (R-07)', async () => {
+    const res = await post({ email: 'rvp@example.com', password: RAW_PASSWORD, name: 'RVP Person', role: 'RVP' });
+    expect(res.status).toBe(201);
+    const data = createMock.mock.calls[0][0].data as Record<string, unknown>;
+    // R-07: the role the client submits is written to the User row — previously the route read no
+    // `role` field at all and every registrant was silently created as REP (the operator selected
+    // RVP in the demo and was stored as REP, blocking the RVP-specific onboarding behavior R-01).
+    expect(data.role).toBe('RVP');
+    const body = await res.json();
+    expect(body.user.role).toBe('RVP');
+  });
+
+  test('persists UPLINE too — all three self-selectable §6.2 roles pass through', async () => {
+    const res = await post({ email: 'up@example.com', password: RAW_PASSWORD, name: 'Up Person', role: 'UPLINE' });
+    expect(res.status).toBe(201);
+    const data = createMock.mock.calls[0][0].data as Record<string, unknown>;
+    expect(data.role).toBe('UPLINE');
+    const body = await res.json();
+    expect(body.user.role).toBe('UPLINE');
+  });
+
+  test('fails closed: an unrecognized/empty role value is stored as REP, never persisted raw or elevated (R-07)', async () => {
+    for (const bogusRole of ['ADMIN', 'DUAL', 'SVP', '']) {
+      const res = await post({ email: `bogus-${bogusRole || 'empty'}@example.com`, password: RAW_PASSWORD, name: 'Bogus Role', role: bogusRole });
+      expect(res.status).toBe(201);
+      const data = createMock.mock.calls[createMock.mock.calls.length - 1][0].data as Record<string, unknown>;
+      expect(data.role).toBe('REP');
+      const body = await res.json();
+      expect(body.user.role).toBe('REP');
+    }
   });
 });

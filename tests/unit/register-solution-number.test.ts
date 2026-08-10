@@ -41,7 +41,8 @@ beforeEach(() => {
     id: 'new-user-1',
     email: data.email,
     name: data.name,
-    role: 'REP',
+    // R-07: the mock mirrors the route's write — echo the persisted (resolved) role.
+    role: (data.role as string) ?? 'REP',
     org_type: data.org_type,
     access_tier: data.access_tier,
   }));
