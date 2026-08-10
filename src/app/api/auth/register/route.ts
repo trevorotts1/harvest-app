@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { OrgType } from '@prisma/client';
+import { OrgType, Role } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
@@ -46,7 +46,7 @@ const BCRYPT_ROUNDS = 12;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name, phone, orgType, solutionNumber, organizationId } = body;
+    const { email, password, name, phone, orgType, role, solutionNumber, organizationId } = body;
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -72,6 +72,18 @@ export async function POST(request: NextRequest) {
     }
 
     const resolvedOrgType: OrgType = orgType === 'PRIMERICA' ? OrgType.PRIMERICA : OrgType.EXTERNAL;
+
+    // R-07 (refinements catalog 2026-07-28): the register form exposes a Rep/Upline/RVP
+    // role/level selector (src/app/auth/page.tsx) and the RVP-specific onboarding behavior (R-01)
+    // keys off the stored role — but the route previously read NO `role` field, so every
+    // registrant was created as schema-default REP regardless of what they picked. Resolve the
+    // submitted role the same way `orgType` is resolved above: accepted values are the three
+    // self-selectable §6.2 roles the form offers (REP / UPLINE / RVP); ADMIN and DUAL are not
+    // self-service (admin provisioning owns those tiers) and a non-role value (missing, or an
+    // unrecognized string) fails closed to REP rather than being persisted raw or letting a
+    // client name a role the form cannot select.
+    const resolvedRole: Role =
+      role === 'UPLINE' ? Role.UPLINE : role === 'RVP' ? Role.RVP : Role.REP;
 
     // Primerica org gate (§6.3 / §6.10-4): the solution number is user-declared, alphanumeric,
     // format-checked (NOT verified against Primerica — there is no such integration), and required
@@ -127,9 +139,11 @@ export async function POST(request: NextRequest) {
         solution_number: encryptedSolutionNumber,
         organization_id: organizationId || null,
         access_tier: accessTier,
-        // `role` defaults to REP at the schema level; admin-provisioned/post-subscription-upgrade
-        // tier transitions (the other two §6.7 paths) are WP01/WP10 territory and are not decided
-        // here.
+        // R-07: the registrant's selected level (REP/UPLINE/RVP — §6.2, resolved above) is
+        // persisted here instead of silently defaulting to schema REP. ADMIN/DUAL remain
+        // admin-provisioned only; admin-provisioned/post-subscription-upgrade tier transitions
+        // (the other two §6.7 paths) are WP01/WP10 territory and are not decided here.
+        role: resolvedRole,
       },
     });
 

@@ -24,6 +24,10 @@ export interface RegisterFields {
    *  defaults to REP at the schema level, and no self-service role-elevation path exists anywhere
    *  in this codebase). */
   orgType: 'EXTERNAL' | 'PRIMERICA';
+  /** The registrant's self-selected Primerica level/role (R-07): the register form's
+   *  Rep/Upline/RVP dropdown (src/app/auth/page.tsx). The route persists exactly these three
+   *  §6.2 roles and fails closed to REP for anything else — ADMIN/DUAL are not self-service. */
+  role: 'REP' | 'UPLINE' | 'RVP';
   /** Primerica-only; ignored by the route for an EXTERNAL registrant. */
   solutionNumber?: string;
 }
@@ -68,6 +72,9 @@ export async function registerAccount(
         email: fields.email,
         password: fields.password,
         orgType: fields.orgType,
+        // R-07: the selected level is sent with every registration so the route can persist it
+        // (previously the route read no `role` field and every registrant was stored as REP).
+        role: fields.role,
         ...(fields.orgType === 'PRIMERICA' && fields.solutionNumber
           ? { solutionNumber: fields.solutionNumber }
           : {}),

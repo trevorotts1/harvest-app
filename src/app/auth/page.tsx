@@ -112,12 +112,18 @@ export default function AuthPage() {
     const name = String(data.get('name') ?? '').trim();
     const email = String(data.get('email') ?? '').trim();
     const password = String(data.get('password') ?? '');
+    const role = String(data.get('role') ?? 'REP');
     const solutionNumber = String(data.get('solutionNumber') ?? '').trim();
 
     const fields: RegisterFields = {
       name,
       email,
       password,
+      // R-07: the Rep/Upline/RVP level selector is now carried through registration instead of
+      // being dropped — the route persists it (previously every registrant was stored as REP).
+      // Type-narrowed from the raw select value (which defaults to REP and can only yield one of
+      // the three option values) to the client's self-selectable-role union.
+      role: (role === 'UPLINE' || role === 'RVP' ? role : 'REP') as RegisterFields['role'],
       orgType: isPrimerica ? 'PRIMERICA' : 'EXTERNAL',
       solutionNumber,
     };

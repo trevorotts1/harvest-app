@@ -23,6 +23,7 @@ const REAL_FIELDS: RegisterFields = {
   email: 'pat@example.com',
   password: 'A-Genuinely-Strong-Passw0rd!',
   orgType: 'EXTERNAL',
+  role: 'REP',
 };
 
 function fetchStub(status: number, body: unknown) {
@@ -54,6 +55,7 @@ describe('registerAccount — POSTs /api/auth/register with the REAL field set (
       email: 'pat@example.com',
       password: 'A-Genuinely-Strong-Passw0rd!',
       orgType: 'EXTERNAL',
+      role: 'REP',
     });
     // The demo defaults this unit replaces must never be sent, from any call site.
     expect(sentBody.email).not.toBe('demo@theharvest.local');
@@ -77,6 +79,15 @@ describe('registerAccount — POSTs /api/auth/register with the REAL field set (
     await registerAccount({ ...REAL_FIELDS, email: 'e@example.com', solutionNumber: '1234567' }, fetchImpl);
     const sentBody = JSON.parse((fetchImpl as jest.Mock).mock.calls[0][1].body);
     expect(sentBody).not.toHaveProperty('solutionNumber');
+  });
+
+  test('forwards the selected role (REP/UPLINE/RVP) so the route can persist it (R-07)', async () => {
+    for (const role of ['UPLINE', 'RVP'] as const) {
+      const fetchImpl = fetchStub(201, { user: { id: 'u4', email: 'r@example.com', name: 'R', role } });
+      await registerAccount({ ...REAL_FIELDS, email: 'r@example.com', role }, fetchImpl);
+      const sentBody = JSON.parse((fetchImpl as jest.Mock).mock.calls[0][1].body);
+      expect(sentBody.role).toBe(role);
+    }
   });
 
   test('a 409 duplicate-email response is reported as a failure, never coerced into success', async () => {

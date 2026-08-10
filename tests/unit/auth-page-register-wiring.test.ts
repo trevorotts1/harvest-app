@@ -87,6 +87,14 @@ describe('AuthPage register wizard — real account creation, not the demo GET s
     expect(SRC).toMatch(/data\.get\('password'\)/);
   });
 
+  test('the selected role is read from the form and carried into the register fields (R-07)', () => {
+    // The Rep/Upline/RVP selector (R-07) must be captured as a submit field and passed through
+    // to the client — previously the selection was dropped and every registrant was stored as REP.
+    expect(SRC).toMatch(/<select id="role" name="role" defaultValue="REP">/);
+    expect(SRC).toMatch(/data\.get\('role'\)/);
+    expect(SRC).toMatch(/role: \(role === 'UPLINE' \|\| role === 'RVP' \? role : 'REP'\)/);
+  });
+
   test('the login form (mode=login) is untouched and still works', () => {
     expect(SRC).toMatch(/<form onSubmit=\{handleLogin\}>/);
     expect(SRC).toMatch(/signIn\('credentials', \{\s*email: loginEmail,\s*password: loginPassword,\s*redirect: false,\s*\}\)/);
