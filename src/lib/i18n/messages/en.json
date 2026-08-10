@@ -1445,7 +1445,10 @@
       "agentThinkingAria": "Your agent is thinking",
       "answerLabel": "Your answer",
       "repromptPlaceholder": "Take your time — say a little more when you're ready.",
-      "typePlaceholder": "Type here…"
+      "typePlaceholder": "Type here…",
+      "unavailableTitle": "The conversation isn't available right now.",
+      "unavailableBody": "Please try again in a moment — your answers so far are safe.",
+      "retryCta": "Try again"
     }
   },
   "settings": {

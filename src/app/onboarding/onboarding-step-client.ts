@@ -212,7 +212,10 @@ export function buildRoleOrgContextPayload(orgType: OrgType, solutionNumber: str
 }
 
 /**
- * One local Seven Whys Q&A pair captured by the O-5 screen (`OnboardingFlow.tsx`'s `whyAnswers`).
+ * One Seven Whys Q&A pair captured by the O-5 screen (`OnboardingFlow.tsx`'s `whyPairs`): the
+ * engine's question the rep was responding to (captured from the turn at submit time) plus the
+ * rep's submitted answer. R-09: these pairs now come from the REAL conversation API — never
+ * hard-coded literals.
  */
 export interface SevenWhysAnswerPair {
   question: string;
@@ -221,12 +224,13 @@ export interface SevenWhysAnswerPair {
 
 /**
  * Builds the `SEVEN_WHYS` step's `sevenWhys: SevenWhysResponse[]` payload. Each `score` is the REAL
- * `estimateDepthSignal` heuristic (0..1) scaled to the documented 0–100 range — the same computation
- * the local (non-Claude) conversation client already performs — never a fabricated/hardcoded number.
- * This is NOT the T-18 engine's own live conversational scoring (that engine, `wp01/seven-whys/
- * engine.ts` + its `WhySession` persistence, is a separate, already-tracked unit this component does
- * not invoke yet — see OnboardingFlow.tsx's own header comment on `whyTurn` being a local mock); this
- * is the most honest score derivable from the answer text alone, without wiring that larger engine.
+ * `estimateDepthSignal` heuristic (0..1) scaled to the documented 0–100 range — the same
+ * computation the local (non-Claude) conversation client already performs — never a
+ * fabricated/hardcoded number. This persists a reproducible per-answer resonance signal alongside
+ * the rep's answers; the authoritative LIVE gate remains the engine's invisible >70 resonance
+ * (wp01/seven-whys/engine.ts), which the conversation API (`/api/onboarding/seven-whys`, R-09)
+ * evaluates and stores on WhySession — this payload is the durable record the goal-card/step
+ * chain carries, not the gate.
  */
 export function buildSevenWhysResponses(pairs: readonly SevenWhysAnswerPair[]): SevenWhysResponse[] {
   return pairs.map(({ question, answer }) => ({
