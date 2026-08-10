@@ -12,6 +12,8 @@
  * by design").
  */
 
+import { prisma } from '@/lib/prisma';
+
 /**
  * The illustrative type vocabulary from the SecurityEvent model's doc comment, extended with the
  * additional event classes this unit's build brief calls for ("MFA enroll/verify/fail, session
@@ -129,21 +131,43 @@ export class PrismaSecurityEventSink implements SecurityEventSink {
 }
 
 /**
- * Module-level default sink used by real call-sites (src/lib/auth/options.ts, with-role.ts, the
- * new mfa/password-reset/session route handlers) so they don't each have to construct/import a
- * Prisma client directly. `setSecurityEventSink` lets tests swap in an
- * `InMemorySecurityEventSink` and inspect emitted events without touching a real database —
- * exactly the seam `jest.setup.ts`-style tests need, and how this module is proven in
- * tests/unit/security-event.test.ts and every scenario test that asserts "the right SecurityEvent
- * fired".
+ * Chooses the default SecurityEvent sink (R-19, T-R5 pattern — mirrors
+ * `createDefaultSessionActivityStore` in src/lib/auth/session-security.ts and
+ * `createDefaultLoginHistoryStore` in src/services/security/credential-stuffing.ts exactly):
+ * process-local in-memory for tests and local dev without a `DATABASE_URL`; the Prisma-backed
+ * sink everywhere else.
+ *
+ * R-19: before this, the module-level default was unconditionally `InMemorySecurityEventSink`, so
+ * in production every `emitSecurityEvent` call (login success/failure, MFA, password-reset,
+ * session-revoke, rate-limit, privilege-escalation — the §16.4 "every auth/session event written
+ * to SecurityEvent" stream) wrote only to the process-local array and **0 SecurityEvent rows ever
+ * reached the DB** — the admin audit/security viewer (R-56) saw an empty table. Fail-open by
+ * design (a SecurityEvent write must never block the security decision that triggered it, §0.4 /
+ * `emitSecurityEvent`'s own doc comment), so this never gated sign-in — it just silently starved
+ * the audit trail. With the Prisma-backed default, prod events persist; tests still swap in
+ * `InMemorySecurityEventSink` via `setSecurityEventSink` exactly as before (every existing
+ * security-event test's `beforeEach` does this).
  */
-let activeSink: SecurityEventSink = new InMemorySecurityEventSink();
+function createDefaultSecurityEventSink(): SecurityEventSink {
+  if (process.env.NODE_ENV === 'test' || !process.env.DATABASE_URL) {
+    return new InMemorySecurityEventSink();
+  }
+  return new PrismaSecurityEventSink(
+    prisma.securityEvent as unknown as SecurityEventPrismaClient
+  );
+}
+
+// R-19: lazily defaulted on first access (never at module scope) — same T-R5 convention as
+// `createDefaultSessionActivityStore` / `createDefaultLoginHistoryStore` above. A module-scope
+// default would construct the Prisma-backed sink at import time even under `NODE_ENV=test`.
+let activeSink: SecurityEventSink | undefined;
 
 export function setSecurityEventSink(sink: SecurityEventSink): void {
   activeSink = sink;
 }
 
 export function getSecurityEventSink(): SecurityEventSink {
+  if (!activeSink) activeSink = createDefaultSecurityEventSink();
   return activeSink;
 }
 
@@ -156,7 +180,10 @@ export function getSecurityEventSink(): SecurityEventSink {
  */
 export async function emitSecurityEvent(input: SecurityEventInput): Promise<void> {
   try {
-    await activeSink.emit(input);
+    // R-19: through the lazy getter (never the raw `activeSink`) so the first emission in a
+    // virgin process also instantiates the correct default — same T-R5 convention as
+    // `getSessionActivityStore`/`getLoginHistoryStore`'s callers.
+    await getSecurityEventSink().emit(input);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('SecurityEvent emit failed (non-fatal):', (error as Error).message);
