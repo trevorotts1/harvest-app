@@ -58,7 +58,9 @@ export {
   setOutreachConsent,
   decryptAnchorStatement,
   decryptTranscript,
+  decryptTranscriptEnvelope,
+  stateFromPersistedTranscript,
   getWhySessionEncryptionKey,
   WHY_SESSION_ENCRYPTION_KEY_ENV_VAR,
 } from './persistence';
-export type { WhySessionRow, WhySessionPrismaClient } from './persistence';
+export type { WhySessionRow, WhySessionPrismaClient, PersistedTranscriptEnvelope } from './persistence';

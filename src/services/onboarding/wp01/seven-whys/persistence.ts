@@ -12,7 +12,13 @@
 
 import { decrypt, encrypt } from '../../../compliance/encryption/encryption';
 import { SevenWhysEngineState } from './engine';
-import { SEVEN_WHYS_LEVELS, SevenWhysTranscriptEntry } from './types';
+import {
+  SEVEN_WHYS_LEVELS,
+  SevenWhysConversationStatus,
+  SevenWhysLevel,
+  SevenWhysLevelRecord,
+  SevenWhysTranscriptEntry,
+} from './types';
 
 /**
  * Name of the server-side key used to encrypt the Seven Whys transcript/anchor statement at rest
@@ -81,6 +87,72 @@ function transcriptEntriesFromState(state: SevenWhysEngineState): SevenWhysTrans
 }
 
 /**
+ * The wire shape persisted inside the encrypted `transcript` envelope. Extends the plain
+ * level-ordered Q&A list with the engine's hidden resume metadata — status, the currently open
+ * (deepening) level, and each answered level's hidden depth signal — so a conversation resumed
+ * from a later request replays EXACTLY (uiux §5.1 O-5 "resume" state), including the >70 gate's
+ * `AWAITING_DEEPER_ANSWER` position and the per-level resonance signals the gate aggregates. All
+ * of this stays inside the same encrypted-at-rest envelope as the transcript itself (§16.3) — it
+ * is never rendered, never emitted as a score, and never exposed outside this module.
+ */
+export interface PersistedTranscriptEnvelope {
+  entries: SevenWhysTranscriptEntry[];
+  status: SevenWhysConversationStatus;
+  deepenLevel: SevenWhysLevel | null;
+  /** Index of the level currently open (unanswered or awaiting a deeper answer). */
+  currentLevelIndex: number;
+  /** Hidden 0–100 completion-gate score, present once the gate has been evaluated at least once. */
+  resonanceScore: number | null;
+  /** Hidden 0–1 per-level depth signals — the aggregate inputs, never rendered. */
+  depthSignals: Partial<Record<SevenWhysLevel, number>>;
+}
+
+function envelopeFromState(state: SevenWhysEngineState): PersistedTranscriptEnvelope {
+  const depthSignals: Partial<Record<SevenWhysLevel, number>> = {};
+  for (const level of SEVEN_WHYS_LEVELS) {
+    const signal = state.levels[level]?.depthSignal;
+    if (typeof signal === 'number') depthSignals[level] = signal;
+  }
+  return {
+    entries: transcriptEntriesFromState(state),
+    status: state.status,
+    deepenLevel: state.deepenLevel ?? null,
+    currentLevelIndex: state.currentLevelIndex,
+    resonanceScore: state.resonanceScore ?? null,
+    depthSignals,
+  };
+}
+
+/**
+ * Rebuilds engine state from a persisted, decrypted transcript envelope. `currentLevelIndex`,
+ * `status`, `deepenLevel`, `resonanceScore` and the per-level depth signals are restored verbatim
+ * so the engine can continue exactly where it stopped — a resumed re-prompt still deepens at the
+ * same level, and the >70 gate re-analyzes with the real historical signals, not a fresh estimate.
+ */
+export function stateFromPersistedTranscript(
+  envelope: PersistedTranscriptEnvelope
+): SevenWhysEngineState {
+  const levels: SevenWhysEngineState['levels'] = {};
+  for (const entry of envelope.entries) {
+    const record: SevenWhysLevelRecord = {
+      question: entry.question ?? '',
+      ...(entry.answer !== null && entry.answer !== undefined ? { answer: entry.answer } : {}),
+    };
+    const signal = envelope.depthSignals[entry.level];
+    if (typeof signal === 'number') record.depthSignal = signal;
+    levels[entry.level] = record;
+  }
+  return {
+    userId: '', // caller supplies the real user id on the returned state before use
+    levels,
+    currentLevelIndex: envelope.currentLevelIndex,
+    status: envelope.status,
+    ...(envelope.deepenLevel ? { deepenLevel: envelope.deepenLevel } : {}),
+    ...(envelope.resonanceScore !== null ? { resonanceScore: envelope.resonanceScore } : {}),
+  };
+}
+
+/**
  * Persists (creates or updates) the WhySession row for `state`. `use_in_outreach_consent` is NEVER
  * set true here — it is Prisma-default false on create, and left untouched on update (see
  * `setOutreachConsent` below, the only function permitted to change it). This is the programmatic
@@ -91,7 +163,7 @@ export async function saveSevenWhysProgress(
   state: SevenWhysEngineState,
   encryptionKey: string = getWhySessionEncryptionKey()
 ): Promise<WhySessionRow> {
-  const transcriptPlain = JSON.stringify(transcriptEntriesFromState(state));
+  const transcriptPlain = JSON.stringify(envelopeFromState(state));
   const transcriptEnvelope = encryptToEnvelope(transcriptPlain, encryptionKey);
 
   const anchorEnvelope = state.anchorStatement
@@ -152,13 +224,65 @@ export function decryptAnchorStatement(
   return decryptEnvelope(envelope, encryptionKey);
 }
 
-/** Decrypts `WhySession.transcript` back to the level-ordered Q&A entries. */
+/**
+ * Decrypts `WhySession.transcript` back to the level-ordered Q&A entries — the documented,
+ * pre-R-09 public contract (used by the outreach gate / tests / the DSAR path).
+ */
 export function decryptTranscript(
   row: Pick<WhySessionRow, 'transcript'>,
   encryptionKey: string = getWhySessionEncryptionKey()
 ): SevenWhysTranscriptEntry[] {
-  if (!row.transcript) return [];
+  return decryptTranscriptEnvelope(row, encryptionKey).entries;
+}
+
+/**
+ * Decrypts `WhySession.transcript` back to the full persisted envelope (level-ordered Q&A entries
+ * + resume metadata). A legacy row written by the pre-R-09 shape (a bare Q&A list, no envelope) is
+ * detected structurally and normalized into the new envelope so old sessions still resume — with
+ * the gate re-evaluated from freshly-estimated signals on the next answer (the legacy shape carried
+ * no depth signals), never lost and never a crash.
+ */
+export function decryptTranscriptEnvelope(
+  row: Pick<WhySessionRow, 'transcript'>,
+  encryptionKey: string = getWhySessionEncryptionKey()
+): PersistedTranscriptEnvelope {
+  if (!row.transcript) {
+    return {
+      entries: [],
+      status: 'IN_PROGRESS',
+      deepenLevel: null,
+      currentLevelIndex: 0,
+      resonanceScore: null,
+      depthSignals: {},
+    };
+  }
   const envelope = row.transcript as EncryptedEnvelope;
   const plain = decryptEnvelope(envelope, encryptionKey);
-  return JSON.parse(plain) as SevenWhysTranscriptEntry[];
+  const parsed = JSON.parse(plain) as unknown;
+
+  if (isPersistedTranscriptEnvelope(parsed)) {
+    return parsed;
+  }
+
+  // Legacy pre-R-09 shape: a bare level-ordered Q&A array.
+  const entries = (Array.isArray(parsed) ? parsed : []) as SevenWhysTranscriptEntry[];
+  const lastEntry = entries[entries.length - 1];
+  const lastLevelIndex = lastEntry
+    ? SEVEN_WHYS_LEVELS.indexOf(lastEntry.level)
+    : -1;
+  return {
+    entries,
+    status: 'IN_PROGRESS',
+    deepenLevel: null,
+    // A saved row always reflects a completed answer; the conversation is open at the next level.
+    currentLevelIndex: lastLevelIndex === -1 ? 0 : Math.min(lastLevelIndex + 1, SEVEN_WHYS_LEVELS.length - 1),
+    resonanceScore: null,
+    depthSignals: {},
+  };
+}
+
+function isPersistedTranscriptEnvelope(value: unknown): value is PersistedTranscriptEnvelope {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return Array.isArray(candidate.entries);
 }

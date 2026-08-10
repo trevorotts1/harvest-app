@@ -17,6 +17,8 @@ import {
   setOutreachConsent,
   decryptAnchorStatement,
   decryptTranscript,
+  decryptTranscriptEnvelope,
+  stateFromPersistedTranscript,
   WhySessionPrismaClient,
   WhySessionRow,
   SonnetConversationClient,
@@ -292,6 +294,87 @@ describe('Seven Whys — (d) use_in_outreach_consent defaults FALSE', () => {
     const modelMatch = schema.match(/model WhySession \{[\s\S]*?\n\}/);
     expect(modelMatch).not.toBeNull();
     expect(modelMatch![0]).toMatch(/use_in_outreach_consent\s+Boolean\s+@default\(false\)/);
+  });
+
+  // R-09 — the persisted envelope roundtrip. A conversation saved mid-gate (AWAITING_DEEPER_ANSWER)
+  // must decrypt back to EXACT engine state — status, open level, and every hidden per-level depth
+  // signal preserved — so a resumed conversation continues precisely where it stopped (the >70 gate
+  // re-analyzes with real historical signals, never a fresh estimate).
+  test('R-09 resume roundtrip: a persisted re-prompted state rebuilds EXACT engine state (status, deepen level, depth signals)', async () => {
+    const client = new LocalSevenWhysConversationClient();
+    let outcome = await startSevenWhys('rep-roundtrip', client);
+
+    // Six deep answers + one shallow Commitment — the gate re-prompts at Commitment.
+    const mostlyDeepWithShallowCommitment: Record<SevenWhysLevel, string> = {
+      ...DEEP_ANSWERS,
+      [SevenWhysLevel.COMMITMENT]: SHALLOW_ANSWERS[SevenWhysLevel.COMMITMENT],
+    };
+    for (const level of SEVEN_WHYS_LEVELS) {
+      outcome = await submitSevenWhysAnswer(outcome.state, mostlyDeepWithShallowCommitment[level], client);
+    }
+    expect(outcome.rendered.complete).toBe(false);
+    expect(outcome.rendered.reprompt).toBe(true);
+
+    const { prisma } = makeMockPrisma();
+    const saved = await saveSevenWhysProgress(prisma, outcome.state);
+    expect(saved.use_in_outreach_consent).toBe(false);
+
+    // The public transcript contract (pre-R-09) still returns the plain Q&A list.
+    const entries = decryptTranscript(saved);
+    expect(entries).toHaveLength(SEVEN_WHYS_LEVELS.length);
+
+    // The envelope carries the exact resume metadata.
+    const envelope = decryptTranscriptEnvelope(saved);
+    expect(envelope.status).toBe('AWAITING_DEEPER_ANSWER');
+    expect(envelope.deepenLevel).toBe(SevenWhysLevel.COMMITMENT);
+    expect(envelope.currentLevelIndex).toBe(SEVEN_WHYS_LEVELS.indexOf(SevenWhysLevel.COMMITMENT));
+    expect(typeof envelope.resonanceScore).toBe('number');
+    expect(Object.keys(envelope.depthSignals)).toHaveLength(SEVEN_WHYS_LEVELS.length);
+
+    // Rebuilding engine state preserves the hidden signals — the gate re-analyzes honestly.
+    const rebuilt = stateFromPersistedTranscript(envelope);
+    expect(rebuilt.status).toBe('AWAITING_DEEPER_ANSWER');
+    expect(rebuilt.deepenLevel).toBe(SevenWhysLevel.COMMITMENT);
+    expect(rebuilt.currentLevelIndex).toBe(SEVEN_WHYS_LEVELS.indexOf(SevenWhysLevel.COMMITMENT));
+    for (const level of SEVEN_WHYS_LEVELS) {
+      expect(rebuilt.levels[level]?.depthSignal).toBeCloseTo(outcome.state.levels[level]?.depthSignal ?? 0, 5);
+      expect(rebuilt.levels[level]?.answer).toBe(outcome.state.levels[level]?.answer);
+    }
+
+    // Completing the rebuilt state passes the gate exactly like the original state would.
+    const completed = await submitSevenWhysAnswer(
+      { ...rebuilt, userId: 'rep-roundtrip' },
+      DEEP_ANSWERS[SevenWhysLevel.COMMITMENT],
+      client
+    );
+    expect(completed.rendered.complete).toBe(true);
+    expect(completed.rendered.anchorStatement).toEqual(expect.any(String));
+  });
+
+  test('R-09 legacy compat: a pre-R-09 bare-array transcript decrypts into a valid envelope (no crash, resumable)', () => {
+    // Pre-R-09, the encrypted transcript envelope held a BARE level-ordered Q&A array (no resume
+    // metadata). The row is still an EncryptedEnvelope — decrypt it the same way the module does,
+    // then prove the legacy inner shape normalizes without a crash.
+    const { encrypt } = require('../../src/services/compliance/encryption/encryption');
+    const key = process.env.WHY_SESSION_ENCRYPTION_KEY!;
+    const legacyInner = [
+      { level: SevenWhysLevel.GOAL, question: 'q1', answer: DEEP_ANSWERS[SevenWhysLevel.GOAL] },
+      { level: SevenWhysLevel.URGENCY, question: 'q2', answer: DEEP_ANSWERS[SevenWhysLevel.URGENCY] },
+    ];
+    const { ciphertext, iv, authTag, algorithm } = encrypt(JSON.stringify(legacyInner), key);
+    const legacyRow = {
+      transcript: { ciphertext, iv, authTag, algorithm },
+    } as unknown as WhySessionRow;
+
+    const envelope = decryptTranscriptEnvelope(legacyRow);
+    expect(envelope.entries).toHaveLength(2);
+    expect(envelope.status).toBe('IN_PROGRESS');
+    // A saved row reflects a completed answer; the conversation is open at the next level.
+    expect(envelope.currentLevelIndex).toBe(2);
+    const rebuilt = stateFromPersistedTranscript(envelope);
+    expect(rebuilt.status).toBe('IN_PROGRESS');
+    expect(rebuilt.currentLevelIndex).toBe(2);
+    expect(rebuilt.levels[SevenWhysLevel.GOAL]?.answer).toBe(DEEP_ANSWERS[SevenWhysLevel.GOAL]);
   });
 });
 

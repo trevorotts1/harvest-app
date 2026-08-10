@@ -4,9 +4,13 @@
 // step machine and renders each O-screen component, so the cinematic rep flow (Flow A) and the
 // dense upline/RVP track (Flow B/D) are actually reachable and resume-exact. The screens consume
 // the T-17/T-18/T-19 engines via their public types/pure functions; this shell owns only local UI
-// state and step advancement (the server-side persistence/gate live in the API layer). The Seven
-// Whys turns are produced locally from the engine's `SevenWhysRenderedTurn` shape — which
-// structurally cannot carry a score — so the invisible-resonance contract holds by construction.
+// state and step advancement (the server-side persistence/gate live in the API layer).
+//
+// R-09: the Seven Whys turns are NO LONGER produced locally from hard-coded literals — they now
+// come from the real conversation API (`/api/onboarding/seven-whys`, driven by the engine +
+// Agnes per T-R55b), and this shell owns only the fetch/advance wiring. The engine's rendered-turn
+// shape (`SevenWhysRenderedTurn`) structurally cannot carry a score — so the invisible-resonance
+// contract holds by construction, end to end.
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 import { useRouter } from 'next/navigation';
@@ -24,7 +28,7 @@ import {
 import { MAX_IMPORT_ROWS } from '@/services/warm-market/vault/csv-parser';
 import type { NativeContactCandidate } from '@/services/warm-market/vault/native-contacts-adapter';
 import { runNativeContactsDiscovery } from '@/services/warm-market/vault/native-import-flow';
-import { SevenWhysLevel, type SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
+import type { SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
 import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/warm-market/hidden-earnings';
@@ -57,30 +61,15 @@ import {
   postOnboardingStep,
   sendOrderedSteps,
   stepToScreen,
+  type SevenWhysAnswerPair,
   type ServerStepRef,
 } from './onboarding-step-client';
+import {
+  getSevenWhysTurn,
+  postSevenWhysAnswer,
+  postSevenWhysStart,
+} from './seven-whys-client';
 import styles from './onboarding.module.css';
-
-// One warm, digit-free prompt per Seven Whys level (§5.1 O-5). A low resonance never surfaces here
-// as a number — the engine's rendered turn has no score field, and a re-prompt is a caring re-ask.
-const SEVEN_WHYS_QUESTIONS: Record<SevenWhysLevel, string> = {
-  [SevenWhysLevel.GOAL]: 'What do you want most from building this?',
-  [SevenWhysLevel.URGENCY]: 'Why does that matter to you right now?',
-  [SevenWhysLevel.HISTORY]: 'Have you tried to change this before?',
-  [SevenWhysLevel.CHALLENGE]: "What's gotten in the way until now?",
-  [SevenWhysLevel.FEAR]: 'What are you afraid happens if nothing changes?',
-  [SevenWhysLevel.TRANSFORMATION]: "Who do you become once you've got this handled?",
-  [SevenWhysLevel.COMMITMENT]: 'Are you ready to commit to the work it takes?',
-};
-const SEVEN_WHYS_ORDER: SevenWhysLevel[] = [
-  SevenWhysLevel.GOAL,
-  SevenWhysLevel.URGENCY,
-  SevenWhysLevel.HISTORY,
-  SevenWhysLevel.CHALLENGE,
-  SevenWhysLevel.FEAR,
-  SevenWhysLevel.TRANSFORMATION,
-  SevenWhysLevel.COMMITMENT,
-];
 
 export interface OnboardingFlowProps {
   /** Where to start — resolved from the persisted step for a returning rep (resume-exact). */
@@ -107,13 +96,21 @@ export default function OnboardingFlow({
   const [solutionNumber, setSolutionNumber] = useState('');
   const [solutionConfirmed, setSolutionConfirmed] = useState(false);
   const [intensity, setIntensity] = useState<IntensitySetting | null>(null);
-  const [whyIndex, setWhyIndex] = useState(0);
+  // R-09 — the Seven Whys conversation now runs through the real API. `whyTurn` is the current
+  // rendered turn (opening question → one question per turn → caring re-prompt → completed anchor),
+  // `whyAnswer` the in-flight draft, and `whyPairs` the accumulated (question, answer) pairs the
+  // rep actually submitted — kept locally so the deferred `SEVEN_WHYS`/`GOAL_CARD`/`INTENSITY` step
+  // chain (fired on this screen's completion, see the crux note in onboarding-step-client.ts) has
+  // the real question+answer text to persist (the questions are the engine's own, captured from the
+  // turn each answer responded to). `whyUnavailable` renders the honest engine-unavailable surface
+  // (§0.3 graceful pause) — the server is the ONLY source of turns, so an unavailable engine is
+  // shown, never silently replaced by a local script.
+  const [whyTurn, setWhyTurn] = useState<SevenWhysRenderedTurn | null>(null);
   const [whyAnswer, setWhyAnswer] = useState('');
-  // T-R37 — each submitted Seven Whys answer, kept locally so the deferred `SEVEN_WHYS`/`GOAL_CARD`/
-  // `INTENSITY` step chain (fired on this screen's completion, see the crux note in
-  // onboarding-step-client.ts) has real answer text to persist — previously discarded on every
-  // submit (`setWhyAnswer('')`) with nothing retained anywhere.
-  const [whyAnswers, setWhyAnswers] = useState<string[]>([]);
+  const [whyPairs, setWhyPairs] = useState<SevenWhysAnswerPair[]>([]);
+  const [whyUnavailable, setWhyUnavailable] = useState(false);
+  const [whyStarting, setWhyStarting] = useState(false);
+  const [whyResumeError, setWhyResumeError] = useState(false);
   // AC-5.1-5 (O-5 completion) — local UI state, defaults OFF; T-18's WhySession already defaults
   // use_in_outreach_consent=false and only its own setOutreachConsent may ever flip it, so this is
   // purely the UI surface (no live wiring here, exactly like intensity/solutionNumber above).
@@ -174,36 +171,6 @@ export default function OnboardingFlow({
   const [denseSubmitting, setDenseSubmitting] = useState(false);
   const [denseError, setDenseError] = useState<string | null>(null);
 
-  // T-R37 (optional resume, per this unit's own brief) — GET /status once on mount. A found,
-  // not-yet-completed session repositions BOTH the rep-track screen and the dense-track sub-screen
-  // onto the persisted step, and seeds `serverStepRef` so the step-sequencers never re-send an
-  // already-cleared step. A missing session (fresh user, or a network hiccup) is not an error here —
-  // the flow simply starts at the top, exactly like before this fix.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch('/api/onboarding/status');
-        if (!response.ok || cancelled) return;
-        const body = (await response.json()) as { currentStep?: OnboardingStep; completed?: boolean };
-        if (!body.currentStep || body.completed) return;
-        serverStepRef.current.current = body.currentStep;
-        if (trackKindForRole(role) === 'dense') {
-          if (body.currentStep === OnboardingStep.CONSENT_CAPTURE) setDenseScreen('consent');
-          else if (body.currentStep === OnboardingStep.COMPLETE) setDenseScreen('first48');
-          return;
-        }
-        setScreen(stepToScreen(body.currentStep));
-      } catch {
-        // No session yet, or unreachable — start fresh, exactly like before this fix.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Sponsor outcome consumed straight from the §6.5 matcher — with no candidate pool the rep is
   // waitlisted (never a dead end); the UI renders that verdict, it does not decide it.
   const sponsorOutcome: SponsorMatchOutcome = useMemo(
@@ -230,19 +197,79 @@ export default function OnboardingFlow({
     [contactCount, orgType, solutionConfirmed, solutionNumber]
   );
 
-  // The current Seven Whys turn, built from the engine's rendered-turn shape (no score field).
-  const whyTurn: SevenWhysRenderedTurn = useMemo(() => {
-    const complete = whyIndex >= SEVEN_WHYS_ORDER.length;
-    return {
-      filledLevels: SEVEN_WHYS_ORDER.slice(0, whyIndex),
-      pulsingLevel: null,
-      question: complete ? null : SEVEN_WHYS_QUESTIONS[SEVEN_WHYS_ORDER[whyIndex]],
-      acknowledgment: whyIndex > 0 && !complete ? 'Thank you for sharing that.' : null,
-      reprompt: false,
-      complete,
-      anchorStatement: complete ? 'You build so the people you love never have to worry.' : null,
+  // R-09 — Seven Whys engine wiring. The conversation's turns come from the real API
+  // (`/api/onboarding/seven-whys`), driven by the engine + Agnes (T-R55b). The following
+  // handlers own the fetch/advance wiring; the rendered-turn shape (no score field) keeps the
+  // invisible-resonance contract (§6.4, uiux AC-5.1-4) by construction.
+  //
+  // `handleSevenWhysAnswer` is the ONLY place an answer advances the conversation — the server
+  // decides the next question, the caring re-prompt (gate ≤ 70), or completion with the per-rep
+  // anchor. A failed call never invents a turn and never advances the rep past the real engine.
+  async function startSevenWhysConversation() {
+    if (whyStarting || whyTurn) return;
+    setWhyStarting(true);
+    setWhyUnavailable(false);
+    try {
+      const result = await postSevenWhysStart();
+      if (result.ok) {
+        if (result.turn) {
+          setWhyTurn(result.turn);
+        } else {
+          setWhyUnavailable(true);
+        }
+        return;
+      }
+      // Network/HTTP failure: surface the unavailable state honestly — the server is the ONLY
+      // source of turns, never a silent local stand-in.
+      setWhyUnavailable(true);
+    } catch {
+      setWhyUnavailable(true);
+    } finally {
+      setWhyStarting(false);
+    }
+  }
+
+  // T-R37 — resume: GET /status on mount. For a rep already on the seven_whys screen, also resume
+  // the real conversation so a returning rep replays the open turn (uiux §5.1 O-5 "resume" state)
+  // instead of restarting from level one.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/onboarding/status');
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { currentStep?: OnboardingStep; completed?: boolean };
+        if (!body.currentStep || body.completed) return;
+        serverStepRef.current.current = body.currentStep;
+        if (trackKindForRole(role) === 'dense') {
+          if (body.currentStep === OnboardingStep.CONSENT_CAPTURE) setDenseScreen('consent');
+          else if (body.currentStep === OnboardingStep.COMPLETE) setDenseScreen('first48');
+          return;
+        }
+        setScreen(stepToScreen(body.currentStep));
+        if (stepToScreen(body.currentStep) === 'seven_whys') {
+          // Resume the real conversation from its persisted state — no engine call for the replay.
+          const turnResult = await getSevenWhysTurn();
+          if (!cancelled && turnResult.ok) {
+            if (turnResult.turn) {
+              setWhyTurn(turnResult.turn);
+            } else {
+              // No persisted conversation yet — the start handler owns the opening turn.
+              void startSevenWhysConversation();
+            }
+          } else if (!cancelled && !turnResult.ok) {
+            setWhyResumeError(true);
+          }
+        }
+      } catch {
+        // No session yet, or unreachable — start fresh, exactly like before this fix.
+      }
+    })();
+    return () => {
+      cancelled = true;
     };
-  }, [whyIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function advance() {
     const next = nextScreen(screen);
@@ -385,25 +412,62 @@ export default function OnboardingFlow({
     }
   }
 
+  // R-09 — the conversation's per-turn submit. The engine (server-side, Agnes-driven) decides what
+  // happens next: the next question, a caring re-prompt at the same level (invisible >70 resonance
+  // gate, §6.4), or completion with the per-rep composed anchor. The rep's answer is recorded
+  // locally BEFORE the call so the deferred step chain has real answer text to persist, and the
+  // returned turn replaces the current one. A failed call keeps the previous turn on screen and
+  // surfaces the unavailable state honestly — never a fabricated next question.
+  async function handleSevenWhysAnswer() {
+    const trimmed = whyAnswer.trim();
+    if (!trimmed || inFlightRef.current) return;
+    if (!whyTurn || whyTurn.complete) return;
+    inFlightRef.current = true;
+    setSevenWhysSubmitting(true);
+    setWhyUnavailable(false);
+    try {
+      const result = await postSevenWhysAnswer(trimmed);
+      if (result.ok) {
+        if (result.turn) {
+          // Record the pair the rep just answered: the engine's question they were responding to,
+          // plus their answer — the exact Q&A the deferred step chain persists.
+          setWhyPairs((prev) => [...prev, { question: whyTurn?.question ?? '', answer: trimmed }]);
+          setWhyTurn(result.turn);
+          setWhyAnswer('');
+        } else {
+          setWhyUnavailable(true);
+        }
+        return;
+      }
+      setWhyUnavailable(true);
+    } catch {
+      setWhyUnavailable(true);
+    } finally {
+      inFlightRef.current = false;
+      setSevenWhysSubmitting(false);
+    }
+  }
+
   // T-R37 — O-5 Seven Whys completion's "meaningful advance": THE CRUX FIX. The UI screen order
   // (goals_intensity BEFORE seven_whys) does not match the server's real `ROLE_STEP_MAP` order
   // (`SEVEN_WHYS` must be submitted BEFORE `GOAL_CARD`/`INTENSITY`) — see onboarding-step-client.ts's
   // header comment. The O-4 dial's selection was captured locally (no network call at that screen);
   // all three steps fire together HERE, in the server-correct order, once the conversation completes.
+  // R-09: the anchor statement is the REAL per-rep anchor composed by the engine (never a hard-coded
+  // literal), and the step-chain payload is built from `whyPairs` — the actual (question, answer)
+  // pairs the rep submitted through the conversation API, in the real conversation's order.
   async function handleSevenWhysContinue() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setSevenWhysSubmitting(true);
     setSevenWhysError(null);
     try {
-      const anchorStatement = whyTurn.anchorStatement ?? '';
-      const sevenWhysResponses = buildSevenWhysResponses(
-        SEVEN_WHYS_ORDER.map((level, i) => ({ question: SEVEN_WHYS_QUESTIONS[level], answer: whyAnswers[i] ?? '' }))
-      );
+      const anchorStatement = whyTurn?.anchorStatement ?? '';
+      const sevenWhysResponses = buildSevenWhysResponses(whyPairs);
       const goalCard = buildGoalCardPayload({
         anchorStatement,
-        primaryGoal: whyAnswers[0] ?? '',
-        motivationStatement: whyAnswers[1] ?? whyAnswers[0] ?? '',
+        primaryGoal: whyPairs[0]?.answer ?? '',
+        motivationStatement: whyPairs[1]?.answer ?? whyPairs[0]?.answer ?? '',
         intensity,
       });
       const intensityData = buildIntensityDataPayload(intensity ?? IntensitySetting.MEDIUM);
@@ -767,21 +831,50 @@ export default function OnboardingFlow({
         <IntensityDial value={intensity} onChange={setIntensity} onContinue={advance} />
       )}
 
-      {screen === 'seven_whys' && (
+      {screen === 'seven_whys' && !whyTurn && !whyUnavailable && (
+        <div className={styles.stepInner}>
+          {whyStarting ? (
+            <StatusMessage tone="polite">{t('onboarding.sevenWhys.agentThinkingAria')}</StatusMessage>
+          ) : (
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => void startSevenWhysConversation()}
+              >
+                {t('onboarding.continueCta')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {screen === 'seven_whys' && whyUnavailable && (
+        <div className={styles.stepInner}>
+          <p className={styles.headline}>{t('onboarding.sevenWhys.unavailableTitle')}</p>
+          <p>{t('onboarding.sevenWhys.unavailableBody')}</p>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              onClick={() => void startSevenWhysConversation()}
+            >
+              {t('onboarding.sevenWhys.retryCta')}
+            </button>
+          </div>
+        </div>
+      )}
+      {screen === 'seven_whys' && whyTurn && (
         <SevenWhysConversation
           turn={whyTurn}
           answer={whyAnswer}
           onAnswerChange={setWhyAnswer}
-          onSubmit={() => {
-            setWhyAnswers((prev) => [...prev, whyAnswer]);
-            setWhyAnswer('');
-            setWhyIndex((i) => i + 1);
-          }}
+          onSubmit={() => void handleSevenWhysAnswer()}
+          typing={sevenWhysSubmitting}
           outreachConsent={outreachConsent}
           onOutreachConsentChange={setOutreachConsent}
         />
       )}
-      {screen === 'seven_whys' && whyTurn.complete && (
+      {screen === 'seven_whys' && whyTurn?.complete && (
         <div className={styles.actions}>
           <button
             type="button"
@@ -794,6 +887,9 @@ export default function OnboardingFlow({
         </div>
       )}
       {screen === 'seven_whys' && sevenWhysError ? <StatusMessage>{sevenWhysError}</StatusMessage> : null}
+      {screen === 'seven_whys' && whyResumeError ? (
+        <StatusMessage>{t('onboarding.sevenWhys.unavailableBody')}</StatusMessage>
+      ) : null}
 
       {screen === 'sponsor' && (
         <SponsorStep
