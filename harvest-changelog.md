@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R73] — BUILD PHASE — 2026-08-11
+### Completion round R-16 — Today first-run expectation-setting + First-48 '3 introductions in 48 hours' definition (judge PASS 9.6)
+- **merge R-16 @ c580d3a** — `src/app/today/components/FirstRunGuide.tsx` (new) + `src/app/today/page.tsx` + `today.module.css` + `en.json`/`es.json` + `tests/unit/r16-today-firstrun.test.ts` (new): Today's briefing in its zero-data `first_day` state now shows a first-run guide — no new DB column or flag, the honest zero-`AgentRun` signal already is the trigger — explaining what the agents are about to do ("Harvest will draft introductions for the people you added; you review and approve each before anything sends", approve-before-send per §9.2) and defining the First-48 mission in §12.2's canonical wording: three community introductions to the closest-sphere A-list names within 48 hours of `gated_complete`; each disclosure is a native `<details>/<summary>` (keyboard/SR-operable, zero JS), all copy ships through `today.firstRun.*` in EN + ES (419 insertions, 6 files).
+- Coverage: `tests/unit/r16-today-firstrun.test.ts` (new, 258 lines).
+- QC: judge PASS 9.6 per completion-round verdict; full suite green on merged HEAD.
+- Ripple: version `2.0.0-build.T-R72`→`2.0.0-build.T-R73` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R73` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R72] — BUILD PHASE — 2026-08-11
 ### Completion round R-14 — CSV import UX: format guidance, downloadable template, upload-success confirmation (judge PASS 9.6)
 - **merge R-14 @ 7412726** — `src/app/onboarding/OnboardingFlow.tsx` + `components/ContactImportStep.tsx` + `onboarding.module.css` + `en.json`/`es.json` + `src/services/warm-market/vault/csv-template.ts` (new) + `tests/unit/r14-csv-ux.test.ts` (new): CSV import now shows format guidance, provides a downloadable CSV template, and confirms upload success with a count of imported contacts (693 insertions, 9 deletions, 7 files).
