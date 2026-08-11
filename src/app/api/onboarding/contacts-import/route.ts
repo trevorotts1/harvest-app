@@ -43,16 +43,19 @@ export const dynamic = 'force-dynamic';
 
 const ALL_ROLES = Object.values(Role);
 
-// The only sources THIS route (onboarding-time) ever accepts — CSV (pre-existing) plus the two
-// native-shell-only sources T-58 adds. Deliberately narrower than the general `/api/contacts/import`
-// route's `VALID_SOURCES` (which also allows MANUAL/MOBILE/SOCIAL/SYNC/GOOGLE_OAUTH): the O-7
-// "contacts" onboarding screen only ever offers CSV, native, or manual-one-at-a-time (which never
-// calls this API at all — see OnboardingFlow.tsx's `onAddManually`), so a request naming any other
-// source here is always either a bug or a forged call, not a real product path.
+// The only sources THIS route (onboarding-time) ever accepts — CSV (pre-existing), the two
+// native-shell-only sources T-58 adds, and MANUAL (R-13's real one-at-a-time contact-entry form —
+// its POST carries `contacts`, exactly like the native sources, and `assertModalityAllowed` treats
+// it as a non-native source so it is web-safe by construction). Deliberately narrower than the
+// general `/api/contacts/import` route's `VALID_SOURCES` (which also allows MOBILE/SOCIAL/SYNC/
+// GOOGLE_OAUTH): the O-7 "contacts" onboarding screen only ever offers CSV, native, or manual, so
+// a request naming any other source here is always either a bug or a forged call, not a real
+// product path.
 const ONBOARDING_VALID_SOURCES: ReadonlySet<string> = new Set([
   ContactSource.CSV,
   ContactSource.IOS_NATIVE,
   ContactSource.ANDROID_NATIVE,
+  ContactSource.MANUAL,
 ]);
 
 interface OnboardingImportBody {
@@ -92,8 +95,8 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
     return NextResponse.json(
       {
         error:
-          '"contacts" must be an array of already-mapped rows for a native import — see ' +
-          'native-contacts-adapter.ts\'s mapNativeContactToRow.',
+          '"contacts" must be an array of already-mapped rows for a native or manual import — see ' +
+          'native-contacts-adapter.ts\'s mapNativeContactToRow (native) or ManualAddStep (manual).',
         code: 'CONTACTS_REQUIRED',
       },
       { status: 400 }
@@ -114,11 +117,16 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, session) 
 
   // CSV always ran as `clientPlatform: 'web'` before T-58 (onboarding's CSV path is web-only) — kept
   // as the fallback default so an existing caller that never declares a platform is unaffected.
-  // Native sources have NO safe default: `VaultService.assertModalityAllowed` must see the caller's
-  // OWN declared 'ios'/'android' (via `resolveClientPlatform`, the same header/body convention
-  // `/api/contacts/import` already uses) or it fails closed with `ModalityNotAllowedError` below.
+  // R-13: MANUAL is web-reachable exactly like CSV (the one-at-a-time form is a web surface;
+  // `assertModalityAllowed` refuses only the native-shell sources, so a MANUAL caller needs no
+  // declared platform either). Native sources have NO safe default:
+  // `VaultService.assertModalityAllowed` must see the caller's OWN declared 'ios'/'android' (via
+  // `resolveClientPlatform`, the same header/body convention `/api/contacts/import` already uses)
+  // or it fails closed with `ModalityNotAllowedError` below.
   const clientPlatform =
-    source === ContactSource.CSV ? (resolveClientPlatform(req, body) ?? 'web') : resolveClientPlatform(req, body);
+    source === ContactSource.CSV || source === ContactSource.MANUAL
+      ? (resolveClientPlatform(req, body) ?? 'web')
+      : resolveClientPlatform(req, body);
 
   const vaultService = new VaultService(prisma as unknown as VaultPrismaClient);
 

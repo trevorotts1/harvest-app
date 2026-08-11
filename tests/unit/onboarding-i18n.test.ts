@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 
 import ContactImportStep from '@/app/onboarding/components/ContactImportStep';
+import ManualAddStep from '@/app/onboarding/components/ManualAddStep';
 import GdprConsentStep from '@/app/onboarding/components/GdprConsentStep';
 import IdentityStep from '@/app/onboarding/components/IdentityStep';
 import IntensityDial from '@/app/onboarding/components/IntensityDial';
@@ -90,6 +91,37 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
       'La importación desde el teléfono no está disponible aquí'
     );
     expect(textOf(renderEs(ContactImportStep, { beat: 'unsupported' }))).not.toMatch(/phone import isn/i);
+  });
+
+  // R-13 (refinements catalog 2026-07-28) — the real one-at-a-time contact-entry form translates
+  // too: a Spanish rep sees the Spanish form, and no English leaks into it.
+  test('ManualAddStep — headline, field labels, placeholders, CTAs, and the added confirmation translate', () => {
+    const en = textOf(renderEn(ManualAddStep, { name: '', onNameChange: () => {}, phone: '', onPhoneChange: () => {}, email: '', onEmailChange: () => {} }));
+    const es = textOf(renderEs(ManualAddStep, { name: '', onNameChange: () => {}, phone: '', onPhoneChange: () => {}, email: '', onEmailChange: () => {} }));
+    expect(en).toContain('Add contacts one at a time');
+    expect(en).toContain('Name');
+    expect(en).toContain('Phone');
+    expect(en).toContain('Email');
+    expect(en).toContain('Add contact');
+    expect(en).toContain('Done — see my field');
+    expect(en).toContain('Cancel');
+    expect(es).toContain('Agrega contactos uno a la vez');
+    expect(es).toContain('Nombre');
+    expect(es).toContain('Teléfono');
+    expect(es).toContain('Correo electrónico');
+    expect(es).toContain('Agregar contacto');
+    expect(es).toContain('Listo — ver mi campo');
+    expect(es).toContain('Cancelar');
+    expect(es).not.toMatch(/Add contacts one at a time/);
+
+    const enConfirmed = textOf(
+      renderEn(ManualAddStep, { name: '', onNameChange: () => {}, phone: '', onPhoneChange: () => {}, email: '', onEmailChange: () => {}, lastAddedName: 'Jamie Rivera' })
+    );
+    const esConfirmed = textOf(
+      renderEs(ManualAddStep, { name: '', onNameChange: () => {}, phone: '', onPhoneChange: () => {}, email: '', onEmailChange: () => {}, lastAddedName: 'Jamie Rivera' })
+    );
+    expect(enConfirmed).toContain('Added Jamie Rivera to your community');
+    expect(esConfirmed).toContain('Se agregó Jamie Rivera a tu comunidad');
   });
 
   test('IdentityStep — headline, photo actions, field labels, and caption translate', () => {

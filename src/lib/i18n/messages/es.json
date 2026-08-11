@@ -1305,7 +1305,23 @@
         "headline": "La importación desde el teléfono no está disponible aquí",
         "lede": "Importar desde tu teléfono solo funciona en la app de Harvest. Usa CSV o agrega contactos uno a la vez."
       },
-      "csvFileInputAria": "Elige un archivo CSV para importar"
+      "csvFileInputAria": "Elige un archivo CSV para importar",
+      "manual": {
+        "headline": "Agrega contactos uno a la vez",
+        "lede": "Escribe a las personas que ya conoces — puedes agregar tantas como quieras antes de continuar.",
+        "nameLabel": "Nombre",
+        "namePlaceholder": "p. ej. Jamie Rivera",
+        "phoneLabel": "Teléfono",
+        "phonePlaceholder": "p. ej. 312-555-0100",
+        "emailLabel": "Correo electrónico",
+        "emailPlaceholder": "p. ej. jamie@example.com",
+        "addCta": "Agregar contacto",
+        "addedStatus": "Se agregó {name} a tu comunidad",
+        "doneCta": "Listo — ver mi campo",
+        "cancelCta": "Cancelar",
+        "savingStatus": "Agregando…",
+        "saveFailedGeneric": "No pudimos agregar ese contacto en este momento. Intenta de nuevo, por favor."
+      }
     },
     "identity": {
       "headline": "Completemos tus datos",
