@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R67] — BUILD PHASE — 2026-08-11
+### Completion round R-04 — photo upload: no auto-skip, source choice, reachable via back (judge PASS 9.1)
+- **merge R-04 @ 34dadb0** — `src/app/onboarding/OnboardingFlow.tsx` + `components/IdentityStep.tsx` + `onboarding.module.css`: real photo upload with source chooser and explicit Skip — the step no longer auto-skips, the photo source (camera vs gallery) is chosen, and the step is reachable via Back navigation (577 insertions, 35 deletions, 8 files).
+- Coverage: `tests/unit/r04-photo-upload.test.ts` (new, 354 lines, 15 cases — render contracts, mounted no-auto-advance behavior, source-scan wiring, reachability + i18n parity); `r03-back-nav.test.ts` + `onboarding-ui.test.ts` updated to the real file-selection path.
+- QC: judge PASS 9.1 per completion-round verdict; typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R66`→`2.0.0-build.T-R67` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R67` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R66] — BUILD PHASE — 2026-08-11
 ### Completion round R-03 — reliable back navigation across onboarding steps (judge PASS 9.4)
 - **merge R-03 @ e8beed4** — `src/app/onboarding/OnboardingFlow.tsx` + `flow-model.ts`: reliable back navigation across onboarding steps (Back goes to the previous completed step, never to a not-yet-visited or skipped step, never advancing forward), step-history model added; en/es i18n strings adjusted; wiring tests updated (222 insertions in OnboardingFlow.tsx, 18 in flow-model.ts, 336-line new `tests/unit/r03-back-nav.test.ts`, 6 files).
