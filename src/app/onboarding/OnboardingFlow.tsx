@@ -39,7 +39,6 @@ import type { SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-why
 import { matchSponsor, type SponsorMatchOutcome, type SponsorCandidate } from '@/services/onboarding/wp01/sponsor-matching';
 import { sponsorStepSkippedForRole } from '@/services/onboarding/wp01/pairing-policy';
 import { fetchSponsorCandidates, postSponsorDecision } from './sponsor-decision-client';
-import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
 import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/warm-market/hidden-earnings';
 import type { LicensingState } from '@/services/compliance/licensing';
 import { OnboardingStep } from '@/types/onboarding';
@@ -112,8 +111,15 @@ export default function OnboardingFlow({
   // source (fail-closed default EXTERNAL/universal, exactly like the registration route). All
   // reads below (`sponsorOutcome` scoping, `hiddenEarnings` calibration, the O-3 screen, the
   // dense-track plan) consume that single prop.
-  const [solutionNumber, setSolutionNumber] = useState('');
-  const [solutionConfirmed, setSolutionConfirmed] = useState(false);
+  // R-05 — the solution number is captured EXACTLY ONCE, at registration (the first Primerica
+  // surface, `src/app/auth/page.tsx` → `POST /api/auth/register`, persisted encrypted at rest as
+  // `User.solution_number`). It is NEVER re-entered anywhere in this flow: there is NO local
+  // solution-number state here anymore. `hasSolutionNumber` is a server-provided PRESENCE probe
+  // (`GET /api/onboarding/status` — boolean only, never the value) used to render the O-3 screen's
+  // masked saved-state and to calibrate the Primerica overlay — the value itself is reused
+  // server-side for `ROLE_ORG_CONTEXT`'s format gate (T-R38's `decryptSolutionNumberFromStorage`
+  // fallback), never re-prompted.
+  const [hasSolutionNumber, setHasSolutionNumber] = useState(false);
   const [intensity, setIntensity] = useState<IntensitySetting | null>(null);
   // R-09 — the Seven Whys conversation now runs through the real API. `whyTurn` is the current
   // rendered turn (opening question → one question per turn → caring re-prompt → completed anchor),
@@ -132,7 +138,8 @@ export default function OnboardingFlow({
   const [whyResumeError, setWhyResumeError] = useState(false);
   // AC-5.1-5 (O-5 completion) — local UI state, defaults OFF; T-18's WhySession already defaults
   // use_in_outreach_consent=false and only its own setOutreachConsent may ever flip it, so this is
-  // purely the UI surface (no live wiring here, exactly like intensity/solutionNumber above).
+  // purely the UI surface (no live wiring here, exactly like intensity above — and note R-05: the
+  // solution number has NO local state here at all, it is captured once at registration).
   const [outreachConsent, setOutreachConsent] = useState(false);
   const [importBeat, setImportBeat] = useState<ImportBeat>('value');
   const [contactCount, setContactCount] = useState(0);
@@ -329,15 +336,25 @@ export default function OnboardingFlow({
   // calibrates once a confirmed, format-valid number is on file; a Primerica user who hasn't entered
   // one yet still gets the universal formula (§8.4's own "replacing... when a valid solution number
   // is present").
+  //
+  // R-05 — the number is never re-entered in this flow, so `hasValidSolutionNumber` is now derived
+  // from the SERVER-provided presence probe (`hasSolutionNumber`, from `GET /api/onboarding/status`,
+  // which decrypts the persisted registration-time value with the same fail-closed rule the `/step`
+  // reuse fallback uses) AND the org branch — never from a locally re-typed value. A persisted
+  // value can only exist if registration's own format gate already passed (§6.3:
+  // `checkSolutionNumberForOrg` before `encryptSolutionNumberForStorage`), so a decrypted value is
+  // format-valid by construction; the explicit Primerica check keeps the gate honest in the
+  // client (an EXTERNAL user can never calibrate the overlay, mirroring the org-gate law).
+  // A Primerica rep with no persisted number yet still gets the universal formula (§8.4's own
+  // "replacing... when a valid solution number is present").
   const hiddenEarnings: HiddenEarningsResult = useMemo(
     () =>
       computeHiddenEarnings({
         contactCount,
         orgType,
-        hasValidSolutionNumber:
-          solutionConfirmed && checkSolutionNumberForOrg(orgType, solutionNumber).formatValid,
+        hasValidSolutionNumber: hasSolutionNumber && orgType === OrgType.PRIMERICA,
       }),
-    [contactCount, orgType, solutionConfirmed, solutionNumber]
+    [contactCount, orgType, hasSolutionNumber]
   );
 
   // R-09 — Seven Whys engine wiring. The conversation's turns come from the real API
@@ -375,14 +392,28 @@ export default function OnboardingFlow({
   // T-R37 — resume: GET /status on mount. For a rep already on the seven_whys screen, also resume
   // the real conversation so a returning rep replays the open turn (uiux §5.1 O-5 "resume" state)
   // instead of restarting from level one.
+  //
+  // R-05 — the SAME status call also carries the server-provided `hasSolutionNumber` presence probe
+  // (boolean only — the persisted solution number's VALUE never crosses this API): it lets the O-3
+  // screen render the already-captured number's masked saved-state and lets the Primerica overlay
+  // calibration know a persisted number is on file — without ever re-asking the rep for the number.
+  // A fresh (pre-registration) mount has no session row, so the probe defaults to `false` and the
+  // O-3 screen shows the same mask with the honest unsaved aria (§6.10-4 either way).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const response = await fetch('/api/onboarding/status');
         if (!response.ok || cancelled) return;
-        const body = (await response.json()) as { currentStep?: OnboardingStep; completed?: boolean };
+        const body = (await response.json()) as {
+          currentStep?: OnboardingStep;
+          completed?: boolean;
+          hasSolutionNumber?: boolean;
+        };
         if (!body.currentStep || body.completed) return;
+        if (typeof body.hasSolutionNumber === 'boolean') {
+          setHasSolutionNumber(body.hasSolutionNumber);
+        }
         serverStepRef.current.current = body.currentStep;
         if (trackKindForRole(role) === 'dense') {
           if (body.currentStep === OnboardingStep.CONSENT_CAPTURE) setDenseScreen('consent');
@@ -539,8 +570,15 @@ export default function OnboardingFlow({
 
   // T-R37 — O-3 org gate's "meaningful advance": submits `ROLE_ORG_CONTEXT`. `validateStep` only
   // format-checks a solution number when the user's REAL, already-persisted `org_type` is PRIMERICA
-  // (read from the `User` row, not this submission) — sending it regardless (when present) keeps
-  // this call correct for that case without needing to know the DB value client-side.
+  // (read from the `User` row, not this submission).
+  //
+  // R-05 — the solution number is NEVER submitted from this flow: it was captured exactly once at
+  // registration and is persisted (encrypted) as `User.solution_number`. The payload therefore
+  // carries NO `solution_number`/`solutionNumber` — the `/step` route's T-R38 reuse fallback reads
+  // the persisted value back server-side (`decryptSolutionNumberFromStorage`) and hands the format
+  // gate the SAME value the rep already supplied, so the gate is satisfied without any re-prompt.
+  // A Primerica user with no persisted value gets the same honest 400 the old O-3 field would have
+  // produced (fail-closed — never fabricated).
   //
   // R-02 — the submitted org is ALWAYS the server-session determination (the `orgType` prop, whose
   // own registration route resolved it fail-closed). A tampered/unknown org can never be declared
@@ -548,16 +586,13 @@ export default function OnboardingFlow({
   // the persisted `User.org_type` (validateStep) — fail-closed either way.
   async function handleOrgContinue() {
     if (inFlightRef.current) return;
-    if (orgType === OrgType.PRIMERICA && solutionNumber && !solutionConfirmed) {
-      setSolutionConfirmed(true);
-    }
     inFlightRef.current = true;
     setOrgSubmitting(true);
     setOrgError(null);
     try {
       const result = await postOnboardingStep(
         OnboardingStep.ROLE_ORG_CONTEXT,
-        buildRoleOrgContextPayload(orgType, solutionNumber)
+        buildRoleOrgContextPayload(orgType, '')
       );
       if (!result.ok) {
         setOrgError(errorDisplay(t, result.code));
@@ -648,8 +683,13 @@ export default function OnboardingFlow({
 
   // T-R37 — the dense (upline/RVP/DUAL/ADMIN) track's "Finish setup": walks this role's REAL
   // `ROLE_STEP_MAP` (minus the trailing `CONSENT_CAPTURE`, submitted separately by the reused
-  // `GdprConsentStep` tail below) via `buildDenseTrackStepPlan` — see that function's own doc
-  // comment for the documented Primerica solution-number gap this dense UI cannot source data for.
+  // `GdprConsentStep` tail below) via `buildDenseTrackStepPlan`.
+  //
+  // R-05 — the dense track has NEVER carried a solution-number entry field, and the rep track's
+  // re-entry field is now gone too: the solution number is captured exactly once at registration
+  // and the `/step` route reuses the persisted value for `ROLE_ORG_CONTEXT`'s format gate (T-R38's
+  // `decryptSolutionNumberFromStorage` fallback). The plan is built with NO locally-held value —
+  // the server supplies the already-captured one.
   async function handleDenseFinish() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -657,7 +697,9 @@ export default function OnboardingFlow({
     setDenseError(null);
     try {
       // R-02 — the dense track's ROLE_ORG_CONTEXT step is built from the session-sourced org.
-      const plan = buildDenseTrackStepPlan(role, orgType, solutionNumber);
+      // R-05 — no solution number is ever submitted from this flow (captured once at registration;
+      // the server's T-R38 fallback reuses the persisted value for the format gate).
+      const plan = buildDenseTrackStepPlan(role, orgType, '');
       const outcome = await sendOrderedSteps(role, serverStepRef.current, plan);
       if (!outcome.ok) {
         setDenseError(errorDisplay(t, outcome.result.code));
@@ -963,16 +1005,13 @@ export default function OnboardingFlow({
 
       {/* R-02 — the O-3 org-context screen no longer asks "Where do you build?": the org is the
           persisted registration-time determination (the server-session `orgType` prop), so this
-          screen only renders the branch-shaped context for that org — the Primerica solution-number
-          capture, or the generic universal panel (zero Primerica strings). Never a second org
-          choice; never the Primerica-vs-other framing. */}
+          screen only renders the branch-shaped context for that org — the Primerica saved-state
+          panel (R-05: the already-captured solution number's MASK + not-verified caption, driven
+          by the server presence probe), or the generic universal panel (zero Primerica strings).
+          Never a second org choice; never the Primerica-vs-other framing; never a re-asked
+          solution number. */}
       {screen === 'org' && (
-        <OrgStep
-          orgType={orgType}
-          solutionNumber={solutionNumber}
-          onSolutionNumberChange={setSolutionNumber}
-          confirmed={solutionConfirmed}
-        />
+        <OrgStep orgType={orgType} hasSolutionNumber={hasSolutionNumber} />
       )}
       {screen === 'org' && (
         <div className={styles.actions}>

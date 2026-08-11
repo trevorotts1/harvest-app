@@ -301,21 +301,22 @@ describe('(c) Org gate UI (§17.1 / AC-5.1-2 / §6.10-4)', () => {
     const html = render(
       createElement(OrgBranchPanel, {
         orgContext: buildOrgContext(OrgType.PRIMERICA),
-        solutionNumber: '',
       })
     );
     expect(html).toContain(SOLUTION_NUMBER_NOT_VERIFIED_CAPTION);
   });
 
-  test('TEETH: after entry, the solution number is shown ONLY as the mask, never the raw digits', () => {
+  // R-05 — the solution number is captured exactly ONCE (at registration); the O-3 panel is a
+  // SAVED-STATE surface: mask + not-verified caption, never a re-entry field, never the digits.
+  test('R-05 TEETH: the Primerica saved-state shows ONLY the mask and never a re-entry input', () => {
     const html = render(
       createElement(OrgBranchPanel, {
         orgContext: buildOrgContext(OrgType.PRIMERICA),
-        solutionNumber: '1234567',
-        confirmed: true,
+        hasSolutionNumber: true,
       })
     );
     expect(html).toContain(SOLUTION_NUMBER_MASK);
+    expect(html).not.toContain('<input'); // no re-entry field on the O-3 surface anymore
     expect(html).not.toContain('1234567'); // the raw declared number is never echoed back
   });
 });

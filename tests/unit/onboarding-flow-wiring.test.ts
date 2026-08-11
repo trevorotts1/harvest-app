@@ -282,7 +282,9 @@ describe('R-01 wiring — OnboardingFlow.tsx consumes the role-keyed no-pairing 
 
   test('R-02: the flow owns NO org-selection state — the O-3 continue handler builds its payload from the session org prop', () => {
     const handleOrgContinueBody = extractFunctionBody(flowSrc, 'handleOrgContinue');
-    expect(handleOrgContinueBody).toContain('buildRoleOrgContextPayload(orgType, solutionNumber)');
+    // R-05 — the payload is built from the session org with NO locally-held solution number (it is
+    // captured once at registration; the server's T-R38 fallback reuses the persisted value).
+    expect(handleOrgContinueBody).toContain('buildRoleOrgContextPayload(orgType, ');
     // No client-settable org exists anywhere in the shell anymore (tamper can't even be attempted).
     expect(flowSrc).not.toContain('setOrgType');
     expect(flowSrc).not.toContain('onSelectOrgType');
