@@ -779,3 +779,55 @@
 .receiptsDetails[open] > summary .receiptChevron {
   transform: rotate(90deg);
 }
+
+/* ==========================================================================
+   R-16 (refinements catalog) — first-run expectation-setting guide on Today.
+   Rendered ONLY while the rep's briefing is in the zero-data `first_day`
+   state (no AgentRun rows yet — the honest first-run signal; see
+   src/services/mission-control/zones/briefing.ts). All copy ships through the
+   i18n catalog (`today.firstRun.*`); growth-tolerant (no fixed widths, no
+   ellipsis — Spanish runs ~25% longer, uiux §6.2).
+   ========================================================================== */
+.firstRunGuide {
+  border-left: 4px solid var(--color-action);
+  padding-left: var(--space-4);
+}
+.firstRunHeading {
+  margin: 0;
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+}
+.firstRunSection {
+  margin: var(--space-2) 0 0;
+}
+.firstRunSection > summary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.firstRunSection > summary::-webkit-details-marker {
+  display: none;
+}
+.firstRunSection > summary:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.firstRunChevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: var(--text-secondary);
+}
+.firstRunSection[open] > summary .firstRunChevron {
+  transform: rotate(90deg);
+}
+.firstRunBody {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  line-height: var(--type-body-line);
+}
+.firstRunBody + .firstRunBody {
+  margin-top: var(--space-1);
+}
