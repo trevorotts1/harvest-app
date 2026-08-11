@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R68] — BUILD PHASE — 2026-08-11
+### Completion round R-06 — intensity dial: clear AI-agent copy, pre-selection detail (judge PASS 9.7)
+- **merge R-06 @ 3e511b1** — `src/app/onboarding/components/IntensityDial.tsx` + `onboarding.module.css` + `src/lib/i18n/messages/en.json` + `es.json`: the dial copy now names the HARVEST AI AGENTS in the headline, explains the "2 Hour CEO" relevance in the caption (outreach cadence, daily volume, cost ceiling), and renders every level's description BEFORE selection (new `.dialWhat` stacked rows, no picking required) while keeping the post-pick consequence panel; copy-only change — `intensity_setting` values and cadence/cost logic untouched (2/5/10 per `SCHEDULED_ACTION_CAP_BY_INTENSITY`). Primerica-free on the universal step (103 insertions, 14 deletions, 7 files).
+- Coverage: `tests/unit/onboarding-ui.test.ts` (3 new R-06 cases — Harvest AI agents + 2 Hour CEO headline/lede, all three level descriptions render pre-selection, post-pick panel retained), `onboarding-i18n.test.ts` + `r03-back-nav.test.ts` updated to the new copy.
+- QC: judge PASS 9.7 per completion-round verdict; typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R67`→`2.0.0-build.T-R68` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R68` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R67] — BUILD PHASE — 2026-08-11
 ### Completion round R-04 — photo upload: no auto-skip, source choice, reachable via back (judge PASS 9.1)
 - **merge R-04 @ 34dadb0** — `src/app/onboarding/OnboardingFlow.tsx` + `components/IdentityStep.tsx` + `onboarding.module.css`: real photo upload with source chooser and explicit Skip — the step no longer auto-skips, the photo source (camera vs gallery) is chosen, and the step is reachable via Back navigation (577 insertions, 35 deletions, 8 files).
