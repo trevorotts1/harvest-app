@@ -19,6 +19,12 @@
 
 import StatusMessage from '@/components/StatusMessage';
 import type { NativeContactCandidate } from '@/services/warm-market/vault/native-contacts-adapter';
+import {
+  CSV_TEMPLATE_EXAMPLE,
+  CSV_TEMPLATE_FILENAME,
+  CSV_TEMPLATE_HEADERS,
+  buildContactCsvTemplate,
+} from '@/services/warm-market/vault/csv-template';
 import styles from '../onboarding.module.css';
 import { useT } from '@/app/locale-context';
 
@@ -27,14 +33,38 @@ import { useT } from '@/app/locale-context';
 // (the catalog row's observed navigation loop). It is rendered by OnboardingFlow.tsx, not by this
 // component, so ImportBeat gains the member and this component keeps rendering only the import
 // beats it owns.
-export type ImportBeat = 'value' | 'preview' | 'permission' | 'select' | 'denied' | 'unsupported' | 'manual';
+//
+// R-14 — `'csv-format'` is the CSV FORMAT-GUIDANCE beat (the catalog row's (a): what columns the
+// parser accepts, with examples + a downloadable template, (b)) and `'csv-outcome'` the CSV
+// UPLOAD-SUCCESS beat (the catalog row's (c): filename "sitting" + the route's real
+// imported/merged/skipped counts, with error feedback for malformed rows, before advancing). Both
+// are rendered BY THIS component (unlike 'manual'), gated to the CSV path only.
+export type ImportBeat = 'value' | 'preview' | 'permission' | 'select' | 'denied' | 'unsupported' | 'manual' | 'csv-format' | 'csv-outcome';
+
+/** R-14 — the confirmation data a completed CSV import shows (taken verbatim from the
+ *  `/api/onboarding/contacts-import` response — never fabricated client-side). */
+export interface CsvImportOutcome {
+  /** The file the rep actually selected ("sitting" on the confirmation, per the catalog row). */
+  fileName: string;
+  importedCount: number;
+  mergedCount: number;
+  skippedCount: number;
+  /** True when the route reported malformed rows (errorRows) — surfaced as honest error feedback
+   *  alongside the counts, never silently dropped. */
+  hadErrorRows: boolean;
+}
 
 export interface ContactImportStepProps {
   beat: ImportBeat;
   onAdvance?: () => void;
   onRequestPermission?: () => void;
   onDeny?: () => void;
+  /** R-14 — opens the REAL OS file picker (used by the 'csv-format' beat's "Import a CSV" button;
+   *  the denied/unsupported beats' "Import a CSV" button goes through `onViewCsvFormat` first). */
   onUseCsv?: () => void;
+  /** R-14 — from the phone-import fallback beats, "Import a CSV" leads to the format-guidance beat
+   *  ('csv-format': columns + downloadable template) instead of straight to the picker. */
+  onViewCsvFormat?: () => void;
   onAddManually?: () => void;
   /** T-R30 (parity GAP 1): true while a real CSV import (file picker → Vault ingestion) is
    *  in flight — relabels the CSV button and disables it against a double-submit. */
@@ -60,6 +90,12 @@ export interface ContactImportStepProps {
    *  from a plain permission refusal, which has no error text at all (the rep didn't do anything
    *  wrong; something broke). Rendered alongside the 'denied' beat's fallback actions. */
   nativeImportError?: string | null;
+  /** R-14 — the CSV import's upload-success data (the route's real response). Set on the
+   *  'csv-outcome' beat; the confirmation then renders the filename + real counts before the rep
+   *  continues. */
+  csvOutcome?: CsvImportOutcome | null;
+  /** R-14 — the 'csv-outcome' beat's Continue button (advances onward into the flow). */
+  onCsvOutcomeContinue?: () => void;
 }
 
 const EMPTY_CANDIDATES: NativeContactCandidate[] = [];
@@ -71,6 +107,7 @@ export default function ContactImportStep({
   onRequestPermission,
   onDeny,
   onUseCsv,
+  onViewCsvFormat,
   onAddManually,
   csvImporting = false,
   csvError = null,
@@ -83,8 +120,123 @@ export default function ContactImportStep({
   onCancelNativeSelection,
   nativeImporting = false,
   nativeImportError = null,
+  csvOutcome = null,
+  onCsvOutcomeContinue,
 }: ContactImportStepProps) {
   const t = useT();
+
+  // R-14 — the (b) downloadable template: a client-side-generated CSV file whose header line is
+  // EXACTLY the canonical header set the real parser accepts (csv-parser.ts's `HEADER_ALIASES`
+  // keys — see csv-template.ts). Built at click time with the same createObjectURL → anchor.click →
+  // revokeObjectURL pattern the app's data-rights export already uses (no library, no network).
+  function handleDownloadTemplate() {
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+    const blob = new Blob([buildContactCsvTemplate()], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = CSV_TEMPLATE_FILENAME;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // R-14 — the (a) on-screen format guidance: the exact columns the parser accepts (from the SAME
+  // `CSV_TEMPLATE_HEADERS` the downloadable template uses — one source of truth), each marked
+  // required/optional, with a real example value.
+  if (beat === 'csv-format') {
+    const required = CSV_TEMPLATE_HEADERS.slice(0, 1);
+    const optional = CSV_TEMPLATE_HEADERS.slice(1);
+    return (
+      <div className={styles.stepInner}>
+        <h1 className={styles.headline}>{t('onboarding.contactImport.csv.formatTitle')}</h1>
+        <div className={styles.card}>
+          <div className={styles.csvFormatGuide}>
+            <p className={styles.lede}>{t('onboarding.contactImport.csv.formatLede')}</p>
+            <table className={styles.csvFormatTable}>
+              <thead>
+                <tr>
+                  <th scope="col">{t('onboarding.contactImport.csv.columnsLabel')}</th>
+                  <th scope="col">{t('onboarding.contactImport.csv.requiredLabel')}</th>
+                  <th scope="col">{t('onboarding.contactImport.csv.exampleLabel')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {required.map((column) => (
+                  <tr key={column}>
+                    <td>
+                      <span className={styles.csvColumnName}>{column}</span>
+                    </td>
+                    <td>
+                      <span className={styles.csvRequiredTag}>{t('onboarding.contactImport.csv.requiredLabel')}</span>
+                    </td>
+                    <td>
+                      <span className={styles.csvExampleText}>{CSV_TEMPLATE_EXAMPLE[CSV_TEMPLATE_HEADERS.indexOf(column)]}</span>
+                    </td>
+                  </tr>
+                ))}
+                {optional.map((column) => (
+                  <tr key={column}>
+                    <td>
+                      <span className={styles.csvColumnName}>{column}</span>
+                    </td>
+                    <td>
+                      <span className={styles.csvOptionalTag}>{t('onboarding.contactImport.csv.optionalLabel')}</span>
+                    </td>
+                    <td>
+                      <span className={styles.csvExampleText}>{CSV_TEMPLATE_EXAMPLE[CSV_TEMPLATE_HEADERS.indexOf(column)]}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className={styles.csvLimitsCaption}>{t('onboarding.contactImport.csv.limitsCaption')}</p>
+          </div>
+        </div>
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleDownloadTemplate}>
+            {t('onboarding.contactImport.csv.downloadTemplateCta')}
+          </button>
+          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onUseCsv} disabled={csvImporting}>
+            {csvImporting ? t('onboarding.contactImport.denied.importingCta') : t('onboarding.contactImport.denied.importCsvCta')}
+          </button>
+          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={onAddManually}>
+            {t('onboarding.contactImport.denied.addManuallyCta')}
+          </button>
+        </div>
+        {csvError && <StatusMessage>{csvError}</StatusMessage>}
+      </div>
+    );
+  }
+
+  // R-14 — the (c) upload-success state: the selected file's name "sitting" on the screen plus the
+  // route's REAL imported/merged/skipped counts (rendered from `csvOutcome`, never faked) and,
+  // when the route reported malformed rows, honest error feedback — only then does the rep continue
+  // onward into the flow (the catalog row's "silently advanced with nothing shown" gap). The card
+  // is REAL information (not decorative, unlike the preview beat's) — readable by assistive tech,
+  // and `role="status"` announces the counts as a polite status change.
+  if (beat === 'csv-outcome') {
+    return (
+      <div className={styles.stepInner}>
+        <h1 className={styles.headline}>{t('onboarding.contactImport.csvOutcome.headline')}</h1>
+        <div className={styles.card} role="status">
+          <ul className={styles.csvOutcomeList}>
+            <li className={styles.csvOutcomeFilename}>{t('onboarding.contactImport.csvOutcome.filenameCaption', { fileName: csvOutcome?.fileName ?? '' })}</li>
+            <li>{t('onboarding.contactImport.csvOutcome.importedLine', { count: csvOutcome?.importedCount ?? 0 })}</li>
+            <li>{t('onboarding.contactImport.csvOutcome.mergedLine', { count: csvOutcome?.mergedCount ?? 0 })}</li>
+            <li>{t('onboarding.contactImport.csvOutcome.skippedLine', { count: csvOutcome?.skippedCount ?? 0 })}</li>
+            {csvOutcome?.hadErrorRows && <li className={styles.csvOutcomeSkippedHint}>{t('onboarding.contactImport.csvOutcome.skippedHint')}</li>}
+          </ul>
+        </div>
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={onCsvOutcomeContinue}>
+            {t('onboarding.contactImport.csvOutcome.continueCta')}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (beat === 'value') {
     return (
@@ -198,7 +350,7 @@ export default function ContactImportStep({
           <button
             type="button"
             className={`${styles.btn} ${styles.btnSecondary}`}
-            onClick={onUseCsv}
+            onClick={onViewCsvFormat}
             disabled={csvImporting}
           >
             {csvImporting ? t('onboarding.contactImport.denied.importingCta') : t('onboarding.contactImport.denied.importCsvCta')}
@@ -221,7 +373,7 @@ export default function ContactImportStep({
           <button
             type="button"
             className={`${styles.btn} ${styles.btnSecondary}`}
-            onClick={onUseCsv}
+            onClick={onViewCsvFormat}
             disabled={csvImporting}
           >
             {csvImporting ? t('onboarding.contactImport.denied.importingCta') : t('onboarding.contactImport.denied.importCsvCta')}
