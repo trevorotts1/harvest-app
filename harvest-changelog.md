@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R66] — BUILD PHASE — 2026-08-11
+### Completion round R-03 — reliable back navigation across onboarding steps (judge PASS 9.4)
+- **merge R-03 @ e8beed4** — `src/app/onboarding/OnboardingFlow.tsx` + `flow-model.ts`: reliable back navigation across onboarding steps (Back goes to the previous completed step, never to a not-yet-visited or skipped step, never advancing forward), step-history model added; en/es i18n strings adjusted; wiring tests updated (222 insertions in OnboardingFlow.tsx, 18 in flow-model.ts, 336-line new `tests/unit/r03-back-nav.test.ts`, 6 files).
+- Coverage: `tests/unit/r03-back-nav.test.ts` (new, 336 lines), updated `tests/unit/onboarding-flow-wiring.test.ts`.
+- QC: judge PASS 9.4 per completion-round verdict; typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R65`→`2.0.0-build.T-R66` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R66` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R65] — BUILD PHASE — 2026-08-10
 ### Completion round R-05 — solution number captured once, reused masked (judge PASS 9.4)
 - **merge R-05 @ 837eb5c** — `src/app/api/onboarding/status/route.ts` + `src/app/onboarding/OnboardingFlow.tsx` + `components/OrgStep.tsx` + `onboarding-step-client.ts`: the solution number is captured ONCE (at the step where the rep enters it) and later steps reuse that captured value instead of re-prompting; read-backs surface it masked / not-verified until the verification step; en/es i18n strings adjusted (510 insertions, 113 deletions, 11 files).
