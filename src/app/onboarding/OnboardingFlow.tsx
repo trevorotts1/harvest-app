@@ -56,6 +56,7 @@ import UplineTrack from './components/UplineTrack';
 import VisionSplash from './components/VisionSplash';
 import {
   nextScreen,
+  prevScreenForRole,
   repScreensForRole,
   trackKindForRole,
   type OnboardingScreen,
@@ -180,6 +181,14 @@ export default function OnboardingFlow({
   // a duplicate click while a request is in flight is simply ignored, not queued).
   const inFlightRef = useRef(false);
 
+  // R-03 — the screens whose step chain has ALREADY been submitted successfully once (and is
+  // therefore persisted server-side). When a rep goes BACK and then forward again, a re-advance
+  // from a screen they have already cleared POSTs nothing — it just walks forward again
+  // (re-POSTing the same current step would 400 on the `/step` route's own progression check).
+  // The guard only short-circuits AFTER a previously confirmed success: the first-time path —
+  // and every failure path, which never marks the screen — is byte-for-byte the pre-existing one.
+  const clearedStepChainsRef = useRef<Set<string>>(new Set());
+
   const [identitySubmitting, setIdentitySubmitting] = useState(false);
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [orgSubmitting, setOrgSubmitting] = useState(false);
@@ -284,6 +293,12 @@ export default function OnboardingFlow({
   // sponsor id against its own matcher's pick before persisting anything, so a tampered choice
   // fails closed with a 409 here.
   async function persistSponsorDecision(decision: 'accept' | 'join_waitlist' | 'start_paid' | 'no_upline_yet') {
+    // R-03 — a back-then-forward re-advance from the sponsor screen walks again without
+    // re-running any decision (the recorded choice is already durable on the session row).
+    if (isStepChainCleared('sponsor')) {
+      advance();
+      return;
+    }
     if (inFlightRef.current || sponsorSubmitting) return;
     inFlightRef.current = true;
     setSponsorSubmitting(true);
@@ -305,6 +320,10 @@ export default function OnboardingFlow({
         }
         return;
       }
+      // R-03 — the sponsor decision is persisted server-side by ITS OWN POST (not a /step call);
+      // marking the screen cleared lets a back-then-forward re-advance walk again without
+      // re-running any decision. The recorded choice is already durable on the session row.
+      clearedStepChainsRef.current.add('sponsor');
       advance();
     } catch {
       setSponsorError(t('errors.generic'));
@@ -464,6 +483,33 @@ export default function OnboardingFlow({
     else router.push('/today');
   }
 
+  // R-03 (refinements catalog 2026-07-28) — back navigation. Pure UI-state walk (the role-keyed
+  // `prevScreenForRole` mirror of `advance()`'s own role-keyed walk): no `/step` call is ever
+  // fired backward, so the session's persisted `current_step` NEVER moves backwards — a back
+  // press is not a completion/decision (nothing server-side is re-run), and a forward re-advance
+  // after going back re-submits exactly the same steps the rep already cleared (the /step route's
+  // own progression check makes a re-advance of the CURRENT step a no-op advance to the next).
+  // Entered local state — name/email/photo/intensity/whyPairs/contacts/consent — is NEVER
+  // cleared here: going back re-renders a step with its persisted values, and going forward again
+  // reuses them (§5.1 resume-exact behavior, AC-5.1-11). The sponsor pool is deliberately NOT
+  // reset either — the fetched candidates and the matcher's verdict stay on screen when the rep
+  // returns to re-choose (a stale-verdict risk is impossible: the server re-derives the pick
+  // before persisting any accept). In-flight requests are never interrupted mid-flight by a back
+  // press (a duplicate-submit risk is impossible: `inFlightRef` still guards every advance).
+  function goBack() {
+    const prev = prevScreenForRole(role, screen);
+    if (prev) setScreen(prev);
+  }
+
+  // R-03 — whether this screen's step chain has already been submitted successfully in THIS
+  // client session (see `clearedStepChainsRef`). `string` (not `OnboardingScreen`) so the dense
+  // track's checklist pseudo-screen participates too. Screens that fire no `/step` call are never
+  // "cleared" this way — for them this always returns false and the handlers run exactly as
+  // before. Marked AFTER a confirmed success, never before/on a failure.
+  function isStepChainCleared(s: string): boolean {
+    return clearedStepChainsRef.current.has(s);
+  }
+
   // T-21R (§6.10-10) — the ONLY call site that actually grants GDPR consent: hits the live,
   // session-authenticated route, which calls WP11's `ConsentManager` and durably records the
   // versioned/timestamped `ComplianceConsent` row + `User.gdpr_consent = true`. Never advances past
@@ -481,6 +527,12 @@ export default function OnboardingFlow({
   // on retry — WP11's consent write, and this route's own CONSENT_CAPTURE branch, are both
   // idempotent-safe to resend).
   async function handleGrantGdprConsent() {
+    // R-03 — see handleIdentityAdvance's R-03 note (back-then-forward re-advance walks again).
+    if (isStepChainCleared('consent')) {
+      if (trackKindForRole(role) === 'dense') setDenseScreen('first48');
+      else advance();
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setConsentSubmitting(true);
@@ -502,6 +554,8 @@ export default function OnboardingFlow({
         return;
       }
       serverStepRef.current.current = stepResult.currentStep;
+      // R-03 — confirmed success (see handleIdentityAdvance's R-03 note).
+      clearedStepChainsRef.current.add('consent');
       if (trackKindForRole(role) === 'dense') setDenseScreen('first48');
       else advance();
     } catch {
@@ -548,6 +602,12 @@ export default function OnboardingFlow({
   // registration, before this UI ever mounts; there is no route to revise them from here — a
   // separate, pre-existing gap this fix does not extend its scope to close).
   async function handleIdentityAdvance() {
+    // R-03 — a back-then-forward re-advance from an already-cleared screen walks again instead of
+    // re-POSTing (the /step progression check would 400 the same step a second time).
+    if (isStepChainCleared('identity')) {
+      advance();
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setIdentitySubmitting(true);
@@ -561,6 +621,9 @@ export default function OnboardingFlow({
         setIdentityError(errorDisplay(t, outcome.result.code));
         return;
       }
+      // R-03 — confirmed success: this screen's chain is persisted server-side, so a back-then-
+      // forward re-advance walks again instead of re-POSTing (see goBack's contract note).
+      clearedStepChainsRef.current.add('identity');
       advance();
     } finally {
       inFlightRef.current = false;
@@ -585,6 +648,11 @@ export default function OnboardingFlow({
   // here: the payload is built from the session org, and the server independently re-checks against
   // the persisted `User.org_type` (validateStep) — fail-closed either way.
   async function handleOrgContinue() {
+    // R-03 — see handleIdentityAdvance's R-03 note (back-then-forward re-advance walks again).
+    if (isStepChainCleared('org')) {
+      advance();
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setOrgSubmitting(true);
@@ -599,6 +667,8 @@ export default function OnboardingFlow({
         return;
       }
       serverStepRef.current.current = result.currentStep;
+      // R-03 — confirmed success (see handleIdentityAdvance's R-03 note).
+      clearedStepChainsRef.current.add('org');
       advance();
     } finally {
       inFlightRef.current = false;
@@ -651,6 +721,11 @@ export default function OnboardingFlow({
   // literal), and the step-chain payload is built from `whyPairs` — the actual (question, answer)
   // pairs the rep submitted through the conversation API, in the real conversation's order.
   async function handleSevenWhysContinue() {
+    // R-03 — see handleIdentityAdvance's R-03 note (back-then-forward re-advance walks again).
+    if (isStepChainCleared('seven_whys')) {
+      advance();
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setSevenWhysSubmitting(true);
@@ -674,6 +749,8 @@ export default function OnboardingFlow({
         setSevenWhysError(errorDisplay(t, outcome.result.code));
         return;
       }
+      // R-03 — confirmed success (see handleIdentityAdvance's R-03 note).
+      clearedStepChainsRef.current.add('seven_whys');
       advance();
     } finally {
       inFlightRef.current = false;
@@ -691,6 +768,12 @@ export default function OnboardingFlow({
   // `decryptSolutionNumberFromStorage` fallback). The plan is built with NO locally-held value —
   // the server supplies the already-captured one.
   async function handleDenseFinish() {
+    // R-03 — see handleIdentityAdvance's R-03 note (the dense checklist's chain is the plan
+    // `buildDenseTrackStepPlan` submits; a re-advance after going back walks again).
+    if (isStepChainCleared('checklist')) {
+      setDenseScreen('consent');
+      return;
+    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setDenseSubmitting(true);
@@ -705,6 +788,8 @@ export default function OnboardingFlow({
         setDenseError(errorDisplay(t, outcome.result.code));
         return;
       }
+      // R-03 — confirmed success (see handleIdentityAdvance's R-03 note).
+      clearedStepChainsRef.current.add('checklist');
       setDenseScreen('consent');
     } finally {
       inFlightRef.current = false;
@@ -947,6 +1032,8 @@ export default function OnboardingFlow({
   // for why a second consent surface was never built for this track). `onFinish` is only offered by
   // `UplineTrack` at all once `evaluateTrackCompletion` allows it (the §16.5 licensure hard-block).
   if (trackKindForRole(role) === 'dense') {
+    // R-03 — dense-track back: first48 → consent → checklist (sub-state walk mirroring the rep
+    // track's screen walk; no back on the first surface). Landings keep the entered local state.
     if (denseScreen === 'consent') {
       return (
         <main className={styles.onboarding}>
@@ -957,6 +1044,11 @@ export default function OnboardingFlow({
             submitting={consentSubmitting}
             error={consentError}
           />
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => setDenseScreen('checklist')}>
+              {t('common.back')}
+            </button>
+          </div>
         </main>
       );
     }
@@ -964,6 +1056,11 @@ export default function OnboardingFlow({
       return (
         <main className={styles.onboarding}>
           <First48Handoff onShowToday={handleShowToday} submitting={completeSubmitting} error={completeError} />
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => setDenseScreen('consent')}>
+              {t('common.back')}
+            </button>
+          </div>
         </main>
       );
     }
@@ -1000,6 +1097,12 @@ export default function OnboardingFlow({
             <StatusMessage tone="polite">{t('onboarding.identity.submittingStatus')}</StatusMessage>
           ) : null}
           {identityError ? <StatusMessage>{identityError}</StatusMessage> : null}
+          {/* R-03 — back to the O-1 vision splash; the entered name/email/photo state stays put. */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
         </>
       )}
 
@@ -1015,6 +1118,11 @@ export default function OnboardingFlow({
       )}
       {screen === 'org' && (
         <div className={styles.actions}>
+          {/* R-03 — back to the O-2 identity step (same-goals edit: re-render with the entered
+              values intact, then Continue again re-advances). */}
+          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+            {t('common.back')}
+          </button>
           <button
             type="button"
             className={`${styles.btn} ${styles.btnPrimary}`}
@@ -1028,7 +1136,18 @@ export default function OnboardingFlow({
       {screen === 'org' && orgError ? <StatusMessage>{orgError}</StatusMessage> : null}
 
       {screen === 'goals_intensity' && (
-        <IntensityDial value={intensity} onChange={setIntensity} onContinue={advance} />
+        <>
+          <IntensityDial value={intensity} onChange={setIntensity} onContinue={advance} />
+          {/* R-03 — back to the O-3 org context; the dial's selection stays on the dial (the
+              selection was never persisted server-side — the deferred SEVEN_WHYS → GOAL_CARD →
+              INTENSITY chain fires only when the conversation completes — and re-advancing still
+              reuses it: `handleSevenWhysContinue` builds the INTENSITY payload from this state). */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
+        </>
       )}
 
       {screen === 'seven_whys' && !whyTurn && !whyUnavailable && (
@@ -1087,6 +1206,18 @@ export default function OnboardingFlow({
         </div>
       )}
       {screen === 'seven_whys' && sevenWhysError ? <StatusMessage>{sevenWhysError}</StatusMessage> : null}
+      {/* R-03 — back from O-5 to the O-4 dial. The conversation is NEVER re-run by a back press:
+          `whyTurn`/`whyPairs` stay in state, so returning re-renders the exact turn in progress
+          (or the completed conversation with its anchor) with every answered level intact — the
+          same resume-exact guarantee the mount-time GET /status replay provides (uiux §5.1,
+          AC-5.1-11). Nothing server-side is re-run. */}
+      {screen === 'seven_whys' && (
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+            {t('common.back')}
+          </button>
+        </div>
+      )}
       {screen === 'seven_whys' && whyResumeError ? (
         <StatusMessage>{t('onboarding.sevenWhys.unavailableBody')}</StatusMessage>
       ) : null}
@@ -1160,6 +1291,15 @@ export default function OnboardingFlow({
               {sponsorError ? <StatusMessage>{sponsorError}</StatusMessage> : null}
             </>
           )}
+          {/* R-03 — back from O-6 to the O-5 conversation. The pool is NOT re-fetched by a back
+              press (`sponsorCandidates`/`sponsorOutcome` stay in state), so the rep returns to the
+              exact verdict they previewed; a decision is only ever persisted by its own button's
+              POST (a back press fires no network call at all). */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
         </>
       )}
 
@@ -1175,6 +1315,12 @@ export default function OnboardingFlow({
           <p className={styles.lede}>{t('onboarding.sponsor.rvpNoPairingBody')}</p>
           <p className={styles.caption}>{t('onboarding.sponsor.rvpUplineOptional')}</p>
           <div className={styles.actions}>
+            {/* R-03 — the RVP guard panel is a real screen in their walk (an RVP skips the pairing
+                surface entirely), so it steps back to the previous rep-track screen like every
+                other step. */}
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
             <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={advance}>
               {t('onboarding.continueCta')}
             </button>
@@ -1236,33 +1382,73 @@ export default function OnboardingFlow({
             className={styles.srOnly}
             onChange={handleCsvFileSelected}
           />
+          {/* R-03 — back from O-7 to the O-6 pairing surface. The import state stays put
+              (`contactCount`/`importBeat`/selected native candidates are all preserved), so the
+              rep can edit the import and continue forward again — the count re-renders from the
+              SAME state. The import itself was already persisted server-side by its own POST; a
+              back press fires no call and re-runs nothing. */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
         </>
       )}
 
       {screen === 'reveal' && (
-        <HiddenEarningsReveal
-          contactCount={contactCount}
-          monthlyValueUsd={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedMonthlyValueUsd : 0}
-          estimatedAppointments={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedAppointments : 0}
-          estimatedClients={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedClients : 0}
-          onContinue={advance}
-          onAddContacts={() => setScreen('contacts')}
-          locale={locale}
-        />
+        <>
+          <HiddenEarningsReveal
+            contactCount={contactCount}
+            monthlyValueUsd={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedMonthlyValueUsd : 0}
+            estimatedAppointments={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedAppointments : 0}
+            estimatedClients={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedClients : 0}
+            onContinue={advance}
+            onAddContacts={() => setScreen('contacts')}
+            locale={locale}
+          />
+          {/* R-03 — back from O-8 to the O-7 community step; the reveal's figure is computed live
+              from the same `contactCount`/org state, so re-advancing re-renders it identically. */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
+        </>
       )}
 
       {screen === 'consent' && (
-        <GdprConsentStep
-          consented={gdprConsented}
-          onConsentedChange={setGdprConsented}
-          onContinue={handleGrantGdprConsent}
-          submitting={consentSubmitting}
-          error={consentError}
-        />
+        <>
+          <GdprConsentStep
+            consented={gdprConsented}
+            onConsentedChange={setGdprConsented}
+            onContinue={handleGrantGdprConsent}
+            submitting={consentSubmitting}
+            error={consentError}
+          />
+          {/* R-03 — back from the consent gate to the O-8 reveal. The toggle's checked state stays
+              put (`gdprConsented` is preserved), so a rep who toggled on, went back, and returns
+              still sees their choice — nothing is re-granted by a back press (the server grant
+              happens only in `handleGrantGdprConsent`'s own POST). */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
+        </>
       )}
 
       {screen === 'first48' && (
-        <First48Handoff onShowToday={handleShowToday} submitting={completeSubmitting} error={completeError} />
+        <>
+          <First48Handoff onShowToday={handleShowToday} submitting={completeSubmitting} error={completeError} />
+          {/* R-03 — back from the O-9 handoff to the consent gate. Nothing was completed or
+              navigated yet: the "Show me Today" POST fires only in `handleShowToday`, so a back
+              press never re-runs a completion and never leaves a partial state. */}
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={goBack}>
+              {t('common.back')}
+            </button>
+          </div>
+        </>
       )}
     </main>
   );

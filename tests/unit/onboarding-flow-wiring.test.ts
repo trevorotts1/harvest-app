@@ -210,7 +210,10 @@ describe('dense track (UPLINE/RVP/DUAL/ADMIN) reuses the SAME compliant consent 
     expect(body).toContain('buildDenseTrackStepPlan(');
     const guardIdx = body.indexOf('if (!outcome.ok)');
     const returnIdx = body.indexOf('return;', guardIdx);
-    const successIdx = body.indexOf("setDenseScreen('consent')");
+    // lastIndexOf — R-03 added an early back-then-forward short-circuit at the top of this
+    // handler (only reachable once the chain was already CLEARED, i.e. already succeeded); the
+    // real success landing is still the FINAL one, past the outcome guard's early return.
+    const successIdx = body.lastIndexOf("setDenseScreen('consent')");
     expect(guardIdx).toBeGreaterThan(-1);
     expect(successIdx).toBeGreaterThan(returnIdx);
   });
