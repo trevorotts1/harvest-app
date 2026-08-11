@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R72] — BUILD PHASE — 2026-08-11
+### Completion round R-14 — CSV import UX: format guidance, downloadable template, upload-success confirmation (judge PASS 9.6)
+- **merge R-14 @ 7412726** — `src/app/onboarding/OnboardingFlow.tsx` + `components/ContactImportStep.tsx` + `onboarding.module.css` + `en.json`/`es.json` + `src/services/warm-market/vault/csv-template.ts` (new) + `tests/unit/r14-csv-ux.test.ts` (new): CSV import now shows format guidance, provides a downloadable CSV template, and confirms upload success with a count of imported contacts (693 insertions, 9 deletions, 7 files).
+- Coverage: `tests/unit/r14-csv-ux.test.ts` (new, 321 lines).
+- QC: judge PASS 9.6 per completion-round verdict; full suite green on merged HEAD.
+- Ripple: version `2.0.0-build.T-R71`→`2.0.0-build.T-R72` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R72` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R71] — BUILD PHASE — 2026-08-11
 ### Completion round R-13 — contact-add navigation loop fixed (judge PASS 9)
 - **merge R-13 @ 4c8b5e1** — `src/app/onboarding/components/ManualAddStep.tsx` (new) + `OnboardingFlow.tsx` + `contacts-import/route.ts` + `ContactImportStep.tsx` + `en.json`/`es.json`: manual contact entry is now a real form that adds the contact and routes on to the review step instead of looping back to the import step; i18n added for both locales (592 insertions, 20 deletions, 10 files).
