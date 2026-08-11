@@ -147,6 +147,13 @@ function nameInput(tree: TestRenderer.ReactTestRenderer) {
   return input as unknown as { props: { value: string; onChange: (e: { target: { value: string } }) => void } };
 }
 
+function fileInput(tree: TestRenderer.ReactTestRenderer) {
+  const input = tree.root.findAll((n) => n.type === 'input').find((n) => (n.props as { type?: string }).type === 'file');
+  return input as unknown as {
+    props: { onChange: (e: { target: { files?: File[]; value: string } }) => void };
+  };
+}
+
 describe('R-03 behavior — the back control returns to the prior step and preserves entered data', () => {
   let fetchMock: jest.Mock;
 
@@ -175,10 +182,13 @@ describe('R-03 behavior — the back control returns to the prior step and prese
     act(() => {
       nameInput(tree).props.onChange({ target: { value: 'Alex Rivera' } });
     });
+    // R-04 — a REAL photo selection: the source chooser's file input reports the picked file
+    // (the pre-fix "Take a photo" button only faked `photoState='chosen'`).
     act(() => {
-      buttonWithText(tree, 'Take a photo')!.props.onClick();
+      fileInput(tree).props.onChange({ target: { files: [new File(['x'], 'alex.png', { type: 'image/png' })], value: '' } });
     });
     expect(textOf(tree)).toContain('Alex Rivera');
+    expect(textOf(tree)).toContain('alex.png added');
 
     act(() => {
       buttonWithText(tree, 'Back')!.props.onClick();
@@ -193,8 +203,9 @@ describe('R-03 behavior — the back control returns to the prior step and prese
     });
     expect(nameInput(tree).props.value).toBe('Alex Rivera');
     expect(textOf(tree)).toContain('Alex Rivera');
-    // The photo choice survived too — the chosen-photo state renders, not the initials fallback.
-    expect(textOf(tree)).toContain('Photo added');
+    // The photo choice survived too — the chosen-photo state renders (the real file caption),
+    // not the initials fallback.
+    expect(textOf(tree)).toContain('alex.png added');
   });
 
   test('the intensity dial selection survives a back-and-forth (back to org, forward again reuses it)', async () => {
