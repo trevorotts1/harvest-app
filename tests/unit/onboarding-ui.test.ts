@@ -468,11 +468,17 @@ describe('T-20 gap (2): O-2 IdentityStep photo-capture affordance + initials-ava
     expect(initialsFromName('')).toBe('?');
   });
 
-  test('camera / choose-from-library / skip affordance all render alongside name+email', () => {
+  test('camera / photo-library / browse-files / skip affordance all render alongside name+email (R-04 source chooser)', () => {
     const html = render(createElement(IdentityStep, { name: 'Jane Doe', email: 'jane@example.com' }));
     expect(textOf(html)).toMatch(/take a photo/i);
-    expect(textOf(html)).toMatch(/choose from library/i);
+    expect(textOf(html)).toMatch(/photo library/i);
+    expect(textOf(html)).toMatch(/browse files/i);
     expect(textOf(html)).toMatch(/skip photo/i);
+    // The source chooser is backed by ONE standard file input restricted to images — the capture
+    // affordance the platform resolves per capability (camera / photo library / desktop files).
+    const fileInputs = html.match(/type="file"[^>]*>/g) ?? [];
+    expect(fileInputs).toHaveLength(1);
+    expect(fileInputs[0]).toContain('accept="image/*"');
   });
 
   test('default (no photo chosen yet) and explicit "skipped" state both yield the initials-avatar fallback', () => {
@@ -491,6 +497,35 @@ describe('T-20 gap (2): O-2 IdentityStep photo-capture affordance + initials-ava
       createElement(IdentityStep, { name: 'Jane Doe', email: 'jane@example.com', photoState: 'chosen' })
     );
     expect(html).not.toContain('aria-label="Initials avatar: JD"');
+    expect(textOf(html)).toMatch(/photo added/i);
+  });
+
+  // R-04 — the chosen state renders the caller-minted REAL preview (img with the object URL) and
+  // the file's name, and the source buttons yield to a Remove affordance — never a silent blank.
+  test('R-04 TEETH: a chosen file renders its real preview + file name, and Remove replaces the source buttons', () => {
+    const html = render(
+      createElement(IdentityStep, {
+        name: 'Jane Doe',
+        email: 'jane@example.com',
+        photoState: 'chosen',
+        photoFileName: 'jane.jpg',
+        photoPreviewUrl: 'blob:nodedata:preview-1',
+      })
+    );
+    expect(html).toContain('src="blob:nodedata:preview-1"');
+    expect(textOf(html)).toContain('jane.jpg added');
+    expect(textOf(html)).toContain('Remove photo');
+    // The source chooser + Skip are gone once a photo is chosen (the file is captured).
+    expect(textOf(html)).not.toMatch(/take a photo/i);
+    expect(textOf(html)).not.toMatch(/skip photo/i);
+    expect(html).not.toContain('aria-label="Initials avatar: JD"');
+  });
+
+  test('R-04: chosen state without a preview URL still renders the "Photo added" placeholder (never a broken img)', () => {
+    const html = render(
+      createElement(IdentityStep, { name: 'Jane Doe', email: 'jane@example.com', photoState: 'chosen' })
+    );
+    expect(html).not.toContain('<img');
     expect(textOf(html)).toMatch(/photo added/i);
   });
 });

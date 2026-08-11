@@ -107,7 +107,16 @@ export default function OnboardingFlow({
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  // R-04 — the O-2 photo state is now REAL: `photoFileName` is the chosen file's name (rendered
+  // in the "photo added" caption) and `photoPreviewUrl` the caller-minted object-URL preview
+  // (revoked when replaced/removed — never leaked). There is no photo upload route in the app
+  // (the identity fields are persisted at registration, before this UI mounts); picking a file
+  // records the choice locally and renders the real local preview, exactly like every other
+  // locally-owned field here — the O-5 completion's why-photo composition and the launch-kit
+  // surface read their own photo storage (seven-whys persistence / launch-kit `photo_url`).
   const [photoState, setPhotoState] = useState<PhotoCaptureState>('unset');
+  const [photoFileName, setPhotoFileName] = useState<string | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   // R-02 — org is NO LONGER locally selected state: the server-session `orgType` prop is the one
   // source (fail-closed default EXTERNAL/universal, exactly like the registration route). All
   // reads below (`sponsorOutcome` scoping, `hiddenEarnings` calibration, the O-3 screen, the
@@ -591,6 +600,33 @@ export default function OnboardingFlow({
       inFlightRef.current = false;
       setCompleteSubmitting(false);
     }
+  }
+
+  // R-04 — O-2's REAL photo capture. The IdentityStep source chooser (Camera / Photo library /
+  // Browse files) hands this the file its standard `accept="image/*"` input picked. The step
+  // NEVER auto-advances on a pick: this only records the chosen file (a caller-minted local
+  // object-URL preview + the file's name) so the rep SEES their photo on the step, and then
+  // decides to Continue or Skip — the photo step stays put until the rep acts. The preview URL is
+  // revoked when a later pick replaces it or Remove photo clears it (never leaked past the
+  // component's own lifecycle).
+  function handlePhotoFileSelected(file: File) {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    let preview: string | null = null;
+    try {
+      preview = URL.createObjectURL(file);
+    } catch {
+      preview = null; // a hostile/odd environment — the choice still records, without a preview
+    }
+    setPhotoPreviewUrl(preview);
+    setPhotoFileName(file.name);
+    setPhotoState('chosen');
+  }
+
+  function handleRemovePhoto() {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoPreviewUrl(null);
+    setPhotoFileName(null);
+    setPhotoState('unset');
   }
 
   // T-R37 — O-2 identity's "meaningful advance": the session's real `OnboardingSession` row does not
@@ -1085,12 +1121,14 @@ export default function OnboardingFlow({
             onNameChange={setName}
             onEmailChange={setEmail}
             photoState={photoState}
-            onTakePhoto={() => setPhotoState('chosen')}
-            onChooseFromLibrary={() => setPhotoState('chosen')}
-            onSkipPhoto={() => {
-              setPhotoState('skipped');
-              void handleIdentityAdvance();
-            }}
+            photoFileName={photoFileName}
+            photoPreviewUrl={photoPreviewUrl}
+            onPhotoFileSelected={handlePhotoFileSelected}
+            onRemovePhoto={handleRemovePhoto}
+            // R-04 — Skip is an EXPLICIT choice that never auto-advances: it only records
+            // 'skipped' (initials-avatar fallback); the rep leaves the photo step via Continue
+            // (or Back, R-03 — either way, their name/email/photo state is preserved).
+            onSkipPhoto={() => setPhotoState('skipped')}
             onContinue={() => void handleIdentityAdvance()}
           />
           {identitySubmitting ? (
