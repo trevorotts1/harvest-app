@@ -266,4 +266,25 @@ describe('R-01 wiring — OnboardingFlow.tsx consumes the role-keyed no-pairing 
       expect(src).toContain('<OnboardingFlow role={role}');
     }
   });
+
+  // ─── R-02 (refinements catalog 2026-08-10) — the persisted ORG rides the same server-session
+  // pattern into the flow; the redundant "Where do you build?" step is gone. Deep behavioral proofs
+  // (render + tamper) live in tests/unit/r02-org-once.test.ts.
+  test('R-02: the entry pages hand the persisted org from the SERVER session into the flow (same pattern as the role)', () => {
+    const entryPageSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'onboarding', 'page.tsx'), 'utf8');
+    const resumePageSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'onboarding', 'resume', 'page.tsx'), 'utf8');
+    for (const src of [entryPageSrc, resumePageSrc]) {
+      expect(src).toContain('session?.user?.orgType');
+      expect(src).toContain('OrgType.EXTERNAL'); // fail-closed to the universal branch
+      expect(src).toContain('<OnboardingFlow role={role} orgType={orgType}');
+    }
+  });
+
+  test('R-02: the flow owns NO org-selection state — the O-3 continue handler builds its payload from the session org prop', () => {
+    const handleOrgContinueBody = extractFunctionBody(flowSrc, 'handleOrgContinue');
+    expect(handleOrgContinueBody).toContain('buildRoleOrgContextPayload(orgType, solutionNumber)');
+    // No client-settable org exists anywhere in the shell anymore (tamper can't even be attempted).
+    expect(flowSrc).not.toContain('setOrgType');
+    expect(flowSrc).not.toContain('onSelectOrgType');
+  });
 });

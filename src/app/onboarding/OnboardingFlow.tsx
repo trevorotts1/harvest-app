@@ -11,6 +11,13 @@
 // Agnes per T-R55b), and this shell owns only the fetch/advance wiring. The engine's rendered-turn
 // shape (`SevenWhysRenderedTurn`) structurally cannot carry a score — so the invisible-resonance
 // contract holds by construction, end to end.
+//
+// R-02: the org type is NOT selected in this flow anymore. It is captured exactly once at
+// registration (`User.org_type`, fail-closed to EXTERNAL) and handed in from the SERVER session as
+// the `orgType` prop — the same server-computed pattern R-01 uses for `role`. The O-3 org-context
+// screen therefore never asks "Where do you build?" again and never surfaces the Primerica-vs-other
+// framing; a non-Primerica user sees a clean, generic experience with zero Primerica strings (the
+// org-gate at src/services/onboarding/wp01/org-gate.ts keeps enforcing that at the data layer).
 
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 import { useRouter } from 'next/navigation';
@@ -79,6 +86,11 @@ export interface OnboardingFlowProps {
   initialScreen?: OnboardingScreen;
   /** The rep's role; REP runs the cinematic flow, UPLINE/RVP/DUAL/ADMIN the dense track. */
   role?: Role;
+  // R-02 — the persisted registration-time org determination (read from the SERVER session,
+  // exactly like `role`), which drives the whole org-gated flow. There is NO org selector in
+  // onboarding anymore; this is the single source the O-3 org-context screen and every org-gated
+  // computation (sponsor pool scoping, hidden-earnings calibration) read from.
+  orgType?: OrgType;
   /** Dense-track licensure state (upline/RVP), consumed by the T-13-backed `UplineTrack`. */
   licensingState?: LicensingState;
 }
@@ -86,6 +98,7 @@ export interface OnboardingFlowProps {
 export default function OnboardingFlow({
   initialScreen = 'vision',
   role = Role.REP,
+  orgType = OrgType.EXTERNAL,
   licensingState = 'LICENSED',
 }: OnboardingFlowProps) {
   const router = useRouter();
@@ -95,7 +108,10 @@ export default function OnboardingFlow({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [photoState, setPhotoState] = useState<PhotoCaptureState>('unset');
-  const [orgType, setOrgType] = useState<OrgType | null>(null);
+  // R-02 — org is NO LONGER locally selected state: the server-session `orgType` prop is the one
+  // source (fail-closed default EXTERNAL/universal, exactly like the registration route). All
+  // reads below (`sponsorOutcome` scoping, `hiddenEarnings` calibration, the O-3 screen, the
+  // dense-track plan) consume that single prop.
   const [solutionNumber, setSolutionNumber] = useState('');
   const [solutionConfirmed, setSolutionConfirmed] = useState(false);
   const [intensity, setIntensity] = useState<IntensitySetting | null>(null);
@@ -212,7 +228,6 @@ export default function OnboardingFlow({
       new Date()
     );
   }, [orgType, sponsorCandidates]);
-
   // R-08 — resolve the real pool once the rep reaches the sponsor screen (the pool is rep- and
   // org-scoped server-side, so the mount-time fetch is keyed to this session; a retry re-fetches).
   // `sponsorRetryNonce` is the JUDGE-FIXED retry trigger: bumping it (from the Retry button or the
@@ -234,7 +249,8 @@ export default function OnboardingFlow({
         if (result.ok) {
           setSponsorCandidates(result.candidates.map((c) => ({
             userId: c.userId,
-            orgType: orgType ?? OrgType.EXTERNAL,
+            // R-02 — the pool is org-scoped by the single session-sourced org determination.
+            orgType,
             // The server-resolved REAL load — the displayed verdict and the accept-time
             // re-derivation weigh the same numbers, so the matched sponsor is the persisted one.
             activeSponsorshipCount: c.activeSponsorshipCount,
@@ -307,18 +323,19 @@ export default function OnboardingFlow({
   // T-24 (§7.3/§8.4) — the O-8 Reveal's figure, computed by the ONE Hidden Earnings engine rather
   // than inline arithmetic (the pre-T-24 code here computed `contactCount * 5200` etc., which was
   // neither the spec's universal formula nor org-gated for Primerica — both fixed by routing through
-  // `computeHiddenEarnings`). `hasValidSolutionNumber` mirrors the same live format check `OrgStep`
-  // already renders (§6.3: alphanumeric, format-checked — relaxed from a fixed-7-digit-only rule per
-  // T-R57/operator directive 2026-07-28) — the Primerica branch only calibrates once a confirmed,
-  // format-valid number is on file; a Primerica user who hasn't entered one yet still gets the
-  // universal formula (§8.4's own "replacing... when a valid solution number is present").
+  // `computeHiddenEarnings`). `hasValidSolutionNumber` mirrors the same live format check the O-3
+  // org-context screen renders (§6.3: alphanumeric, format-checked — relaxed from a
+  // fixed-7-digit-only rule per T-R57/operator directive 2026-07-28) — the Primerica branch only
+  // calibrates once a confirmed, format-valid number is on file; a Primerica user who hasn't entered
+  // one yet still gets the universal formula (§8.4's own "replacing... when a valid solution number
+  // is present").
   const hiddenEarnings: HiddenEarningsResult = useMemo(
     () =>
       computeHiddenEarnings({
         contactCount,
-        orgType: orgType ?? OrgType.EXTERNAL,
+        orgType,
         hasValidSolutionNumber:
-          solutionConfirmed && checkSolutionNumberForOrg(orgType ?? OrgType.EXTERNAL, solutionNumber).formatValid,
+          solutionConfirmed && checkSolutionNumberForOrg(orgType, solutionNumber).formatValid,
       }),
     [contactCount, orgType, solutionConfirmed, solutionNumber]
   );
@@ -524,6 +541,11 @@ export default function OnboardingFlow({
   // format-checks a solution number when the user's REAL, already-persisted `org_type` is PRIMERICA
   // (read from the `User` row, not this submission) — sending it regardless (when present) keeps
   // this call correct for that case without needing to know the DB value client-side.
+  //
+  // R-02 — the submitted org is ALWAYS the server-session determination (the `orgType` prop, whose
+  // own registration route resolved it fail-closed). A tampered/unknown org can never be declared
+  // here: the payload is built from the session org, and the server independently re-checks against
+  // the persisted `User.org_type` (validateStep) — fail-closed either way.
   async function handleOrgContinue() {
     if (inFlightRef.current) return;
     if (orgType === OrgType.PRIMERICA && solutionNumber && !solutionConfirmed) {
@@ -535,7 +557,7 @@ export default function OnboardingFlow({
     try {
       const result = await postOnboardingStep(
         OnboardingStep.ROLE_ORG_CONTEXT,
-        buildRoleOrgContextPayload(orgType ?? OrgType.EXTERNAL, solutionNumber)
+        buildRoleOrgContextPayload(orgType, solutionNumber)
       );
       if (!result.ok) {
         setOrgError(errorDisplay(t, result.code));
@@ -634,6 +656,7 @@ export default function OnboardingFlow({
     setDenseSubmitting(true);
     setDenseError(null);
     try {
+      // R-02 — the dense track's ROLE_ORG_CONTEXT step is built from the session-sourced org.
       const plan = buildDenseTrackStepPlan(role, orgType, solutionNumber);
       const outcome = await sendOrderedSteps(role, serverStepRef.current, plan);
       if (!outcome.ok) {
@@ -938,13 +961,14 @@ export default function OnboardingFlow({
         </>
       )}
 
+      {/* R-02 — the O-3 org-context screen no longer asks "Where do you build?": the org is the
+          persisted registration-time determination (the server-session `orgType` prop), so this
+          screen only renders the branch-shaped context for that org — the Primerica solution-number
+          capture, or the generic universal panel (zero Primerica strings). Never a second org
+          choice; never the Primerica-vs-other framing. */}
       {screen === 'org' && (
         <OrgStep
-          selectedOrgType={orgType}
-          onSelectOrgType={(o) => {
-            setOrgType(o);
-            setSolutionConfirmed(false);
-          }}
+          orgType={orgType}
           solutionNumber={solutionNumber}
           onSolutionNumberChange={setSolutionNumber}
           confirmed={solutionConfirmed}
@@ -955,7 +979,7 @@ export default function OnboardingFlow({
           <button
             type="button"
             className={`${styles.btn} ${styles.btnPrimary}`}
-            disabled={!orgType || orgSubmitting}
+            disabled={orgSubmitting}
             onClick={() => void handleOrgContinue()}
           >
             {t('onboarding.continueCta')}

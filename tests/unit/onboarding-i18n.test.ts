@@ -180,6 +180,9 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
     expect(es).toContain('Contactar a cumplimiento');
   });
 
+  // R-02 — the universal-body copy now lives under `onboarding.orgContext.*` (the old `orgStep.*`
+  // framing block — the redundant "Where do you build?" step — was removed; see
+  // r02-org-once.test.ts). The no-leak rendering contract itself is unchanged.
   test('OrgBranchPanel — the universal (Primerica-free) branch body translates, with NO Primerica leak in either locale', () => {
     const props = { orgContext: buildOrgContext(OrgType.EXTERNAL) };
     const en = textOf(renderEn(OrgBranchPanel, props));

@@ -1,4 +1,15 @@
-// uiux §5.1 O-3 — Organization & role (the org gate: "the single gate that shapes everything").
+// uiux §5.1 O-3 — Organization & role context (the org gate: "the single gate that shapes
+// everything").
+//
+// R-02 (refinements catalog 2026-08-10): the org type is captured EXACTLY ONCE, at registration
+// (`src/app/api/auth/register/route.ts` — resolvedOrgType, fail-closed to EXTERNAL) and persisted
+// as `User.org_type`. This step NO LONGER asks the redundant "Where do you build?" Primerica-vs-
+// other question — the flow is driven entirely from the single persisted registration-time org
+// determination, read from the SERVER session (via `getCurrentSession()`, exactly like R-01's role
+// wiring) and handed down as the `orgType` prop. The Primerica-vs-other framing is NEVER surfaced
+// again in onboarding; a non-Primerica (universal) user sees a clean, generic experience with zero
+// Primerica strings (the org-gate at `src/services/onboarding/wp01/org-gate.ts` enforces this at
+// the data layer — kept fully intact).
 //
 // THE ORG-GATE LAW (§17.1, uiux AC-5.1-2): a non-Primerica (universal) user must see NO Primerica
 // string or surface. This component enforces that structurally by rendering the branch panel purely
@@ -7,6 +18,10 @@
 // contain a Primerica term to leak. The solution-number field (Primerica only) shows the authoritative
 // "not verified" caption and, once entered, only ever the mask — the raw digits are never re-displayed
 // (§6.10-4).
+//
+// NOTE (R-02): this file keeps its historical name (`OrgStep.tsx`) so existing tests/importers of
+// the `OrgBranchPanel` rendering contract keep compiling unchanged — the removed artifact is the
+// redundant org SELECTOR (`OrgStep`'s choice-card grid), not the org-context surface.
 
 import { OrgType } from '@prisma/client';
 
@@ -50,7 +65,7 @@ export function OrgBranchPanel({
     return (
       <div className={styles.card}>
         <p className={styles.lede}>
-          {t('onboarding.orgStep.universalBody')}
+          {t('onboarding.orgContext.universalBody')}
         </p>
       </div>
     );
@@ -65,7 +80,7 @@ export function OrgBranchPanel({
         </label>
         {confirmed ? (
           // §6.10-4: after entry the number is NEVER displayed again — only the mask.
-          <output className={styles.input} aria-label={t('onboarding.orgStep.solutionNumberSavedAria')}>
+          <output className={styles.input} aria-label={t('onboarding.orgContext.solutionNumberSavedAria')}>
             {maskSolutionNumber(solutionNumber) /* always the mask, never the digits */}
           </output>
         ) : (
@@ -90,7 +105,7 @@ export function OrgBranchPanel({
           {field.caption}
         </p>
         {!confirmed && solutionNumber && !formatOk ? (
-          <p className={styles.caption}>{t('onboarding.orgStep.enterAllDigits')}</p>
+          <p className={styles.caption}>{t('onboarding.orgContext.enterAllDigits')}</p>
         ) : null}
       </div>
     </div>
@@ -99,62 +114,40 @@ export function OrgBranchPanel({
 
 export const MASK = SOLUTION_NUMBER_MASK;
 
+/**
+ * R-02 — the O-3 org-context screen, driven ENTIRELY from the persisted registration-time org
+ * determination (the `orgType` prop, resolved server-side from the session — see the module header
+ * note). There is NO org selector here and never will be: a user who declared Primerica at
+ * registration sees the Primerica branch panel (solution-number capture, still gated); every other
+ * user sees the generic, Primerica-free branch panel. This is the ONE place any org-specific
+ * onboarding capture lives — never duplicated with the business-name/level capture at registration.
+ */
 export interface OrgStepProps {
-  selectedOrgType: OrgType | null;
-  onSelectOrgType?: (orgType: OrgType) => void;
+  /** The persisted registration-time org type (server session), never client input. */
+  orgType: OrgType;
   solutionNumber?: string;
   onSolutionNumberChange?: (value: string) => void;
   confirmed?: boolean;
 }
 
 export default function OrgStep({
-  selectedOrgType,
-  onSelectOrgType,
+  orgType,
   solutionNumber,
   onSolutionNumberChange,
   confirmed,
 }: OrgStepProps) {
-  const t = useT();
   const { locale } = useLocale();
-  // T-R32b — moved from a module-level constant into the component body: the labels/blurbs now
-  // route through the catalog (`t()`, a hook-backed lookup), which can only run inside a component.
-  const orgChoices: { orgType: OrgType; label: string; blurb: string }[] = [
-    { orgType: OrgType.PRIMERICA, label: t('onboarding.orgStep.choices.primerica.label'), blurb: t('onboarding.orgStep.choices.primerica.blurb') },
-    { orgType: OrgType.EXTERNAL, label: t('onboarding.orgStep.choices.external.label'), blurb: t('onboarding.orgStep.choices.external.blurb') },
-  ];
-
   return (
     <div className={styles.stepInner}>
-      <h1 className={styles.headline}>{t('onboarding.orgStep.headline')}</h1>
-      <p className={styles.lede}>{t('onboarding.orgStep.lede')}</p>
-
-      <div className={styles.orgGrid} role="radiogroup" aria-label={t('onboarding.orgStep.organizationAria')}>
-        {orgChoices.map((choice) => {
-          const selected = selectedOrgType === choice.orgType;
-          return (
-            <button
-              key={choice.orgType}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              className={`${styles.orgCard} ${selected ? styles.orgCardSelected : ''}`}
-              onClick={() => onSelectOrgType?.(choice.orgType)}
-            >
-              <span className={styles.label}>{choice.label}</span>
-              <span className={styles.caption}>{choice.blurb}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {selectedOrgType ? (
-        <OrgBranchPanel
-          orgContext={buildOrgContext(selectedOrgType, locale)}
-          solutionNumber={solutionNumber}
-          onSolutionNumberChange={onSolutionNumberChange}
-          confirmed={confirmed}
-        />
-      ) : null}
+      {/* No org question is ever asked again — the branch panel renders the org-shaped context
+          for the branch the user already declared at registration (Primerica: solution-number
+          capture; universal: the generic build context). */}
+      <OrgBranchPanel
+        orgContext={buildOrgContext(orgType, locale)}
+        solutionNumber={solutionNumber}
+        onSolutionNumberChange={onSolutionNumberChange}
+        confirmed={confirmed}
+      />
     </div>
   );
 }

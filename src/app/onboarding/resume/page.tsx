@@ -8,8 +8,12 @@
 // exactly as on the fresh-entry page (src/app/onboarding/page.tsx), so a returning RVP resumes
 // with the same no-pairing behavior they started with. Read from the SERVER session, never client
 // input.
+//
+// R-02 (refinements catalog 2026-08-10) — the org (persisted at registration, fail-closed to
+// EXTERNAL) is handed to the flow the same way, so a returning rep resumes the org-gated flow from
+// the single persisted determination — the O-3 org-context screen is never re-asked.
 
-import { Role } from '@prisma/client';
+import { OrgType, Role } from '@prisma/client';
 
 import { getCurrentSession } from '@/lib/auth/session';
 
@@ -26,7 +30,10 @@ export default async function OnboardingResumePage({
 }) {
   const session = await getCurrentSession();
   const role = (session?.user?.role as Role | undefined) ?? Role.REP;
+  // R-02 — the persisted org from the SERVER session (fail-closed to EXTERNAL), mirroring the
+  // fresh-entry page's read.
+  const orgType = (session?.user?.orgType as OrgType | undefined) ?? OrgType.EXTERNAL;
   const rawStep = searchParams?.step;
   const step = Array.isArray(rawStep) ? rawStep[0] : rawStep;
-  return <OnboardingFlow role={role} initialScreen={resumeScreen(step)} />;
+  return <OnboardingFlow role={role} orgType={orgType} initialScreen={resumeScreen(step)} />;
 }
