@@ -105,6 +105,9 @@ const ADMIN_MUTATION_ACTION_CATALOG_KEY: Readonly<Record<string, string>> = {
   user_suspended: 'admin.audit.mutationAction.userSuspended',
   user_reactivated: 'admin.audit.mutationAction.userReactivated',
   user_role_changed: 'admin.audit.mutationAction.userRoleChanged',
+  // R-18 (admin-mediated password recovery): `AdminMutationAction` gained
+  // 'user_password_reset_issued' — label it in the Audit Viewer, never the raw token.
+  user_password_reset_issued: 'admin.audit.mutationAction.userPasswordResetIssued',
 };
 
 export function adminMutationActionLabel(t: Translate, action: string | null | undefined): string {

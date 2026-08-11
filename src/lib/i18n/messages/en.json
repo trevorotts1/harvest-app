@@ -2171,7 +2171,17 @@
       "workingCta": "Working…",
       "mutationSuccessSuspended": "Account suspended.",
       "mutationSuccessReactivated": "Account reactivated.",
-      "mutationSuccessRoleChanged": "Role changed."
+      "mutationSuccessRoleChanged": "Role changed.",
+      "resetPasswordCta": "Reset password",
+      "resetPasswordConfirmPrompt": "Issue a one-time password-reset link for {name}? The link expires in 30 minutes and works once.",
+      "resetPasswordConfirmCta": "Confirm reset",
+      "resetPasswordTokenHeading": "One-time password-reset link",
+      "resetPasswordTokenIntro": "Give this link to {name} out-of-band (chat, phone, in person). It expires in 30 minutes and can be used once. Do not email or post it.",
+      "resetPasswordTokenExpiry": "Expires",
+      "resetPasswordTokenCopied": "One-time link copied.",
+      "mutationSuccessResetIssued": "One-time password-reset link issued.",
+      "resetPasswordTokenCopyCta": "Copy link",
+      "resetPasswordTokenLabel": "One-time token"
     },
     "signups": {
       "badge": "Signups",
@@ -2285,7 +2295,8 @@
         "userSuspended": "Suspended user",
         "userReactivated": "Reactivated user",
         "userRoleChanged": "Changed user role",
-        "generic": "Admin action"
+        "generic": "Admin action",
+        "userPasswordResetIssued": "Issued password-reset token"
       }
     },
     "role": {

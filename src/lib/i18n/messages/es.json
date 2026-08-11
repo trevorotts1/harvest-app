@@ -2171,7 +2171,17 @@
       "workingCta": "Procesando…",
       "mutationSuccessSuspended": "Cuenta suspendida.",
       "mutationSuccessReactivated": "Cuenta reactivada.",
-      "mutationSuccessRoleChanged": "Rol cambiado."
+      "mutationSuccessRoleChanged": "Rol cambiado.",
+      "resetPasswordCta": "Restablecer contraseña",
+      "resetPasswordConfirmPrompt": "¿Emitir un enlace único de restablecimiento de contraseña para {name}? El enlace caduca en 30 minutos y funciona una sola vez.",
+      "resetPasswordConfirmCta": "Confirmar restablecimiento",
+      "resetPasswordTokenHeading": "Enlace único de restablecimiento de contraseña",
+      "resetPasswordTokenIntro": "Entregue este enlace a {name} por un canal fuera del sistema (chat, teléfono, en persona). Caduca en 30 minutos y puede usarse una sola vez. No lo envíe por correo ni lo publique.",
+      "resetPasswordTokenExpiry": "Caduca",
+      "resetPasswordTokenCopied": "Enlace único copiado.",
+      "mutationSuccessResetIssued": "Enlace único de restablecimiento de contraseña emitido.",
+      "resetPasswordTokenCopyCta": "Copiar enlace",
+      "resetPasswordTokenLabel": "Token único"
     },
     "signups": {
       "badge": "Registros",
@@ -2285,7 +2295,8 @@
         "userSuspended": "Usuario suspendido",
         "userReactivated": "Usuario reactivado",
         "userRoleChanged": "Rol de usuario cambiado",
-        "generic": "Acción administrativa"
+        "generic": "Acción administrativa",
+        "userPasswordResetIssued": "Emitió token de restablecimiento de contraseña"
       }
     },
     "role": {
