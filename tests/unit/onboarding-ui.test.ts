@@ -24,6 +24,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { IntensitySetting, OrgType, Role } from '@prisma/client';
 
 import ContactImportStep from '@/app/onboarding/components/ContactImportStep';
+import ManualAddStep from '@/app/onboarding/components/ManualAddStep';
 import GdprConsentStep, { GDPR_CONSENT_LABEL } from '@/app/onboarding/components/GdprConsentStep';
 import HiddenEarningsReveal, {
   SAFE_HARBOR_LINE,
@@ -878,6 +879,62 @@ describe('T-58: O-7 ContactImportStep — real device-contacts selection list + 
     );
     expect(html).not.toMatch(/role="alert"/);
     expect(textOf(html)).not.toContain('Jane Doe');
+  });
+});
+
+// ─── R-13 (refinements catalog 2026-07-28) — the REAL "Add one at a time" contact-entry form
+// (ManualAddStep). The catalog row's observed loop — "Add one at a time" → reveal "Add people" →
+// back to the phone-import screen, with NO reachable entry UI — is fixed by this form: name/phone/
+// email fields, add-and-repeat, a polite success confirmation, a Done CTA that routes ONWARD into
+// the flow, and a Cancel CTA with a sane landing. Proves the form actually RENDERS the fields and
+// the caller's wiring affordances; the POST wiring/navigation proofs live in the R-13 describe
+// block of onboarding-flow-wiring.test.ts (source-scan, same convention as the other R-items).
+describe('R-13: O-7 ManualAddStep — the real one-at-a-time contact-entry form', () => {
+  const baseProps = {
+    name: '',
+    onNameChange: () => {},
+    phone: '',
+    onPhoneChange: () => {},
+    email: '',
+    onEmailChange: () => {},
+  };
+
+  test('renders the name/phone/email fields and the add / cancel / done affordances', () => {
+    const html = render(createElement(ManualAddStep, { ...baseProps }));
+    const text = textOf(html);
+    expect(text).toContain('Add contacts one at a time');
+    expect(html).toMatch(/<input[^>]*id="manual-add-name"/);
+    expect(html).toMatch(/<input[^>]*id="manual-add-phone"/);
+    expect(html).toMatch(/<input[^>]*id="manual-add-email"/);
+    expect(text).toContain('Add contact');
+    expect(text).toContain('Cancel');
+    expect(text).toContain('Done — see my field');
+  });
+
+  test('no success confirmation renders until a contact was actually added (lastAddedName set by the caller)', () => {
+    const empty = render(createElement(ManualAddStep, { ...baseProps }));
+    expect(empty).not.toMatch(/role="status"/);
+
+    const confirmed = render(
+      createElement(ManualAddStep, { ...baseProps, lastAddedName: 'Jamie Rivera' })
+    );
+    expect(confirmed).toMatch(/role="status"/);
+    expect(textOf(confirmed)).toContain('Added Jamie Rivera to your community');
+  });
+
+  test('saving=true relabels the Add CTA "Adding…" and disables it against a double-submit', () => {
+    const html = render(createElement(ManualAddStep, { ...baseProps, saving: true }));
+    expect(textOf(html)).toContain('Adding…');
+    const button = html.match(/<button[^>]*>\s*Adding…\s*<\/button>/)?.[0] ?? '';
+    expect(button).toMatch(/disabled/);
+  });
+
+  test('a real save failure surfaces as an alert — never silently swallowed', () => {
+    const html = render(
+      createElement(ManualAddStep, { ...baseProps, saveError: 'We couldn’t add that contact just now.' })
+    );
+    expect(html).toContain('role="alert"');
+    expect(textOf(html)).toMatch(/couldn.t add that contact/i);
   });
 });
 

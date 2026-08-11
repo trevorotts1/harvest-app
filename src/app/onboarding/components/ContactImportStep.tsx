@@ -22,7 +22,12 @@ import type { NativeContactCandidate } from '@/services/warm-market/vault/native
 import styles from '../onboarding.module.css';
 import { useT } from '@/app/locale-context';
 
-export type ImportBeat = 'value' | 'preview' | 'permission' | 'select' | 'denied' | 'unsupported';
+// R-13 — `'manual'` is the real contact-entry FORM beat (see ManualAddStep.tsx's header): the
+// "Add one at a time" / reveal "Add people" actions land HERE, never back on 'unsupported'/'denied'
+// (the catalog row's observed navigation loop). It is rendered by OnboardingFlow.tsx, not by this
+// component, so ImportBeat gains the member and this component keeps rendering only the import
+// beats it owns.
+export type ImportBeat = 'value' | 'preview' | 'permission' | 'select' | 'denied' | 'unsupported' | 'manual';
 
 export interface ContactImportStepProps {
   beat: ImportBeat;

@@ -322,6 +322,82 @@ describe('POST /api/onboarding/contacts-import — T-58 native contacts (IOS_NAT
   });
 });
 
+// ─── R-13 (refinements catalog 2026-07-28) — the REAL one-at-a-time contact-entry form's ingestion
+// path: the ManualAddStep form (OnboardingFlow.tsx's 'manual' beat) POSTs each drafted contact as
+// `source: MANUAL` + a single `contacts` row. Same Vault pipeline as every other source (encryption,
+// dedupe, minors gate); web-safe like CSV (`assertModalityAllowed` only refuses the native-shell
+// sources, so a MANUAL caller needs no declared platform).
+describe('POST /api/onboarding/contacts-import — R-13 manual one-at-a-time (MANUAL)', () => {
+  const MANUAL_ROW = { name: 'Jamie Rivera', phone: '312-555-0100', email: 'jamie@example.com' };
+
+  test('MANUAL + a single contacts row → reaches VaultService with the manual source and a web clientPlatform (like CSV)', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockImportBatch.mockResolvedValue({
+      batchId: 'b-manual-1',
+      source: 'MANUAL',
+      status: 'COMPLETED',
+      totalRows: 1,
+      cursor: 1,
+      importedCount: 1,
+      mergedCount: 0,
+      minorFlaggedCount: 0,
+      errorRows: [],
+      resumable: false,
+      idempotentReplay: false,
+    });
+
+    const res = await POST(
+      postRequest({ source: 'MANUAL', contacts: [MANUAL_ROW], clientPlatform: 'web', idempotencyKey: 'k' }),
+      {}
+    );
+    expect(res.status).toBe(201);
+    expect(mockImportBatch).toHaveBeenCalledTimes(1);
+    const [userId, source, rows, opts] = mockImportBatch.mock.calls[0];
+    expect(userId).toBe('onboarding-user-1');
+    expect(source).toBe('MANUAL');
+    expect(rows).toEqual([MANUAL_ROW]);
+    expect(opts.clientPlatform).toBe('web');
+    expect(opts.csvText).toBeUndefined();
+  });
+
+  test('a MANUAL caller that declares NO platform at all still succeeds — web-safe like CSV, never a MODALITY_NOT_ALLOWED dead end', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    mockImportBatch.mockResolvedValue({
+      batchId: 'b-manual-2',
+      source: 'MANUAL',
+      status: 'COMPLETED',
+      totalRows: 1,
+      cursor: 1,
+      importedCount: 1,
+      mergedCount: 0,
+      minorFlaggedCount: 0,
+      errorRows: [],
+      resumable: false,
+      idempotentReplay: false,
+    });
+
+    const res = await POST(postRequest({ source: 'MANUAL', contacts: [MANUAL_ROW], idempotencyKey: 'k' }), {});
+    expect(res.status).toBe(201);
+    expect(mockImportBatch.mock.calls[0][3].clientPlatform).toBe('web');
+  });
+
+  test('a MANUAL source with no "contacts" array → 400 CONTACTS_REQUIRED, never reaches VaultService', async () => {
+    mockedSession.mockResolvedValue(fakeSession());
+    const res = await POST(postRequest({ source: 'MANUAL', idempotencyKey: 'k' }), {});
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('CONTACTS_REQUIRED');
+    expect(mockImportBatch).not.toHaveBeenCalled();
+  });
+
+  test('still session-gated like every other source — no session → 401, VaultService never runs', async () => {
+    mockedSession.mockResolvedValue(null);
+    const res = await POST(postRequest({ source: 'MANUAL', contacts: [MANUAL_ROW], idempotencyKey: 'k' }), {});
+    expect(res.status).toBe(401);
+    expect(mockImportBatch).not.toHaveBeenCalled();
+  });
+});
+
 // ─── T-58 — the dedupe surface the real "Import from Phone" selection list reads before presenting
 // device contacts (§7.6 "cross-source duplicate ... merge, keep most complete"). Minimal PII: only
 // phone/email, decrypted for the owner's own read (same posture /api/contacts/import's GET already

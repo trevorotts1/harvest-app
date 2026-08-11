@@ -45,6 +45,7 @@ import { OnboardingStep } from '@/types/onboarding';
 
 import ContactImportStep, { type ImportBeat } from './components/ContactImportStep';
 import First48Handoff from './components/First48Handoff';
+import ManualAddStep from './components/ManualAddStep';
 import GdprConsentStep from './components/GdprConsentStep';
 import HiddenEarningsReveal from './components/HiddenEarningsReveal';
 import IdentityStep, { type PhotoCaptureState } from './components/IdentityStep';
@@ -163,6 +164,18 @@ export default function OnboardingFlow({
   // real Vault ingestion route (see `handleCsvFileSelected` below).
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
+  // R-13 (refinements catalog 2026-07-28) — the REAL one-at-a-time contact-entry form's state.
+  // `onAddManually` used to just fake `setContactCount(1); advance()` — no form ever opened and the
+  // reveal's "Add people" looped the rep back to the phone-import screen (the catalog row's exact
+  // observed loop). The draft fields are owned HERE (shell-owns-state, resume-exact like every
+  // other entered field — going back re-renders the form with the drafts intact), and
+  // `handleAddManualContact` POSTs each contact to the REAL onboarding-time Vault ingestion route.
+  const [manualName, setManualName] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualSaveError, setManualSaveError] = useState<string | null>(null);
+  const [manualLastAddedName, setManualLastAddedName] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   // Minted once per import ATTEMPT and reused across retries of that same attempt (§18.5
   // idempotency) — cleared once the attempt actually completes so a later, separate file selection
@@ -177,6 +190,16 @@ export default function OnboardingFlow({
   const [nativeImporting, setNativeImporting] = useState(false);
   const [nativeImportError, setNativeImportError] = useState<string | null>(null);
   const nativeIdempotencyKeyRef = useRef<string | null>(null);
+  // R-13 — one idempotency key per manual ADD (a single logical one-at-a-time submission). Minted
+  // on submit, cleared once the attempt completes so the NEXT distinct contact mints a fresh key
+  // rather than silently reusing a stale one (§18.5 idempotency, the same pattern as the CSV and
+  // native refs above).
+  const manualIdempotencyKeyRef = useRef<string | null>(null);
+  // R-13 — where the manual form was entered from, so its Cancel path returns somewhere sane:
+  // 'denied'/'unsupported' (the phone-import beats, CSV/manual fallbacks still offered) or
+  // 'reveal' (the "Add people" origin — Cancel goes back to the reveal screen, never the
+  // phone-import screen). Set by EVERY path that opens the form, before the beat flips.
+  const manualReturnBeatRef = useRef<'denied' | 'unsupported' | 'reveal'>('unsupported');
   // T-21R (§6.10-10) — GDPR consent capture: an explicit affirmative act, defaults OFF. Granting
   // calls the session-authenticated `/api/onboarding/consent` route, which is what actually invokes
   // WP11's `ConsentManager` and sets `User.gdpr_consent = true` (this local state is only the UI's
@@ -1066,6 +1089,87 @@ export default function OnboardingFlow({
     if (file) void processCsvFile(file);
   }
 
+  // R-13 — the ONE real "Add contact" handler behind the manual form (ManualAddStep). POSTs the
+  // draft to the same real onboarding-time Vault ingestion route CSV/native use (AES-256-GCM PII
+  // encryption, keyed-HMAC dedupe, minors gate — VaultService, T-22), then add-and-repeat: the
+  // draft clears and the form stays open for the next contact, with a polite success confirmation.
+  // A failed save never clears the draft and never advances the rep (fail-closed, same as every
+  // other import path); `contactCount` is set from the route's actual `importedCount + mergedCount`,
+  // never a fake constant.
+  async function handleAddManualContact() {
+    const trimmedName = manualName.trim();
+    if (!trimmedName || manualSaving) return;
+    const draft = {
+      name: trimmedName,
+      phone: manualPhone.trim() || null,
+      email: manualEmail.trim() || null,
+    };
+    if (!manualIdempotencyKeyRef.current) {
+      manualIdempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `manual-import-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+    setManualSaving(true);
+    setManualSaveError(null);
+    try {
+      const response = await fetch('/api/onboarding/contacts-import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          source: 'MANUAL',
+          contacts: [draft],
+          clientPlatform: 'web',
+          idempotencyKey: manualIdempotencyKeyRef.current,
+        }),
+      });
+      const body = await response.json().catch(() => ({}) as { code?: string });
+      if (!response.ok) {
+        // T-57 RE-GATE B [af7789d3] Finding 1 — never render the raw English `body.error`; resolve
+        // a locale-correct string from the `errors.*` catalog by the route's machine `code`.
+        setManualSaveError(errorDisplay(t, (body as { code?: string }).code));
+        return;
+      }
+      // This attempt is done — the NEXT distinct contact mints a fresh idempotency key (each
+      // logical add is its own idempotent unit, exactly like each CSV/native attempt).
+      manualIdempotencyKeyRef.current = null;
+      const result = body as { importedCount?: number; mergedCount?: number };
+      setContactCount((prev) => prev + (result.importedCount ?? 0) + (result.mergedCount ?? 0));
+      setManualLastAddedName(trimmedName);
+      setManualName('');
+      setManualPhone('');
+      setManualEmail('');
+    } catch {
+      setManualSaveError(t('onboarding.contactImport.manual.saveFailedGeneric'));
+    } finally {
+      setManualSaving(false);
+    }
+  }
+
+  // R-13 — leave the manual form and move ONWARD into the flow (the O-8 reveal). This is the
+  // navigation the catalog row demands: after a successful add the rep is routed to the next
+  // intended stop, NEVER back to the phone-import screen. The added contacts were already persisted
+  // by their own POSTs, so this fires no network call and re-runs nothing.
+  function handleManualDone() {
+    setImportBeat('value');
+    advance();
+  }
+
+  // R-13 — cancel path: return to wherever the rep opened the form from — the phone-import beat
+  // they were on ('denied'/'unsupported', CSV + manual fallbacks still offered), or the reveal
+  // screen when they came from "Add people" (never a dead end, and never the phone-import screen
+  // when the rep came from the reveal — the exact loop the catalog row observed). The draft fields
+  // stay in state, so a re-entry re-renders them intact (resume-exact).
+  function handleManualCancel() {
+    if (manualReturnBeatRef.current === 'reveal') {
+      setManualLastAddedName(null);
+      setScreen('reveal');
+      return;
+    }
+    setManualLastAddedName(null);
+    setImportBeat(manualReturnBeatRef.current);
+  }
+
   // Dense upline/RVP/DUAL/ADMIN track (Flow B/D): one shell, density not cinema — no vision splash,
   // no reveal. T-R37 — "Finish setup" now walks this role's real `/step` plan (`handleDenseFinish`)
   // before reaching the SAME shared consent + First-48 tail the rep track uses (every track's
@@ -1379,7 +1483,11 @@ export default function OnboardingFlow({
 
       {screen === 'contacts' && (
         <>
-          <ContactImportStep
+          {/* R-13 — the 'manual' beat renders ManualAddStep INSTEAD of ContactImportStep (which has
+              no manual branch of its own): the phone-import beats and the entry form are mutually
+              exclusive surfaces, never stacked. */}
+          {importBeat !== 'manual' && (
+            <ContactImportStep
             beat={importBeat}
             onAdvance={() => (importBeat === 'value' ? setImportBeat('preview') : advance())}
             // T-58: the REAL permission-gated device-contacts flow — no more faked contactCount=24.
@@ -1389,9 +1497,15 @@ export default function OnboardingFlow({
             // T-R30 (parity GAP 1): opens the REAL OS file picker — no more faked contactCount.
             // `handleCsvFileSelected` (the input's onChange, below) does the actual read+import.
             onUseCsv={() => csvInputRef.current?.click()}
+            // R-13 — "Add one at a time" now opens the REAL contact-entry form (ManualAddStep via
+            // the 'manual' beat below) instead of the old fake `setContactCount(1); advance()` —
+            // the catalog row's observed navigation loop (add → reveal "Add people" → phone-import
+            // screen, cycling with no reachable entry UI) is gone.
             onAddManually={() => {
-              setContactCount(1);
-              advance();
+              // The beat the rep is ON when they tap "Add one at a time" is the sane cancel
+              // landing ('denied' after declining the OS permission, 'unsupported' on web).
+              manualReturnBeatRef.current = importBeat === 'denied' ? 'denied' : 'unsupported';
+              setImportBeat('manual');
             }}
             csvImporting={csvImporting}
             csvError={csvError}
@@ -1404,7 +1518,29 @@ export default function OnboardingFlow({
             onCancelNativeSelection={handleCancelNativeSelection}
             nativeImporting={nativeImporting}
             nativeImportError={nativeImportError}
-          />
+            />
+          )}
+          {/* R-13 — the REAL one-at-a-time contact-entry form. Rendered INSTEAD of the phone-import
+              beats when the rep chose "Add one at a time" (from 'denied' or 'unsupported') or the
+              reveal's "Add people" — the routing loop is fixed: Done advances onward into the flow,
+              Cancel returns to the import beat the rep came from, and every entered draft is
+              preserved while here (resume-exact). */}
+          {importBeat === 'manual' && (
+            <ManualAddStep
+              name={manualName}
+              onNameChange={setManualName}
+              phone={manualPhone}
+              onPhoneChange={setManualPhone}
+              email={manualEmail}
+              onEmailChange={setManualEmail}
+              saving={manualSaving}
+              saveError={manualSaveError}
+              lastAddedName={manualLastAddedName}
+              onAddContact={() => void handleAddManualContact()}
+              onDone={handleManualDone}
+              onCancel={handleManualCancel}
+            />
+          )}
           {/* T-57 C5 (uiux §6.3 "Full" desktop parity) — drag-and-drop CSV zone, additive alongside
               the "Import a CSV" button above (never a replacement — the button is the only CSV path
               on touch/narrow viewports, where this hint is CSS-hidden). Only meaningful once the CSV
@@ -1452,7 +1588,14 @@ export default function OnboardingFlow({
             estimatedAppointments={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedAppointments : 0}
             estimatedClients={hiddenEarnings.kind === 'figure' ? hiddenEarnings.estimatedClients : 0}
             onContinue={advance}
-            onAddContacts={() => setScreen('contacts')}
+            // R-13 — the reveal's "Add people" opens the REAL contact-entry form DIRECTLY (it no
+            // longer re-lands on the phone-import beat — the catalog row's observed loop). The
+            // origin is remembered so Cancel returns to the reveal, never to the import screen.
+            onAddContacts={() => {
+              manualReturnBeatRef.current = 'reveal';
+              setImportBeat('manual');
+              setScreen('contacts');
+            }}
             locale={locale}
           />
           {/* R-03 — back from O-8 to the O-7 community step; the reveal's figure is computed live

@@ -308,3 +308,84 @@ describe('R-01 wiring — OnboardingFlow.tsx consumes the role-keyed no-pairing 
     expect(flowSrc).not.toContain('onSelectOrgType');
   });
 });
+
+// ─── R-13 (refinements catalog 2026-07-28) — the manual contact-add navigation LOOP fix. The
+// catalog row's observed loop: "Add one at a time" → reveal "Add people" → back to the phone-import
+// screen, cycling with no reachable contact-entry UI (the old `onAddManually` faked
+// `setContactCount(1); advance()`). These source-scan proofs assert the REAL form is wired: the
+// manual beat opens the form, each add POSTs through the real ingestion route, Done advances
+// onward into the flow (never back to the phone-import screen), Cancel lands somewhere sane, and
+// the reveal's "Add people" opens the form DIRECTLY. The route-side proofs live in
+// tests/unit/onboarding-contacts-import-route.test.ts's R-13 MANUAL describe block; the component
+// render proofs in onboarding-ui.test.ts's R-13 describe block.
+describe('R-13 wiring — "Add one at a time" opens the real ManualAddStep form, persists, and routes onward', () => {
+  test('the flow renders ManualAddStep when the import beat is "manual" — a real reachable contact-entry UI', () => {
+    expect(flowSrc).toMatch(/importBeat === 'manual' &&/);
+    expect(flowSrc).toMatch(/<ManualAddStep/);
+    expect(flowSrc).toContain('onAddContact={() => void handleAddManualContact()}');
+    expect(flowSrc).toContain('onDone={handleManualDone}');
+    expect(flowSrc).toContain('onCancel={handleManualCancel}');
+    // TEETH: the phone-import step is NOT rendered on the manual beat — the entry form replaces
+    // the import surface, never stacks with it (no ghost "Bringing in your community…" behind the
+    // form).
+    expect(flowSrc).toMatch(/importBeat !== 'manual' &&\s*\(\s*[\s\S]*?<ContactImportStep/);
+  });
+
+  test('onAddManually opens the form (sets the manual beat) — the old fake setContactCount(1)+advance handler is GONE', () => {
+    // The old fake body — `setContactCount(1);\n              advance();` inside the handler — no
+    // longer exists anywhere as code (the only `setContactCount(1)` mentions left are comments
+    // documenting what the fix replaced, this repo's standard R-item convention).
+    expect(flowSrc).not.toMatch(/setContactCount\(1\);\s*advance\(\);/);
+    expect(flowSrc).toMatch(/onAddManually=\{\(\) => \{[^}]*setImportBeat\('manual'\)/);
+  });
+
+  test('handleAddManualContact POSTs each drafted contact to the REAL ingestion route with source MANUAL', () => {
+    const body = extractFunctionBody(flowSrc, 'handleAddManualContact');
+    expect(body).toContain("fetch('/api/onboarding/contacts-import'");
+    expect(body).toContain("source: 'MANUAL'");
+    expect(body).toContain('contacts: [draft]');
+    expect(body).toContain('idempotencyKey: manualIdempotencyKeyRef.current');
+    // Fail-closed: a rejected save sets the error and returns BEFORE any draft reset/advance.
+    const guardIdx = body.indexOf('if (!response.ok)');
+    const returnIdx = body.indexOf('return;', guardIdx);
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(returnIdx).toBeGreaterThan(guardIdx);
+    // Add-and-repeat: after success the draft fields clear and the form STAYS open (no advance).
+    expect(body).toContain("setManualName('')");
+    expect(body).toContain("setManualPhone('')");
+    expect(body).toContain("setManualEmail('')");
+    // The count is set from the route's real importedCount + mergedCount — never a fake constant.
+    expect(body).toContain('result.importedCount ?? 0');
+    expect(body).toContain('result.mergedCount ?? 0');
+  });
+
+  test('handleManualDone routes ONWARD into the flow via advance() — never back to the phone-import screen', () => {
+    const body = extractFunctionBody(flowSrc, 'handleManualDone');
+    expect(body).toContain('advance();');
+    expect(body).not.toContain("setImportBeat('unsupported')");
+    expect(body).not.toContain("setImportBeat('denied')");
+  });
+
+  test('handleManualCancel lands somewhere sane — back on the import beat the rep came from, or back to the reveal (never a dead end)', () => {
+    const body = extractFunctionBody(flowSrc, 'handleManualCancel');
+    expect(body).toContain('manualReturnBeatRef.current');
+    expect(body).toMatch(/setImportBeat\(manualReturnBeatRef\.current\)/);
+    expect(body).toContain("setScreen('reveal')");
+  });
+
+  test('the reveal\'s "Add people" opens the manual form DIRECTLY (never re-lands on the phone-import screen)', () => {
+    const revealBranchStart = flowSrc.indexOf('onAddContacts');
+    expect(revealBranchStart).toBeGreaterThan(-1);
+    const revealOnAdd = flowSrc.slice(revealBranchStart, revealBranchStart + 400);
+    expect(revealOnAdd).toContain("setImportBeat('manual')");
+    expect(revealOnAdd).toContain("setScreen('contacts')");
+    // TEETH: the reveal's Add-people path contains NO route back to the unsupported/denied beats.
+    expect(revealOnAdd).not.toMatch(/setImportBeat\('unsupported'\)|setImportBeat\('denied'\)/);
+  });
+
+  test('every manual draft field is caller-owned local state (resume-exact like every other entered field)', () => {
+    expect(flowSrc).toContain('const [manualName, setManualName] = useState');
+    expect(flowSrc).toContain('const [manualPhone, setManualPhone] = useState');
+    expect(flowSrc).toContain('const [manualEmail, setManualEmail] = useState');
+  });
+});
