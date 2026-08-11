@@ -40,6 +40,9 @@ export interface OnboardingSessionRow {
   seven_whys: Prisma.JsonValue | null;
   goal_card: Prisma.JsonValue | null;
   intensity_data: Prisma.JsonValue | null;
+  // R-10 — the O-4 step's goal fields (JSON: { monthlyIncomeGoal?, weeklyTimeCommitment?,
+  // promotionTarget? }); additive + nullable, mirroring `sponsor_decision` (R-08).
+  goal_fields: Prisma.JsonValue | null;
   completed: boolean;
   created_at: Date;
 }
@@ -67,6 +70,10 @@ export interface OnboardingSessionUpdateData {
   // R-08 — the sponsor-step decision record (compact JSON: { decision, recordedAt }); see the
   // schema column's own comment for why this is an audit record, never a sponsorship source.
   sponsor_decision?: OnboardingJsonUpdateValue;
+  // R-10 — the O-4 step's goal fields (compact JSON: { monthlyIncomeGoal?, weeklyTimeCommitment?,
+  // promotionTarget? }); see the schema column's own comment for why this is a durable copy of
+  // the `intensity_data` fields, never a separate source of truth.
+  goal_fields?: OnboardingJsonUpdateValue;
   completed?: boolean;
 }
 

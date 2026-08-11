@@ -324,6 +324,70 @@
   font-size: var(--type-body-size);
 }
 
+/* R-10 — the three O-4 goal fields (income goal, weekly time commitment, promotion target;
+   master-spec §6 O-4 Flow A (4)). Plain stacked rows, no fixed width / no text-overflow, so
+   longer Spanish copy wraps freely (uiux §6.2 growth tolerance). */
+.goalsField {
+  margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-1-solid-fallback);
+}
+.goalsFieldHeading {
+  font-weight: 800;
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+  margin: 0;
+}
+.goalsFieldHint {
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+.goalsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.goalsInputWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 180px;
+}
+.goalsInput {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-3);
+  font-size: var(--type-body-size);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+.goalsInput:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+.goalsSelect {
+  min-height: var(--touch-target-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-3);
+  font-size: var(--type-body-size);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+.goalsSelect:focus-visible {
+  outline: 2px solid var(--color-action);
+  outline-offset: 2px;
+}
+
 /* ---- Sponsor (§5.1 O-6) ---- */
 .sponsorCard {
   border: 1px solid var(--line);
