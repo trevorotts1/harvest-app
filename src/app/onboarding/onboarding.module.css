@@ -557,6 +557,20 @@
 }
 
 /* ---- Outreach-consent toggle (§5.1 O-5 completion / §6.4, AC-5.1-5) ---- */
+/* R-11 — the O-8.5 GDPR consent step's copy block (master spec §16.3): stacked detail rows
+   (what is processed / who it is for / the deletion-FINRA carve-out) above the toggle row.
+   Same surface tokens as the toggle row below; no fixed widths, no ellipsis — the ES (~25%
+   longer) strings flow unconstrained (guard:i18n growth-tolerance). */
+.consentDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  background: var(--surface-2);
+  margin-bottom: var(--space-4);
+}
 .consentRow {
   display: flex;
   align-items: center;

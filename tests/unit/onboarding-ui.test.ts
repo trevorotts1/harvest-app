@@ -54,6 +54,15 @@ import {
 } from '@/services/onboarding/wp01/seven-whys';
 
 const render = (el: ReactElement) => renderToStaticMarkup(el);
+
+// R-11 — component source snapshots for the no-leak assertion: the §16.3 GDPR detail copy must
+// exist ONLY in the O-8.5 consent step, never leaked into a sibling O-screen.
+const readComponentSrc = (name: string) =>
+  readFileSync(path.join(process.cwd(), 'src', 'app', 'onboarding', 'components', `${name}.tsx`), 'utf8');
+const visionSplashSrc = readComponentSrc('VisionSplash');
+const identityStepSrc = readComponentSrc('IdentityStep');
+const orgStepSrc = readComponentSrc('OrgStep');
+const contactImportStepSrc = readComponentSrc('ContactImportStep');
 /** Visible text only — strips HTML tags (and thus attributes like `rows="3"`) so digit checks test
  *  what the rep actually SEES, not incidental markup. */
 const textOf = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/g, ' ');
@@ -650,6 +659,55 @@ describe('T-21R gap: O-8.5 GdprConsentStep — explicit affirmative act, default
     );
     expect(html).toContain('role="alert"');
     expect(textOf(html)).toMatch(/could not record your consent/i);
+  });
+});
+
+// ─── R-11 (refinements catalog 2026-07-28; master spec §16.3; operator decision D4 + D2) ─────────
+// The master spec's ACs require a DISTINCT, explicit GDPR/consent step in onboarding; the uiux
+// spec's O-1..O-9 enumeration omits one. Reconcile TO THE MASTER SPEC: this O-8.5 step IS the
+// required step, and its copy must carry the §16.3 content — what is processed, who it is for, and
+// the deletion/FINRA carve-out — with the grant REQUIRED (fail-closed, not bypassable by skipping).
+describe('R-11: O-8.5 GdprConsentStep — distinct GDPR step with clear §16.3 copy, no bypass', () => {
+  test('renders the clear data-processing scope copy (what is processed, §16.3 "Consent")', () => {
+    const html = textOf(render(createElement(GdprConsentStep, { consented: false })));
+    expect(html).toMatch(/what this covers/i);
+    // The scope must be concrete — a rep is told which data classes are processed and why,
+    // not handed a bare "we process your data" statement.
+    expect(html).toMatch(/contact details/i);
+    expect(html).toMatch(/Seven Whys/i);
+    expect(html).toMatch(/introduction pipeline/i);
+  });
+
+  test('renders the "who it is for" copy — for the rep\'s own community building, never sold (§16.3 "Minimization")', () => {
+    const html = textOf(render(createElement(GdprConsentStep, { consented: false })));
+    // renderToStaticMarkup HTML-entity-encodes the apostrophe (&#x27;) — match it either way.
+    expect(html).toMatch(/who it&#x27;s for|who it's for/i);
+    expect(html).toMatch(/never sold/i);
+  });
+
+  test('renders the deletion/FINRA carve-out copy — ordinary data deleted, regulated communications lawfully retained (§16.3 retention split)', () => {
+    const html = textOf(render(createElement(GdprConsentStep, { consented: false })));
+    expect(html).toMatch(/deletion and the FINRA carve-out/i);
+    expect(html).toMatch(/FINRA 2210\/3110/i);
+    expect(html).toMatch(/deletion certificate/i);
+    expect(html).toMatch(/segregated archive/i);
+  });
+
+  test('TEETH: the §16.3 detail copy exists ONLY on the distinct consent step — no other O-screen renders it', () => {
+    // The GDPR consent screen is the single owner of this copy. If the flow ever renders the
+    // consent detail strings anywhere else (a stray leak into another screen), this fails.
+    for (const src of [visionSplashSrc, identityStepSrc, orgStepSrc, contactImportStepSrc]) {
+      expect(src).not.toMatch(/FINRA 2210\/3110/);
+    }
+  });
+
+  test('TEETH: the flow still has NO skip affordance for the consent step — Continue is the only advance, disabled without the explicit grant', () => {
+    // A "Skip" affordance on this screen would let a rep bypass the grant in the UI. The step's
+    // own Continue is the only advance button, and it is disabled until consented (proven above).
+    const html = render(createElement(GdprConsentStep, { consented: false }));
+    expect(html).not.toMatch(/skip/i);
+    const continueButtonHtml = html.match(/<button[^>]*>\s*Continue\s*<\/button>/)?.[0] ?? '';
+    expect(continueButtonHtml).toMatch(/disabled/);
   });
 });
 

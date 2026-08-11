@@ -1392,6 +1392,12 @@
     "gdprConsent": {
       "headline": "Tus datos, tu consentimiento",
       "lede": "Una última cosa antes de terminar de configurar tu negocio — necesitamos tu consentimiento para procesar tus datos personales.",
+      "scopeTitle": "Qué incluye esto",
+      "scopeBody": "Tu perfil, los datos de contacto de tu comunidad, tus metas y tus Siete Porqués, y el registro de actividad de tus agentes de Harvest — procesados únicamente para construir y operar tu propio flujo de presentaciones.",
+      "purposeTitle": "Para quién es",
+      "purposeBody": "Para tu construcción de comunidad, en tu nombre. Tus datos nunca se venden y nunca se comparten con una línea ascendente más allá de los estados de flujo que la plataforma ya muestra.",
+      "retentionTitle": "Eliminación y la excepción FINRA",
+      "retentionBody": "Puedes solicitar la eliminación en cualquier momento: los datos ordinarios se borran. Las comunicaciones exigidas para el registro regulatorio (FINRA 2210/3110) se conservan legalmente en un archivo separado, y tu certificado de eliminación enumera exactamente qué se conservó y por qué.",
       "notPreSelectedCaption": "No está preseleccionado — esta es tu elección explícita. Revocable en cualquier momento.",
       "failedGeneric": "No se pudo registrar tu consentimiento — intenta de nuevo, por favor."
     },

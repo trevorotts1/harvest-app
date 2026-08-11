@@ -224,6 +224,28 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
     expect(es).toContain('I consent to Harvest processing my personal data, per GDPR and the Privacy Policy.');
   });
 
+  // R-11 (refinements catalog 2026-07-28; master spec §16.3) — the distinct GDPR step's §16.3
+  // detail copy (what is processed / who it is for / the deletion-FINRA carve-out) must be real
+  // ES, genuinely translated — never the EN string copy-pasted as a placeholder.
+  test('GdprConsentStep — the R-11 §16.3 detail copy (scope, purpose, FINRA carve-out) renders REAL Spanish, not English', () => {
+    const props = { consented: false };
+    const en = textOf(renderEn(GdprConsentStep, props));
+    const es = textOf(renderEs(GdprConsentStep, props));
+    // EN copy present and specific.
+    expect(en).toContain('What this covers');
+    expect(en).toContain('FINRA 2210/3110');
+    expect(en).toContain('deletion certificate');
+    // ES copy genuinely translated — the headings and the carve-out specifics are NOT English.
+    expect(es).toContain('Qué incluye esto');
+    expect(es).toContain('Para quién es');
+    expect(es).toContain('Eliminación y la excepción FINRA');
+    expect(es).toContain('certificado de eliminación');
+    // TEETH: no untranslated English headings leak into the Spanish render.
+    expect(es).not.toContain('What this covers');
+    expect(es).not.toContain('Who it\'s for');
+    expect(es).not.toContain('FINRA carve-out');
+  });
+
   test('IntensityDial — headline, all three position labels + consequences, and the pick-a-level prompt translate', () => {
     const en = textOf(renderEn(IntensityDial, { value: null }));
     const es = textOf(renderEs(IntensityDial, { value: null }));
