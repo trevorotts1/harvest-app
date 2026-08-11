@@ -4,7 +4,7 @@
 relationship activity into a calm, compliance-gated daily command center: who to reach out to
 today, what to say, and what needs a human's sign-off before it goes out.
 
-- **Version:** `2.0.0-build.T-R68` (see `package.json`)
+- **Version:** `2.0.0-build.T-R69` (see `package.json`)
 - **Production:** https://harvest-app-self.vercel.app
 
 ## Tech stack
