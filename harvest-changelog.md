@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R63] — BUILD PHASE — 2026-08-10
+### Completion round R-08 — real sponsor-matching pool; reachable linked-branch; retry fix (judge PASS 9.2)
+- **merge R-08 @ cce2c0d** — `src/services/onboarding/wp01/sponsor-candidates.server.ts` (new): sponsor matcher now wired to a REAL candidate pool (registered reps with capacity, no ghost/reachable-but-empty matching); `src/app/api/onboarding/sponsor-decision/route.ts` (new) + `src/app/onboarding/sponsor-decision-client.ts` (new) + `OnboardingFlow.tsx`: sponsor decision persisted server-side, honest 409 accept-race re-pick surfaced, retryNonce + retrySponsorPool retry path (mount/`react-test-renderer` for exercise); `prisma/migrations/20260810000000_r08_sponsor_decision/migration.sql` + `schema.prisma` (sponsor-decision table), en/es i18n strings added (1868 insertions, 22 deletions, 17 files).
+- Coverage: `tests/unit/wp01-sponsor-candidates.test.ts` (new), `tests/unit/onboarding-sponsor-decision-route.test.ts` (new), `tests/unit/onboarding-sponsor-decision-client.test.ts` (new), `tests/unit/onboarding-sponsor-retry-mount.test.ts` (new), `tests/unit/r08-sponsor-wiring.test.ts` / `r08-sponsor-i18n.test.ts` (new).
+- QC: judge PASS 9.2 per completion-round verdict (R-08 re-judge); typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R62`→`2.0.0-build.T-R63` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R63` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R62] — BUILD PHASE — 2026-08-10
 ### Completion round R-01 — RVP no-pairing onboarding; upline capture optional (judge PASS 9.1)
 - **merge R-01 @ cd447ae** — `src/services/onboarding/wp01/pairing-policy.ts` (new): RVP is never paired with anyone; upline capture is optional; `wp01/tracks.ts` extended with the RVP/upline track variants; `src/app/auth/page.tsx` (RVP/upline selection UX), `src/app/onboarding/OnboardingFlow.tsx` + `flow-model.ts` + `page.tsx` + `resume/page.tsx` wired to the new policy; en/es i18n strings added (496 insertions, 36 deletions, 15 files).
