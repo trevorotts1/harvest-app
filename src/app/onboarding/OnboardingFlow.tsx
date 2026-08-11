@@ -30,6 +30,7 @@ import type { NativeContactCandidate } from '@/services/warm-market/vault/native
 import { runNativeContactsDiscovery } from '@/services/warm-market/vault/native-import-flow';
 import type { SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
 import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
+import { sponsorStepSkippedForRole } from '@/services/onboarding/wp01/pairing-policy';
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
 import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/warm-market/hidden-earnings';
 import type { LicensingState } from '@/services/compliance/licensing';
@@ -48,6 +49,7 @@ import UplineTrack from './components/UplineTrack';
 import VisionSplash from './components/VisionSplash';
 import {
   nextScreen,
+  repScreensForRole,
   trackKindForRole,
   type OnboardingScreen,
 } from './flow-model';
@@ -271,8 +273,19 @@ export default function OnboardingFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // R-01 (refinements catalog 2026-07-28) — an RVP is never auto-paired: the sponsor-matching
+  // screen (the rep track's pairing surface) is skipped for an RVP via the role-keyed
+  // `repScreensForRole` (flow-model.ts), so advancing past `seven_whys` walks over `sponsor`
+  // (which does not exist for this role) and lands directly on `contacts` — no pairing step, no
+  // pairing requirement. Every other role keeps the exact pre-existing progression (the rep
+  // track's screens are `REP_SCREENS` unchanged). The walk stays fail-safe: it always lands on a
+  // screen that exists for this role, and the terminal fallback still routes to Today.
   function advance() {
-    const next = nextScreen(screen);
+    const screens = repScreensForRole(role);
+    let next = nextScreen(screen);
+    while (next && !screens.includes(next)) {
+      next = nextScreen(next);
+    }
     if (next) setScreen(next);
     // T-R28 (uiux AC-2-1): land directly on Today/Mission Control, not the retired `/dashboard`
     // demo stub — this comment already said "lands on Today" before the route matched that.
@@ -891,7 +904,7 @@ export default function OnboardingFlow({
         <StatusMessage>{t('onboarding.sevenWhys.unavailableBody')}</StatusMessage>
       ) : null}
 
-      {screen === 'sponsor' && (
+      {screen === 'sponsor' && !sponsorStepSkippedForRole(role) && (
         <SponsorStep
           outcome={sponsorOutcome}
           // T-R32b — was a hardcoded `sponsorName="Your sponsor"` literal, which shadowed
@@ -903,6 +916,25 @@ export default function OnboardingFlow({
           onStartPaid={advance}
           onNoUplineYet={advance}
         />
+      )}
+
+      {/* R-01 — an RVP is never paired with anyone, and the no-pairing statement is the on-screen
+          truth. This guard panel replaces SponsorStep entirely for an RVP (never stacks with it):
+          a) in the normal flow the sponsor screen is skipped for an RVP (repScreensForRole), so
+             this is the honest screen that WOULD have been the pairing surface; and b) if an RVP
+             somehow lands here anyway (e.g. a stale resume step), they see the no-pairing statement
+             instead of a pairing prompt, and can continue without naming anyone. */}
+      {screen === 'sponsor' && sponsorStepSkippedForRole(role) && (
+        <div className={styles.stepInner}>
+          <h1 className={styles.headline}>{t('onboarding.sponsor.rvpNoPairingHeadline')}</h1>
+          <p className={styles.lede}>{t('onboarding.sponsor.rvpNoPairingBody')}</p>
+          <p className={styles.caption}>{t('onboarding.sponsor.rvpUplineOptional')}</p>
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={advance}>
+              {t('onboarding.continueCta')}
+            </button>
+          </div>
+        </div>
       )}
 
       {screen === 'contacts' && (

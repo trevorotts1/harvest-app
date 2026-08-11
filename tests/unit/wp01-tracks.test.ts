@@ -18,6 +18,7 @@ import {
   stepsForRole,
   trackForRole,
   trackRequiresLicensure,
+  trackRequiresSponsorMatching,
 } from '../../src/services/onboarding/wp01/tracks';
 
 describe('WP01 onboarding tracks A/B/D (§6.3)', () => {
@@ -48,6 +49,28 @@ describe('WP01 onboarding tracks A/B/D (§6.3)', () => {
       expect(trackRequiresLicensure(Role.UPLINE)).toBe(true);
       expect(trackRequiresLicensure(Role.RVP)).toBe(true);
       expect(trackRequiresLicensure(Role.DUAL)).toBe(true);
+    });
+
+    // R-01 (refinements catalog 2026-07-28): an RVP owns their own organization and is never
+    // paired with anyone — the track shell must require NO sponsor/upline-matching step for RVP
+    // (Flow D never had one), while REP/UPLINE/DUAL keep their sponsor/upline steps.
+    test('R-01: RVP requires no sponsor/upline matching; levels below RVP keep their sponsor step', () => {
+      expect(trackRequiresSponsorMatching(Role.RVP)).toBe(false);
+      expect(trackRequiresSponsorMatching(Role.REP)).toBe(true);
+      expect(trackRequiresSponsorMatching(Role.UPLINE)).toBe(true);
+      expect(trackRequiresSponsorMatching(Role.DUAL)).toBe(true);
+      expect(trackRequiresSponsorMatching(Role.ADMIN)).toBe(false);
+    });
+
+    test('R-01: the RVP track (Flow D) shell itself has no sponsor/upline-PAIRING step — only its regulatory spine', () => {
+      const rvpKeys = stepsForRole(Role.RVP).map((s) => s.key);
+      // The two PAIRING step keys (Flow A's sponsor_matching, Flow B's sponsor_upline_setup) are
+      // absent for an RVP. `org_sponsorship_config` (the RVP's OWN downline-org sponsorship, Flow
+      // D's mandated step) legitimately remains — it is not an upline pairing.
+      expect(rvpKeys).not.toContain('sponsor_matching');
+      expect(rvpKeys).not.toContain('sponsor_upline_setup');
+      expect(rvpKeys).toContain('org_sponsorship_config');
+      expect(rvpKeys).toContain('finra_licensure'); // the licensure hard-block is untouched
     });
 
     // T-21R (§6.10-10, WP01 gate QC checkpoint #15): before this fix, ONLY `ADMIN_STEPS` carried a

@@ -230,3 +230,40 @@ describe('resume support: GET /status on mount seeds the screen + serverStepRef,
     expect(flowSrc).toContain('setScreen(stepToScreen(body.currentStep))');
   });
 });
+
+// ─── R-01 (refinements catalog 2026-07-28) — the RVP no-pairing wiring ────────────────────────────
+// The role-keyed behavior must be genuinely wired into `OnboardingFlow.tsx` (the entry pages hand
+// the persisted role from the server session; the sponsor screen is skipped/guarded for an RVP).
+describe('R-01 wiring — OnboardingFlow.tsx consumes the role-keyed no-pairing policy', () => {
+  test('advance() walks the role-keyed screen list (repScreensForRole) so an RVP skips the sponsor screen', () => {
+    const body = extractFunctionBody(flowSrc, 'advance');
+    expect(body).toContain('repScreensForRole(role)');
+    expect(body).toContain('nextScreen(');
+  });
+
+  test('the sponsor screen renders SponsorStep ONLY for a role that is not sponsor-step-skipped (RVP excluded)', () => {
+    expect(flowSrc).toContain("screen === 'sponsor' && !sponsorStepSkippedForRole(role)");
+  });
+
+  test('an RVP that somehow lands on the sponsor screen sees the no-pairing statement, not a pairing prompt', () => {
+    expect(flowSrc).toContain('sponsorStepSkippedForRole(role)');
+    expect(flowSrc).toContain("t('onboarding.sponsor.rvpNoPairingHeadline')");
+    expect(flowSrc).toContain("t('onboarding.sponsor.rvpNoPairingBody')");
+    expect(flowSrc).toContain("t('onboarding.sponsor.rvpUplineOptional')");
+    // The guard is a REPLACEMENT for SponsorStep, never stacked alongside it: the two branches are
+    // mutually exclusive (the same `screen === 'sponsor'` condition cannot render both).
+    const sponsorRender = flowSrc.indexOf('<SponsorStep');
+    const guardRender = flowSrc.indexOf('sponsorStepSkippedForRole(role) && (');
+    expect(sponsorRender).toBeGreaterThan(-1);
+    expect(guardRender).toBeGreaterThan(-1);
+  });
+
+  test('the entry pages hand the persisted role from the SERVER session into the flow', () => {
+    const entryPageSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'onboarding', 'page.tsx'), 'utf8');
+    const resumePageSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'app', 'onboarding', 'resume', 'page.tsx'), 'utf8');
+    for (const src of [entryPageSrc, resumePageSrc]) {
+      expect(src).toContain('getCurrentSession()');
+      expect(src).toContain('<OnboardingFlow role={role}');
+    }
+  });
+});

@@ -251,7 +251,9 @@
       "knowsSolutionIdQuestion": "Do you know their solution ID?",
       "notSure": "Not sure",
       "uplineSolutionIdLabel": "Upline solution ID",
-      "uplineSolutionIdPlaceholder": "If known, enter it so Harvest can pair accounts when both are on-platform"
+      "uplineSolutionIdPlaceholder": "If known, enter it so Harvest can pair accounts when both are on-platform",
+      "rvpNoPairingBody": "As an RVP, you're not being paired with anyone — you own your own organization.",
+      "rvpUplineOptional": "Optional: you may name the SVP who promoted you if they're on the platform — they won't supervise or step in."
     }
   },
   "today": {
@@ -1327,7 +1329,10 @@
       "waitlistedLede": "Join the waitlist and we’ll match you the moment a sponsor opens up — or start today.",
       "joinWaitlistCta": "Join the waitlist",
       "startPaidCta": "Start today for $297/month",
-      "noUplineYetContinueCta": "No upline yet — continue"
+      "noUplineYetContinueCta": "No upline yet — continue",
+      "rvpNoPairingHeadline": "No pairing for you — you own your organization",
+      "rvpNoPairingBody": "As an RVP you're not being paired with anyone. People report to you.",
+      "rvpUplineOptional": "Optional: name the SVP who promoted you if they're on the platform — they won't supervise or step in."
     },
     "uplineTrack": {
       "headline": "Set up your team account",

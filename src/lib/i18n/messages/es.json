@@ -251,7 +251,9 @@
       "knowsSolutionIdQuestion": "¿Conoces su ID de solución?",
       "notSure": "No estoy seguro",
       "uplineSolutionIdLabel": "ID de solución de línea ascendente",
-      "uplineSolutionIdPlaceholder": "Si lo conoces, ingrésalo para que Harvest pueda emparejar cuentas cuando ambas estén en la plataforma"
+      "uplineSolutionIdPlaceholder": "Si lo conoces, ingrésalo para que Harvest pueda emparejar cuentas cuando ambas estén en la plataforma",
+      "rvpNoPairingBody": "Como RVP, no te estamos emparejando con nadie — tú eres dueño de tu propia organización.",
+      "rvpUplineOptional": "Opcional: puedes nombrar al SVP que te promovió si está en la plataforma — no supervisará ni intervendrá."
     }
   },
   "today": {
@@ -1327,7 +1329,10 @@
       "waitlistedLede": "Únete a la lista de espera y te emparejaremos en cuanto se abra un patrocinador — o comienza hoy.",
       "joinWaitlistCta": "Unirme a la lista de espera",
       "startPaidCta": "Comenzar hoy por $297/mes",
-      "noUplineYetContinueCta": "Sin línea ascendente aún — continuar"
+      "noUplineYetContinueCta": "Sin línea ascendente aún — continuar",
+      "rvpNoPairingHeadline": "Sin emparejamiento para ti — tú eres dueño de tu organización",
+      "rvpNoPairingBody": "Como RVP, no te estamos emparejando con nadie. Las personas te reportan a ti.",
+      "rvpUplineOptional": "Opcional: nombra al SVP que te promovió si está en la plataforma — no supervisará ni intervendrá."
     },
     "uplineTrack": {
       "headline": "Configura tu cuenta de equipo",

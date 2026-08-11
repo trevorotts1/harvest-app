@@ -10,6 +10,7 @@
 
 import { Role } from '@prisma/client';
 
+import { sponsorStepSkippedForRole } from '@/services/onboarding/wp01/pairing-policy';
 import { stepsForRole, trackForRole, type OnboardingTrack } from '@/services/onboarding/wp01/tracks';
 
 /** The rep-track screens (uiux §5.1 O-1..O-9, plus the T-21R GDPR consent micro-step), in order. */
@@ -85,6 +86,21 @@ export function screenIndex(screen: OnboardingScreen): number {
 export function nextScreen(screen: OnboardingScreen): OnboardingScreen | null {
   const i = screenIndex(screen);
   return i >= 0 && i < REP_SCREENS.length - 1 ? REP_SCREENS[i + 1] : null;
+}
+
+/**
+ * R-01 (refinements catalog 2026-07-28) — the RVP role-keyed rep-track screen list. The rep
+ * track's O-screens, minus the sponsor-matching screen for an RVP: "do NOT auto-pair them with
+ * anyone" — the sponsor screen exists to pair a downline rep with a Downline Sponsor, so it is
+ * not offered to an RVP at all ("As an RVP you own your own organization — no pairing step"). For
+ * every other role (REP below-RVP default, and ADMIN, whose minimal track never reaches these
+ * screens) the list is exactly `REP_SCREENS`, unchanged.
+ */
+export function repScreensForRole(role: Role): readonly OnboardingScreen[] {
+  if (sponsorStepSkippedForRole(role)) {
+    return REP_SCREENS.filter((s) => s !== 'sponsor');
+  }
+  return REP_SCREENS;
 }
 
 export function prevScreen(screen: OnboardingScreen): OnboardingScreen | null {

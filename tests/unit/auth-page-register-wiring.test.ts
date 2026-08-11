@@ -95,6 +95,38 @@ describe('AuthPage register wizard — real account creation, not the demo GET s
     expect(SRC).toMatch(/role: \(role === 'UPLINE' \|\| role === 'RVP' \? role : 'REP'\)/);
   });
 
+  test('the Primerica level select is controlled so the pairing fields can key off RVP (R-01)', () => {
+    // R-01: an RVP must never be required to name an upline. The wizard's level select becomes
+    // controlled (value/onChange wiring) so the pairing capture can be replaced with the
+    // no-pairing statement when the registrant selects RVP.
+    expect(SRC).toMatch(/<select\s+id="primericaLevel"\s+name="primericaLevel"\s+value=\{primericaLevel\}/);
+    expect(SRC).toMatch(/onChange=\{\(event\) => setPrimericaLevel\(event\.target\.value\)\}/);
+    expect(SRC).toMatch(/const \[primericaLevel, setPrimericaLevel\] = useState\('REP'\)/);
+  });
+
+  test('the pairing capture fields are conditionally rendered — shown BELOW RVP, replaced by the no-pairing statement for RVP (R-01)', () => {
+    // The four pairing fields (pairing question, upline name, knows-solution-id, upline solution
+    // ID) must be inside the non-RVP branch; an RVP gets the on-screen no-pairing statement
+    // instead. Levels below RVP keep the normal required pairing — unchanged. The branch condition
+    // keys off the SAME role-keyed policy the onboarding flow uses (`sponsorStepSkippedForRole`),
+    // so the two surfaces can never disagree.
+    expect(SRC).toContain('sponsorStepSkippedForRole(Role.RVP)');
+    expect(SRC).toMatch(/sponsorStepSkippedForRole\(Role\.RVP\) && primericaLevel === 'RVP' \?/);
+    expect(SRC).toMatch(/t\('auth\.primerica\.rvpNoPairingBody'\)/);
+    expect(SRC).toMatch(/t\('auth\.primerica\.rvpUplineOptional'\)/);
+    expect(SRC).toMatch(/id="supportRelationship"/);
+    expect(SRC).toMatch(/id="uplineName"/);
+    expect(SRC).toMatch(/id="knowsUplineSolutionId"/);
+    expect(SRC).toMatch(/id="uplineSolutionId"/);
+    // The pairing fields and the RVP statement are mutually exclusive branches — the pairing
+    // fields must NOT render for an RVP (they live in the else-branch of the same conditional).
+    const pairingIdx = SRC.indexOf('id="supportRelationship"');
+    const rvpBranchIdx = SRC.indexOf("primericaLevel === 'RVP' ?");
+    const elseIdx = SRC.indexOf(') : (', rvpBranchIdx);
+    expect(rvpBranchIdx).toBeGreaterThan(-1);
+    expect(pairingIdx).toBeGreaterThan(elseIdx);
+  });
+
   test('the login form (mode=login) is untouched and still works', () => {
     expect(SRC).toMatch(/<form onSubmit=\{handleLogin\}>/);
     expect(SRC).toMatch(/signIn\('credentials', \{\s*email: loginEmail,\s*password: loginPassword,\s*redirect: false,\s*\}\)/);

@@ -11,6 +11,13 @@
 //   - Flow D — RVP track: Flow B's regulated spine + org-sponsorship configuration + multi-team setup
 //     + supervisory FINRA disclosures.
 //
+// R-01 (refinements catalog 2026-07-28) — the RVP no-pairing rule lives in pairing-policy.ts
+// (`sponsorStepSkippedForRole`). Flow D (the RVP track) never carried a sponsor/upline step in its
+// shell — the RVP's "org-sponsorship configuration" is their own downline org, not an upline
+// pairing — and the rep track's sponsor-matching screen is skipped for an RVP via
+// flow-model.ts's `repScreensForRole`. The pairing-policy module is the single role-keyed source
+// of truth both surfaces consult, so the rule cannot drift between them.
+//
 // DUAL "loads upline steps in addition to rep steps" (§6.2): its track is the union of A and B (rep
 // steps first, then the upline-only steps), so a DUAL user is ALSO subject to the licensure gate that
 // the upline steps carry.
@@ -28,6 +35,7 @@ import {
   canPerformLicensedActivity,
   type LicensingState,
 } from '@/services/compliance/licensing';
+import { sponsorStepSkippedForRole } from '@/services/onboarding/wp01/pairing-policy';
 
 export type OnboardingTrack = 'A' | 'B' | 'D' | 'ADMIN';
 
@@ -218,4 +226,19 @@ export async function evaluateTrackCompletionAsync(
   }
   const licensed = await gate.canPerformLicensedActivity(userId, jurisdiction);
   return evaluateStepGate(FINRA_LICENSURE_STEP, { licensed });
+}
+
+/**
+ * R-01 — is this role's track REQUIRED to include a sponsor/upline-PAIRING step? True for REP
+ * (Flow A's `sponsor_matching`) and UPLINE/DUAL (Flow B's `sponsor_upline_setup`); FALSE for RVP
+ * (Flow D — an RVP owns their own organization and is never paired with anyone; its
+ * `org_sponsorship_config` step is the RVP's OWN downline-org sponsorship, not an upline pairing)
+ * and ADMIN (whose minimal track has no such step). Delegates to pairing-policy.ts's
+ * `sponsorStepSkippedForRole` so the track shell and the flow model can never disagree with the
+ * registration wizard. The key match is scoped to the two pairing steps by name — a substring
+ * `'sponsor'` match would wrongly flag Flow D's `org_sponsorship_config`.
+ */
+export function trackRequiresSponsorMatching(role: Role): boolean {
+  if (sponsorStepSkippedForRole(role)) return false;
+  return stepsForRole(role).some((s) => s.key === 'sponsor_matching' || s.key === 'sponsor_upline_setup');
 }

@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 import { useT } from '@/app/locale-context';
 import { landsOnTeamView } from '@/components/AppShell/navConfig';
 import StatusMessage from '@/components/StatusMessage';
+import { sponsorStepSkippedForRole } from '@/services/onboarding/wp01/pairing-policy';
+import { Role } from '@prisma/client';
 
 import { registerAndSignIn, type RegisterFields } from './register-client';
 
@@ -45,6 +47,13 @@ export default function AuthPage() {
   const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
   const [organizationName, setOrganizationName] = useState('');
+  // R-01 (refinements catalog 2026-07-28) — the registrant's selected Primerica level, mirroring
+  // the wizard's controlled select so the pairing fields can key off it. An RVP is NEVER required
+  // to name an upline (name or solution ID all optional) and is told on-screen they are not being
+  // paired with anyone; levels BELOW RVP keep the normal required pairing capture. The raw select
+  // value (uncontrolled, defaultValue="REP") is also read from FormData at submit, exactly as
+  // before — this state exists only for the conditional UI.
+  const [primericaLevel, setPrimericaLevel] = useState('REP');
 
   // Login mode (T-04): wired to Auth.js's real Credentials sign-in, replacing the demo stub.
   const [loginEmail, setLoginEmail] = useState('');
@@ -272,7 +281,16 @@ export default function AuthPage() {
                 <div className="primerica-fields">
                   <div className="field">
                     <label htmlFor="primericaLevel">{t('auth.primerica.levelLabel')}</label>
-                    <select id="primericaLevel" name="primericaLevel" defaultValue="REP">
+                    {/* R-01 — controlled so the pairing block below can key off the selected level
+                        (an RVP is never required to name an upline). `name="primericaLevel"` is kept
+                        so the submit handler still reads the raw value from FormData, exactly as
+                        before this fix. */}
+                    <select
+                      id="primericaLevel"
+                      name="primericaLevel"
+                      value={primericaLevel}
+                      onChange={(event) => setPrimericaLevel(event.target.value)}
+                    >
                       <option value="SNSD">{t('auth.primerica.level.snsd')}</option>
                       <option value="NSD">{t('auth.primerica.level.nsd')}</option>
                       <option value="SVP">{t('auth.primerica.level.svp')}</option>
@@ -288,31 +306,50 @@ export default function AuthPage() {
                     <label htmlFor="solutionNumber">{t('auth.primerica.solutionNumberLabel')}</label>
                     <input id="solutionNumber" name="solutionNumber" placeholder={t('auth.primerica.solutionNumberPlaceholder')} />
                   </div>
-                  <div className="field">
-                    <label htmlFor="supportRelationship">{t('auth.primerica.pairingQuestion')}</label>
-                    <select id="supportRelationship" name="supportRelationship" defaultValue="IMMEDIATE_UPLINE">
-                      <option value="IMMEDIATE_UPLINE">{t('auth.primerica.pairing.upline')}</option>
-                      <option value="FIELD_TRAINER">{t('auth.primerica.pairing.fieldTrainer')}</option>
-                      <option value="RVP">{t('auth.primerica.pairing.rvp')}</option>
-                      <option value="UNKNOWN">{t('auth.primerica.pairing.unknown')}</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="uplineName">{t('auth.primerica.uplineNameLabel')}</label>
-                    <input id="uplineName" name="uplineName" placeholder={t('auth.primerica.uplineNamePlaceholder')} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="knowsUplineSolutionId">{t('auth.primerica.knowsSolutionIdQuestion')}</label>
-                    <select id="knowsUplineSolutionId" name="knowsUplineSolutionId" defaultValue="UNKNOWN">
-                      <option value="YES">{t('common.yes')}</option>
-                      <option value="NO">{t('common.no')}</option>
-                      <option value="UNKNOWN">{t('auth.primerica.notSure')}</option>
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="uplineSolutionId">{t('auth.primerica.uplineSolutionIdLabel')}</label>
-                    <input id="uplineSolutionId" name="uplineSolutionId" placeholder={t('auth.primerica.uplineSolutionIdPlaceholder')} />
-                  </div>
+                  {/* R-01 — the RVP pairing branch keys off the ROLE-KEYED policy
+                      (`sponsorStepSkippedForRole(Role.RVP)`) — the exact same decision the
+                      onboarding flow's sponsor-step skip uses, so the registration wizard and the
+                      onboarding flow can never disagree about whether an RVP is paired. */}
+                  {sponsorStepSkippedForRole(Role.RVP) && primericaLevel === 'RVP' ? (
+                    // R-01 — RVP: "do NOT auto-pair them with anyone; do NOT require an immediate
+                    // upline (name or upline solution ID all OPTIONAL / skippable); state clearly
+                    // on-screen that as an RVP they are not being paired with anyone; upline
+                    // linkage stays OPTIONAL (an RVP MAY name their SVP/promoter if that person is
+                    // on the platform) but that upline does not 'step in' or supervise."
+                    <div className="notice">
+                      <p>{t('auth.primerica.rvpNoPairingBody')}</p>
+                      <p>{t('auth.primerica.rvpUplineOptional')}</p>
+                    </div>
+                  ) : (
+                    // Levels BELOW RVP keep the normal required upline pairing — unchanged.
+                    <>
+                      <div className="field">
+                        <label htmlFor="supportRelationship">{t('auth.primerica.pairingQuestion')}</label>
+                        <select id="supportRelationship" name="supportRelationship" defaultValue="IMMEDIATE_UPLINE">
+                          <option value="IMMEDIATE_UPLINE">{t('auth.primerica.pairing.upline')}</option>
+                          <option value="FIELD_TRAINER">{t('auth.primerica.pairing.fieldTrainer')}</option>
+                          <option value="RVP">{t('auth.primerica.pairing.rvp')}</option>
+                          <option value="UNKNOWN">{t('auth.primerica.pairing.unknown')}</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="uplineName">{t('auth.primerica.uplineNameLabel')}</label>
+                        <input id="uplineName" name="uplineName" placeholder={t('auth.primerica.uplineNamePlaceholder')} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="knowsUplineSolutionId">{t('auth.primerica.knowsSolutionIdQuestion')}</label>
+                        <select id="knowsUplineSolutionId" name="knowsUplineSolutionId" defaultValue="UNKNOWN">
+                          <option value="YES">{t('common.yes')}</option>
+                          <option value="NO">{t('common.no')}</option>
+                          <option value="UNKNOWN">{t('auth.primerica.notSure')}</option>
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="uplineSolutionId">{t('auth.primerica.uplineSolutionIdLabel')}</label>
+                        <input id="uplineSolutionId" name="uplineSolutionId" placeholder={t('auth.primerica.uplineSolutionIdPlaceholder')} />
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : null}
             </div>
