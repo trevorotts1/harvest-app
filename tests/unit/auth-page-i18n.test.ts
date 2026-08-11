@@ -105,4 +105,10 @@ describe('AuthPage — i18n (EN default + genuine ES render, T-R32b)', () => {
     expect(esHtml).toMatch(/<option value="REP"[^>]*>Rep\/Usuario<\/option>/);
     expect(esHtml).toMatch(/<option value="UPLINE"[^>]*>Línea ascendente<\/option>/);
   });
+
+  // R-01 — the no-pairing statement and the level select only render once the registrant's typed
+  // organization name triggers the Primerica branch (a client interaction this jsdom-less suite
+  // cannot simulate — the static render shows the non-Primerica branch). The R-01 catalog keys'
+  // presence, EN content, and genuine ES quality are covered by r01-pairing-i18n.test.ts, and the
+  // RVP-conditional wiring is proven by auth-page-register-wiring.test.ts.
 });
