@@ -1,3 +1,11 @@
+## [2.0.0-build.T-R62] — BUILD PHASE — 2026-08-10
+### Completion round R-01 — RVP no-pairing onboarding; upline capture optional (judge PASS 9.1)
+- **merge R-01 @ cd447ae** — `src/services/onboarding/wp01/pairing-policy.ts` (new): RVP is never paired with anyone; upline capture is optional; `wp01/tracks.ts` extended with the RVP/upline track variants; `src/app/auth/page.tsx` (RVP/upline selection UX), `src/app/onboarding/OnboardingFlow.tsx` + `flow-model.ts` + `page.tsx` + `resume/page.tsx` wired to the new policy; en/es i18n strings added (496 insertions, 36 deletions, 15 files).
+- Coverage: `tests/unit/wp01-pairing-policy.test.ts` (new), `tests/unit/r01-pairing-i18n.test.ts` (new), `tests/unit/wp01-tracks.test.ts` (new), expanded `tests/unit/auth-page-register-wiring.test.ts` / `auth-page-i18n.test.ts` / `onboarding-flow-wiring.test.ts`.
+- QC: judge PASS 9.1 per completion-round verdict; typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R61`→`2.0.0-build.T-R62` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R62` created on the ripple commit and pushed.
+- Note: the task-specified next version `T-R60` was already skipped on main — the R-18 ripple (20:22–20:23 UTC-5) bumped `T-R59`→`T-R61` directly; this ripple takes the next free number `T-R62` to keep versions monotonic (per standing convention in this changelog: no version regressions on main, tag always matches package.json).
+
 ## [2.0.0-build.T-R61] — BUILD PHASE — 2026-08-10
 ### Completion round R-18 — admin-panel account-recovery reset (judge PASS 9.6)
 - **merge R-18 @ 7ebe608** — `src/app/api/admin/users/[userId]/reset-password/route.ts` (new) + `user-management.service.ts` `resetPasswordForUser()`: admin-mediated password-reset token issuance, the SMTP-free recovery path (route creates a one-time reset token for the target user and surfaces it in the admin UI for out-of-band delivery — no mail dependency). `src/app/admin/users/page.tsx` gains the reset action + token display (i18n via `admin-token-display.ts`, en/es strings); `src/app/api/auth/password-reset/request/route.ts` and `src/services/security/password-reset.ts` adjusted so the request path and issuance stay consistent; audit + signups pages touched for the new action surface (713 insertions, 10 deletions, 14 files).
