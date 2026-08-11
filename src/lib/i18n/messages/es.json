@@ -1332,7 +1332,12 @@
       "noUplineYetContinueCta": "Sin línea ascendente aún — continuar",
       "rvpNoPairingHeadline": "Sin emparejamiento para ti — tú eres dueño de tu organización",
       "rvpNoPairingBody": "Como RVP, no te estamos emparejando con nadie. Las personas te reportan a ti.",
-      "rvpUplineOptional": "Opcional: nombra al SVP que te promovió si está en la plataforma — no supervisará ni intervendrá."
+      "rvpUplineOptional": "Opcional: nombra al SVP que te promovió si está en la plataforma — no supervisará ni intervendrá.",
+      "loadingPool": "Buscando al patrocinador adecuado para ti…",
+      "poolErrorTitle": "No pudimos cargar los patrocinadores disponibles",
+      "poolErrorBody": "Algo salió mal al buscar patrocinadores. Puedes intentarlo de nuevo — no se ha cambiado nada.",
+      "poolRetryCta": "Intentar de nuevo",
+      "submittingStatus": "Guardando tu elección…"
     },
     "uplineTrack": {
       "headline": "Configura tu cuenta de equipo",

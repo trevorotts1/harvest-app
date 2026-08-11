@@ -64,6 +64,9 @@ export interface OnboardingSessionUpdateData {
   seven_whys?: OnboardingJsonUpdateValue;
   goal_card?: OnboardingJsonUpdateValue;
   intensity_data?: OnboardingJsonUpdateValue;
+  // R-08 — the sponsor-step decision record (compact JSON: { decision, recordedAt }); see the
+  // schema column's own comment for why this is an audit record, never a sponsorship source.
+  sponsor_decision?: OnboardingJsonUpdateValue;
   completed?: boolean;
 }
 

@@ -29,8 +29,9 @@ import { MAX_IMPORT_ROWS } from '@/services/warm-market/vault/csv-parser';
 import type { NativeContactCandidate } from '@/services/warm-market/vault/native-contacts-adapter';
 import { runNativeContactsDiscovery } from '@/services/warm-market/vault/native-import-flow';
 import type { SevenWhysRenderedTurn } from '@/services/onboarding/wp01/seven-whys';
-import { matchSponsor, type SponsorMatchOutcome } from '@/services/onboarding/wp01/sponsor-matching';
+import { matchSponsor, type SponsorMatchOutcome, type SponsorCandidate } from '@/services/onboarding/wp01/sponsor-matching';
 import { sponsorStepSkippedForRole } from '@/services/onboarding/wp01/pairing-policy';
+import { fetchSponsorCandidates, postSponsorDecision } from './sponsor-decision-client';
 import { checkSolutionNumberForOrg } from '@/services/onboarding/wp01/solution-number';
 import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/warm-market/hidden-earnings';
 import type { LicensingState } from '@/services/compliance/licensing';
@@ -173,12 +174,97 @@ export default function OnboardingFlow({
   const [denseSubmitting, setDenseSubmitting] = useState(false);
   const [denseError, setDenseError] = useState<string | null>(null);
 
-  // Sponsor outcome consumed straight from the §6.5 matcher — with no candidate pool the rep is
-  // waitlisted (never a dead end); the UI renders that verdict, it does not decide it.
-  const sponsorOutcome: SponsorMatchOutcome = useMemo(
-    () => matchSponsor({ orgType: orgType ?? OrgType.EXTERNAL, candidates: [] }),
-    [orgType]
-  );
+  // R-08 — the REAL candidate pool. The old hard-coded empty candidate array made every session
+  // resolve 'waitlisted' and made the 'linked' branch unreachable; the pool now comes from the
+  // server (`/api/onboarding/sponsor-decision`, resolved from actual same-org-type,
+  // sponsor-eligible, never-RVP users with their sponsorship/linkage rows preferred — R-01's
+  // pairing policy enforced server-side). `sponsorCandidates` is the resolved pool,
+  // `sponsorPoolLoading`/`sponsorPoolError` its honest in-flight/failure state (a failed pool
+  // fetch shows the sponsor screen with a retry, never a fabricated empty pool — the matcher only
+  // resolves 'waitlisted' when the pool is GENUINELY empty, exactly as §6.5 intends).
+  const [sponsorCandidates, setSponsorCandidates] = useState<SponsorCandidate[] | null>(null);
+  // The server-resolved display names for the pool (kept out of the pure matcher's candidate
+  // shape — `SponsorCandidate` deliberately carries no PII-ish name; see sponsor-matching.ts).
+  const [sponsorCandidateNames, setSponsorCandidateNames] = useState<Record<string, string>>({});
+  const [sponsorPoolLoading, setSponsorPoolLoading] = useState(false);
+  const [sponsorPoolError, setSponsorPoolError] = useState(false);
+  const [sponsorSubmitting, setSponsorSubmitting] = useState(false);
+  const [sponsorError, setSponsorError] = useState<string | null>(null);
+
+  // The §6.5 verdict, consumed straight from the matcher over the REAL pool. `null` until the pool
+  // resolves — the UI renders loading/error states instead of fabricating a verdict. The matcher
+  // resolves 'waitlisted' ONLY when the pool is genuinely empty (no same-org, sponsor-eligible,
+  // non-RVP user exists) — the honest §6.5 condition, never the old hard-coded universal.
+  const sponsorOutcome: SponsorMatchOutcome | null = useMemo(() => {
+    if (sponsorCandidates === null) return null;
+    return matchSponsor(
+      { orgType: orgType ?? OrgType.EXTERNAL, candidates: sponsorCandidates },
+      new Date()
+    );
+  }, [orgType, sponsorCandidates]);
+
+  // R-08 — resolve the real pool once the rep reaches the sponsor screen (the pool is rep- and
+  // org-scoped server-side, so the mount-time fetch is keyed to this session; a retry re-fetches).
+  useEffect(() => {
+    if (screen !== 'sponsor' || sponsorStepSkippedForRole(role) || sponsorCandidates !== null) {
+      return;
+    }
+    let cancelled = false;
+    setSponsorPoolLoading(true);
+    setSponsorPoolError(false);
+    (async () => {
+      try {
+        const result = await fetchSponsorCandidates();
+        if (cancelled) return;
+        if (result.ok) {
+          setSponsorCandidates(result.candidates.map((c) => ({
+            userId: c.userId,
+            orgType: orgType ?? OrgType.EXTERNAL,
+            // The server-resolved REAL load — the displayed verdict and the accept-time
+            // re-derivation weigh the same numbers, so the matched sponsor is the persisted one.
+            activeSponsorshipCount: c.activeSponsorshipCount,
+          })));
+          setSponsorCandidateNames(Object.fromEntries(result.candidates.map((c) => [c.userId, c.name])));
+        } else {
+          setSponsorPoolError(true);
+        }
+      } catch {
+        if (!cancelled) setSponsorPoolError(true);
+      } finally {
+        if (!cancelled) setSponsorPoolLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, role]);
+
+  // R-08 — the four sponsor-outcome buttons now persist a REAL choice server-side
+  // (`POST /api/onboarding/sponsor-decision`); only a confirmed success advances the rep. A failed
+  // or rejected call surfaces honestly (never a silent advance): the server re-verifies `accept`'s
+  // sponsor id against its own matcher's pick before persisting anything, so a tampered choice
+  // fails closed with a 409 here.
+  async function persistSponsorDecision(decision: 'accept' | 'join_waitlist' | 'start_paid' | 'no_upline_yet') {
+    if (inFlightRef.current || sponsorSubmitting) return;
+    inFlightRef.current = true;
+    setSponsorSubmitting(true);
+    setSponsorError(null);
+    try {
+      const sponsorId = decision === 'accept' && sponsorOutcome?.kind === 'linked' ? sponsorOutcome.sponsorId : null;
+      const result = await postSponsorDecision(decision, sponsorId);
+      if (!result.ok) {
+        setSponsorError(errorDisplay(t, result.code));
+        return;
+      }
+      advance();
+    } catch {
+      setSponsorError(t('errors.generic'));
+    } finally {
+      inFlightRef.current = false;
+      setSponsorSubmitting(false);
+    }
+  }
 
   // T-24 (§7.3/§8.4) — the O-8 Reveal's figure, computed by the ONE Hidden Earnings engine rather
   // than inline arithmetic (the pre-T-24 code here computed `contactCount * 5200` etc., which was
@@ -905,17 +991,58 @@ export default function OnboardingFlow({
       ) : null}
 
       {screen === 'sponsor' && !sponsorStepSkippedForRole(role) && (
-        <SponsorStep
-          outcome={sponsorOutcome}
-          // T-R32b — was a hardcoded `sponsorName="Your sponsor"` literal, which shadowed
-          // `SponsorStep`'s own (now-localized) `sponsorName ?? t('onboarding.sponsor.fallbackName')`
-          // default with an always-English value regardless of locale. Omitted so that child default
-          // applies — identical EN behavior, genuinely translated under `es`.
-          onAccept={advance}
-          onJoinWaitlist={advance}
-          onStartPaid={advance}
-          onNoUplineYet={advance}
-        />
+        <>
+          {sponsorPoolLoading && (
+            <div className={styles.stepInner}>
+              <StatusMessage tone="polite">{t('onboarding.sponsor.loadingPool')}</StatusMessage>
+            </div>
+          )}
+          {sponsorPoolError && (
+            <div className={styles.stepInner}>
+              {/* role="alert" — the guard's structural live-region contract (T-57 RG4): a status
+                  render inside an error branch must be announced. The retry button below sits
+                  outside the region (interactive control labels are not status messages). */}
+              <div role="alert">
+                <p className={styles.headline}>{t('onboarding.sponsor.poolErrorTitle')}</p>
+                <p>{t('onboarding.sponsor.poolErrorBody')}</p>
+              </div>
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={() => {
+                    setSponsorCandidates(null);
+                    setSponsorPoolError(false);
+                  }}
+                >
+                  {t('onboarding.sponsor.poolRetryCta')}
+                </button>
+              </div>
+            </div>
+          )}
+          {!sponsorPoolLoading && !sponsorPoolError && sponsorOutcome && (
+            <>
+              <SponsorStep
+                outcome={sponsorOutcome}
+                // R-08 — the linked sponsor's REAL display name (resolved server-side from the
+                // candidate's `User.name`), instead of the localizer default for an unknown one.
+                sponsorName={
+                  sponsorOutcome.kind === 'linked'
+                    ? sponsorCandidateNames[sponsorOutcome.sponsorId]
+                    : undefined
+                }
+                onAccept={() => void persistSponsorDecision('accept')}
+                onJoinWaitlist={() => void persistSponsorDecision('join_waitlist')}
+                onStartPaid={() => void persistSponsorDecision('start_paid')}
+                onNoUplineYet={() => void persistSponsorDecision('no_upline_yet')}
+              />
+              {sponsorSubmitting ? (
+                <StatusMessage tone="polite">{t('onboarding.sponsor.submittingStatus')}</StatusMessage>
+              ) : null}
+              {sponsorError ? <StatusMessage>{sponsorError}</StatusMessage> : null}
+            </>
+          )}
+        </>
       )}
 
       {/* R-01 — an RVP is never paired with anyone, and the no-pairing statement is the on-screen
