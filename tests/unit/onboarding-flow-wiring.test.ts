@@ -146,6 +146,21 @@ describe('handleGrantGdprConsent — grants REAL consent AND advances the REAL s
     expect(stepGuardIdx).toBeGreaterThan(consentGuardIdx);
     expect(advanceIdx).toBeGreaterThan(stepGuardIdx);
   });
+
+  // R-11 (refinements catalog 2026-07-28; operator decision D4 no-avoids + D2 fully implement) —
+  // the consent grant is REQUIRED to complete onboarding and is not bypassable by skipping:
+  // the consent screen's ONLY advance path is handleGrantGdprConsent (no skip route through the
+  // screen), and completion is independently gated server-side (evaluateConsentCompletionGate —
+  // proven in tests/unit/onboarding.test.ts and wp01-consent-gate.test.ts).
+  test('R-11: the consent screen\'s ONLY advance is handleGrantGdprConsent — no skip affordance exists on the step', () => {
+    // The consent screen branch renders GdprConsentStep with onContinue={handleGrantGdprConsent}
+    // and no other advance path.
+    expect(flowSrc).toMatch(/screen === 'consent' &&/);
+    expect(flowSrc).toMatch(/onContinue=\{handleGrantGdprConsent\}/);
+    // TEETH: no "Skip" affordance is ever wired on the consent screen (a skip would let a rep
+    // advance without the explicit grant — the UI-side half of the fail-closed contract).
+    expect(flowSrc).not.toMatch(/screen === 'consent'[\s\S]*?Skip/);
+  });
 });
 
 describe('handleShowToday — the FINAL CTA: POST /complete, THEN (and only then) navigate to /today', () => {

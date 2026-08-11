@@ -1392,6 +1392,12 @@
     "gdprConsent": {
       "headline": "Your data, your consent",
       "lede": "One last thing before we finish setting up your business — we need your consent to process your personal data.",
+      "scopeTitle": "What this covers",
+      "scopeBody": "Your profile, your community's contact details, your goals and Seven Whys, and the activity log of your Harvest agents — processed only to build and run your own introduction pipeline.",
+      "purposeTitle": "Who it's for",
+      "purposeBody": "Your community building, on your behalf. Your data is never sold, and it is never shared with an upline beyond the pipeline states the platform already shows.",
+      "retentionTitle": "Deletion and the FINRA carve-out",
+      "retentionBody": "You can request deletion any time: ordinary data is removed. Communications required for regulatory recordkeeping (FINRA 2210/3110) are lawfully retained in a segregated archive, and your deletion certificate lists exactly what was kept and why.",
       "notPreSelectedCaption": "Not pre-selected — this is your explicit choice. Revocable any time.",
       "failedGeneric": "Could not record your consent — please try again."
     },
