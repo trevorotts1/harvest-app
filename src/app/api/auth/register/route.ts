@@ -160,7 +160,9 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch {
+  } catch (err) {
+    // T-R75 DEBUG INSTRUMENTATION — temporary; will be removed after diagnosis.
+    console.error('[register-debug] route failure:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
