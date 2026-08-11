@@ -61,6 +61,10 @@ export const GET = withRole(ALL_ROLES, async (_req: NextRequest, _ctx, authSessi
       sevenWhys: row.seven_whys,
       goalCard: row.goal_card,
       intensityData: row.intensity_data,
+      // R-10 — the O-4 step's persisted goal fields (JSON copy of the INTENSITY payload's
+      // monthlyIncomeGoal / weeklyTimeCommitment / promotionTarget); `null` when the step was
+      // never reached or no fields were captured.
+      goalFields: row.goal_fields,
       // R-05 — the presence-only signal; the value itself never leaves this route.
       hasSolutionNumber,
     });

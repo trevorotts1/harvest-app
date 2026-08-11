@@ -196,6 +196,29 @@ export const POST = withRole(ALL_ROLES, async (req: NextRequest, _ctx, authSessi
           { status: 400 }
         );
       }
+      // R-10 — the O-4 goal fields (income goal / weekly time / promotion target) ride the INTENSITY
+      // payload; copy the three optional fields onto the session's `goal_fields` JSON. `validateStep`
+      // above already format-gated every PRESENT field, and absent fields are simply not written
+      // (the column stays SQL NULL) — never fabricated. This is a durable audit copy of the
+      // `intensity_data` fields, exactly `sponsor_decision`'s (R-08) posture.
+      const goals = (data.intensityData as {
+        monthlyIncomeGoal?: unknown;
+        weeklyTimeCommitment?: unknown;
+        promotionTarget?: unknown;
+      }) ?? {};
+      const goalFields: Record<string, unknown> = {};
+      if (goals.monthlyIncomeGoal !== undefined && goals.monthlyIncomeGoal !== null) {
+        goalFields.monthlyIncomeGoal = goals.monthlyIncomeGoal;
+      }
+      if (goals.weeklyTimeCommitment !== undefined && goals.weeklyTimeCommitment !== null) {
+        goalFields.weeklyTimeCommitment = goals.weeklyTimeCommitment;
+      }
+      if (goals.promotionTarget !== undefined && goals.promotionTarget !== null) {
+        goalFields.promotionTarget = goals.promotionTarget;
+      }
+      if (Object.keys(goalFields).length > 0) {
+        updateData.goal_fields = toJsonUpdateValue(goalFields);
+      }
     }
     // T-21R (§6.10-10): `validateStep` above already rejected this request if `data.gdpr_consent`
     // wasn't explicitly `true` — reaching here means an explicit affirmative consent act occurred.

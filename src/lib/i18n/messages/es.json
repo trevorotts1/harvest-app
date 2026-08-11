@@ -1400,6 +1400,29 @@
       "caption": "Tu control de “CEO de 2 Horas”: define cuánto hacen tus agentes de IA en segundo plano — ritmo de contactos, volumen diario y el tope de costo. Puedes cambiarlo cuando quieras.",
       "ariaLabel": "Intensidad",
       "pickAPrompt": "Elige un nivel — cada uno muestra lo que harán tus agentes de IA por ti.",
+      "goalsField": {
+        "heading": "Tus metas para este negocio",
+        "headingHint": "Ayudan a tus agentes a marcar el ritmo de tu trabajo y medir tu progreso. Puedes cambiarlas más adelante.",
+        "incomeLabel": "Meta de ingresos mensuales",
+        "incomePlaceholder": "p. ej. 2000",
+        "incomeSuffix": "USD al mes",
+        "timeLabel": "Compromiso de tiempo semanal",
+        "timePlaceholder": "p. ej. 7",
+        "timeSuffix": "horas por semana",
+        "promotionLabel": "Meta de ascenso",
+        "promotionDefault": "Selecciona un nivel",
+        "promotionOptions": {
+          "snsd": "SNSD (Directora Nacional de Ventas Senior)",
+          "nsd": "NSD (Director Nacional de Ventas)",
+          "svp": "SVP (Vicepresidente Senior)",
+          "rvp": "RVP (Vicepresidente Regional)",
+          "rl": "RL (Líder Regional)",
+          "dl": "DL (Líder de División)",
+          "district": "Distrito (Líder de Distrito)",
+          "srRep": "Rep. Sr. (Representante Senior)",
+          "rep": "Rep (Representante)"
+        }
+      },
       "positions": {
         "low": {
           "label": "Baja",

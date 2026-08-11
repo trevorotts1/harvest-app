@@ -1,11 +1,18 @@
 // uiux §4.9 / §5.1 O-4 — the Intensity Dial. Three positions (Low/Medium/High), each with a
 // plain-language consequence panel; requires an EXPLICIT selection (no default pre-selected — an
 // intentional commitment act, AC-5.1-3); radiogroup semantics with arrow-key stepping.
+//
+// R-10 (master-spec §6 O-4 Flow A (4)) — the spec's O-4 step also defines three goal fields the
+// dial used to lack (income goal, weekly time commitment, promotion target); they now render via
+// `GoalsFields` ABOVE the dial, on the SAME step, purely additively. The dial's own values/logic
+// (R-06 copy included) are untouched; the goal fields are optional and ride the INTENSITY step's
+// existing payload/persistence path (see GoalsFields.tsx).
 
 import { IntensitySetting } from '@prisma/client';
 
 import styles from '../onboarding.module.css';
 import { useT } from '@/app/locale-context';
+import GoalsFields, { type GoalsFieldsValue } from './GoalsFields';
 
 interface Position {
   value: IntensitySetting;
@@ -29,9 +36,14 @@ export interface IntensityDialProps {
   value: IntensitySetting | null;
   onChange?: (value: IntensitySetting) => void;
   onContinue?: () => void;
+  /** R-10 — the O-4 step's three goal fields (income goal / weekly time / promotion target),
+   *  optional; `undefined` renders the step without them (every existing caller and test is
+   *  unaffected). */
+  goals?: GoalsFieldsValue;
+  onGoalsChange?: (value: GoalsFieldsValue) => void;
 }
 
-export default function IntensityDial({ value, onChange, onContinue }: IntensityDialProps) {
+export default function IntensityDial({ value, onChange, onContinue, goals, onGoalsChange }: IntensityDialProps) {
   const t = useT();
   const selected = INTENSITY_POSITIONS.find((p) => p.value === value) ?? null;
 
@@ -45,6 +57,12 @@ export default function IntensityDial({ value, onChange, onContinue }: Intensity
     <div className={styles.stepInner}>
       <h1 className={styles.headline}>{t('onboarding.intensityDial.headline')}</h1>
       <p className={styles.lede}>{t('onboarding.intensityDial.caption')}</p>
+
+      {/* R-10 — the O-4 goal fields render only when the caller supplies them (pure addition to
+          the step; the dial below is behaviorally untouched). */}
+      {goals && onGoalsChange ? (
+        <GoalsFields value={goals} onChange={onGoalsChange} />
+      ) : null}
 
       <div
         className={styles.dial}

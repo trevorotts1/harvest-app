@@ -8,6 +8,8 @@ import {
   MIN_COMMITMENT_SCORE,
   ROLE_VISIBILITY,
   ValidationResult,
+  PROMOTION_TARGET_LEVELS,
+  type PromotionTargetLevel,
   findForbiddenTerms,
 } from '../../types/onboarding';
 // T-17 QC fix: `validateSolutionNumberFormat` used to check against this file's OWN
@@ -106,6 +108,54 @@ export class OnboardingService {
         | undefined;
       if (!intensityData || (intensityData.commitmentScore as number) < MIN_COMMITMENT_SCORE) {
         return { valid: false, error: 'Intensity data insufficient' };
+      }
+      // R-10 (master-spec §6 O-4 Flow A (4)) — the three goal fields the spec's O-4 step defines
+      // alongside the intensity dial (income goal, weekly time commitment, promotion target) are
+      // format-checked here. All three are OPTIONAL (a payload that omits them — every dense-track
+      // INTENSITY submission, and every REP submission from before R-10 — stays valid); only
+      // PRESENT fields are validated, and any invalid present value fails closed:
+      //   • `monthlyIncomeGoal` — a finite whole USD number, 0 < value <= 1,000,000 (sane bounds).
+      //   • `weeklyTimeCommitment` — a finite number of hours per week, 1 <= value <= 168 (a real
+      //     week; the spec's baseline is 30 min/day = 3.5 hrs/week, well inside this range).
+      //   • `promotionTarget` — a string from the canonical `PROMOTION_TARGET_LEVELS` ladder
+      //     vocabulary (§3.1's five-role ladder, the SAME level names the O-1 registration wizard
+      //     offers); anything else (a tampered/invented level, a non-string) is rejected.
+      // This is a hard gate, never a silent coercion: a bad value must not be persisted.
+      const goalFields = intensityData as {
+        monthlyIncomeGoal?: unknown;
+        weeklyTimeCommitment?: unknown;
+        promotionTarget?: unknown;
+      };
+      if (goalFields.monthlyIncomeGoal !== undefined && goalFields.monthlyIncomeGoal !== null) {
+        const income = goalFields.monthlyIncomeGoal;
+        if (
+          typeof income !== 'number' ||
+          !Number.isFinite(income) ||
+          income <= 0 ||
+          income > 1_000_000
+        ) {
+          return { valid: false, error: 'Income goal must be a positive dollar amount' };
+        }
+      }
+      if (
+        goalFields.weeklyTimeCommitment !== undefined &&
+        goalFields.weeklyTimeCommitment !== null
+      ) {
+        const hours = goalFields.weeklyTimeCommitment;
+        if (
+          typeof hours !== 'number' ||
+          !Number.isFinite(hours) ||
+          hours < 1 ||
+          hours > 168
+        ) {
+          return { valid: false, error: 'Weekly time commitment must be between 1 and 168 hours' };
+        }
+      }
+      if (goalFields.promotionTarget !== undefined && goalFields.promotionTarget !== null) {
+        const target = goalFields.promotionTarget;
+        if (typeof target !== 'string' || !PROMOTION_TARGET_LEVELS.includes(target as PromotionTargetLevel)) {
+          return { valid: false, error: 'Promotion target must be one of the known levels' };
+        }
       }
     }
 

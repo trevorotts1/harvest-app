@@ -305,7 +305,37 @@ export interface IntensityData {
   weeklyHours: number; // 2-40+
   riskTolerance: 'LOW' | 'MEDIUM' | 'HIGH';
   supportNeeds: string[];
+  // R-10 (refinements catalog 2026-07-28; master-spec §6 O-4 Flow A (4)) — the three goal fields
+  // the spec's O-4 step defines alongside the intensity dial: the rep's monthly income goal
+  // (whole USD, null = not captured), their weekly time commitment in hours (null = not
+  // captured), and the promotion/level target they are working toward (null = not captured).
+  // All three are additive and OPTIONAL — a payload that omits them (every dense-track INTENSITY
+  // submission, and every REP submission from before R-10) stays valid; only present fields are
+  // format-checked by `validateStep`'s R-10 branch (see service.ts).
+  monthlyIncomeGoal?: number | null;
+  weeklyTimeCommitment?: number | null;
+  promotionTarget?: string | null;
 }
+
+// R-10 (master-spec §6 O-4 Flow A (4)) — the promotion/level target vocabulary the O-4 step's
+// promotion-target field accepts. The level names are the O-1 registration wizard's own vocabulary
+// (auth.primerica.level.*, §3.1 five-role ladder; the O-4 field is intentionally Primerica-neutral
+// — REP/EXTERNAL reps set the same ladder they chose at registration). Values are the canonical
+// lowercase ladder keys, top (SNSD) to bottom (REP); the UI displays them via the catalog labels
+// (`onboarding.intensityDial.promotionTarget.options.*`) so universal users see no Primerica
+// string, and `validateStep` accepts ONLY this vocabulary — a tampered/invented level fails closed.
+export const PROMOTION_TARGET_LEVELS = [
+  'snsd',
+  'nsd',
+  'svp',
+  'rvp',
+  'rl',
+  'dl',
+  'district',
+  'srRep',
+  'rep',
+] as const;
+export type PromotionTargetLevel = (typeof PROMOTION_TARGET_LEVELS)[number];
 
 export interface CalendarPreferences {
   timezone: string;

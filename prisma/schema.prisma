@@ -453,6 +453,12 @@ model OnboardingSession {
   // Sponsorship + OrgTreeEdge + User.upline_id — this column is the decision audit trail, never a
   // source of truth for the sponsorship itself.
   sponsor_decision Json?
+  // R-10 — the O-4 step's goal fields (master-spec §6 O-4 Flow A (4)): { monthlyIncomeGoal,
+  // weeklyTimeCommitment, promotionTarget } (all optional). These are the SAME three fields the
+  // `intensity_data` JSON carries from the O-4 screen; this column is a durable copy that survives
+  // any future INTENSITY-step re-submission, mirroring `sponsor_decision`'s "audit record, never a
+  // source of truth" posture — the live source is the latest `intensity_data`.
+  goal_fields Json?
   completed      Boolean        @default(false)
   created_at     DateTime       @default(now()) @db.Timestamptz(6)
 }

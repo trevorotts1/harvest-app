@@ -54,6 +54,7 @@ import SevenWhysConversation from './components/SevenWhysConversation';
 import SponsorStep from './components/SponsorStep';
 import UplineTrack from './components/UplineTrack';
 import VisionSplash from './components/VisionSplash';
+import { EMPTY_GOALS_FIELDS, type GoalsFieldsValue } from './components/GoalsFields';
 import {
   nextScreen,
   prevScreenForRole,
@@ -131,6 +132,10 @@ export default function OnboardingFlow({
   // fallback), never re-prompted.
   const [hasSolutionNumber, setHasSolutionNumber] = useState(false);
   const [intensity, setIntensity] = useState<IntensitySetting | null>(null);
+  // R-10 — the O-4 step's three goal fields (income goal / weekly time / promotion target),
+  // captured LOCALLY like `intensity` and carried into the same deferred INTENSITY payload
+  // (`handleSevenWhysContinue`), exactly the O-4 capture pattern: no network call at this screen.
+  const [goalsFields, setGoalsFields] = useState<GoalsFieldsValue>(EMPTY_GOALS_FIELDS);
   // R-09 — the Seven Whys conversation now runs through the real API. `whyTurn` is the current
   // rendered turn (opening question → one question per turn → caring re-prompt → completed anchor),
   // `whyAnswer` the in-flight draft, and `whyPairs` the accumulated (question, answer) pairs the
@@ -775,7 +780,7 @@ export default function OnboardingFlow({
         motivationStatement: whyPairs[1]?.answer ?? whyPairs[0]?.answer ?? '',
         intensity,
       });
-      const intensityData = buildIntensityDataPayload(intensity ?? IntensitySetting.MEDIUM);
+      const intensityData = buildIntensityDataPayload(intensity ?? IntensitySetting.MEDIUM, goalsFields);
       const outcome = await sendOrderedSteps(role, serverStepRef.current, [
         { step: OnboardingStep.SEVEN_WHYS, data: { sevenWhys: sevenWhysResponses } },
         { step: OnboardingStep.GOAL_CARD, data: { goalCard } },
@@ -1175,7 +1180,13 @@ export default function OnboardingFlow({
 
       {screen === 'goals_intensity' && (
         <>
-          <IntensityDial value={intensity} onChange={setIntensity} onContinue={advance} />
+          <IntensityDial
+            value={intensity}
+            onChange={setIntensity}
+            onContinue={advance}
+            goals={goalsFields}
+            onGoalsChange={setGoalsFields}
+          />
           {/* R-03 — back to the O-3 org context; the dial's selection stays on the dial (the
               selection was never persisted server-side — the deferred SEVEN_WHYS → GOAL_CARD →
               INTENSITY chain fires only when the conversation completes — and re-advancing still

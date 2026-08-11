@@ -280,13 +280,39 @@ export function weeklyHoursForIntensity(intensity: IntensitySetting): number {
   }
 }
 
-/** Builds the `INTENSITY` step's `intensityData` payload from the O-4 dial's local selection. */
-export function buildIntensityDataPayload(intensity: IntensitySetting): IntensityData {
+/** R-10 — the O-4 step's three goal fields (master-spec §6 O-4 Flow A (4)), exactly as captured by
+ *  `GoalsFields.tsx`: a monthly income goal (whole USD), a weekly time commitment (hours), and a
+ *  promotion target from the canonical level vocabulary. All three are OPTIONAL (`null` = not
+ *  captured) and are passed through to the INTENSITY payload — never coerced — so the server's
+ *  `validateStep` R-10 branch is the single place their formats are judged. */
+export interface IntensityGoalFields {
+  monthlyIncomeGoal: number | null;
+  weeklyTimeCommitment: number | null;
+  promotionTarget: string | null;
+}
+
+/**
+ * Builds the `INTENSITY` step's `intensityData` payload from the O-4 dial's local selection plus
+ * the rep's goal fields (R-10). `goals` is optional: `undefined` keeps the pre-R-10 shape exactly
+ * (every existing caller — and the dense-track plan below — is unaffected); when supplied, only
+ * non-`null` fields are included, so the payload never fabricates a goal the rep did not set.
+ */
+export function buildIntensityDataPayload(
+  intensity: IntensitySetting,
+  goals?: IntensityGoalFields
+): IntensityData {
   return {
     commitmentScore: commitmentScoreForIntensity(intensity),
     weeklyHours: weeklyHoursForIntensity(intensity),
     riskTolerance: intensity,
     supportNeeds: [],
+    ...(goals
+      ? {
+          ...(goals.monthlyIncomeGoal !== null ? { monthlyIncomeGoal: goals.monthlyIncomeGoal } : {}),
+          ...(goals.weeklyTimeCommitment !== null ? { weeklyTimeCommitment: goals.weeklyTimeCommitment } : {}),
+          ...(goals.promotionTarget !== null ? { promotionTarget: goals.promotionTarget } : {}),
+        }
+      : {}),
   };
 }
 
