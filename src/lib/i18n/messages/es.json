@@ -1446,9 +1446,9 @@
     "orgContext": {
       "universalBody": "Estás construyendo de forma independiente. The Harvest adapta todo tu campo a cómo construyes.",
       "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
+      "solutionNumberMaskedAria": "Número de solución (oculto)",
       "solutionNumberLabel": "Número de solución",
-      "solutionNumberNotVerifiedCaption": "No verificado — solo comprobamos el formato, no con Primerica.",
-      "enterAllDigits": "Ingresa tu número de solución (letras, números y guiones)."
+      "solutionNumberNotVerifiedCaption": "No verificado — solo comprobamos el formato, no con Primerica."
     }
   },
   "settings": {

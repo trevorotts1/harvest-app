@@ -197,9 +197,11 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
   // English `label`/`caption` into the Primerica branch's solution-number field, with no path to
   // Spanish. `OrgStep.tsx` now passes `useLocale().locale` through, so a Spanish rep genuinely sees
   // the label + "not verified" caption in Spanish, not English.
+  // R-05 — the O-3 surface is now the SAVED-STATE (mask + caption), never a re-entry field; the
+  // label + caption translation contract is unchanged.
   test('OrgBranchPanel — Primerica branch solution-number label + caption render real Spanish (not English)', () => {
-    const en = textOf(renderEn(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.PRIMERICA, 'en'), solutionNumber: '' }));
-    const es = textOf(renderEs(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.PRIMERICA, 'es'), solutionNumber: '' }));
+    const en = textOf(renderEn(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.PRIMERICA, 'en') }));
+    const es = textOf(renderEs(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.PRIMERICA, 'es') }));
     expect(en).toContain('Solution number');
     expect(en).toMatch(/Not verified/);
     expect(es).toContain('Número de solución');

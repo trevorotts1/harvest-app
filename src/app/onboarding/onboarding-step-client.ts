@@ -330,20 +330,23 @@ export function buildGoalCardPayload(inputs: GoalCardInputs): GoalCommitmentCard
 // ─── Dense-track (UPLINE/RVP/DUAL/ADMIN) step plan ────────────────────────────────────────────────
 //
 // `UplineTrack.tsx` renders ONE dense checklist + a single "Finish setup" CTA — it has no per-step
-// data-collection forms at all (no Seven Whys conversation, no Intensity Dial, no re-entry of the
-// solution number). This function walks that role's REAL `ROLE_STEP_MAP` (minus the trailing
-// `CONSENT_CAPTURE`, which the shared consent screen — reused across every track, see
-// `OnboardingFlow.tsx` — submits separately) and builds the best HONEST payload available for each
-// step given what the dense track UI actually collects: nothing, for every step but `ROLE_ORG_CONTEXT`
-// (only if a solution number happens to be supplied) and the DUAL-only rep-derived steps, which get a
-// clearly-documented MINIMUM-clearing placeholder rather than a fabricated realistic-looking value.
+// data-collection forms at all (no Seven Whys conversation, no Intensity Dial, and — R-05 — no
+// solution-number re-entry: the number is captured EXACTLY ONCE at registration, on every track).
+// This function walks that role's REAL `ROLE_STEP_MAP` (minus the trailing `CONSENT_CAPTURE`, which
+// the shared consent screen — reused across every track, see `OnboardingFlow.tsx` — submits
+// separately) and builds the best HONEST payload available for each step given what the dense track
+// UI actually collects: nothing, for every step but `ROLE_ORG_CONTEXT` (whose solution-number
+// format gate the `/step` route's T-R38 fallback satisfies server-side by REUSING the already-
+// persisted, encrypted `User.solution_number` — see `decryptSolutionNumberFromStorage`) and the
+// DUAL-only rep-derived steps, which get a clearly-documented MINIMUM-clearing placeholder rather
+// than a fabricated realistic-looking value.
 //
-// KNOWN GAP (documented, not hacked around — see this fix's own report): a PRIMERICA upline/RVP/dual
-// user's `ROLE_ORG_CONTEXT` submission here will legitimately 400 (`validateStep` requires a
-// correctly-formatted `solution_number` in THIS submission whenever the user's real `org_type` is
-// PRIMERICA) — `UplineTrack.tsx` has no solution-number input to source one from. This surfaces as an
-// honest, fail-closed error (never silently skipped or faked); adding that capture field to the dense
-// track is a UI-scope change beyond this fix's "wire the client to the session routes" mandate.
+// R-05 (capture-once, resolved): the OLD "KNOWN GAP" note is GONE — it documented that a PRIMERICA
+// upline/RVP/dual user's `ROLE_ORG_CONTEXT` submission here used to legitimately 400 because the
+// dense UI had no solution-number input to source one from. T-R38 already fixed that server-side
+// (reuse the persisted value when the payload omits one), and R-05 removes the REP track's own
+// re-entry field — so NO track re-asks for the solution number anywhere; the value captured at
+// registration is the only one that exists, and `/step` reuses it for the gate.
 export function buildDenseTrackStepPlan(
   role: Role,
   orgType: OrgType | null,
@@ -353,6 +356,10 @@ export function buildDenseTrackStepPlan(
   return steps.map((step) => {
     switch (step) {
       case OnboardingStep.ROLE_ORG_CONTEXT:
+        // R-05 — `solutionNumber` is always '' in every live caller now (no local re-entry exists
+        // anywhere in onboarding); the parameter is kept so the dense plan's payload builder stays
+        // honest about what the UI collects (nothing) while the server's T-R38 reuse fallback
+        // satisfies the format gate from the persisted registration-time value.
         return { step, data: orgType ? buildRoleOrgContextPayload(orgType, solutionNumber) : {} };
       case OnboardingStep.SEVEN_WHYS:
         return { step, data: { sevenWhys: [] as SevenWhysResponse[] } };

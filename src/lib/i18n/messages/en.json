@@ -1446,9 +1446,9 @@
     "orgContext": {
       "universalBody": "You’re building independently. The Harvest tailors your whole field to how you build.",
       "solutionNumberSavedAria": "Solution number (saved, masked)",
+      "solutionNumberMaskedAria": "Solution number (masked)",
       "solutionNumberLabel": "Solution number",
-      "solutionNumberNotVerifiedCaption": "Not verified — we check the format only, not with Primerica.",
-      "enterAllDigits": "Enter your solution number (letters, numbers, and hyphens)."
+      "solutionNumberNotVerifiedCaption": "Not verified — we check the format only, not with Primerica."
     }
   },
   "settings": {
