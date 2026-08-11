@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R70] — BUILD PHASE — 2026-08-11
+### Completion round R-11 — distinct GDPR consent step required before completion (judge PASS 9.1)
+- **merge R-11 @ a3b628d** — `src/app/onboarding/components/GdprConsentStep.tsx` (new) + `onboarding.module.css` + `en.json`/`es.json` + updated `onboarding-flow-wiring.test.ts` + `onboarding-i18n.test.ts` + `onboarding-ui.test.ts`: onboarding now ends with a distinct GDPR/consent step (O-8.5) whose copy states §16.3 scope and purpose plus the FINRA carve-out; consent is required before completion (151 insertions, 7 files).
+- Coverage: `tests/unit/onboarding-flow-wiring.test.ts` (15 new lines — consent gating in the flow), `onboarding-i18n.test.ts` (22 new lines — en/es consent copy), `onboarding-ui.test.ts` (58 new lines — consent step render).
+- QC: judge PASS 9.1 per completion-round verdict; full suite green on merged HEAD.
+- Ripple: version `2.0.0-build.T-R69`→`2.0.0-build.T-R70` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R70` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R69] — BUILD PHASE — 2026-08-11
 ### Completion round R-10 — O-4 goal fields: income goal, weekly time commitment, promotion target (judge PASS 9.6)
 - **merge R-10 @ ab8779a** — `src/app/onboarding/components/GoalsFields.tsx` (new) + `IntensityDial.tsx` + `OnboardingFlow.tsx` + `onboarding-step-client.ts` + `src/services/onboarding/service.ts` + `wp01/session-store.ts` + `src/types/onboarding.ts` + `prisma/schema.prisma` + new migration `20260811000000_r10_goal_fields` + `src/app/api/onboarding/step/route.ts` + `status/route.ts` + `onboarding.module.css` + `en.json`/`es.json`: the intensity step (O-4) now collects three optional goal fields — income goal (0–$1M, fail-closed validation), weekly time commitment (1–168 h), and promotion target (fixed ladder vocabulary) — persisted to `goal_fields` and surfaced via `/status`; pre-R-10 payloads without goal fields remain valid (dense-track unchanged); R-06 dial copy untouched (876 insertions, 5 deletions, 15 files).
