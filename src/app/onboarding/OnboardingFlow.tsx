@@ -43,7 +43,7 @@ import { computeHiddenEarnings, type HiddenEarningsResult } from '@/services/war
 import type { LicensingState } from '@/services/compliance/licensing';
 import { OnboardingStep } from '@/types/onboarding';
 
-import ContactImportStep, { type ImportBeat } from './components/ContactImportStep';
+import ContactImportStep, { type CsvImportOutcome, type ImportBeat } from './components/ContactImportStep';
 import First48Handoff from './components/First48Handoff';
 import ManualAddStep from './components/ManualAddStep';
 import GdprConsentStep from './components/GdprConsentStep';
@@ -164,6 +164,11 @@ export default function OnboardingFlow({
   // real Vault ingestion route (see `handleCsvFileSelected` below).
   const [csvImporting, setCsvImporting] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
+  // R-14 (refinements catalog 2026-07-28) — the CSV UPLOAD-SUCCESS data: the selected file's name
+  // plus the route's REAL imported/merged/skipped counts (see `processCsvFile`), shown on the
+  // 'csv-outcome' beat BEFORE the rep advances (the catalog row's "silently advanced with nothing
+  // showing the file was received" gap). Never fabricated — only ever set from the route response.
+  const [csvOutcome, setCsvOutcome] = useState<CsvImportOutcome | null>(null);
   // R-13 (refinements catalog 2026-07-28) — the REAL one-at-a-time contact-entry form's state.
   // `onAddManually` used to just fake `setContactCount(1); advance()` — no form ever opened and the
   // reveal's "Add people" looped the rep back to the phone-import screen (the catalog row's exact
@@ -870,6 +875,12 @@ export default function OnboardingFlow({
   // for why it can't be `/api/contacts/import`). `contactCount` is set from the route's actual
   // `importedCount + mergedCount` — never a fake constant. A failed import never advances the screen
   // and never fabricates a count; the rep can retry or fall back to "Add one at a time".
+  //
+  // R-14 (refinements catalog 2026-07-28) — a SUCCESSFUL import no longer silently advances: it
+  // first lands on the 'csv-outcome' beat with the route's REAL response (the selected file's name
+  // + importedCount/mergedCount/errorRows-driven skip counts), and the rep continues from there.
+  // Back/re-entry state (importBeat/contactCount/csvOutcome) is preserved exactly like every other
+  // entered field (R-03), and re-selecting a different file simply re-imports over the same outcome.
   async function processCsvFile(file: File) {
     setCsvError(null);
     setCsvImporting(true);
@@ -896,9 +907,28 @@ export default function OnboardingFlow({
       }
       // This attempt is done — a later, separate file selection mints a fresh idempotency key.
       csvIdempotencyKeyRef.current = null;
-      const result = body as { importedCount?: number; mergedCount?: number };
-      setContactCount((result.importedCount ?? 0) + (result.mergedCount ?? 0));
-      advance();
+      const result = body as {
+        importedCount?: number;
+        mergedCount?: number;
+        errorRows?: unknown[];
+      };
+      const importedCount = result.importedCount ?? 0;
+      const mergedCount = result.mergedCount ?? 0;
+      setContactCount(importedCount + mergedCount);
+      // R-14 — the confirmation is driven by the route's actual response: `errorRows` is the
+      // route's OWN rejected-row list (parser errors — missing/unmapped name — plus per-row
+      // validation rejections, see VaultService.importBatch) — exactly the "skipped" figure the
+      // catalog row asks to show, and honest in the resumable-IN_PROGRESS edge too (rows a
+      // hard-stopped batch never processed are NEVER mislabeled "skipped"). Nothing is fabricated
+      // client-side.
+      setCsvOutcome({
+        fileName: file.name,
+        importedCount,
+        mergedCount,
+        skippedCount: Array.isArray(result.errorRows) ? result.errorRows.length : 0,
+        hadErrorRows: Array.isArray(result.errorRows) && result.errorRows.length > 0,
+      });
+      setImportBeat('csv-outcome');
     } catch {
       setCsvError(t('onboarding.contactImport.denied.importFailedGeneric'));
     } finally {
@@ -1494,8 +1524,11 @@ export default function OnboardingFlow({
             // See handleRequestNativeContacts's own doc comment for the three fail-closed branches.
             onRequestPermission={handleRequestNativeContacts}
             onDeny={() => setImportBeat('denied')}
-            // T-R30 (parity GAP 1): opens the REAL OS file picker — no more faked contactCount.
-            // `handleCsvFileSelected` (the input's onChange, below) does the actual read+import.
+            // R-14 — from the fallback beats, "Import a CSV" leads to the FORMAT-GUIDANCE beat
+            // (columns + downloadable template); the guidance beat's own "Import a CSV" button
+            // opens the REAL OS file picker (csvInputRef) — `handleCsvFileSelected` (the input's
+            // onChange, below) does the actual read+import.
+            onViewCsvFormat={() => setImportBeat('csv-format')}
             onUseCsv={() => csvInputRef.current?.click()}
             // R-13 — "Add one at a time" now opens the REAL contact-entry form (ManualAddStep via
             // the 'manual' beat below) instead of the old fake `setContactCount(1); advance()` —
@@ -1509,6 +1542,11 @@ export default function OnboardingFlow({
             }}
             csvImporting={csvImporting}
             csvError={csvError}
+            csvOutcome={csvOutcome}
+            onCsvOutcomeContinue={() => {
+              setImportBeat('value');
+              advance();
+            }}
             nativeCandidates={nativeCandidates}
             nativeSelectedIds={nativeSelectedIds}
             onToggleNativeCandidate={handleToggleNativeCandidate}

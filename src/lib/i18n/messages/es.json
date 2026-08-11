@@ -1285,6 +1285,29 @@
         "dragDropHint": "Arrastra un archivo CSV aquí, o usa el botón de arriba.",
         "nativeImportFailedGeneric": "No pudimos leer los contactos de tu teléfono en este momento. Intenta de nuevo, o usa CSV / agrega uno a la vez."
       },
+      "csv": {
+        "formatTitle": "Tu CSV necesita estas columnas",
+        "formatLede": "La primera fila debe tener los nombres de las columnas. El nombre es la única columna obligatoria — las demás son opcionales y pueden quedar vacías.",
+        "columnsLabel": "Columna",
+        "requiredLabel": "Obligatoria",
+        "optionalLabel": "Opcional",
+        "exampleLabel": "Ejemplo",
+        "downloadTemplateCta": "Descargar la plantilla CSV",
+        "sampleRowLabel": "Fila de ejemplo",
+        "limitsCaption": "Límite: 10 MB y hasta 10.000 contactos por carga."
+      },
+      "csvOutcome": {
+        "headline": "Tu CSV se importó",
+        "filenameCaption": "{fileName}",
+        "importedLine_one": "{count} contacto nuevo agregado a tu comunidad",
+        "importedLine_other": "{count} contactos nuevos agregados a tu comunidad",
+        "mergedLine_one": "{count} contacto existente ya estaba en tu comunidad y se fusionó",
+        "mergedLine_other": "{count} contactos existentes ya estaban en tu comunidad y se fusionaron",
+        "skippedLine_one": "{count} fila se omitió y no se importó",
+        "skippedLine_other": "{count} filas se omitieron y no se importaron",
+        "skippedHint": "Una fila se omite cuando no tiene nombre o cuando los encabezados del archivo no coinciden con el formato de arriba.",
+        "continueCta": "Continuar"
+      },
       "permission": {
         "headline": "Incorporando tu comunidad…",
         "lede": "Permite el acceso y organizaremos a todos en parcelas."

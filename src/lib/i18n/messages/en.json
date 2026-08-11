@@ -1285,6 +1285,29 @@
         "dragDropHint": "Drag a CSV file here, or use the button above.",
         "nativeImportFailedGeneric": "We couldn’t read your phone’s contacts just now. Try again, or use CSV / add one at a time."
       },
+      "csv": {
+        "formatTitle": "Your CSV needs these columns",
+        "formatLede": "The first row must be the column names. Name is the only required column — the rest are optional and can stay empty.",
+        "columnsLabel": "Column",
+        "requiredLabel": "Required",
+        "optionalLabel": "Optional",
+        "exampleLabel": "Example",
+        "downloadTemplateCta": "Download the CSV template",
+        "sampleRowLabel": "Example row",
+        "limitsCaption": "Limit: 10 MB and up to 10,000 contacts per upload."
+      },
+      "csvOutcome": {
+        "headline": "Your CSV is in",
+        "filenameCaption": "{fileName}",
+        "importedLine_one": "{count} new contact added to your community",
+        "importedLine_other": "{count} new contacts added to your community",
+        "mergedLine_one": "{count} existing contact was already in your community and was merged",
+        "mergedLine_other": "{count} existing contacts were already in your community and were merged",
+        "skippedLine_one": "{count} row was skipped and not imported",
+        "skippedLine_other": "{count} rows were skipped and not imported",
+        "skippedHint": "A row is skipped when it has no name or the file’s headers don’t match the format above.",
+        "continueCta": "Continue"
+      },
       "permission": {
         "headline": "Bringing in your community…",
         "lede": "Allow access and we’ll organize everyone into plots."

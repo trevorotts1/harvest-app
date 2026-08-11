@@ -657,6 +657,75 @@
   border-color: var(--color-action);
   background: var(--surface-2);
 }
+/* ---- R-14 (refinements catalog 2026-07-28) — CSV format guidance + import-outcome panel ----
+   Added alongside the existing `.card`/`.actions`/`.btn*` building blocks, sharing their tokens
+   (no fixed pixel widths, no text-overflow — the guard:i18n growth-tolerance invariants). */
+.csvFormatGuide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.csvFormatTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+.csvFormatTable th,
+.csvFormatTable td {
+  text-align: left;
+  vertical-align: top;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+.csvFormatTable th {
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+.csvFormatTable td {
+  color: var(--text-primary);
+}
+.csvColumnName {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--type-caption-size);
+}
+.csvRequiredTag {
+  font-size: var(--type-caption-size);
+  color: var(--color-action);
+  font-weight: 700;
+}
+.csvOptionalTag {
+  font-size: var(--type-caption-size);
+  color: var(--text-secondary);
+}
+.csvExampleText {
+  color: var(--text-secondary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+.csvLimitsCaption {
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
+.csvOutcomeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--type-body-size);
+  color: var(--text-primary);
+}
+.csvOutcomeFilename {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.csvOutcomeSkippedHint {
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--text-secondary);
+}
 /* ---- T-58 native-contacts selection list (O-7 "select" beat) ----
    The CHECKBOX itself is left at its native OS-rendered size (no explicit width/height rule here —
    guard-touch-target.mjs only flags an EXPLICIT sub-44px declaration on an interactive element, and
