@@ -448,6 +448,11 @@ model OnboardingSession {
   seven_whys     Json?
   goal_card      Json?
   intensity_data Json?
+  // R-08 — the rep's sponsor-step decision record (JSON: { decision, recordedAt }; decision is one
+  // of accept | join_waitlist | start_paid | no_upline_yet). The `accept` case ALSO persists a real
+  // Sponsorship + OrgTreeEdge + User.upline_id — this column is the decision audit trail, never a
+  // source of truth for the sponsorship itself.
+  sponsor_decision Json?
   completed      Boolean        @default(false)
   created_at     DateTime       @default(now()) @db.Timestamptz(6)
 }

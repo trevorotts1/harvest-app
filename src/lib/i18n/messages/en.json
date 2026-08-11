@@ -1332,7 +1332,15 @@
       "noUplineYetContinueCta": "No upline yet — continue",
       "rvpNoPairingHeadline": "No pairing for you — you own your organization",
       "rvpNoPairingBody": "As an RVP you're not being paired with anyone. People report to you.",
-      "rvpUplineOptional": "Optional: name the SVP who promoted you if they're on the platform — they won't supervise or step in."
+      "rvpUplineOptional": "Optional: name the SVP who promoted you if they're on the platform — they won't supervise or step in.",
+      "loadingPool": "Finding the right sponsor for you…",
+      "poolErrorTitle": "We couldn’t load available sponsors",
+      "poolErrorBody": "Something went wrong while looking for sponsors. You can try again — nothing has been changed.",
+      "poolRetryCta": "Try again",
+      "sponsorUnavailableTitle": "That sponsor is no longer available",
+      "sponsorUnavailableBody": "The sponsor shown just changed on our side — nothing was saved and no charge was made. Choose from the refreshed list.",
+      "sponsorUnavailableRetryCta": "See updated sponsors",
+      "submittingStatus": "Saving your choice…"
     },
     "uplineTrack": {
       "headline": "Set up your team account",
