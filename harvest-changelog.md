@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R64] — BUILD PHASE — 2026-08-10
+### Completion round R-02 — org determined once at registration; no redundant org step (judge PASS 9.2)
+- **merge R-02 @ b9e8f7b** — `src/app/onboarding/components/OrgStep.tsx` + `OnboardingFlow.tsx` + `flow-model.ts` + `page.tsx` + `resume/page.tsx` + `src/services/onboarding/wp01/org-gate.ts`: org is determined ONCE at registration (authOrg from the session) and the redundant "Where do you build?" selector step is removed from onboarding; non-Primerica orgs never see Primerica paths; tampering with the resolved org fails closed; en/es i18n strings trimmed to match (390 insertions, 110 deletions, 12 files).
+- Coverage: `tests/unit/r02-org-once.test.ts` (new, 239 lines), expanded `tests/unit/onboarding-flow-wiring.test.ts` / `onboarding-i18n.test.ts` / `onboarding-ui.test.ts`.
+- QC: judge PASS 9.2 per completion-round verdict; typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R63`→`2.0.0-build.T-R64` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R64` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R63] — BUILD PHASE — 2026-08-10
 ### Completion round R-08 — real sponsor-matching pool; reachable linked-branch; retry fix (judge PASS 9.2)
 - **merge R-08 @ cce2c0d** — `src/services/onboarding/wp01/sponsor-candidates.server.ts` (new): sponsor matcher now wired to a REAL candidate pool (registered reps with capacity, no ghost/reachable-but-empty matching); `src/app/api/onboarding/sponsor-decision/route.ts` (new) + `src/app/onboarding/sponsor-decision-client.ts` (new) + `OnboardingFlow.tsx`: sponsor decision persisted server-side, honest 409 accept-race re-pick surfaced, retryNonce + retrySponsorPool retry path (mount/`react-test-renderer` for exercise); `prisma/migrations/20260810000000_r08_sponsor_decision/migration.sql` + `schema.prisma` (sponsor-decision table), en/es i18n strings added (1868 insertions, 22 deletions, 17 files).
