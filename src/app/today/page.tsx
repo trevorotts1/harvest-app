@@ -38,6 +38,7 @@ import RatioCards from './components/RatioCards';
 import CalendarStrip from './components/CalendarStrip';
 import ZoneErrorBoundary from './components/ZoneErrorBoundary';
 import WP07Panel from './components/WP07Panel';
+import FirstRunGuide from './components/FirstRunGuide';
 import {
   attendanceMutationId,
   createTodayQueueHandlers,
@@ -308,6 +309,18 @@ export default function TodayPage() {
         <ZoneErrorBoundary zoneName="header" locale={locale}>
           <AnchorHeader result={data.header} />
         </ZoneErrorBoundary>
+
+        {/* R-16 (refinements catalog): first-run expectation-setting — what Today is, the first
+            action to take, and the plain-language definition of the First-48 "3 introductions in
+            48 hours" mission (master-spec §12.2). Rendered ONLY while the briefing is in its
+            zero-data `first_day` state (no AgentRun rows yet — the honest first-run signal, no new
+            DB columns); it disappears by itself once the agents first run. Error-bounded like
+            every other zone (uiux AC-5.2-6). */}
+        {data.briefing.status === 'ok' && data.briefing.data.state === 'first_day' && (
+          <ZoneErrorBoundary zoneName="first run" locale={locale}>
+            <FirstRunGuide />
+          </ZoneErrorBoundary>
+        )}
 
         {/* T-43 (WP07 §12.2/§12.3): First-48 banner, milestone pins, and Learn/Grow/Momentum links —
             independently error-bounded like every other zone (uiux AC-5.2-6). */}

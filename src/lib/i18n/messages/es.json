@@ -448,6 +448,20 @@
         },
         "fullBloomNarration": "Hito: {name}. {anchor} Este momento queda guardado en tu campo."
       }
+    },
+    "firstRun": {
+      "heading": "Bienvenido a Hoy",
+      "intro": "Este es tu centro de mando. Cada mañana, los agentes trabajan durante la noche y te reportan aquí: introducciones redactadas, respuestas reunidas, citas propuestas. Tú apruebas, rechazas o editas antes de que se envíe algo.",
+      "agentsNow": "Esto es lo que los agentes están a punto de hacer: redactarán introducciones para las personas que agregaste, y cada borrador llega a ti para revisión. Nada se envía hasta que lo apruebes.",
+      "firstStepHeading": "Qué hacer primero",
+      "firstStepBody": "Los agentes aún no tienen instrucciones: tu primer paso es agregar tus contactos de mercado cálido para que tengan nombres con los que trabajar.",
+      "definitionHeading": "Las Primeras 48, en lenguaje sencillo",
+      "definitionBody": "Las Primeras 48 son tu primera misión después de la incorporación: contactar a tres de tus contactos dentro de 48 horas — los tres nombres de la Lista A más cercanos a ti. Los agentes redactan cada introducción; tú revisas y apruebas cada una antes de que se envíe algo.",
+      "definitionSpec": "El reloj de 48 horas arranca en el momento en que terminas la incorporación, y la misión es exactamente esa: tres introducciones comunitarias a los nombres de la Lista A de tu círculo más cercano, destacados en el ejercicio de mercado cálido.",
+      "whatCountsHeading": "Qué cuenta como introducción",
+      "whatCountsBody": "Una introducción comunitaria es un mensaje cálido a alguien que ya conoces — los agentes lo redactan a partir de tu relación, y tú lo apruebas antes de que se envíe.",
+      "whatDoesNotBody": "Lo que no cuenta: escribir a personas que no conoces, o empezar con un producto en lugar de la relación. Toda introducción es cálida — un mensaje a una persona con la que ya tienes una relación, construido sobre las cualidades que nombraste en tu ejercicio de mercado cálido.",
+      "clockNote": "La cuenta regresiva corre desde el momento en que terminas la configuración. Si necesitas más tiempo, la misión sigue siendo tuya — pero tres en 48 horas es la meta de activación."
     }
   },
   "community": {

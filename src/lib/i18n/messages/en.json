@@ -448,6 +448,20 @@
         },
         "fullBloomNarration": "Milestone: {name}. {anchor} This moment is saved to your field."
       }
+    },
+    "firstRun": {
+      "heading": "Welcome to Today",
+      "intro": "This is your mission control. Every morning, the agents work overnight and report back here — introductions drafted, responses gathered, appointments proposed. You approve, decline, or edit before anything goes out.",
+      "agentsNow": "Here's what the agents are about to do: they will draft introductions for the people you added, and each draft comes to you for review. Nothing sends until you approve it.",
+      "firstStepHeading": "What to do first",
+      "firstStepBody": "The agents have no instructions yet — your first step is to add your warm-market contacts so they have names to work with.",
+      "definitionHeading": "The First 48, in plain language",
+      "definitionBody": "The First 48 is your first mission after onboarding: reach out to three of your contacts within 48 hours — the three A-list names closest to you. The agents draft each introduction; you review and approve each one before anything sends.",
+      "definitionSpec": "The 48-hour clock starts the moment you finish onboarding, and the mission is exactly that: three community introductions to the closest-sphere A-list names highlighted in the warm-market exercise.",
+      "whatCountsHeading": "What counts as an introduction",
+      "whatCountsBody": "A community introduction is a warm message to someone you already know — the agents draft it from your relationship, and you approve it before it sends.",
+      "whatDoesNotBody": "What doesn't count: messaging people you don't know, or leading with a product instead of the relationship. Every introduction is warm — a message to a person you already have a relationship with, built on the qualities you named in your warm-market exercise.",
+      "clockNote": "The countdown runs from the moment you finish setting up. If you need more time, the mission stays yours — but three in 48 hours is the activation goal."
     }
   },
   "community": {
