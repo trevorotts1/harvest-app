@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R65] — BUILD PHASE — 2026-08-10
+### Completion round R-05 — solution number captured once, reused masked (judge PASS 9.4)
+- **merge R-05 @ 837eb5c** — `src/app/api/onboarding/status/route.ts` + `src/app/onboarding/OnboardingFlow.tsx` + `components/OrgStep.tsx` + `onboarding-step-client.ts`: the solution number is captured ONCE (at the step where the rep enters it) and later steps reuse that captured value instead of re-prompting; read-backs surface it masked / not-verified until the verification step; en/es i18n strings adjusted (510 insertions, 113 deletions, 11 files).
+- Coverage: `tests/unit/r05-solution-once.test.ts` (new, 275 lines), expanded `tests/unit/onboarding-flow-wiring.test.ts` / `onboarding-i18n.test.ts` / `onboarding-ui.test.ts` / `r02-org-once.test.ts`.
+- QC: judge PASS 9.4 per completion-round verdict; typecheck clean on merged HEAD.
+- Ripple: version `2.0.0-build.T-R64`→`2.0.0-build.T-R65` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R65` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R64] — BUILD PHASE — 2026-08-10
 ### Completion round R-02 — org determined once at registration; no redundant org step (judge PASS 9.2)
 - **merge R-02 @ b9e8f7b** — `src/app/onboarding/components/OrgStep.tsx` + `OnboardingFlow.tsx` + `flow-model.ts` + `page.tsx` + `resume/page.tsx` + `src/services/onboarding/wp01/org-gate.ts`: org is determined ONCE at registration (authOrg from the session) and the redundant "Where do you build?" selector step is removed from onboarding; non-Primerica orgs never see Primerica paths; tampering with the resolved org fails closed; en/es i18n strings trimmed to match (390 insertions, 110 deletions, 12 files).
