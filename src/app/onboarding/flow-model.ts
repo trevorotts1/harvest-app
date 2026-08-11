@@ -110,6 +110,24 @@ export function prevScreen(screen: OnboardingScreen): OnboardingScreen | null {
   return i > 0 ? REP_SCREENS[i - 1] : null;
 }
 
+/**
+ * R-03 (refinements catalog 2026-07-28) — back navigation, role-keyed like `advance()`. The pure
+ * inverse of the R-01 walk: step one screen back, and keep walking until the landing screen exists
+ * for THIS role (an RVP's sponsor screen is skipped in BOTH directions — the RVP who landed on
+ * `contacts` by walking past `sponsor` goes straight back to `seven_whys`, never to a screen that
+ * does not exist for their role). Walk stays fail-safe: it always lands on a screen that exists for
+ * this role, or `null` at the head of the track (the first screen has no back — there is nothing
+ * behind it to return to).
+ */
+export function prevScreenForRole(role: Role, screen: OnboardingScreen): OnboardingScreen | null {
+  const screens = repScreensForRole(role);
+  let prev = prevScreen(screen);
+  while (prev && !screens.includes(prev)) {
+    prev = prevScreen(prev);
+  }
+  return prev;
+}
+
 // ─── Track selection (rep = cinematic Flow A; upline/RVP/dual = dense) ───────────────────────────
 
 export type TrackKind = 'rep' | 'dense';

@@ -1263,6 +1263,7 @@
       "cta": "Let's begin"
     },
     "continueCta": "Continue",
+    "backAria": "Back to the previous step",
     "contactImport": {
       "value": {
         "headline": "Your community is your field",
