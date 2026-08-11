@@ -1396,21 +1396,24 @@
       "failedGeneric": "No se pudo registrar tu consentimiento — intenta de nuevo, por favor."
     },
     "intensityDial": {
-      "headline": "¿Con qué intensidad deben trabajar tus agentes mientras vives tu vida?",
-      "caption": "Puedes cambiar esto en cualquier momento.",
+      "headline": "¿Con qué intensidad deben trabajar tus agentes de IA de Harvest mientras vives tu vida?",
+      "caption": "Tu control de “CEO de 2 Horas”: define cuánto hacen tus agentes de IA en segundo plano — ritmo de contactos, volumen diario y el tope de costo. Puedes cambiarlo cuando quieras.",
       "ariaLabel": "Intensidad",
-      "pickAPrompt": "Elige un nivel para ver qué harán y qué no harán tus agentes.",
+      "pickAPrompt": "Elige un nivel — cada uno muestra lo que harán tus agentes de IA por ti.",
       "positions": {
         "low": {
           "label": "Baja",
+          "what": "Tus agentes de IA redactan poco y mantienen un ritmo tranquilo — unas pocas introducciones comunitarias al día, apoyo silencioso de fondo y el tope de costo más bajo.",
           "consequence": "Tus agentes redactan un poco y mantienen un ritmo tranquilo — apoyo silencioso de fondo."
         },
         "medium": {
           "label": "Media",
+          "what": "Un ritmo diario constante: tus agentes de IA gestionan una cola enfocada de introducciones comunitarias y seguimientos suaves, con un tope de costo moderado.",
           "consequence": "Un ritmo diario constante: una sesión matutina, una cola enfocada y seguimientos suaves."
         },
         "high": {
           "label": "Alta",
+          "what": "Tus agentes de IA trabajan más fuerte y más rápido — más introducciones comunitarias y seguimiento más ágil cada día, con el tope de costo más alto.",
           "consequence": "Tus agentes trabajan más fuerte y más rápido — más borradores al día, seguimiento más rápido."
         }
       }

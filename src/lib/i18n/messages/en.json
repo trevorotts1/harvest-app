@@ -1396,21 +1396,24 @@
       "failedGeneric": "Could not record your consent — please try again."
     },
     "intensityDial": {
-      "headline": "How hard should your agents work while you live your life?",
-      "caption": "You can change this any time.",
+      "headline": "How hard should your Harvest AI agents work while you live your life?",
+      "caption": "Your “2 Hour CEO” control: it sets how much your AI agents do in the background — outreach cadence, daily volume, and the cost ceiling. Change it any time.",
       "ariaLabel": "Intensity",
-      "pickAPrompt": "Pick a level to see what your agents will and won’t do.",
+      "pickAPrompt": "Choose a level — each one shows what your AI agents will do for you.",
       "positions": {
         "low": {
           "label": "Low",
+          "what": "Your AI agents draft a little and keep a calm cadence — a few gentle community introductions per day, quiet support in the background, and the lowest cost ceiling.",
           "consequence": "Your agents draft a little and keep a calm cadence — quiet support in the background."
         },
         "medium": {
           "label": "Medium",
+          "what": "A steady daily rhythm: your AI agents handle a focused queue of community introductions and gentle follow-ups, with a moderate cost ceiling.",
           "consequence": "A steady daily rhythm: a morning briefing, a focused queue, and gentle follow-ups."
         },
         "high": {
           "label": "High",
+          "what": "Your AI agents work harder and faster — more community introductions and quicker follow-through each day, with the highest cost ceiling.",
           "consequence": "Your agents work harder and faster — more drafts a day, quicker follow-through."
         }
       }

@@ -363,6 +363,39 @@ describe('additional AC-5.1 screen invariants', () => {
     expect((html.match(/aria-checked="true"/g) ?? []).length).toBe(1);
   });
 
+  // ─── R-06 (refinements catalog 2026-07-28) — dial copy clarity ────────────────────────────────
+  // "doesn't say WHOSE agents", "only reveals what each level does AFTER you pick". Copy-only fix:
+  // the headline/caption name the HARVEST AI AGENTS + the "2 Hour CEO" relevance, and every
+  // level's description renders BEFORE selection (no picking required). The intensity_setting
+  // VALUES and the cadence/cost logic are untouched — the "2 / 5 / 10 introductions per day"
+  // wording mirrors `SCHEDULED_ACTION_CAP_BY_INTENSITY` (src/services/agent-runtime/
+  // scheduled-dispatch.ts: LOW 2 / MEDIUM 5 / HIGH 10, master-spec §4.2).
+  test('R-06 intensity dial: headline + lede name the Harvest AI agents and the 2 Hour CEO relevance', () => {
+    const en = textOf(render(createElement(IntensityDial, { value: null })));
+    expect(en).toContain('Harvest AI agents');
+    expect(en).toContain('2 Hour CEO');
+    expect(en).toContain('outreach cadence, daily volume, and the cost ceiling');
+    // NEVER a Primerica string on this universal step (org-gate/leak law).
+    expect(en).not.toMatch(/primerica/i);
+  });
+
+  test('R-06 intensity dial: every level shows what it does BEFORE selection, not only after', () => {
+    const en = textOf(render(createElement(IntensityDial, { value: null })));
+    expect(en).toContain('a few gentle community introductions per day');
+    expect(en).toContain('a focused queue of community introductions and gentle follow-ups');
+    expect(en).toContain('more community introductions and quicker follow-through each day');
+    expect(en).toContain('lowest cost ceiling');
+    expect(en).toContain('moderate cost ceiling');
+    expect(en).toContain('highest cost ceiling');
+  });
+
+  test('R-06 intensity dial: the post-pick detail panel is retained after a level is chosen', () => {
+    const en = textOf(render(createElement(IntensityDial, { value: IntensitySetting.HIGH })));
+    // The pre-selection "what" line stays visible AND the post-pick consequence panel still renders.
+    expect(en).toContain('more community introductions and quicker follow-through each day');
+    expect(en).toContain('Your agents work harder and faster');
+  });
+
   test('O-6 sponsor waitlist is NOT a dead end — both the waitlist and the $297 path are offered (AC-5.1-6)', () => {
     const outcome: SponsorMatchOutcome = {
       kind: 'waitlisted',

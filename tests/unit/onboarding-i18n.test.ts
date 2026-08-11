@@ -227,16 +227,16 @@ describe('Onboarding i18n (EN default + genuine ES render, T-R32b)', () => {
   test('IntensityDial — headline, all three position labels + consequences, and the pick-a-level prompt translate', () => {
     const en = textOf(renderEn(IntensityDial, { value: null }));
     const es = textOf(renderEs(IntensityDial, { value: null }));
-    expect(en).toContain('How hard should your agents work while you live your life?');
+    expect(en).toContain('How hard should your Harvest AI agents work while you live your life?');
     expect(en).toContain('Low');
     expect(en).toContain('Medium');
     expect(en).toContain('High');
-    expect(en).toContain('Pick a level to see what your agents will and won');
-    expect(es).toContain('¿Con qué intensidad deben trabajar tus agentes mientras vives tu vida?');
+    expect(en).toContain('Choose a level — each one shows what your AI agents will do for you');
+    expect(es).toContain('¿Con qué intensidad deben trabajar tus agentes de IA de Harvest mientras vives tu vida?');
     expect(es).toContain('Baja');
     expect(es).toContain('Media');
     expect(es).toContain('Alta');
-    expect(es).toContain('Elige un nivel para ver qué harán y qué no harán tus agentes.');
+    expect(es).toContain('Elige un nivel — cada uno muestra lo que harán tus agentes de IA por ti');
 
     const enHigh = textOf(renderEn(IntensityDial, { value: IntensitySetting.HIGH }));
     const esHigh = textOf(renderEs(IntensityDial, { value: IntensitySetting.HIGH }));

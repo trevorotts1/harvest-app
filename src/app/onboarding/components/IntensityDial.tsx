@@ -10,6 +10,8 @@ import { useT } from '@/app/locale-context';
 interface Position {
   value: IntensitySetting;
   labelKey: string;
+  /** R-06 — the pre-selection "what each level does" line, visible BEFORE any level is picked. */
+  whatKey: string;
   consequenceKey: string;
 }
 
@@ -18,9 +20,9 @@ interface Position {
 // `value` ordering/identity is the load-bearing part — the arrow-key stepping and the
 // Medium-focus-first default both index into this array) so no external shape changes.
 export const INTENSITY_POSITIONS: Position[] = [
-  { value: IntensitySetting.LOW, labelKey: 'onboarding.intensityDial.positions.low.label', consequenceKey: 'onboarding.intensityDial.positions.low.consequence' },
-  { value: IntensitySetting.MEDIUM, labelKey: 'onboarding.intensityDial.positions.medium.label', consequenceKey: 'onboarding.intensityDial.positions.medium.consequence' },
-  { value: IntensitySetting.HIGH, labelKey: 'onboarding.intensityDial.positions.high.label', consequenceKey: 'onboarding.intensityDial.positions.high.consequence' },
+  { value: IntensitySetting.LOW, labelKey: 'onboarding.intensityDial.positions.low.label', whatKey: 'onboarding.intensityDial.positions.low.what', consequenceKey: 'onboarding.intensityDial.positions.low.consequence' },
+  { value: IntensitySetting.MEDIUM, labelKey: 'onboarding.intensityDial.positions.medium.label', whatKey: 'onboarding.intensityDial.positions.medium.what', consequenceKey: 'onboarding.intensityDial.positions.medium.consequence' },
+  { value: IntensitySetting.HIGH, labelKey: 'onboarding.intensityDial.positions.high.label', whatKey: 'onboarding.intensityDial.positions.high.what', consequenceKey: 'onboarding.intensityDial.positions.high.consequence' },
 ];
 
 export interface IntensityDialProps {
@@ -75,6 +77,19 @@ export default function IntensityDial({ value, onChange, onContinue }: Intensity
           );
         })}
       </div>
+
+      {/* R-06 — every position's description is visible BEFORE selection: the three "what each
+          level does" lines render up front; picking a level still adds the full post-pick detail
+          panel (the consequence) — the pick-a-level prompt is kept so the unselected state never
+          looks like an error. */}
+      <ul className={styles.dialWhat}>
+        {INTENSITY_POSITIONS.map((p) => (
+          <li key={p.value} className={`${styles.dialWhatItem} ${value === p.value ? styles.dialWhatItemSelected : ''}`}>
+            <span className={styles.dialWhatLabel}>{t(p.labelKey)}</span>
+            <span>{t(p.whatKey)}</span>
+          </li>
+        ))}
+      </ul>
 
       <p className={styles.consequence} aria-live="polite">
         {selected ? t(selected.consequenceKey) : t('onboarding.intensityDial.pickAPrompt')}

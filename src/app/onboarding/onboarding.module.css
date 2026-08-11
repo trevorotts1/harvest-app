@@ -281,6 +281,41 @@
   background: var(--leaf-100);
   color: var(--leaf-800);
 }
+/* R-06 — per-level "what each level does" lines, visible BEFORE selection (no picking required).
+   Plain stacked rows (no fixed width, no text-overflow) so longer Spanish copy wraps freely. */
+.dialWhat {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dialWhatItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  text-align: left;
+}
+.dialWhatLabel {
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.dialWhatItemSelected {
+  border-color: var(--color-action);
+  background: var(--leaf-100);
+  color: var(--leaf-800);
+}
+.dialWhatItemSelected .dialWhatLabel {
+  color: var(--leaf-800);
+}
 .consequence {
   background: var(--surface-3);
   border-radius: var(--radius-control);
