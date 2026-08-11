@@ -19,6 +19,11 @@ import { emitSecurityEvent } from '@/services/security/security-event';
  * Token delivery (email) is WP05's messaging-provider territory and out of scope here — the raw
  * token is intentionally never included in this response (see password-reset.ts's doc comment);
  * this unit's tests exercise `issuePasswordResetToken`/`consumePasswordResetToken` directly.
+ *
+ * R-18 (T-59/W1, admin-mediated recovery): until WP05 wires a real SMTP/messaging provider, the
+ * ONLY delivery channel is the admin console — POST /api/admin/users/[userId]/reset-password
+ * issues the same kind of token and returns the raw value to the ADMIN session for out-of-band
+ * handoff (chat/phone). The confirm route below consumes either route's token identically.
  */
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);

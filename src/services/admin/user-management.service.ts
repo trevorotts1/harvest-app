@@ -1,6 +1,11 @@
 import { Role } from '@prisma/client';
 
 import { AuditService } from '@/services/compliance/audit/audit-service';
+import {
+  issuePasswordResetToken,
+  RESET_TOKEN_TTL_MS,
+  type VerificationTokenStore,
+} from '@/services/security/password-reset';
 import { mapAdminMutationToAuditInput } from './admin-audit';
 
 /**
@@ -266,5 +271,45 @@ export class UserManagementService {
     );
 
     return toDetail(updated);
+  }
+
+  /**
+   * R-18 (admin-mediated password recovery): generates a fresh, one-time password-reset token for
+   * the target user and records the issuance as exactly one hash-chained `AuditEntry` (action
+   * `user_password_reset_issued`). The RAW token is the method's return value and is delivered ONLY
+   * to the acting admin's session — it is never written to any audit/security row, never logged, and
+   * never persisted (src/services/security/password-reset.ts persists only its SHA-256 hash). The
+   * same `issuePasswordResetToken` mechanism the self-service request route uses is reused here —
+   * the confirmation flow (`POST /api/auth/password-reset/confirm`) consumes either route's token
+   * identically. Token lifetime (`RESET_TOKEN_TTL_MS`, 30 minutes) is the shared constant from
+   * password-reset.ts, so the expiry this action reports can never drift from the expiry the
+   * confirmation path actually enforces.
+   */
+  async issueResetToken(
+    actorId: string,
+    actorRole: Role,
+    targetUserId: string,
+    tokenStore: VerificationTokenStore
+  ): Promise<{ rawToken: string; expiresAt: Date }> {
+    const existing = await this.prisma.findUnique({ where: { id: targetUserId } });
+    if (!existing) throw new UserManagementNotFoundError(targetUserId);
+
+    // ONE `now` shared by both the issuance (which stamps the persisted expiry) and the reported
+    // expiry — the two can never drift apart, however close to a millisecond boundary the call is.
+    const now = new Date();
+    const rawToken = await issuePasswordResetToken(tokenStore, existing.email, now);
+    const expiresAt = new Date(now.getTime() + RESET_TOKEN_TTL_MS);
+
+    await this.auditService.recordAuditEvent(
+      mapAdminMutationToAuditInput({
+        actorId,
+        actorRole,
+        targetUserId,
+        action: 'user_password_reset_issued',
+        detail: { expires_at: expiresAt.toISOString() },
+      })
+    );
+
+    return { rawToken, expiresAt };
   }
 }

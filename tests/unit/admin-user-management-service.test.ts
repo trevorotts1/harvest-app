@@ -7,6 +7,7 @@
 import { Role } from '@prisma/client';
 
 import { AuditService, InMemoryAuditRepository } from '@/services/compliance/audit/audit-service';
+import { InMemoryVerificationTokenStore } from '@/services/security/password-reset';
 import {
   InvalidRoleError,
   SelfTargetNotAllowedError,
@@ -266,5 +267,46 @@ describe('UserManagementService mutations — hash-chain proof across multiple a
 
     const entries = await audit.query({});
     expect(entries.map((e) => e.sequence)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('UserManagementService.issueResetToken — R-18 admin-mediated password recovery', () => {
+  it('issues a one-time token (hash-only persistence), reports the shared 30-min expiry, writes exactly one user_password_reset_issued AuditEntry with the target as user_id', async () => {
+    const { service, store, repo } = buildService();
+    store.seed(makeRow({ id: 'target-1', email: 'target1@example.com' }));
+    const tokenStore = new InMemoryVerificationTokenStore();
+
+    const { rawToken, expiresAt } = await service.issueResetToken(ADMIN_ID, ADMIN_ROLE, 'target-1', tokenStore);
+
+    expect(typeof rawToken).toBe('string');
+    expect(rawToken.length).toBeGreaterThan(0);
+    expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
+
+    // The raw token is never persisted — the store holds only its SHA-256 hash: looking the raw
+    // value up directly finds nothing, while the hashed value resolves to the record.
+    const rawLookup = await tokenStore.find('target1@example.com', rawToken);
+    expect(rawLookup).toBeNull();
+    const { createHash } = await import('node:crypto');
+    const record = await tokenStore.find('target1@example.com', createHash('sha256').update(rawToken).digest('hex'));
+    expect(record).not.toBeNull();
+    expect(record!.expires.getTime()).toBe(expiresAt.getTime());
+
+    const entries = await repo.query({});
+    expect(entries).toHaveLength(1);
+    expect(entries[0].reviewer_action).toBe('user_password_reset_issued');
+    expect(entries[0].user_id).toBe('target-1');
+    expect(entries[0].reviewer_id).toBe(ADMIN_ID);
+    expect((entries[0].classifier_data as Record<string, unknown>).expires_at).toBe(expiresAt.toISOString());
+    expect(entries[0].content_text).not.toContain(rawToken);
+  });
+
+  it('throws UserManagementNotFoundError for an unknown target, writing no token and no AuditEntry', async () => {
+    const { service, repo } = buildService();
+    const tokenStore = new InMemoryVerificationTokenStore();
+
+    await expect(service.issueResetToken(ADMIN_ID, ADMIN_ROLE, 'ghost', tokenStore)).rejects.toBeInstanceOf(
+      UserManagementNotFoundError
+    );
+    expect((await repo.query({})).length).toBe(0);
   });
 });

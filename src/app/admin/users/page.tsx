@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useLocale } from '@/app/locale-context';
 import { StatusMessage } from '@/components/StatusMessage';
 import { errorDisplay } from '@/lib/i18n/error-display';
-import { formatDate } from '@/lib/i18n/format';
+import { formatDate, formatDateTime } from '@/lib/i18n/format';
 import { adminOnboardingStatusLabel, adminRoleLabel, suspendStatusLabel } from '@/lib/i18n/admin-token-display';
 
 interface UserSummary {
@@ -52,7 +52,12 @@ type DetailState =
   | { kind: 'ready'; detail: UserDetail }
   | { kind: 'failed' };
 
-type ConfirmKind = null | 'suspend' | 'reactivate' | 'role';
+type ConfirmKind = null | 'suspend' | 'reactivate' | 'role' | 'resetPassword';
+
+interface ResetTokenResult {
+  token: string;
+  expiresAt: string;
+}
 
 const ROLE_OPTIONS = ['REP', 'UPLINE', 'RVP', 'ADMIN', 'DUAL'] as const;
 const PAGE_SIZE = 20;
@@ -73,6 +78,8 @@ export default function AdminUsersPage() {
   const [mutationBusy, setMutationBusy] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationNotice, setMutationNotice] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState<ResetTokenResult | null>(null);
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   const loadList = useCallback(async () => {
     setList({ kind: 'loading' });
@@ -117,6 +124,8 @@ export default function AdminUsersPage() {
       setDetail({ kind: 'ready', detail: d });
       setNewRole(d.role);
       setSuspendReason('');
+      setResetToken(null);
+      setTokenCopied(false);
     } catch {
       setDetail({ kind: 'failed' });
     }
@@ -199,6 +208,44 @@ export default function AdminUsersPage() {
       void loadList();
     }
   }, [postMutation, newRole, t, loadList]);
+
+  /** R-18: posts /reset-password and, on success, surfaces the one-time token ONLY in this admin
+   *  session (the raw token is never stored server-side or logged — see the route's doc comment). */
+  const confirmResetPassword = useCallback(async () => {
+    if (!selectedId) return;
+    setMutationBusy(true);
+    setMutationError(null);
+    setMutationNotice(null);
+    setTokenCopied(false);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedId}/reset-password`, { method: 'POST' });
+      const payload = await res.json().catch(() => ({}) as Record<string, unknown>);
+      if (!res.ok) {
+        setMutationError(errorDisplay(t, payload?.code as string | undefined));
+        return;
+      }
+      const result = payload as unknown as ResetTokenResult;
+      if (typeof result?.token !== 'string' || typeof result?.expiresAt !== 'string') {
+        setMutationError(t('errors.generic'));
+        return;
+      }
+      setResetToken(result);
+      setConfirmKind(null);
+      setMutationNotice(t('admin.users.mutationSuccessResetIssued'));
+      void loadList();
+    } catch {
+      setMutationError(t('errors.generic'));
+    } finally {
+      setMutationBusy(false);
+    }
+  }, [selectedId, t, loadList]);
+
+  const copyResetToken = useCallback(() => {
+    if (!resetToken) return;
+    void navigator.clipboard?.writeText(resetToken.token).then(() => {
+      setTokenCopied(true);
+    });
+  }, [resetToken]);
 
   if (list.kind === 'forbidden') {
     return (
@@ -386,6 +433,11 @@ export default function AdminUsersPage() {
                     {t('admin.users.changeRoleCta')}
                   </button>
                 )}
+                {confirmKind !== 'resetPassword' && (
+                  <button type="button" className="btn btn-secondary" onClick={() => setConfirmKind('resetPassword')}>
+                    {t('admin.users.resetPasswordCta')}
+                  </button>
+                )}
               </div>
 
               {confirmKind === 'suspend' && (
@@ -446,6 +498,38 @@ export default function AdminUsersPage() {
                       {t('admin.users.cancelCta')}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {confirmKind === 'resetPassword' && (
+                <div className="notice notice-danger" style={{ marginTop: 12 }}>
+                  <p>{t('admin.users.resetPasswordConfirmPrompt', { name: detail.detail.name })}</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-primary" disabled={mutationBusy} onClick={() => void confirmResetPassword()}>
+                      {mutationBusy ? t('admin.users.workingCta') : t('admin.users.resetPasswordConfirmCta')}
+                    </button>
+                    <button type="button" className="btn btn-secondary" disabled={mutationBusy} onClick={() => setConfirmKind(null)}>
+                      {t('admin.users.cancelCta')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {resetToken && (
+                <div className="notice" style={{ marginTop: 12 }}>
+                  <div className="section-heading">
+                    <h3>{t('admin.users.resetPasswordTokenHeading')}</h3>
+                    <button type="button" className="btn btn-secondary" onClick={copyResetToken}>
+                      {t(tokenCopied ? 'admin.users.resetPasswordTokenCopied' : 'admin.users.resetPasswordTokenCopyCta')}
+                    </button>
+                  </div>
+                  <p>{t('admin.users.resetPasswordTokenIntro', { name: detail.detail.name })}</p>
+                  <p>
+                    <strong>{t('admin.users.resetPasswordTokenLabel')}</strong> <code>{resetToken.token}</code>
+                  </p>
+                  <p>
+                    <strong>{t('admin.users.resetPasswordTokenExpiry')}</strong> {formatDateTime(locale, resetToken.expiresAt)}
+                  </p>
                 </div>
               )}
             </>

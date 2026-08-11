@@ -16,7 +16,13 @@ import type { RecordAuditEventInput } from '@/services/compliance/audit/audit-se
  * mappers, never this raw narrative string) — so, like `incident-audit-sink.ts`'s own `narrative`,
  * it is deliberately fixed English, not localized.
  */
-export type AdminMutationAction = 'user_suspended' | 'user_reactivated' | 'user_role_changed';
+export type AdminMutationAction =
+  | 'user_suspended'
+  | 'user_reactivated'
+  | 'user_role_changed'
+  // R-18 (admin-mediated password recovery, no SMTP): an ADMIN issued a one-time password-reset
+  // token for a user — the raw token goes to the admin session, never into any audit/security row.
+  | 'user_password_reset_issued';
 
 export interface AdminMutationEvent {
   /** The admin performing the mutation. */
@@ -47,6 +53,7 @@ const ACTION_AUDIT_SUMMARY: Record<AdminMutationAction, string> = {
   user_suspended: 'Admin suspended user account',
   user_reactivated: 'Admin reactivated user account',
   user_role_changed: 'Admin changed user role',
+  user_password_reset_issued: 'Admin issued password-reset token for user account',
 };
 
 export function mapAdminMutationToAuditInput(event: AdminMutationEvent): RecordAuditEventInput {

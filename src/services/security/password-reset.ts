@@ -21,9 +21,17 @@ import crypto from 'crypto';
  * this backend unit's scope; `issuePasswordResetToken` returns it so the caller (the API route) can
  * hand it to whatever delivery mechanism is wired in later — it must never be echoed back in an API
  * response in production.
+ *
+ * R-18 (T-59/W1, admin-mediated recovery): until WP05 wires a provider, the sole delivery channel
+ * is the ADMIN console — POST /api/admin/users/[userId]/reset-password calls this same function
+ * and returns the raw token ONLY to the admin's session for out-of-band handoff. The confirm route
+ * (POST /api/auth/password-reset/confirm) consumes tokens issued by either route identically.
+ * `RESET_TOKEN_TTL_MS` is exported so the admin route can report the exact expiry it enforces.
  */
 
-const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
+/** 30 minutes — single source of truth for reset-token lifetime (the request route's mechanism;
+ *  R-18's admin-mediated issuance reports the same expiry via this constant). */
+export const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 
 export interface VerificationTokenStore {
   create(data: { identifier: string; token: string; expires: Date }): Promise<void>;

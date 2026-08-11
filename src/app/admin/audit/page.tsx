@@ -64,7 +64,13 @@ type SecurityState =
   | { kind: 'forbidden' }
   | { kind: 'failed' };
 
-const ADMIN_MUTATION_ACTIONS = new Set(['user_suspended', 'user_reactivated', 'user_role_changed']);
+const ADMIN_MUTATION_ACTIONS = new Set([
+  'user_suspended',
+  'user_reactivated',
+  'user_role_changed',
+  // R-18 (admin-mediated password recovery): issuance rows render the localized label too.
+  'user_password_reset_issued',
+]);
 
 export default function AdminAuditPage() {
   const { locale, t } = useLocale();
