@@ -1382,26 +1382,6 @@
         "sentence": "{intro}: {conversations}, {families}, and {value} of potential monthly value."
       }
     },
-    "orgStep": {
-      "headline": "Where do you build?",
-      "lede": "This shapes your whole field — pick where you build.",
-      "organizationAria": "Organization",
-      "universalBody": "You’re building independently. The Harvest tailors your whole field to how you build.",
-      "solutionNumberSavedAria": "Solution number (saved, masked)",
-      "solutionNumberLabel": "Solution number",
-      "solutionNumberNotVerifiedCaption": "Not verified — we check the format only, not with Primerica.",
-      "enterAllDigits": "Enter your solution number (letters, numbers, and hyphens).",
-      "choices": {
-        "primerica": {
-          "label": "Primerica",
-          "blurb": "I build with Primerica."
-        },
-        "external": {
-          "label": "Independent / other",
-          "blurb": "I build on my own or with another team."
-        }
-      }
-    },
     "gdprConsent": {
       "headline": "Your data, your consent",
       "lede": "One last thing before we finish setting up your business — we need your consent to process your personal data.",
@@ -1462,6 +1442,13 @@
       "unavailableTitle": "The conversation isn't available right now.",
       "unavailableBody": "Please try again in a moment — your answers so far are safe.",
       "retryCta": "Try again"
+    },
+    "orgContext": {
+      "universalBody": "You’re building independently. The Harvest tailors your whole field to how you build.",
+      "solutionNumberSavedAria": "Solution number (saved, masked)",
+      "solutionNumberLabel": "Solution number",
+      "solutionNumberNotVerifiedCaption": "Not verified — we check the format only, not with Primerica.",
+      "enterAllDigits": "Enter your solution number (letters, numbers, and hyphens)."
     }
   },
   "settings": {

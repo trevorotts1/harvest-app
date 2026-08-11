@@ -285,6 +285,9 @@ describe('(b) Hidden Earnings Reveal (§4.13 / §18.5 / AC-5.1-8)', () => {
 
 // ─── (c) Org gate: no Primerica leak to universal + solution number never echoed ─────────────────
 describe('(c) Org gate UI (§17.1 / AC-5.1-2 / §6.10-4)', () => {
+  // R-02 — the O-3 screen no longer offers an org choice at all: it renders ONLY the branch panel
+  // for the persisted registration-time org (see r02-org-once.test.ts). These OrgBranchPanel
+  // render contracts (org-gate no-leak, masked solution number) are unchanged and still proven here.
   test('universal (EXTERNAL) branch leaks NO Primerica string and shows no solution-number field', () => {
     const html = render(
       createElement(OrgBranchPanel, { orgContext: buildOrgContext(OrgType.EXTERNAL) })

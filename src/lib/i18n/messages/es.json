@@ -1382,26 +1382,6 @@
         "sentence": "{intro}: {conversations}, {families} y {value} de valor potencial mensual."
       }
     },
-    "orgStep": {
-      "headline": "¿Dónde construyes?",
-      "lede": "Esto define todo tu campo — elige dónde construyes.",
-      "organizationAria": "Organización",
-      "universalBody": "Estás construyendo de forma independiente. The Harvest adapta todo tu campo a cómo construyes.",
-      "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
-      "solutionNumberLabel": "Número de solución",
-      "solutionNumberNotVerifiedCaption": "No verificado — solo comprobamos el formato, no con Primerica.",
-      "enterAllDigits": "Ingresa tu número de solución (letras, números y guiones).",
-      "choices": {
-        "primerica": {
-          "label": "Primerica",
-          "blurb": "Construyo con Primerica."
-        },
-        "external": {
-          "label": "Independiente / otro",
-          "blurb": "Construyo por mi cuenta o con otro equipo."
-        }
-      }
-    },
     "gdprConsent": {
       "headline": "Tus datos, tu consentimiento",
       "lede": "Una última cosa antes de terminar de configurar tu negocio — necesitamos tu consentimiento para procesar tus datos personales.",
@@ -1462,6 +1442,13 @@
       "unavailableTitle": "La conversación no está disponible en este momento.",
       "unavailableBody": "Inténtalo de nuevo en un momento — tus respuestas hasta ahora están a salvo.",
       "retryCta": "Intentar de nuevo"
+    },
+    "orgContext": {
+      "universalBody": "Estás construyendo de forma independiente. The Harvest adapta todo tu campo a cómo construyes.",
+      "solutionNumberSavedAria": "Número de solución (guardado, oculto)",
+      "solutionNumberLabel": "Número de solución",
+      "solutionNumberNotVerifiedCaption": "No verificado — solo comprobamos el formato, no con Primerica.",
+      "enterAllDigits": "Ingresa tu número de solución (letras, números y guiones)."
     }
   },
   "settings": {

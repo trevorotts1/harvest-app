@@ -9,8 +9,14 @@
 // registrant (whose whole R-01 behavior — no pairing, no sponsor step — keys off the stored role)
 // silently ran the rep track. The role comes from the SERVER session (the same server-computed
 // role the JWT carries and every role-gated route authorizes with) — never from client input.
+//
+// R-02 (refinements catalog 2026-08-10) — the SAME server-session pattern now carries the org:
+// the registration-time org determination (persisted as `User.org_type`, fail-closed to EXTERNAL
+// at src/app/api/auth/register/route.ts) is read from the session and handed to the flow, so the
+// onboarding UI never asks "Where do you build?" again — the whole org-gated flow runs off this
+// single persisted determination, and a non-Primerica user sees zero Primerica strings.
 
-import { Role } from '@prisma/client';
+import { OrgType, Role } from '@prisma/client';
 
 import { getCurrentSession } from '@/lib/auth/session';
 
@@ -22,5 +28,8 @@ export const dynamic = 'force-dynamic';
 export default async function OnboardingPage() {
   const session = await getCurrentSession();
   const role = (session?.user?.role as Role | undefined) ?? Role.REP;
-  return <OnboardingFlow role={role} />;
+  // R-02 — the persisted org, read from the SERVER session like the role; fails closed to the
+  // universal branch (EXTERNAL), mirroring the registration route's own fail-closed resolution.
+  const orgType = (session?.user?.orgType as OrgType | undefined) ?? OrgType.EXTERNAL;
+  return <OnboardingFlow role={role} orgType={orgType} />;
 }

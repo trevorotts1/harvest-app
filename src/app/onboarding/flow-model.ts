@@ -43,7 +43,9 @@ export const REP_SCREENS: readonly OnboardingScreen[] = [
 export const SCREEN_LABELS: Record<OnboardingScreen, string> = {
   vision: 'The opening',
   identity: 'Your details',
-  org: 'Where you build',
+  // R-02 — the O-3 label no longer carries the old Primerica-vs-other org-choice framing:
+  // org is captured once at registration and the org context is simply confirmed in-flow.
+  org: 'Your build context',
   goals_intensity: 'Goals & intensity',
   seven_whys: 'Your why',
   sponsor: 'Your sponsor',

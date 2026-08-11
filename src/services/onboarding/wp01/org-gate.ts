@@ -202,6 +202,11 @@ export interface OrgContext {
  * every existing test/caller that omits it keeps compiling/behaving exactly as before, in English);
  * the one real caller, `OrgStep.tsx`'s `<OrgStep>` (a client component with `useLocale()` already
  * in scope), passes the rep's real locale.
+ *
+ * R-02 — the catalog key path moved from `onboarding.orgStep.*` to `onboarding.orgContext.*` (the
+ * orgStep block — the redundant "Where do you build?" step — was removed; the org is captured once
+ * at registration). The gate itself is byte-for-byte unchanged: the universal branch still returns
+ * zero Primerica fields and the Primerica branch still carries the solution-number field.
  */
 export function buildOrgContext(orgType: OrgType, locale: Locale = DEFAULT_LOCALE): OrgContext {
   if (isPrimericaBranch(orgType)) {
@@ -209,9 +214,9 @@ export function buildOrgContext(orgType: OrgType, locale: Locale = DEFAULT_LOCAL
       branch: 'primerica',
       orgType,
       solutionNumberField: {
-        label: t(locale, 'onboarding.orgStep.solutionNumberLabel'),
+        label: t(locale, 'onboarding.orgContext.solutionNumberLabel'),
         formatHint: 'Letters, numbers, and hyphens',
-        caption: t(locale, 'onboarding.orgStep.solutionNumberNotVerifiedCaption'),
+        caption: t(locale, 'onboarding.orgContext.solutionNumberNotVerifiedCaption'),
       },
       primericaSurfaces: [
         'harvest_method_primerica_overlay',
