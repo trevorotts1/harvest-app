@@ -1,3 +1,10 @@
+## [2.0.0-build.T-R71] — BUILD PHASE — 2026-08-11
+### Completion round R-13 — contact-add navigation loop fixed (judge PASS 9)
+- **merge R-13 @ 4c8b5e1** — `src/app/onboarding/components/ManualAddStep.tsx` (new) + `OnboardingFlow.tsx` + `contacts-import/route.ts` + `ContactImportStep.tsx` + `en.json`/`es.json`: manual contact entry is now a real form that adds the contact and routes on to the review step instead of looping back to the import step; i18n added for both locales (592 insertions, 20 deletions, 10 files).
+- Coverage: `tests/unit/onboarding-contacts-import-route.test.ts` (76 new lines — real contact-entry form route), `onboarding-flow-wiring.test.ts` (81 new lines — flow wiring), `onboarding-i18n.test.ts` (32 new lines — en/es copy), `onboarding-ui.test.ts` (57 new lines — manual-add render).
+- QC: judge PASS 9 per completion-round verdict; full suite green on merged HEAD.
+- Ripple: version `2.0.0-build.T-R70`→`2.0.0-build.T-R71` (package.json + README self-ref); this changelog entry. Annotated tag `v2.0.0-build.T-R71` created on the ripple commit and pushed.
+
 ## [2.0.0-build.T-R70] — BUILD PHASE — 2026-08-11
 ### Completion round R-11 — distinct GDPR consent step required before completion (judge PASS 9.1)
 - **merge R-11 @ a3b628d** — `src/app/onboarding/components/GdprConsentStep.tsx` (new) + `onboarding.module.css` + `en.json`/`es.json` + updated `onboarding-flow-wiring.test.ts` + `onboarding-i18n.test.ts` + `onboarding-ui.test.ts`: onboarding now ends with a distinct GDPR/consent step (O-8.5) whose copy states §16.3 scope and purpose plus the FINRA carve-out; consent is required before completion (151 insertions, 7 files).
