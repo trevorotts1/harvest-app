@@ -1337,6 +1337,9 @@
       "poolErrorTitle": "We couldn’t load available sponsors",
       "poolErrorBody": "Something went wrong while looking for sponsors. You can try again — nothing has been changed.",
       "poolRetryCta": "Try again",
+      "sponsorUnavailableTitle": "That sponsor is no longer available",
+      "sponsorUnavailableBody": "The sponsor shown just changed on our side — nothing was saved and no charge was made. Choose from the refreshed list.",
+      "sponsorUnavailableRetryCta": "See updated sponsors",
       "submittingStatus": "Saving your choice…"
     },
     "uplineTrack": {

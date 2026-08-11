@@ -1337,6 +1337,9 @@
       "poolErrorTitle": "No pudimos cargar los patrocinadores disponibles",
       "poolErrorBody": "Algo salió mal al buscar patrocinadores. Puedes intentarlo de nuevo — no se ha cambiado nada.",
       "poolRetryCta": "Intentar de nuevo",
+      "sponsorUnavailableTitle": "Ese patrocinador ya no está disponible",
+      "sponsorUnavailableBody": "El patrocinador mostrado acaba de cambiar de nuestro lado — no se guardó nada y no se realizó ningún cargo. Elige de la lista actualizada.",
+      "sponsorUnavailableRetryCta": "Ver patrocinadores actualizados",
       "submittingStatus": "Guardando tu elección…"
     },
     "uplineTrack": {

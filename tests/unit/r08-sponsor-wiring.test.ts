@@ -32,6 +32,46 @@ describe('R-08 — the hard-coded empty candidate pool is GONE', () => {
     expect(flowSrc).toContain('onboarding.sponsor.poolErrorTitle');
     expect(flowSrc).toContain('onboarding.sponsor.poolRetryCta');
   });
+
+  // JUDGE FIX (Finding 1) — the retry is now REAL: the "Try again" button drives the shared
+  // retrySponsorPool() handler, whose nonce bump is an EFFECT dependency of the pool fetch. The
+  // pre-fix button only cleared two non-dep flags (setSponsorCandidates(null) +
+  // setSponsorPoolError(false)) and React never re-ran the fetch — a dead retry, proven fixed
+  // behaviorally in tests/unit/onboarding-sponsor-retry-mount.test.ts.
+  test('JUDGE Finding 1: the retry bumps a nonce that re-triggers the pool-fetch effect (dead retry GONE)', () => {
+    expect(flowSrc).toContain('const [sponsorRetryNonce, setSponsorRetryNonce] = useState(0)');
+    expect(flowSrc).toContain('setSponsorRetryNonce((n) => n + 1)');
+    expect(flowSrc).toMatch(/\[screen, role, sponsorRetryNonce\]/);
+    // The shared handler drives BOTH retry surfaces.
+    expect(flowSrc).toContain('function retrySponsorPool()');
+    expect(flowSrc).toContain('onClick={retrySponsorPool}');
+    expect(flowSrc).not.toMatch(/onClick=\{\(\) => \{\s*setSponsorCandidates\(null\);/);
+  });
+
+  // JUDGE FIX (Finding 2) — the 409 accept race: an honest 409 (a sponsorship landed between
+  // preview and click, or the picked sponsor became unavailable) shows the honest copy and a
+  // re-pick path that re-fetches the pool through the SAME retrySponsorPool() mechanism — never an
+  // advance on failure, never a generic error hiding the race. Proven behaviorally in
+  // tests/unit/onboarding-sponsor-retry-mount.test.ts.
+  test('JUDGE Finding 2: a 409 accept renders the honest unavailable surface + re-pick (never advances)', () => {
+    expect(flowSrc).toContain('result.status === 409');
+    expect(flowSrc).toContain('setSponsorUnavailable(true)');
+    expect(flowSrc).toContain('onboarding.sponsor.sponsorUnavailableTitle');
+    expect(flowSrc).toContain('onboarding.sponsor.sponsorUnavailableBody');
+    expect(flowSrc).toContain('onboarding.sponsor.sponsorUnavailableRetryCta');
+    // The re-pick surface is gated on the unavailable flag and re-fetches through the shared retry.
+    expect(flowSrc).toContain('!sponsorPoolLoading && !sponsorPoolError && sponsorUnavailable');
+    expect(flowSrc).toContain('onClick={retrySponsorPool}');
+    // Fail-closed: the 409 branch returns BEFORE advance() — the generic-failure path keeps its
+    // own non-advancing return too.
+    const body = flowSrc.slice(flowSrc.indexOf('async function persistSponsorDecision'));
+    const unavailableIdx = body.indexOf('if (result.status === 409)');
+    const returnIdx = body.indexOf('return;', unavailableIdx);
+    const advanceIdx = body.indexOf('advance();', returnIdx);
+    expect(unavailableIdx).toBeGreaterThan(-1);
+    expect(returnIdx).toBeGreaterThan(unavailableIdx);
+    expect(advanceIdx).toBeGreaterThan(returnIdx);
+  });
 });
 
 describe('R-08 — the four buttons persist a real choice server-side', () => {

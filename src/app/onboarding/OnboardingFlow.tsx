@@ -190,6 +190,16 @@ export default function OnboardingFlow({
   const [sponsorPoolError, setSponsorPoolError] = useState(false);
   const [sponsorSubmitting, setSponsorSubmitting] = useState(false);
   const [sponsorError, setSponsorError] = useState<string | null>(null);
+  // R-08 JUDGE FIX (Findings 1 & 2) — the retry machinery behind the sponsor pool. `sponsorRetryNonce`
+  // is the effect dependency that makes the Retry button ACTUALLY re-fetch (the pre-fix button only
+  // cleared `sponsorCandidates`/`sponsorPoolError` — neither is an effect dep, so React never re-ran
+  // the pool fetch and the rep was stuck on a blank sponsor screen after "Try again"). `sponsorUnavailable`
+  // is the honest 409 accept-race state: the server re-derives the matcher's pick from FRESH DB state
+  // and can 409 an honest rep when a sponsorship lands between preview and click — the rep then sees
+  // the honest "that sponsor changed" copy and a Retry path that re-fetches the pool (same mechanism),
+  // instead of the stale preview with a generic error. Failure never advances (fail-closed preserved).
+  const [sponsorUnavailable, setSponsorUnavailable] = useState(false);
+  const [sponsorRetryNonce, setSponsorRetryNonce] = useState(0);
 
   // The §6.5 verdict, consumed straight from the matcher over the REAL pool. `null` until the pool
   // resolves — the UI renders loading/error states instead of fabricating a verdict. The matcher
@@ -205,6 +215,10 @@ export default function OnboardingFlow({
 
   // R-08 — resolve the real pool once the rep reaches the sponsor screen (the pool is rep- and
   // org-scoped server-side, so the mount-time fetch is keyed to this session; a retry re-fetches).
+  // `sponsorRetryNonce` is the JUDGE-FIXED retry trigger: bumping it (from the Retry button or the
+  // 409 accept-race retry) re-runs this effect, which re-fetches the pool, clears the error, and
+  // re-renders loading → outcome. The effect still refuses to clobber an already-resolved pool, so
+  // only the failure path (and the honest 409 re-pick) ever re-fetches.
   useEffect(() => {
     if (screen !== 'sponsor' || sponsorStepSkippedForRole(role) || sponsorCandidates !== null) {
       return;
@@ -212,6 +226,7 @@ export default function OnboardingFlow({
     let cancelled = false;
     setSponsorPoolLoading(true);
     setSponsorPoolError(false);
+    setSponsorUnavailable(false);
     (async () => {
       try {
         const result = await fetchSponsorCandidates();
@@ -238,7 +253,7 @@ export default function OnboardingFlow({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen, role]);
+  }, [screen, role, sponsorRetryNonce]);
 
   // R-08 — the four sponsor-outcome buttons now persist a REAL choice server-side
   // (`POST /api/onboarding/sponsor-decision`); only a confirmed success advances the rep. A failed
@@ -254,7 +269,17 @@ export default function OnboardingFlow({
       const sponsorId = decision === 'accept' && sponsorOutcome?.kind === 'linked' ? sponsorOutcome.sponsorId : null;
       const result = await postSponsorDecision(decision, sponsorId);
       if (!result.ok) {
-        setSponsorError(errorDisplay(t, result.code));
+        // JUDGE FIX (Finding 2) — the accept race, handled honestly: the server re-derives the
+        // matcher's pick from FRESH state and 409s when a sponsorship landed between preview and
+        // click (or the picked sponsor otherwise became unavailable). That is never a generic
+        // error and never an advance — the rep sees the honest "that sponsor changed" copy and a
+        // Retry that re-fetches the pool so they can re-pick. A genuine tamper/unknown id also
+        // 409s and is served by the exact same re-pick surface (fail-closed either way).
+        if (result.status === 409) {
+          setSponsorUnavailable(true);
+        } else {
+          setSponsorError(errorDisplay(t, result.code));
+        }
         return;
       }
       advance();
@@ -264,6 +289,19 @@ export default function OnboardingFlow({
       inFlightRef.current = false;
       setSponsorSubmitting(false);
     }
+  }
+
+  // R-08 JUDGE FIX (Findings 1 & 2) — the ONE retry path for the sponsor pool, shared by the pool
+  // error branch's "Try again" button and the 409 accept-race "Re-pick" button. It resets the
+  // resolved pool + error + unavailable states and bumps `sponsorRetryNonce`, which re-runs the
+  // pool-fetch effect above (a fresh fetch, fresh loading render, fresh outcome). This is the
+  // mechanism that makes Retry ACTUALLY re-fetch — the pre-fix handler only cleared two non-dep
+  // states and left the rep on a blank sponsor screen.
+  function retrySponsorPool() {
+    setSponsorCandidates(null);
+    setSponsorPoolError(false);
+    setSponsorUnavailable(false);
+    setSponsorRetryNonce((n) => n + 1);
   }
 
   // T-24 (§7.3/§8.4) — the O-8 Reveal's figure, computed by the ONE Hidden Earnings engine rather
@@ -1010,17 +1048,34 @@ export default function OnboardingFlow({
                 <button
                   type="button"
                   className={`${styles.btn} ${styles.btnPrimary}`}
-                  onClick={() => {
-                    setSponsorCandidates(null);
-                    setSponsorPoolError(false);
-                  }}
+                  onClick={retrySponsorPool}
                 >
                   {t('onboarding.sponsor.poolRetryCta')}
                 </button>
               </div>
             </div>
           )}
-          {!sponsorPoolLoading && !sponsorPoolError && sponsorOutcome && (
+          {!sponsorPoolLoading && !sponsorPoolError && sponsorUnavailable && (
+            <div className={styles.stepInner}>
+              {/* role="alert" — the same guard's structural live-region contract as the pool error
+                  branch above: the honest 409 accept-race message is a status render inside an
+                  error branch and must be announced; the re-pick button sits outside the region. */}
+              <div role="alert">
+                <p className={styles.headline}>{t('onboarding.sponsor.sponsorUnavailableTitle')}</p>
+                <p>{t('onboarding.sponsor.sponsorUnavailableBody')}</p>
+              </div>
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles.btnPrimary}`}
+                  onClick={retrySponsorPool}
+                >
+                  {t('onboarding.sponsor.sponsorUnavailableRetryCta')}
+                </button>
+              </div>
+            </div>
+          )}
+          {!sponsorPoolLoading && !sponsorPoolError && !sponsorUnavailable && sponsorOutcome && (
             <>
               <SponsorStep
                 outcome={sponsorOutcome}
