@@ -225,7 +225,7 @@ describe('R-03 behavior — the back control returns to the prior step and prese
     await act(async () => {
       buttonWithText(tree, 'Continue')!.props.onClick();
     });
-    expect(textOf(tree)).toContain('How hard should your agents work'); // back on the dial
+    expect(textOf(tree)).toContain('How hard should your Harvest AI agents work'); // back on the dial
     expect(textOf(tree)).toContain('High'); // the selection is still there
   });
 
