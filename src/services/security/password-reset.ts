@@ -111,6 +111,20 @@ export async function issuePasswordResetToken(
   return rawToken;
 }
 
+/** Revokes a reset token WITHOUT consuming it as a valid redemption — used by the request route
+ *  to invalidate a token whose emailed link never left the machine (delivery failed). Idempotent:
+ *  revoking an already-revoked/expired token is a no-op. Mirrors `consumePasswordResetToken`'s
+ *  hashing + store-delete shape so the store only ever sees SHA-256 hashes. */
+export async function revokePasswordResetToken(
+  store: VerificationTokenStore,
+  email: string,
+  rawToken: string
+): Promise<void> {
+  const identifier = email.toLowerCase();
+  const tokenHash = hashResetToken(rawToken);
+  await store.delete(identifier, tokenHash).catch(() => undefined); // already gone → no-op
+}
+
 /** Verifies and consumes (single-use) a reset token. Returns whether it was valid and unexpired. */
 export async function consumePasswordResetToken(
   store: VerificationTokenStore,

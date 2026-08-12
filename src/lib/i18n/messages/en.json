@@ -254,7 +254,25 @@
       "uplineSolutionIdPlaceholder": "If known, enter it so Harvest can pair accounts when both are on-platform",
       "rvpNoPairingBody": "As an RVP, you're not being paired with anyone — you own your own organization.",
       "rvpUplineOptional": "Optional: you may name the SVP who promoted you if they're on the platform — they won't supervise or step in."
-    }
+    },
+    "forgotPassword": "Forgot password?",
+    "forgotHeading": "Reset your password",
+    "forgotSubtitle": "Enter the email on your account and we will send a link to set a new password.",
+    "forgotCardTitle": "Request a reset link",
+    "forgotSent": "If an account exists for that email, reset instructions have been sent. Check your inbox (and spam folder).",
+    "forgotCta": "Send reset link",
+    "forgotSending": "Sending…",
+    "backToAuth": "Back to sign in",
+    "resetHeading": "Choose a new password",
+    "resetSubtitle": "Pick a strong password you have not used on other sites.",
+    "resetCardTitle": "Set your new password",
+    "resetNewLabel": "New password",
+    "resetConfirmLabel": "Confirm new password",
+    "resetCta": "Set password",
+    "resetSaving": "Saving…",
+    "resetDone": "Password updated. You can now sign in with your new password.",
+    "resetMismatch": "Passwords do not match.",
+    "resetGenericError": "Something went wrong. Please try again or request a new link."
   },
   "today": {
     "teamViewHeading": "Your team",

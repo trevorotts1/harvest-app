@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { getSession, signIn } from 'next-auth/react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useT } from '@/app/locale-context';
@@ -43,6 +43,16 @@ export default function AuthPage() {
   const t = useT();
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register'>('register');
+  // Hydration guard (T-R76): React's onSubmit handlers exist only AFTER the client bundle
+  // hydrates. A click that lands before hydration falls back to the browser's native form
+  // submission — GET with every field in the query string, INCLUDING the password. This is the
+  // real production bug the live e2e suite surfaced: `page.getByRole('button').click()` at
+  // ~470ms fired a native GET with `password=...` in the URL. `mounted` starts false on the
+  // server AND on the first client render, so the submit buttons render disabled (no action
+  // possible) until useEffect proves hydration completed — fail-closed, never a credential in
+  // the URL, never a silent native GET.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [industry, setIndustry] = useState('Financial services');
   const [businessModel, setBusinessModel] = useState('Downline / team-based organization');
   const [franchiseType, setFranchiseType] = useState('Financial services franchise');
@@ -207,10 +217,11 @@ export default function AuthPage() {
                 <div className="notice" role="alert">{loginError}</div>
               ) : null}
               <div className="actions">
-                <button className="btn btn-primary" type="submit" disabled={loginPending}>
+                <button className="btn btn-primary" type="submit" disabled={loginPending || !mounted}>
                   {loginPending ? t('auth.signingInCta') : t('auth.signInCta')}
                 </button>
                 <Link className="btn btn-secondary" href="/today">{t('auth.skipToToday')}</Link>
+                <Link className="btn btn-secondary" href="/auth/forgot-password">{t('auth.forgotPassword')}</Link>
               </div>
             </form>
           ) : (
@@ -357,7 +368,7 @@ export default function AuthPage() {
             {registerError ? <StatusMessage>{registerError}</StatusMessage> : null}
             <div className="notice">{t('auth.demoDisclosureNotice')}</div>
             <div className="actions">
-              <button className="btn btn-primary" type="submit" disabled={registerPending}>
+              <button className="btn btn-primary" type="submit" disabled={registerPending || !mounted}>
                 {registerPending ? t('auth.registeringCta') : t('auth.continueToOnboarding')}
               </button>
               <Link className="btn btn-secondary" href="/today">{t('auth.skipToToday')}</Link>

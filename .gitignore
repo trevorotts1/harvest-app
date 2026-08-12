@@ -12,3 +12,13 @@ _foundation-draft.md
 
 # TS incremental build cache — regenerates every build/typecheck, should never be tracked
 *.tsbuildinfo
+.env*.local
+
+# Playwright live-e2e local artifacts (suite itself is committed)
+/test-results/
+/playwright-report/
+blob-report/
+
+# Local env variants created during diagnosis — never commit credentials
+.env
+.env.*

@@ -37,7 +37,11 @@ export type SecurityEventType =
   // T-R56 (admin console — user_profile.manage): a sign-in attempt against an admin-suspended
   // account, blocked at the same point (post-password-verification) as every other authorize()
   // failure — see src/lib/auth/options.ts.
-  | 'account_suspended';
+  | 'account_suspended'
+  // T-R76 (password-reset email delivery): the transactional-email send failed after the reset
+  // token was issued — recorded with the token revoked so the failure can be surfaced in the
+  // security viewer without ever revealing the account's existence via the request's response.
+  | 'password_reset_delivery_failed';
 
 export type SecurityEventSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
 
