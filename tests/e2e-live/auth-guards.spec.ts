@@ -6,18 +6,17 @@ import { test, expect, type Page } from '@playwright/test';
 
 const BASE = 'https://harvest-app-self.vercel.app';
 
-/** Click the register submit with a hardened race guard. */
+/**
+ * Fill the register form and wait for hydration BEFORE any click — single-click, single submit.
+ * The live register route is rate-limited at 3 requests / 15 min per IP; the suite shares an IP,
+ * so repeated clicks are a self-inflicted rate-limit flake (observed in the full run). Exactly ONE
+ * click after the button is enabled.
+ */
 async function clickRegisterAfterHydration(page: Page): Promise<void> {
   const btn = page.getByRole('button', { name: /continue to onboarding/i });
-  // Keep clicking until the click actually submits (post-hydration) — bounded.
-  await btn.click({ timeout: 15_000 }).catch(() => undefined);
-  for (let i = 0; i < 20; i++) {
-    if (page.url().includes('/onboarding')) return;
-    if ((await btn.isDisabled().catch(() => true)) === false) {
-      await btn.click().catch(() => undefined);
-    }
-    await page.waitForTimeout(400);
-  }
+  await expect(btn).toBeEnabled({ timeout: 15_000 }); // hydration guard lifted → submit is live
+  await btn.click();
+  await page.waitForURL(/\/onboarding/, { timeout: 30_000 });
 }
 
 test.describe('Auth hydration guards (live)', () => {

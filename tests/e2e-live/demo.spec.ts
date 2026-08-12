@@ -30,11 +30,15 @@ test.describe('Demo journey (live)', () => {
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', 'CorrectHorse2026!');
     await page.selectOption('select[name="role"]', 'REP');
-    // Submit (button label: "Continue to onboarding")
-    await page.getByRole('button', { name: /continue to onboarding/i }).click();
+    // Submit (button label: "Continue to onboarding") — wait for the hydration guard to lift,
+    // then ONE click; the register route is rate-limited (3/15min/IP) so repeated clicks flake.
+    const submitBtn = page.getByRole('button', { name: /continue to onboarding/i });
+    await expect(submitBtn).toBeEnabled({ timeout: 15000 });
+    await submitBtn.click();
     // Expect navigation to /onboarding (registration + sign-in both succeed)
     await page.waitForURL(/\/onboarding/, { timeout: 30000 });
-    await expect(page.locator('body')).toContainText(/harvest|onboarding|welcome/i);
+    // The onboarding landing copy (not "harvest/onboarding/welcome" literally).
+    await expect(page.locator('body')).toContainText(/Let's begin|people already in your phone/i);
     console.log('registered:', email);
   });
 
